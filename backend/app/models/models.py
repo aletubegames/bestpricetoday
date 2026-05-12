@@ -1,0 +1,172 @@
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Text, JSON, Enum as SAEnum
+from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
+from app.db.session import Base
+from datetime import datetime
+import uuid
+import enum
+
+
+class ProviderEnum(str, enum.Enum):
+    mercadolivre = "mercadolivre"
+    amazon = "amazon"
+    shopee = "shopee"
+    kabum = "kabum"
+    aliexpress = "aliexpress"
+    awin = "awin"
+    lomadee = "lomadee"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    clerk_id = Column(String, unique=True, index=True, nullable=True)
+    telegram_id = Column(String, unique=True, index=True, nullable=True)
+    email = Column(String, unique=True, index=True, nullable=True)
+    name = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    searches = relationship("Search", back_populates="user")
+    alerts = relationship("PriceAlert", back_populates="user")
+    favorites = relationship("Favorite", back_populates="user")
+
+
+class Search(Base):
+    __tablename__ = "searches"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    query = Column(String, nullable=False, index=True)
+    normalized_query = Column(String, nullable=True)
+    results_count = Column(Integer, default=0)
+    source = Column(String, default="web")  # web, telegram, api
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="searches")
+    offers = relationship("Offer", back_populates="search")
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_id = Column(String, index=True)
+    provider = Column(SAEnum(ProviderEnum), nullable=False)
+    title = Column(String, nullable=False)
+    normalized_title = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    brand = Column(String, nullable=True)
+    image_url = Column(String, nullable=True)
+    url = Column(String, nullable=False)
+    affiliate_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    offers = relationship("Offer", back_populates="product")
+    price_history = relationship("PriceHistory", back_populates="product")
+
+
+class Offer(Base):
+    __tablename__ = "offers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    search_id = Column(UUID(as_uuid=True), ForeignKey("searches.id"), nullable=True)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=True)
+    provider = Column(SAEnum(ProviderEnum), nullable=False)
+    price = Column(Float, nullable=False)
+    original_price = Column(Float, nullable=True)
+    discount_percent = Column(Float, default=0)
+    coupon_code = Column(String, nullable=True)
+    coupon_discount = Column(Float, default=0)
+    cashback_percent = Column(Float, default=0)
+    shipping_price = Column(Float, default=0)
+    shipping_free = Column(Boolean, default=False)
+    final_price = Column(Float, nullable=False)
+    score = Column(Float, default=0)
+    affiliate_url = Column(String, nullable=False)
+    is_fake_discount = Column(Boolean, default=False)
+    extra_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    search = relationship("Search", back_populates="offers")
+    product = relationship("Product", back_populates="offers")
+
+
+class Coupon(Base):
+    __tablename__ = "cupons"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider = Column(SAEnum(ProviderEnum), nullable=False)
+    code = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    discount_type = Column(String, default="percent")  # percent, fixed
+    discount_value = Column(Float, nullable=False)
+    min_purchase = Column(Float, default=0)
+    valid_until = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PriceHistory(Base):
+    __tablename__ = "historico_preco"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
+    provider = Column(SAEnum(ProviderEnum), nullable=False)
+    price = Column(Float, nullable=False)
+    recorded_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    product = relationship("Product", back_populates="price_history")
+
+
+class PriceAlert(Base):
+    __tablename__ = "alertas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=True)
+    query = Column(String, nullable=False)
+    target_price = Column(Float, nullable=False)
+    is_active = Column(Boolean, default=True)
+    triggered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="alerts")
+
+
+class Favorite(Base):
+    __tablename__ = "favoritos"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="favorites")
+
+
+class AffiliateClick(Base):
+    __tablename__ = "clicks_afiliados"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    offer_id = Column(UUID(as_uuid=True), ForeignKey("offers.id"), nullable=False)
+    provider = Column(SAEnum(ProviderEnum), nullable=False)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    clicked_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class Analytics(Base):
+    __tablename__ = "analytics"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_type = Column(String, nullable=False, index=True)
+    event_data = Column(JSON, nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    session_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
