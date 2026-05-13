@@ -102,16 +102,21 @@ class AliExpressProvider(BaseProvider):
             "app_key": settings.ALIEXPRESS_APP_KEY,
             "method": self.METHOD,
             "timestamp": timestamp,
+            "format": "json",
+            "v": "2.0",
             "sign_method": "md5",
-            "tracking_id": settings.ALIEXPRESS_TRACKING_ID,
             "keywords": query,
             "page_size": str(min(limit, 50)),
             "page_no": "1",
-            "sort": "SALE_PRICE_ASC",
+            "sort": "LAST_VOLUME_DESC",
             "target_currency": "BRL",
             "target_language": "PT",
             "ship_to_country": "BR",
+            "min_sale_price": "50",
         }
+        # tracking_id é opcional — não enviar se vazio (causa erro 402)
+        if settings.ALIEXPRESS_TRACKING_ID:
+            params["tracking_id"] = settings.ALIEXPRESS_TRACKING_ID
         params["sign"] = self._sign_request(params)
         client = await self.get_client()
         resp = await client.post(self.BASE_URL, data=params)
