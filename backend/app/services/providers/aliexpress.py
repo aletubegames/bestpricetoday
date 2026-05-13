@@ -3,12 +3,13 @@
 Sem App Key: gera links de afiliado via deep link do portal.
 Com App Key (Open Platform): usa API completa.
 """
-import httpx
 import time
 import hashlib
+import re
+import unicodedata
 from typing import List
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -18,6 +19,15 @@ class AliExpressProvider(BaseProvider):
     BASE_URL = "https://api-sg.aliexpress.com/sync"
     METHOD = "aliexpress.affiliate.product.query"
     PORTAL_SEARCH = "https://portals.aliexpress.com/appPortal/api/affiliate/product/query"
+    STOPWORDS = {
+        "de", "da", "do", "das", "dos", "para", "com", "sem", "and", "the",
+        "uma", "um", "por", "na", "no", "em", "new", "original", "plus",
+    }
+    ACCESSORY_KEYWORDS = {
+        "case", "cover", "capa", "capinha", "caixa", "pelicula", "película", "film", "glass",
+        "sticker", "adesivo", "decal", "pin", "badge", "bracelet", "bracelete",
+        "pulseira", "strap", "shell", "housing", "keychain", "chaveiro",
+    }
 
     def _sign_request(self, params: dict) -> str:
         sorted_params = sorted(params.items())
@@ -29,13 +39,97 @@ class AliExpressProvider(BaseProvider):
         return f"https://s.click.aliexpress.com/e/_oFnMhD7?bz={product_id}&dl=https%3A%2F%2Fwww.aliexpress.com%2Fitem%2F{product_id}.html&aff_fcid={tracking}"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
+        raw_offers: List[OfferSchema] = []
+        last_error = None
+
         if settings.ALIEXPRESS_APP_KEY:
             try:
-                return await self._search_api(query, limit)
+                raw_offers = await self._search_api(query, limit)
             except Exception as e:
+                last_error = e
                 logger.error(f"AliExpress API error: {e}")
-        # Fallback: busca via portal sem autenticacao
-        return await self._search_portal(query, limit)
+
+        if not raw_offers:
+            try:
+                raw_offers = await self._search_portal(query, limit)
+            except Exception as e:
+                last_error = e
+                logger.error(f"AliExpress portal fallback error: {e}")
+
+        if not raw_offers:
+            self.set_status(
+                ProviderSearchState.error if last_error else ProviderSearchState.no_results,
+                message=(
+                    f"AliExpress falhou: {last_error}"
+                    if last_error
+                    else "AliExpress não retornou produtos para esta busca."
+                ),
+            )
+            return []
+
+        relevant_offers = self._filter_relevant_offers(query, raw_offers)
+        filtered_count = max(0, len(raw_offers) - len(relevant_offers))
+
+        if not relevant_offers:
+            self.set_status(
+                ProviderSearchState.low_relevance,
+                message=(
+                    f"AliExpress retornou {len(raw_offers)} itens, mas todos pareceram acessórios ou resultados pouco relevantes."
+                ),
+                raw_count=len(raw_offers),
+                filtered_count=filtered_count,
+            )
+            return []
+
+        message = f"AliExpress retornou {len(relevant_offers)} itens relevantes."
+        if filtered_count:
+            message += f" {filtered_count} itens irrelevantes foram filtrados."
+
+        self.set_status(
+            ProviderSearchState.ok,
+            message=message,
+            raw_count=len(raw_offers),
+            returned_count=len(relevant_offers),
+            filtered_count=filtered_count,
+        )
+        return relevant_offers[:limit]
+
+    def _normalize_text(self, text: str) -> str:
+        normalized = unicodedata.normalize("NFKD", text.lower().strip())
+        normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
+        return re.sub(r"\s+", " ", normalized).strip()
+
+    def _tokens(self, text: str) -> List[str]:
+        tokens = re.findall(r"[a-z0-9]+", self._normalize_text(text))
+        return [token for token in tokens if len(token) > 1 and token not in self.STOPWORDS]
+
+    def _contains_accessory_term(self, text: str) -> bool:
+        normalized = self._normalize_text(text)
+        return any(keyword in normalized for keyword in self.ACCESSORY_KEYWORDS)
+
+    def _is_relevant_offer(self, query: str, title: str) -> bool:
+        query_tokens = self._tokens(query)
+        title_tokens = set(self._tokens(title))
+        if not query_tokens or not title_tokens:
+            return False
+
+        numeric_tokens = [token for token in query_tokens if token.isdigit()]
+        if numeric_tokens and not all(token in title_tokens for token in numeric_tokens):
+            return False
+
+        overlap = [token for token in query_tokens if token in title_tokens]
+        min_overlap = 1 if len(query_tokens) < 3 else 2
+        if len(overlap) < min_overlap:
+            return False
+
+        if self._contains_accessory_term(title) and not self._contains_accessory_term(query):
+            return False
+
+        return True
+
+    def _filter_relevant_offers(self, query: str, offers: List[OfferSchema]) -> List[OfferSchema]:
+        return [offer for offer in offers if self._is_relevant_offer(query, offer.title)]
 
     async def _search_portal(self, query: str, limit: int) -> List[OfferSchema]:
         """Busca via portal de afiliados (sem app_key)."""
@@ -65,8 +159,7 @@ class AliExpressProvider(BaseProvider):
         except Exception as e:
             logger.error(f"AliExpress portal error: {e}")
 
-        # Sem API key e portal falhou — não retorna lixo
-        logger.warning("AliExpress: sem credenciais e portal indisponível, skipping")
+        logger.warning("AliExpress: portal indisponível ou sem resultados, skipping")
         return []
 
     def _parse_portal(self, products: list) -> List[OfferSchema]:

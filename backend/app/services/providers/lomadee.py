@@ -10,7 +10,7 @@ Fluxo correto:
 import httpx
 from typing import List, Optional
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 import asyncio
@@ -20,6 +20,10 @@ class LomadeeProvider(BaseProvider):
     name = "lomadee"
     BASE_URL = "https://api-beta.lomadee.com.br/affiliate"
     CHANNEL_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
+
+    def __init__(self):
+        super().__init__()
+        self._catalog_access: Optional[bool] = None
 
     # Preços sugeridos de referência (MSRP) para calcular desconto real
     # quando a fonte não fornece preço original
@@ -89,13 +93,22 @@ class LomadeeProvider(BaseProvider):
             pass
         return None
 
-    async def _generate_affiliate_link(self, product_url: str, campaign_id: Optional[str] = None) -> Optional[str]:
+    async def _generate_affiliate_link(
+        self,
+        product_url: str,
+        organization_id: Optional[str],
+        campaign_id: Optional[str] = None,
+    ) -> Optional[str]:
         """Gera link afiliado rastreado via POST /affiliate/shortener/url"""
-        if not product_url:
+        if not product_url or not organization_id:
             return None
         try:
             client = await self.get_client()
-            payload = {"url": product_url}
+            payload = {
+                "organizationId": organization_id,
+                "type": "Custom",
+                "url": product_url,
+            }
             if campaign_id:
                 payload["featureId"] = campaign_id
             resp = await client.post(
@@ -106,15 +119,44 @@ class LomadeeProvider(BaseProvider):
             )
             if resp.status_code == 200:
                 data = resp.json()
-                # Retorna shortUrl ou url do response
+                channels = data.get("type") or data.get("channels") or data.get("data") or []
+                if isinstance(channels, list):
+                    for channel in channels:
+                        short_urls = channel.get("shortUrls") or []
+                        if short_urls:
+                            return short_urls[0]
+
                 short = (data.get("data") or {}).get("shortUrl") or data.get("shortUrl") or data.get("url")
                 return short
+            logger.warning(f"Lomadee shortener returned {resp.status_code}: {resp.text[:200]}")
         except Exception as e:
             logger.error(f"Lomadee shortener error: {e}")
         return None
 
+    async def _has_catalog_access(self) -> bool:
+        if self._catalog_access is not None:
+            return self._catalog_access
+
+        try:
+            client = await self.get_client()
+            resp = await client.get(
+                f"{self.BASE_URL}/products",
+                params={"limit": 1, "page": 1},
+                headers={"x-api-key": settings.LOMADEE_API_KEY},
+            )
+            resp.raise_for_status()
+            self._catalog_access = bool((resp.json().get("data") or []))
+        except Exception:
+            self._catalog_access = False
+
+        return self._catalog_access
+
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
         if not settings.LOMADEE_API_KEY:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="LOMADEE_API_KEY não configurada.",
+            )
             logger.warning("Lomadee: LOMADEE_API_KEY not configured, skipping")
             return []
         try:
@@ -132,11 +174,40 @@ class LomadeeProvider(BaseProvider):
             resp.raise_for_status()
             data = resp.json()
             products = data.get("data", [])
+            raw_count = int(data.get("count") or (data.get("meta") or {}).get("total") or len(products))
+
+            if not products:
+                has_catalog_access = await self._has_catalog_access()
+                self.set_status(
+                    ProviderSearchState.no_results,
+                    message=(
+                        "Lomadee respondeu 200, mas não encontrou produtos compatíveis no catálogo acessível."
+                        if has_catalog_access
+                        else "Lomadee respondeu 200, mas a conta não expõe catálogo acessível."
+                    ),
+                    http_status=resp.status_code,
+                    raw_count=raw_count,
+                )
+                return []
 
             # Gera links afiliados em paralelo (max 5 por vez)
             offers = await self._parse_with_links(products[:limit])
-            return [o for o in offers if o.price]
+            valid_offers = [o for o in offers if o.price]
+
+            self.set_status(
+                ProviderSearchState.ok if valid_offers else ProviderSearchState.no_results,
+                message=(
+                    f"Lomadee retornou {len(valid_offers)} ofertas."
+                    if valid_offers
+                    else "Lomadee retornou produtos, mas nenhum pôde ser convertido em oferta válida."
+                ),
+                http_status=resp.status_code,
+                raw_count=raw_count,
+                returned_count=len(valid_offers),
+            )
+            return valid_offers
         except Exception as e:
+            self.set_status(ProviderSearchState.error, message=f"Lomadee falhou: {e}")
             logger.error(f"Lomadee search error: {e}")
             return []
 
@@ -202,9 +273,10 @@ class LomadeeProvider(BaseProvider):
 
             # URL do produto
             product_url = item.get("url", "")
+            organization_id = item.get("organizationId", "")
 
             # Gera link afiliado rastreado
-            affiliate_url = await self._generate_affiliate_link(product_url)
+            affiliate_url = await self._generate_affiliate_link(product_url, organization_id)
             if not affiliate_url:
                 affiliate_url = product_url  # fallback para URL direta
 

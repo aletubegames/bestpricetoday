@@ -28,7 +28,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 - **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
 - **Frontend:** Next.js 14 + TypeScript + Tailwind CSS
-- **Deploy backend:** Dockerfile em `backend/hf_deploy/`
+- **Deploy backend:** assets de deploy em `backend/deploy/` + workflow sincroniza `backend/app/` para o Space HF
 - **Deploy frontend:** Vercel (auto-deploy no push)
 - **Testes:** pytest + pytest-asyncio (backend)
 
@@ -50,11 +50,11 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 | Provider      | Código | Integrado ao orquestrador | Credenciais |
 |---------------|--------|--------------------------|-------------|
-| MercadoLivre  | ✅      | ✅                        | ⚠️ /products/search bloqueado para apps novos (403) |
+| MercadoLivre  | ✅      | ✅                        | ⚠️ app autenticada, mas `/sites/MLB/search` segue bloqueado com 403 |
 | Amazon        | ✅      | ✅                        | ❌ ACCESS_KEY/SECRET vazios (PA-API requer histórico de vendas) |
 | Shopee        | ✅      | ✅                        | ❌ APP_ID/SECRET vazios |
-| AliExpress    | ✅      | ✅                        | ❌ APP_KEY/SECRET vazios |
-| Lomadee       | ✅      | ✅                        | ⚠️ SOURCE_ID ok, x-api-key pendente no suporte |
+| AliExpress    | ✅      | ✅                        | ✅ APP_KEY/SECRET ok, mas retorno muito ruidoso; filtro de relevância necessário |
+| Lomadee       | ✅      | ✅                        | ✅ x-api-key funcional; catálogo acessível existe, mas não casa com buscas amplas tipo Nike/iPhone |
 | KaBuM         | ✅      | ❌ comentado em search.py | sem credenciais |
 | Awin          | ✅      | ❌ comentado em search.py | sem credenciais |
 
@@ -110,8 +110,13 @@ backend/app/
 ### 2. Frontend anuncia mais do que o backend entrega
 - `page.tsx:47` → "7 lojas ao vivo"
 - `page.tsx:97` → "Mercado Livre, Amazon, Shopee e mais"
-- Providers reais ativos com credenciais: 0 (todos bloqueados por API)
+- Providers reais ativos com credenciais: AliExpress e Lomadee respondem, mas Mercado Livre segue bloqueado e os demais continuam sem credencial
 - **Ação:** atualizar copy do frontend OU ativar providers com dados reais
+
+### 2.1 Busca agora expõe diagnóstico por provider
+- `SearchResponse` inclui `provider_statuses` com estados: `ok`, `no_results`, `not_configured`, `blocked`, `low_relevance`, `error`
+- Frontend mostra por provider se houve 403, zero resultados, falta de credencial ou filtro por baixa relevância
+- **Objetivo:** diferenciar falha técnica de catálogo vazio / relevância ruim
 
 ### 3. Endpoints faltantes no router
 - Modelos prontos no banco: `Favorite`, `PriceHistory`, `Analytics`, `AffiliateClick`
@@ -149,7 +154,7 @@ backend/app/
 3. **Adicionar endpoints** → `/favorites`, `/products/{id}/history`, `/clicks`
 4. **Fechar ambiente dev** → instalar pytest no venv do backend
 5. **Testar pipeline Wan2.1** → rodar `pipeline.py` com 1 produto, checar geração de vídeo
-6. **Desbloquear providers** → aguardar/solicitar credenciais Shopee, AliExpress, Lomadee
+6. **Desbloquear providers** → liberar Mercado Livre, melhorar relevância do AliExpress e ampliar catálogo útil da Lomadee
 
 ---
 
@@ -159,8 +164,15 @@ backend/app/
 - `REDIS_URL` — Upstash
 - `MERCADOLIVRE_APP_ID` / `MERCADOLIVRE_SECRET`
 - `AMAZON_PARTNER_TAG=aletubegames-20` (sem access key ainda)
-- `LOMADEE_SOURCE_ID` (sem API key ainda)
+- `LOMADEE_API_KEY` / `LOMADEE_SOURCE_ID`
+- `ALIEXPRESS_APP_KEY` / `ALIEXPRESS_APP_SECRET`
 - `TELEGRAM_BOT_TOKEN`
+
+## Fonte da verdade dos `.env`
+
+- **Backend local / Docker:** `backend/.env`
+- **Frontend local:** `frontend/.env.local`
+- **Hugging Face Space:** secrets/variables do Space, não `hf_deploy/.env`
 
 ---
 

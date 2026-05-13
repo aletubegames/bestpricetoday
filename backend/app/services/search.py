@@ -12,7 +12,7 @@ from app.services.providers.lomadee import LomadeeProvider
 # from app.services.providers.kabum import KabumProvider
 # from app.services.providers.awin import AwinProvider
 from app.services.ranking.engine import rank_offers
-from app.schemas.schemas import OfferSchema, SearchResponse, ProviderEnum
+from app.schemas.schemas import OfferSchema, SearchResponse, ProviderEnum, ProviderSearchState, ProviderStatusSchema
 from app.core.cache import get_cached, set_cached, make_cache_key
 from app.core.logging import logger
 import unicodedata
@@ -37,6 +37,30 @@ PROVIDERS = {
     # ProviderEnum.kabum: KabumProvider,
     # ProviderEnum.awin: AwinProvider,
 }
+
+
+def _fallback_status(instance, result) -> ProviderStatusSchema:
+    if isinstance(result, list) and result:
+        return ProviderStatusSchema(
+            provider=ProviderEnum(instance.name),
+            status=ProviderSearchState.ok,
+            message=f"{len(result)} ofertas retornadas.",
+            raw_count=len(result),
+            returned_count=len(result),
+        )
+
+    if isinstance(result, list):
+        return ProviderStatusSchema(
+            provider=ProviderEnum(instance.name),
+            status=ProviderSearchState.no_results,
+            message="Nenhum resultado retornado por este provider.",
+        )
+
+    return ProviderStatusSchema(
+        provider=ProviderEnum(instance.name),
+        status=ProviderSearchState.error,
+        message=f"Erro interno ao consultar {instance.name}: {result}",
+    )
 
 
 async def search_all(
@@ -67,11 +91,19 @@ async def search_all(
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     all_offers: List[OfferSchema] = []
-    for result in results:
+    provider_statuses: List[ProviderStatusSchema] = []
+    for instance, result in zip(instances, results):
         if isinstance(result, list):
             all_offers.extend(result)
         elif isinstance(result, Exception):
             logger.error(f"Provider error: {result}")
+            if instance.last_status is None:
+                instance.set_status(
+                    ProviderSearchState.error,
+                    message=f"Erro interno ao consultar {instance.name}: {result}",
+                )
+
+        provider_statuses.append(instance.last_status or _fallback_status(instance, result))
 
     # Close all clients
     await asyncio.gather(*[i.close() for i in instances], return_exceptions=True)
@@ -84,6 +116,7 @@ async def search_all(
         normalized_query=normalized,
         total=len(ranked),
         offers=ranked,
+        provider_statuses=provider_statuses,
         cached=False,
         took_ms=took_ms,
     )

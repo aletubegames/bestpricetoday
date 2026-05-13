@@ -1,5 +1,6 @@
 import redis.asyncio as aioredis
 from app.core.config import settings
+from app.core.logging import logger
 import json
 import hashlib
 from typing import Optional, Any
@@ -20,19 +21,30 @@ def make_cache_key(prefix: str, **kwargs) -> str:
 
 
 async def get_cached(key: str) -> Optional[Any]:
-    r = await get_redis()
-    val = await r.get(key)
+    try:
+        r = await get_redis()
+        val = await r.get(key)
+    except Exception as exc:
+        logger.warning(f"Redis unavailable for cache read: {exc}")
+        return None
+
     if val:
         return json.loads(val)
     return None
 
 
 async def set_cached(key: str, value: Any, ttl: int = None) -> None:
-    r = await get_redis()
-    ttl = ttl or settings.CACHE_TTL
-    await r.setex(key, ttl, json.dumps(value, default=str))
+    try:
+        r = await get_redis()
+        ttl = ttl or settings.CACHE_TTL
+        await r.setex(key, ttl, json.dumps(value, default=str))
+    except Exception as exc:
+        logger.warning(f"Redis unavailable for cache write: {exc}")
 
 
 async def invalidate(key: str) -> None:
-    r = await get_redis()
-    await r.delete(key)
+    try:
+        r = await get_redis()
+        await r.delete(key)
+    except Exception as exc:
+        logger.warning(f"Redis unavailable for cache invalidation: {exc}")

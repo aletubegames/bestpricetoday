@@ -20,11 +20,30 @@ export interface Offer {
   economy: number;
 }
 
+export type ProviderSearchState =
+  | "ok"
+  | "no_results"
+  | "not_configured"
+  | "blocked"
+  | "low_relevance"
+  | "error";
+
+export interface ProviderStatus {
+  provider: string;
+  status: ProviderSearchState;
+  message?: string | null;
+  http_status?: number | null;
+  raw_count: number;
+  returned_count: number;
+  filtered_count: number;
+}
+
 export interface SearchResponse {
   query: string;
   normalized_query: string;
   total: number;
   offers: Offer[];
+  provider_statuses: ProviderStatus[];
   search_id?: string;
   cached: boolean;
   took_ms: number;

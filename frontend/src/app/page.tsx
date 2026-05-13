@@ -5,11 +5,118 @@ import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
 import OfferSkeleton from "@/components/offers/OfferSkeleton";
 import { useSearch } from "@/hooks/useSearch";
+import type { ProviderStatus } from "@/types";
 
 const TRENDING = [
   "iPhone 16 Pro", "RTX 4070", "AirPods Pro 2", "PS5 Slim",
   "MacBook Air M3", "Galaxy S24", "Monitor 4K", "Notebook i7",
 ];
+
+const PROVIDER_LABELS: Record<string, string> = {
+  mercadolivre: "Mercado Livre",
+  amazon: "Amazon",
+  shopee: "Shopee",
+  aliexpress: "AliExpress",
+  lomadee: "Lomadee",
+  awin: "Awin",
+  kabum: "KaBuM",
+};
+
+const STATUS_META: Record<ProviderStatus["status"], { label: string; color: string; border: string; background: string }> = {
+  ok: {
+    label: "OK",
+    color: "var(--grn)",
+    border: "1px solid rgba(0,229,160,0.2)",
+    background: "rgba(0,229,160,0.08)",
+  },
+  no_results: {
+    label: "0 resultados",
+    color: "var(--muted)",
+    border: "1px solid var(--bd)",
+    background: "var(--s2)",
+  },
+  not_configured: {
+    label: "Sem credencial",
+    color: "#f59e0b",
+    border: "1px solid rgba(245,158,11,0.25)",
+    background: "rgba(245,158,11,0.08)",
+  },
+  blocked: {
+    label: "Bloqueado",
+    color: "var(--red)",
+    border: "1px solid rgba(255,107,107,0.25)",
+    background: "rgba(255,107,107,0.08)",
+  },
+  low_relevance: {
+    label: "Baixa relevância",
+    color: "#f59e0b",
+    border: "1px solid rgba(245,158,11,0.25)",
+    background: "rgba(245,158,11,0.08)",
+  },
+  error: {
+    label: "Erro",
+    color: "var(--red)",
+    border: "1px solid rgba(255,107,107,0.25)",
+    background: "rgba(255,107,107,0.08)",
+  },
+};
+
+function formatProviderNumbers(status: ProviderStatus) {
+  const parts: string[] = [];
+  if (status.returned_count) parts.push(`${status.returned_count} relevantes`);
+  if (status.filtered_count) parts.push(`${status.filtered_count} filtrados`);
+  if (status.raw_count && !status.returned_count) parts.push(`${status.raw_count} brutos`);
+  if (status.http_status) parts.push(`HTTP ${status.http_status}`);
+  return parts.join(" • ");
+}
+
+function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
+  if (!statuses.length) return null;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: 12,
+        marginBottom: 20,
+      }}
+    >
+      {statuses.map((status) => {
+        const meta = STATUS_META[status.status];
+        const providerLabel = PROVIDER_LABELS[status.provider] || status.provider;
+        const numbers = formatProviderNumbers(status);
+
+        return (
+          <div
+            key={status.provider}
+            style={{
+              background: meta.background,
+              border: meta.border,
+              borderRadius: "var(--r)",
+              padding: "14px 16px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+              <strong style={{ fontSize: 14 }}>{providerLabel}</strong>
+              <span style={{ fontSize: 11, fontWeight: 700, color: meta.color }}>{meta.label}</span>
+            </div>
+            {status.message && (
+              <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, margin: 0 }}>
+                {status.message}
+              </p>
+            )}
+            {numbers && (
+              <p style={{ fontSize: 11, color: "var(--muted2)", margin: "8px 0 0" }}>
+                {numbers}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
@@ -165,6 +272,7 @@ export default function HomePage() {
                   }}>⚡ cache</span>
                 )}
               </div>
+              <ProviderStatusGrid statuses={data.provider_statuses} />
               <OfferGrid offers={data.offers} />
             </motion.div>
           )}

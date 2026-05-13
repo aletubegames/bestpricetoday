@@ -5,7 +5,7 @@ import datetime
 import json
 from typing import List
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -27,12 +27,28 @@ class AmazonProvider(BaseProvider):
         return self._sign(k_service, "aws4_request")
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
-        if not settings.AMAZON_ACCESS_KEY:
+        if not settings.AMAZON_ACCESS_KEY or not settings.AMAZON_SECRET_KEY:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="Credenciais da Amazon não configuradas.",
+            )
             logger.warning("Amazon: not configured, skipping")
             return []
         try:
-            return await self._do_search(query, limit)
+            offers = await self._do_search(query, limit)
+            self.set_status(
+                ProviderSearchState.ok if offers else ProviderSearchState.no_results,
+                message=(
+                    f"Amazon retornou {len(offers)} ofertas."
+                    if offers
+                    else "Amazon respondeu sem ofertas para esta busca."
+                ),
+                raw_count=len(offers),
+                returned_count=len(offers),
+            )
+            return offers
         except Exception as e:
+            self.set_status(ProviderSearchState.error, message=f"Amazon falhou: {e}")
             logger.error(f"Amazon search error: {e}")
             return []
 

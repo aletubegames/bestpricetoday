@@ -15,6 +15,15 @@ class ProviderEnum(str, Enum):
     lomadee = "lomadee"
 
 
+class ProviderSearchState(str, Enum):
+    ok = "ok"
+    no_results = "no_results"
+    not_configured = "not_configured"
+    blocked = "blocked"
+    low_relevance = "low_relevance"
+    error = "error"
+
+
 class OfferSchema(BaseModel):
     provider: ProviderEnum
     title: str
@@ -46,11 +55,22 @@ class SearchRequest(BaseModel):
     providers: Optional[List[ProviderEnum]] = None
 
 
+class ProviderStatusSchema(BaseModel):
+    provider: ProviderEnum
+    status: ProviderSearchState
+    message: Optional[str] = None
+    http_status: Optional[int] = None
+    raw_count: int = 0
+    returned_count: int = 0
+    filtered_count: int = 0
+
+
 class SearchResponse(BaseModel):
     query: str
     normalized_query: str
     total: int
     offers: List[OfferSchema]
+    provider_statuses: List[ProviderStatusSchema] = Field(default_factory=list)
     search_id: Optional[UUID] = None
     cached: bool = False
     took_ms: int = 0

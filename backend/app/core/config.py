@@ -53,7 +53,12 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
 
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://bestpricetoday.com.br"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://bestpricetoday.vercel.app",
+        "https://bestpricetoday.com.br",
+    ]
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 30

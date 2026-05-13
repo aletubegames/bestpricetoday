@@ -2,7 +2,7 @@
 import httpx
 from typing import List, Optional
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 import time
@@ -37,6 +37,12 @@ class MercadoLivreProvider(BaseProvider):
         return f"{product_url}?matt_tool={settings.MERCADOLIVRE_APP_ID}"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
+        if not settings.MERCADOLIVRE_ACCESS_TOKEN and not (settings.MERCADOLIVRE_APP_ID and settings.MERCADOLIVRE_SECRET):
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="Credenciais do Mercado Livre não configuradas.",
+            )
+            return []
         try:
             token = settings.MERCADOLIVRE_ACCESS_TOKEN or await self._get_token()
             client = await self.get_client()
@@ -46,12 +52,31 @@ class MercadoLivreProvider(BaseProvider):
                 headers={"Authorization": f"Bearer {token}"},
             )
             if resp.status_code == 403:
+                self.set_status(
+                    ProviderSearchState.blocked,
+                    message="Mercado Livre bloqueou a busca desta aplicação (403).",
+                    http_status=403,
+                )
                 logger.warning("MercadoLivre: acesso bloqueado (app novo). Aguardando liberação.")
                 return []
             resp.raise_for_status()
             data = resp.json()
-            return self._parse_results(data.get("results", []))
+            raw_results = data.get("results", [])
+            offers = self._parse_results(raw_results)
+            self.set_status(
+                ProviderSearchState.ok if offers else ProviderSearchState.no_results,
+                message=(
+                    f"Mercado Livre retornou {len(offers)} ofertas."
+                    if offers
+                    else "Mercado Livre respondeu sem resultados para esta busca."
+                ),
+                http_status=resp.status_code,
+                raw_count=len(raw_results),
+                returned_count=len(offers),
+            )
+            return offers
         except Exception as e:
+            self.set_status(ProviderSearchState.error, message=f"Mercado Livre falhou: {e}")
             logger.error(f"MercadoLivre search failed: {e}")
             return []
 

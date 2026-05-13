@@ -5,7 +5,7 @@ import hmac
 import hashlib
 from typing import List
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -15,12 +15,28 @@ class ShopeeProvider(BaseProvider):
     BASE_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
-        if not settings.SHOPEE_APP_ID:
+        if not settings.SHOPEE_APP_ID or not settings.SHOPEE_SECRET:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="Credenciais da Shopee não configuradas.",
+            )
             logger.warning("Shopee: not configured, skipping")
             return []
         try:
-            return await self._do_search(query, limit)
+            offers = await self._do_search(query, limit)
+            self.set_status(
+                ProviderSearchState.ok if offers else ProviderSearchState.no_results,
+                message=(
+                    f"Shopee retornou {len(offers)} ofertas."
+                    if offers
+                    else "Shopee respondeu sem ofertas para esta busca."
+                ),
+                raw_count=len(offers),
+                returned_count=len(offers),
+            )
+            return offers
         except Exception as e:
+            self.set_status(ProviderSearchState.error, message=f"Shopee falhou: {e}")
             logger.error(f"Shopee error: {e}")
             return []
 
