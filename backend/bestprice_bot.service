@@ -1,0 +1,16 @@
+[Unit]
+Description=BestPriceToday Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=alessandro
+WorkingDirectory=/home/alessandro/bin/Git_Repo/BestPriceToday/backend
+Environment=PYTHONPATH=/home/alessandro/bin/Git_Repo/BestPriceToday/backend
+EnvironmentFile=/home/alessandro/bin/Git_Repo/BestPriceToday/backend/.env
+ExecStart=/home/alessandro/bin/Git_Repo/BestPriceToday/backend/venv/bin/python -m app.workers.bestprice_bot
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

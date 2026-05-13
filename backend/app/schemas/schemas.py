@@ -66,6 +66,7 @@ class AlertCreate(BaseModel):
     query: str
     target_price: float
     product_id: Optional[UUID] = None
+    telegram_id: Optional[str] = None  # para alertas anônimos via Telegram
 
 
 class AlertResponse(BaseModel):
@@ -73,6 +74,7 @@ class AlertResponse(BaseModel):
     query: str
     target_price: float
     is_active: bool
+    telegram_id: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -82,3 +84,25 @@ class AlertResponse(BaseModel):
 class ClickTrack(BaseModel):
     offer_id: UUID
     provider: ProviderEnum
+
+
+# --- Favoritos ---
+
+class FavoriteCreate(BaseModel):
+    product_id: UUID
+
+
+class FavoriteResponse(BaseModel):
+    id: UUID
+    product_id: UUID
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Analytics ---
+
+class ClickTrackResponse(BaseModel):
+    ok: bool
+    click_id: UUID

@@ -60,7 +60,10 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
+        # Le variaveis de ambiente do sistema (HF Spaces secrets)
+        extra = "ignore"
 
 
 settings = Settings()

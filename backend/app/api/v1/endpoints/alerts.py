@@ -12,9 +12,11 @@ router = APIRouter()
 
 @router.post("/alerts", response_model=AlertResponse)
 async def create_alert(alert: AlertCreate, db: AsyncSession = Depends(get_db)):
+    """Cria alerta de preço. user_id é opcional — alertas anônimos identificados por telegram_id."""
     obj = PriceAlert(
         id=uuid.uuid4(),
-        user_id=None,  # TODO: auth
+        user_id=None,
+        telegram_id=alert.telegram_id,
         query=alert.query,
         target_price=alert.target_price,
         product_id=alert.product_id,
@@ -25,8 +27,15 @@ async def create_alert(alert: AlertCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/alerts", response_model=list[AlertResponse])
-async def list_alerts(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PriceAlert).where(PriceAlert.is_active == True))
+async def list_alerts(
+    telegram_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista alertas. Filtra por telegram_id se fornecido."""
+    stmt = select(PriceAlert).where(PriceAlert.is_active == True)
+    if telegram_id:
+        stmt = stmt.where(PriceAlert.telegram_id == telegram_id)
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 

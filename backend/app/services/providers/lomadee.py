@@ -104,12 +104,12 @@ class LomadeeProvider(BaseProvider):
             if not best_opt and options:
                 best_opt = options[0]
 
-            # Preço em centavos -> reais
+            # Preco ja vem em reais
             pricing = (best_opt or {}).get("pricing", [{}])
-            price_cents = pricing[0].get("price", 0) if pricing else 0
-            list_cents = pricing[0].get("listPrice", price_cents) if pricing else price_cents
-            price = round(price_cents / 100, 2) if price_cents else None
-            list_price = round(list_cents / 100, 2) if list_cents else None
+            price_raw = pricing[0].get("price", 0) if pricing else 0
+            list_raw = pricing[0].get("listPrice", price_raw) if pricing else price_raw
+            price = round(float(price_raw), 2) if price_raw else None
+            list_price = round(float(list_raw), 2) if list_raw else None
 
             if not price:
                 return None

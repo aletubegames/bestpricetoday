@@ -127,7 +127,8 @@ class PriceAlert(Base):
     __tablename__ = "alertas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # nullable: suporte a alertas anônimos via telegram_id
+    telegram_id = Column(String, nullable=True, index=True)  # alerta anônimo via Telegram
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=True)
     query = Column(String, nullable=False)
     target_price = Column(Float, nullable=False)
