@@ -21,6 +21,74 @@ class LomadeeProvider(BaseProvider):
     BASE_URL = "https://api-beta.lomadee.com.br/affiliate"
     CHANNEL_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
 
+    # Preços sugeridos de referência (MSRP) para calcular desconto real
+    # quando a fonte não fornece preço original
+    MSRP_REF = {
+        # Samsung Galaxy
+        "galaxy a05": 799, "galaxy a05s": 899,
+        "galaxy a12": 599, "galaxy a13": 649,
+        "galaxy a14": 699, "galaxy a15": 649,
+        "galaxy a16": 1299, "galaxy a25": 1499,
+        "galaxy a34": 1799, "galaxy a35": 1999,
+        "galaxy a54": 2499, "galaxy a55": 2799,
+        "galaxy s23": 3999, "galaxy s24": 4499,
+        # Motorola
+        "moto e22": 899, "moto e32": 999, "moto g14": 1099,
+        "moto g24": 1299, "moto g34": 1499, "moto g54": 1799,
+        "moto g84": 2299, "edge 40": 2799,
+        # Notebooks
+        "chromebook": 1799, "notebook samsung": 2999,
+        "notebook lenovo": 2499, "notebook dell": 3499,
+        # Fones
+        "buds2": 599, "buds pro": 899, "buds live": 699,
+        "fone bluetooth": 299,
+        # TVs
+        "smart tv 32": 1299, "smart tv 43": 1999, "smart tv 50": 2799,
+        "smart tv 55": 3499,
+    }
+
+    def _get_msrp(self, title: str, price: float) -> Optional[float]:
+        """Retorna preço sugerido de referência se houver, mínimo 10% acima do preco atual."""
+        t = title.lower()
+        for key, msrp in self.MSRP_REF.items():
+            if key in t:
+                if msrp > price * 1.10:
+                    return float(msrp)
+        return None
+
+    async def _fetch_suggested_price(self, product_url: str, current_price: float) -> Optional[float]:
+        """Tenta buscar preço original/sugerido na página do produto para calcular desconto real."""
+        if not product_url:
+            return None
+        try:
+            client = await self.get_client()
+            resp = await client.get(product_url, timeout=5,
+                                    headers={"User-Agent": "Mozilla/5.0 Chrome/120.0"})
+            if resp.status_code != 200:
+                return None
+            import re
+            html = resp.text
+            # Procura por "preço de" / "de:" / "price" no HTML
+            patterns = [
+                r'"listPrice"\s*:\s*"?([\d.,]+)"?',
+                r'"originalPrice"\s*:\s*"?([\d.,]+)"?',
+                r'class="[^"]*(?:list|original|de|from)[^"]*"[^>]*>\s*R\$\s*([\d.,]+)',
+                r'(?:de|por|from|list)[^\d]{0,10}([\d]{2,4}[,.]\d{2})',
+            ]
+            for pat in patterns:
+                m = re.search(pat, html, re.IGNORECASE)
+                if m:
+                    val_str = m.group(1).replace(".", "").replace(",", ".")
+                    try:
+                        val = float(val_str)
+                        if val > current_price * 1.05:  # pelo menos 5% maior
+                            return round(val, 2)
+                    except:
+                        continue
+        except Exception:
+            pass
+        return None
+
     async def _generate_affiliate_link(self, product_url: str, campaign_id: Optional[str] = None) -> Optional[str]:
         """Gera link afiliado rastreado via POST /affiliate/shortener/url"""
         if not product_url:
@@ -107,18 +175,26 @@ class LomadeeProvider(BaseProvider):
             # Preco ja vem em reais
             pricing = (best_opt or {}).get("pricing", [{}])
             price_raw = pricing[0].get("price", 0) if pricing else 0
-            list_raw = pricing[0].get("listPrice", price_raw) if pricing else price_raw
-            price = round(float(price_raw), 2) if price_raw else None
+            list_raw  = pricing[0].get("listPrice", price_raw) if pricing else price_raw
+            price      = round(float(price_raw), 2) if price_raw else None
             list_price = round(float(list_raw), 2) if list_raw else None
+
+            # Lomadee freq. retorna listPrice == price (sem desconto na fonte)
+            # Tenta scraping da página, depois MSRP de referência
+            if not list_price or list_price <= price:
+                product_url_tmp = item.get("url", "")
+                list_price = await self._fetch_suggested_price(product_url_tmp, price)
+            if not list_price or list_price <= price:
+                list_price = self._get_msrp(item.get("name", ""), price)
 
             if not price:
                 return None
 
             discount = 0
-            economy = 0
+            economy  = 0
             if list_price and list_price > price:
                 discount = round((1 - price / list_price) * 100, 1)
-                economy = round(list_price - price, 2)
+                economy  = round(list_price - price, 2)
 
             # Imagem
             images = item.get("images", []) or (best_opt or {}).get("images", [])
