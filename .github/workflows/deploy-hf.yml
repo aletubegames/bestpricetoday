@@ -1,10 +1,15 @@
 name: Deploy to HuggingFace Spaces
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
-    branches: [master]
+    branches: [main, master]
     paths:
+      - '.github/workflows/deploy-hf.yml'
       - 'backend/**'
+  workflow_dispatch:
 
 jobs:
   deploy-hf:
@@ -15,15 +20,40 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate Hugging Face token
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "HF_TOKEN secret is not configured"
+            exit 1
+          fi
+
+      - name: Install rsync
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
       - name: Push backend to HuggingFace Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_URL: https://huggingface.co/spaces/alessandro2090/bestpricetoday-api
         run: |
           git config --global user.email "aletubegames@gmail.com"
           git config --global user.name "AleBot"
 
-          # Clona o Space HF
-          git clone https://alessandro2090:${HF_TOKEN}@huggingface.co/spaces/alessandro2090/bestpricetoday-api hf_space
+          # Clona o Space HF publicamente e usa o token apenas no push
+          git clone --depth 1 "$HF_SPACE_URL" hf_space
+          git -C hf_space remote set-url origin "https://alessandro2090:${HF_TOKEN}@huggingface.co/spaces/alessandro2090/bestpricetoday-api"
+          mkdir -p hf_space/app
+
+          HF_DEPLOY_DIR="backend"
+          if [ -d backend/deploy ]; then
+            HF_DEPLOY_DIR="backend/deploy"
+          elif [ -d backend/hf_deploy ]; then
+            HF_DEPLOY_DIR="backend/hf_deploy"
+          fi
+          echo "Usando assets de deploy em $HF_DEPLOY_DIR"
 
           # Sincroniza app/ do backend para o Space
           rsync -av --delete \
@@ -34,9 +64,27 @@ jobs:
             backend/app/ hf_space/app/
 
           # Copia outros arquivos relevantes
-          cp backend/hf_deploy/Dockerfile hf_space/Dockerfile || true
-          cp backend/hf_deploy/requirements.txt hf_space/requirements.txt || true
-          cp backend/hf_deploy/README.md hf_space/README.md || true
+          cp "$HF_DEPLOY_DIR/Dockerfile" hf_space/Dockerfile
+          cp "$HF_DEPLOY_DIR/requirements.txt" hf_space/requirements.txt
+
+          if [ -f "$HF_DEPLOY_DIR/README.md" ]; then
+            cp "$HF_DEPLOY_DIR/README.md" hf_space/README.md
+          else
+            printf '%s\n' \
+              '---' \
+              'title: BestPriceToday API' \
+              'emoji: 🛍️' \
+              'colorFrom: blue' \
+              'colorTo: purple' \
+              'sdk: docker' \
+              'pinned: false' \
+              '---' \
+              '' \
+              '# BestPriceToday API' \
+              '' \
+              'FastAPI backend for BestPriceToday price comparison platform.' \
+              > hf_space/README.md
+          fi
 
           cd hf_space
           git add -A
@@ -45,6 +93,6 @@ jobs:
             echo "Nenhuma mudança no backend, pulando deploy HF"
           else
             git commit -m "deploy: sync from GitHub $(git -C .. rev-parse --short HEAD)"
-            git push origin main
+            git push origin HEAD:main
             echo "✅ Deploy HF concluído"
           fi
