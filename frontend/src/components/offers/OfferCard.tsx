@@ -1,126 +1,186 @@
 "use client";
 import { motion } from "framer-motion";
-import Image from "next/image";
-import { ExternalLink, Tag, Truck, Star, TrendingDown, AlertTriangle } from "lucide-react";
+import { ExternalLink, Truck, Tag, TrendingDown, AlertTriangle, Zap, Star } from "lucide-react";
 import type { Offer } from "@/types";
-import { cn } from "@/lib/utils";
 
-const PROVIDER_COLORS: Record<string, string> = {
-  mercadolivre: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  amazon: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  shopee: "bg-red-500/10 text-red-400 border-red-500/20",
-  kabum: "bg-green-500/10 text-green-400 border-green-500/20",
-  aliexpress: "bg-red-600/10 text-red-300 border-red-600/20",
-  lomadee: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  awin: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+const PROVIDERS: Record<string, { name: string; color: string; bg: string; emoji: string }> = {
+  mercadolivre: { name: "Mercado Livre", color: "#FACC15", bg: "rgba(250,204,21,.1)",  emoji: "🟡" },
+  amazon:       { name: "Amazon",        color: "#FB923C", bg: "rgba(251,146,60,.1)",  emoji: "📦" },
+  shopee:       { name: "Shopee",        color: "#F87171", bg: "rgba(248,113,113,.1)", emoji: "🟠" },
+  kabum:        { name: "KaBuM",         color: "#4ADE80", bg: "rgba(74,222,128,.1)",  emoji: "🟢" },
+  aliexpress:   { name: "AliExpress",    color: "#F43F5E", bg: "rgba(244,63,94,.1)",   emoji: "🔴" },
+  lomadee:      { name: "Lomadee",       color: "#C084FC", bg: "rgba(192,132,252,.1)", emoji: "🟣" },
+  awin:         { name: "Awin",          color: "#60A5FA", bg: "rgba(96,165,250,.1)",  emoji: "🔵" },
 };
 
-const PROVIDER_NAMES: Record<string, string> = {
-  mercadolivre: "Mercado Livre",
-  amazon: "Amazon",
-  shopee: "Shopee",
-  kabum: "KaBuM",
-  aliexpress: "AliExpress",
-  lomadee: "Lomadee",
-  awin: "Awin",
-};
-
-interface Props {
-  offer: Offer;
-  rank: number;
-}
+interface Props { offer: Offer; rank: number; }
 
 export default function OfferCard({ offer, rank }: Props) {
-  const colorClass = PROVIDER_COLORS[offer.provider] || "bg-white/5 text-white/60 border-white/10";
-  const providerName = PROVIDER_NAMES[offer.provider] || offer.provider;
-  const scoreColor = offer.score >= 70 ? "text-green-400" : offer.score >= 40 ? "text-yellow-400" : "text-red-400";
+  const p = PROVIDERS[offer.provider] ?? { name: offer.provider, color: "#a78bfa", bg: "rgba(167,139,250,.1)", emoji: "🏪" };
+  const best = rank === 0;
+  const scoreColor = offer.score >= 70 ? "#00e5a0" : offer.score >= 45 ? "#fbbf24" : "#f87171";
+  const fmtPrice = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
   return (
-    <motion.div
+    <motion.article
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: rank * 0.05 }}
-      whileHover={{ y: -2 }}
-      className="glass rounded-2xl p-4 flex flex-col gap-4 hover:border-white/10 transition-all cursor-pointer group"
+      transition={{ delay: rank * 0.04, duration: 0.3 }}
+      className="card"
+      style={{ display: "flex", flexDirection: "column", gap: 0, overflow: "hidden", position: "relative" }}
     >
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        {offer.image_url && (
-          <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 shrink-0">
-            <img src={offer.image_url} alt={offer.title} className="w-full h-full object-cover" />
+      {/* Best badge */}
+      {best && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0,
+          height: 3,
+          background: "linear-gradient(90deg, #7c6aff, #a78bfa, #e879f9)",
+        }} />
+      )}
+
+      <div style={{ padding: "20px 20px 16px" }}>
+
+        {/* Fake discount alert */}
+        {offer.is_fake_discount && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            fontSize: 11, fontWeight: 600, color: "#fb923c",
+            background: "rgba(251,146,60,.08)", border: "1px solid rgba(251,146,60,.2)",
+            borderRadius: 8, padding: "5px 10px", marginBottom: 12,
+          }}>
+            <AlertTriangle size={11} /> Desconto possivelmente inflado
           </div>
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", colorClass)}>
-              {providerName}
+
+        {/* Provider + best */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            fontSize: 12, fontWeight: 700,
+            color: p.color, background: p.bg,
+            padding: "3px 10px", borderRadius: 99,
+          }}>
+            {p.emoji} {p.name}
+          </span>
+          {best && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              fontSize: 11, fontWeight: 700, color: "#fff",
+              background: "linear-gradient(135deg,#7c6aff,#a78bfa)",
+              padding: "3px 10px", borderRadius: 99,
+            }}>
+              <Zap size={10} fill="#fff" /> Melhor
             </span>
-            {offer.is_fake_discount && (
-              <span className="flex items-center gap-1 text-xs text-orange-400">
-                <AlertTriangle size={10} /> Desconto suspeito
-              </span>
+          )}
+        </div>
+
+        {/* Image + title row */}
+        <div style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 12, overflow: "hidden", flexShrink: 0,
+            background: "var(--s3)", border: "1px solid var(--bd)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {offer.image_url && offer.image_url.startsWith("http") ? (
+              <img src={offer.image_url} alt={offer.title} loading="lazy"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <span style={{ fontSize: 28 }}>{p.emoji}</span>
             )}
           </div>
-          <p className="text-sm text-white/70 line-clamp-2 leading-snug">{offer.title}</p>
-        </div>
-      </div>
-
-      {/* Price block */}
-      <div className="flex items-end justify-between">
-        <div>
-          {offer.original_price && offer.original_price > offer.price && (
-            <p className="text-xs text-white/30 line-through">
-              R$ {offer.original_price.toFixed(2)}
-            </p>
-          )}
-          <p className="text-2xl font-bold text-white">
-            R$ <span>{offer.final_price.toFixed(2)}</span>
+          <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--muted)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const }}>
+            {offer.title}
           </p>
-          {offer.economy > 0 && (
-            <p className="flex items-center gap-1 text-xs text-green-400 mt-0.5">
-              <TrendingDown size={11} /> Economia de R$ {offer.economy.toFixed(2)}
-            </p>
-          )}
         </div>
-        <div className="text-right">
-          <p className={cn("text-lg font-bold", scoreColor)}>{offer.score.toFixed(0)}</p>
-          <p className="text-xs text-white/30">score</p>
+
+        {/* Price block */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            {offer.original_price && offer.price && offer.original_price > offer.price + 0.5 && (
+              <div style={{ fontSize: 12, color: "var(--muted2)", textDecoration: "line-through", marginBottom: 2 }}>
+                R$ {fmtPrice(offer.original_price)}
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+              {offer.final_price && offer.final_price > 0.02
+                ? <><span style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)" }}>R$</span>
+                   <span style={{ fontSize: 34, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1, color: "var(--txt)" }}>{fmtPrice(offer.final_price)}</span></>
+                : <span style={{ fontSize: 15, color: "var(--muted2)" }}>Preço indisponível</span>
+              }
+            </div>
+            {offer.economy > 0.5 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--grn)", marginTop: 4 }}>
+                <TrendingDown size={12} /> Economize R$ {fmtPrice(offer.economy)}
+              </div>
+            )}
+          </div>
+
+          {/* Score badge */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: 12, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              background: `${scoreColor}15`, border: `1.5px solid ${scoreColor}40`,
+            }}>
+              <span style={{ fontSize: 20, fontWeight: 900, color: scoreColor, lineHeight: 1 }}>
+                {Math.round(offer.score)}
+              </span>
+              <span style={{ fontSize: 9, fontWeight: 600, color: scoreColor, opacity: 0.7, textTransform: "uppercase", letterSpacing: ".04em" }}>score</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Badges */}
-      <div className="flex flex-wrap gap-2">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 20px 16px" }}>
         {offer.shipping_free && (
-          <span className="flex items-center gap-1 text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "var(--grn)", background: "rgba(0,229,160,.08)", border: "1px solid rgba(0,229,160,.2)", padding: "3px 10px", borderRadius: 99 }}>
             <Truck size={10} /> Frete grátis
           </span>
         )}
-        {offer.discount_percent > 0 && !offer.is_fake_discount && (
-          <span className="flex items-center gap-1 text-xs text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full border border-brand-500/20">
-            <Star size={10} /> -{offer.discount_percent.toFixed(0)}%
+        {offer.discount_percent >= 3 && !offer.is_fake_discount && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#fff", background: "linear-gradient(135deg,#7c6aff,#a78bfa)", padding: "3px 10px", borderRadius: 99 }}>
+            <Star size={10} fill="#fff" /> -{Math.round(offer.discount_percent)}%
           </span>
         )}
         {offer.coupon_code && (
-          <span className="flex items-center gap-1 text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "#c084fc", background: "rgba(192,132,252,.08)", border: "1px solid rgba(192,132,252,.2)", padding: "3px 10px", borderRadius: 99 }}>
             <Tag size={10} /> {offer.coupon_code}
           </span>
         )}
         {offer.cashback_percent > 0 && (
-          <span className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
-            {offer.cashback_percent}% cashback
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ylw)", background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.2)", padding: "3px 10px", borderRadius: 99 }}>
+            💰 {offer.cashback_percent}% cashback
           </span>
         )}
       </div>
 
       {/* CTA */}
-      <a
-        href={offer.affiliate_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-all group-hover:glow-blue"
-      >
-        Ver oferta <ExternalLink size={14} />
-      </a>
-    </motion.div>
+      <div style={{ padding: "0 16px 16px" }}>
+        {offer.affiliate_url ? (
+          <a href={offer.affiliate_url} target="_blank" rel="noopener noreferrer"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "13px 20px", borderRadius: 12,
+            fontSize: 14, fontWeight: 700, textDecoration: "none",
+            background: best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "var(--s3)",
+            color: best ? "#fff" : "var(--muted)",
+            border: best ? "none" : "1px solid var(--bd)",
+            transition: "filter .2s, transform .15s",
+          }}
+          onMouseEnter={e => Object.assign(e.currentTarget.style, { filter: "brightness(1.12)", transform: "translateY(-1px)" })}
+          onMouseLeave={e => Object.assign(e.currentTarget.style, { filter: "brightness(1)", transform: "translateY(0)" })}
+        >
+          Ver oferta <ExternalLink size={14} />
+        </a>
+        ) : (
+          <div style={{ padding: "13px 20px", borderRadius: 12, fontSize: 14, textAlign: "center", color: "var(--muted2)", background: "var(--s3)", border: "1px solid var(--bd)" }}>
+            Link indisponível
+          </div>
+        )}
+      </div>
+    </motion.article>
   );
 }

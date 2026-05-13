@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     AWIN_PUBLISHER_ID: str = ""
     AWIN_API_TOKEN: str = ""
 
-    LOMADEE_SOURCE_ID: str = ""
-    LOMADEE_APP_TOKEN: str = ""
+    LOMADEE_API_KEY: str = ""
+    LOMADEE_SOURCE_ID: str = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
 
     SHOPEE_APP_ID: str = ""
     SHOPEE_SECRET: str = ""

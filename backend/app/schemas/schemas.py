@@ -18,7 +18,7 @@ class ProviderEnum(str, Enum):
 class OfferSchema(BaseModel):
     provider: ProviderEnum
     title: str
-    price: float
+    price: Optional[float] = None
     original_price: Optional[float] = None
     discount_percent: float = 0
     coupon_code: Optional[str] = None
@@ -26,9 +26,12 @@ class OfferSchema(BaseModel):
     cashback_percent: float = 0
     shipping_price: float = 0
     shipping_free: bool = False
-    final_price: float
+    final_price: Optional[float] = None
     score: float = 0
-    affiliate_url: str
+    product_id: Optional[str] = None
+    product_url: Optional[str] = None
+    affiliate_url: Optional[str] = None
+    tracking_id: Optional[str] = None
     image_url: Optional[str] = None
     is_fake_discount: bool = False
     economy: float = 0

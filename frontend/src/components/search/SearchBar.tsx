@@ -1,15 +1,17 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Search, X, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, X, Loader2, ArrowRight } from "lucide-react";
 
 const SUGGESTIONS = [
-  "iPhone 15 128GB",
-  "Nike Air Force 42",
-  "Notebook i7 16GB",
-  "AirPods Pro",
-  "PS5 controle",
-  "Monitor 24 polegadas",
+  "iPhone 16 Pro Max 256GB",
+  "Nike Air Force 1 42",
+  "Notebook Dell i7 16GB RAM",
+  "AirPods Pro 2ª geração",
+  "PS5 Slim + controle extra",
+  "Monitor LG 27 4K IPS",
+  "RTX 4070 Super 12GB",
+  "Samsung Galaxy S24 Ultra",
 ];
 
 interface Props {
@@ -21,38 +23,37 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debRef = useRef<NodeJS.Timeout>();
+
+  const submit = (v: string) => { onSearch(v); setFocused(false); };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     setValue(v);
-    clearTimeout(debounceRef.current);
-    if (v.length >= 3) {
-      debounceRef.current = setTimeout(() => onSearch(v), 600);
-    }
-  };
-
-  const handleClear = () => {
-    setValue("");
-    onSearch("");
-    inputRef.current?.focus();
-  };
-
-  const handleSuggestion = (s: string) => {
-    setValue(s);
-    onSearch(s);
-    setFocused(false);
+    clearTimeout(debRef.current);
+    if (v.length >= 3) debRef.current = setTimeout(() => submit(v), 500);
+    else if (!v) onSearch("");
   };
 
   return (
-    <div className="relative w-full">
-      <motion.div
-        animate={{ boxShadow: focused ? "0 0 0 2px rgba(14,165,233,0.4)" : "0 0 0 1px rgba(255,255,255,0.08)" }}
-        className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-surface-50 transition-all"
+    <div style={{ position: "relative", width: "100%" }}>
+      <motion.form
+        onSubmit={(e) => { e.preventDefault(); if (value.length >= 2) submit(value); }}
+        animate={{
+          boxShadow: focused
+            ? "0 0 0 2px rgba(124,106,255,0.5), 0 8px 40px rgba(124,106,255,0.15)"
+            : "0 0 0 1px rgba(255,255,255,0.07)",
+        }}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "0 16px", height: 60,
+          borderRadius: 16,
+          background: "var(--s2)",
+        }}
       >
         {isLoading
-          ? <Loader2 size={20} className="text-brand-400 animate-spin shrink-0" />
-          : <Search size={20} className="text-white/30 shrink-0" />
+          ? <Loader2 size={20} style={{ color: "var(--acc)", flexShrink: 0, animation: "spin 1s linear infinite" }} />
+          : <Search size={20} style={{ color: "var(--muted2)", flexShrink: 0 }} />
         }
         <input
           ref={inputRef}
@@ -60,37 +61,75 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
           value={value}
           onChange={handleChange}
           onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-          placeholder="Nike Air Force tamanho 42..."
-          className="flex-1 bg-transparent outline-none text-white placeholder:text-white/25 text-base"
+          onBlur={() => setTimeout(() => setFocused(false), 200)}
+          placeholder="Ex: iPhone 16 Pro, Nike 42, RTX 4070..."
+          style={{
+            flex: 1, background: "none", border: "none", outline: "none",
+            fontSize: 16, color: "var(--txt)", caretColor: "var(--acc)",
+            minWidth: 0,
+          }}
         />
         {value && (
-          <button onClick={handleClear} className="text-white/30 hover:text-white transition-colors">
-            <X size={18} />
+          <button type="button" onClick={() => { setValue(""); onSearch(""); inputRef.current?.focus(); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", padding: 4, borderRadius: 8, display: "flex", flexShrink: 0 }}>
+            <X size={16} />
           </button>
         )}
-      </motion.div>
+        <button type="submit"
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "0 20px", height: 40, borderRadius: 12,
+            border: "none", cursor: "pointer",
+            fontSize: 14, fontWeight: 700,
+            background: value ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "var(--s4)",
+            color: value ? "#fff" : "var(--muted2)",
+            flexShrink: 0,
+            transition: "background .2s",
+            whiteSpace: "nowrap",
+          }}>
+          Buscar <ArrowRight size={14} />
+        </button>
+      </motion.form>
 
       {/* Suggestions */}
-      {focused && !value && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-full left-0 right-0 mt-2 rounded-xl bg-surface-100 border border-white/5 overflow-hidden z-50 shadow-2xl"
-        >
-          <p className="px-4 py-2.5 text-xs text-white/30 font-medium uppercase tracking-wider">Sugestões</p>
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => handleSuggestion(s)}
-              className="w-full text-left px-4 py-3 text-sm text-white/70 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
-            >
-              <Search size={14} className="text-white/20" />
-              {s}
-            </button>
-          ))}
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {focused && !value && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: .98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: .98 }}
+            transition={{ duration: .15 }}
+            style={{
+              position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0,
+              background: "var(--s2)", border: "1px solid var(--bd)",
+              borderRadius: 16, overflow: "hidden", zIndex: 100,
+              boxShadow: "0 20px 60px rgba(0,0,0,.6)",
+            }}
+          >
+            <p style={{ padding: "12px 16px 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted2)", borderBottom: "1px solid var(--bd)" }}>
+              🔥 Em alta agora
+            </p>
+            {SUGGESTIONS.map((s, i) => (
+              <motion.button key={s}
+                initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * .025 }}
+                onClick={() => { setValue(s); submit(s); }}
+                style={{
+                  width: "100%", textAlign: "left", background: "none", border: "none",
+                  padding: "12px 16px", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 10,
+                  fontSize: 14, color: "var(--muted)",
+                  transition: "background .1s, color .1s",
+                }}
+                onMouseEnter={e => Object.assign(e.currentTarget.style, { background: "rgba(124,106,255,.07)", color: "var(--txt)" })}
+                onMouseLeave={e => Object.assign(e.currentTarget.style, { background: "none", color: "var(--muted)" })}
+              >
+                <Search size={13} style={{ color: "var(--muted2)", flexShrink: 0 }} />
+                {s}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

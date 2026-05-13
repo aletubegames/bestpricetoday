@@ -1,17 +1,20 @@
 export interface Offer {
   provider: string;
   title: string;
-  price: number;
-  original_price?: number;
+  price: number | null;
+  original_price?: number | null;
   discount_percent: number;
   coupon_code?: string;
   coupon_discount: number;
   cashback_percent: number;
   shipping_price: number;
   shipping_free: boolean;
-  final_price: number;
+  final_price: number | null;
   score: number;
-  affiliate_url: string;
+  product_id?: string;
+  product_url?: string;
+  affiliate_url?: string;
+  tracking_id?: string;
   image_url?: string;
   is_fake_discount: boolean;
   economy: number;

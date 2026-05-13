@@ -1,17 +1,21 @@
 "use client";
+import { motion } from "framer-motion";
 import OfferCard from "./OfferCard";
 import type { Offer } from "@/types";
 
 export default function OfferGrid({ offers }: { offers: Offer[] }) {
   if (!offers.length) return (
-    <p className="text-center text-white/30 mt-20 text-lg">Nenhum resultado encontrado.</p>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      style={{ textAlign: "center", padding: "80px 20px" }}>
+      <p style={{ fontSize: 48, marginBottom: 12 }}>🔍</p>
+      <p style={{ color: "var(--muted)", fontSize: 15 }}>Nenhum resultado encontrado.</p>
+      <p style={{ color: "var(--muted2)", fontSize: 13, marginTop: 6 }}>Tente um termo diferente</p>
+    </motion.div>
   );
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {offers.map((offer, i) => (
-        <OfferCard key={`${offer.provider}-${i}`} offer={offer} rank={i} />
-      ))}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+      {offers.map((offer, i) => <OfferCard key={`${offer.provider}-${i}`} offer={offer} rank={i} />)}
     </div>
   );
 }

@@ -1,31 +1,54 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "next-themes";
 import { Providers } from "./providers";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "BestPriceToday — Menor Preço do Brasil",
-  description: "Compare preços em todas as lojas, encontre cupons e economize na hora.",
+  description: "Compare preços em Mercado Livre, Amazon, Shopee, KaBuM e mais. Cupons automáticos, cashback e histórico de preços. Economize na hora!",
+  keywords: ["comparador de preços", "menor preço", "cupom", "cashback", "mercado livre", "amazon", "shopee", "promoções", "ofertas", "brasil"],
+  authors: [{ name: "BestPriceToday", url: "https://bestpricetoday.vercel.app" }],
+  creator: "AleTubeGames",
+  publisher: "AleTubeGames",
+  metadataBase: new URL("https://bestpricetoday.vercel.app"),
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "https://bestpricetoday.vercel.app",
+    title: "BestPriceToday — Menor Preço do Brasil",
+    description: "Busca automática do menor preço em todas as lojas. Cupons aplicados na hora.",
+    siteName: "BestPriceToday",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "BestPriceToday" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BestPriceToday — Menor Preço do Brasil",
+    description: "Compare preços em Mercado Livre, Amazon, Shopee e mais.",
+    creator: "@AleTubeGames",
+    images: ["/og-image.png"],
+  },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
+  icons: {
+    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>",
+    apple: "/apple-touch-icon.png",
+  },
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "BestPriceToday" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f0f0f",
+  themeColor: "#07070f",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} bg-surface text-white antialiased min-h-screen`}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <Providers>{children}</Providers>
-        </ThemeProvider>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <link rel="canonical" href="https://bestpricetoday.vercel.app" />
+      </head>
+      <body>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
