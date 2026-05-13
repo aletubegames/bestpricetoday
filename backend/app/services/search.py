@@ -2,13 +2,15 @@
 import asyncio
 import time
 from typing import List, Optional
+# Providers ativos
 from app.services.providers.mercadolivre import MercadoLivreProvider
 from app.services.providers.amazon import AmazonProvider
-from app.services.providers.lomadee import LomadeeProvider
-from app.services.providers.awin import AwinProvider
 from app.services.providers.shopee import ShopeeProvider
-from app.services.providers.kabum import KabumProvider
 from app.services.providers.aliexpress import AliExpressProvider
+# Pendente cadastro (desativados):
+# from app.services.providers.lomadee import LomadeeProvider
+# from app.services.providers.awin import AwinProvider
+# from app.services.providers.kabum import KabumProvider
 from app.services.ranking.engine import rank_offers
 from app.schemas.schemas import OfferSchema, SearchResponse, ProviderEnum
 from app.core.cache import get_cached, set_cached, make_cache_key
@@ -25,14 +27,16 @@ def normalize_query(query: str) -> str:
     return query
 
 
+# Providers ativos (cadastrados)
 PROVIDERS = {
     ProviderEnum.mercadolivre: MercadoLivreProvider,
     ProviderEnum.amazon: AmazonProvider,
     ProviderEnum.shopee: ShopeeProvider,
-    ProviderEnum.kabum: KabumProvider,
-    ProviderEnum.lomadee: LomadeeProvider,
-    ProviderEnum.awin: AwinProvider,
     ProviderEnum.aliexpress: AliExpressProvider,
+    # Pendente cadastro:
+    # ProviderEnum.kabum: KabumProvider,
+    # ProviderEnum.lomadee: LomadeeProvider,
+    # ProviderEnum.awin: AwinProvider,
 }
 
 
