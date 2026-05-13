@@ -16,3 +16,4 @@ node_modules/
 .env.local
 *.log
 backend/.venv312/
+backend/hf_deploy/
