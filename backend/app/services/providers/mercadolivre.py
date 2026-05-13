@@ -37,58 +37,46 @@ class MercadoLivreProvider(BaseProvider):
         return f"{product_url}?matt_tool={settings.MERCADOLIVRE_APP_ID}"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
-        if not settings.MERCADOLIVRE_APP_ID:
-            logger.warning("MercadoLivre: APP_ID not configured, using public API")
-            return await self._search_public(query, limit)
         try:
             token = await self._get_token()
-            return await self._search_authenticated(query, limit, token)
+            client = await self.get_client()
+            resp = await client.get(
+                f"{self.BASE_URL}/products/search",
+                params={"site_id": "MLB", "q": query, "limit": limit},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return self._parse_results(data.get("results", []))
         except Exception as e:
-            logger.error(f"MercadoLivre auth failed: {e}, falling back to public")
-            return await self._search_public(query, limit)
-
-    async def _search_public(self, query: str, limit: int) -> List[OfferSchema]:
-        client = await self.get_client()
-        resp = await client.get(
-            f"{self.BASE_URL}/sites/MLB/search",
-            params={"q": query, "limit": limit, "sort": "price_asc"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return self._parse_results(data.get("results", []))
-
-    async def _search_authenticated(self, query: str, limit: int, token: str) -> List[OfferSchema]:
-        client = await self.get_client()
-        resp = await client.get(
-            f"{self.BASE_URL}/sites/MLB/search",
-            params={"q": query, "limit": limit, "sort": "price_asc"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return self._parse_results(data.get("results", []))
+            logger.error(f"MercadoLivre search failed: {e}")
+            return []
 
     def _parse_results(self, results: list) -> List[OfferSchema]:
         offers = []
         for item in results:
-            price = float(item.get("price", 0))
-            original = float(item.get("original_price") or price)
+            buy_box = item.get("buy_box_winner", {})
+            price = float(buy_box.get("price") or item.get("price") or 0)
+            if not price:
+                continue
+            original = float(buy_box.get("original_price") or price)
             discount = round((1 - price / original) * 100, 1) if original > price else 0
-            shipping = item.get("shipping", {})
-            free_shipping = shipping.get("free_shipping", False)
+            free_shipping = buy_box.get("shipping", {}).get("free_shipping", False)
             shipping_cost = 0 if free_shipping else 15.0
-
+            pid = item.get("id", "")
+            pictures = item.get("pictures", [])
+            image = pictures[0].get("url", "") if pictures else ""
             offers.append(OfferSchema(
                 provider=ProviderEnum.mercadolivre,
-                title=item.get("title", ""),
+                title=item.get("name", ""),
                 price=price,
                 original_price=original,
                 discount_percent=discount,
                 shipping_free=free_shipping,
                 shipping_price=shipping_cost,
                 final_price=price + shipping_cost,
-                affiliate_url=self._build_affiliate_url(item.get("permalink", "")),
-                image_url=item.get("thumbnail", "").replace("I.jpg", "O.jpg"),
+                affiliate_url=self._build_affiliate_url(f"https://www.mercadolivre.com.br/p/{pid}"),
+                image_url=image,
                 economy=original - price if original > price else 0,
             ))
         return offers

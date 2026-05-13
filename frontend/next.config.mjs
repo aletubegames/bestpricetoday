@@ -1,12 +1,5 @@
-import type { NextConfig } from "next";
-const withPWA = require("next-pwa")({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  register: true,
-  skipWaiting: true,
-});
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
       { hostname: "http2.mlstatic.com" },
@@ -18,4 +11,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+export default nextConfig;
