@@ -5,9 +5,7 @@ Com App Key (Open Platform): usa API completa.
 """
 import httpx
 import time
-import hmac
 import hashlib
-import json
 from typing import List
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum
