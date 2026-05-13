@@ -53,3 +53,4 @@ async def health():
 
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+# qua 13 mai 2026 19:21:05 -03
