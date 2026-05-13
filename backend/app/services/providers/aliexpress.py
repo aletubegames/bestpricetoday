@@ -96,6 +96,27 @@ class AliExpressProvider(BaseProvider):
             ))
         return offers
 
+    def _guess_category(self, query: str) -> str:
+        """Mapeia keywords para category_ids do AliExpress para melhorar relevância."""
+        q = query.lower()
+        if any(w in q for w in ["smartphone", "celular", "iphone", "galaxy", "redmi", "xiaomi", "motorola"]):
+            return "200000340"  # Phones & Telecommunications
+        if any(w in q for w in ["notebook", "laptop", "macbook"]):
+            return "200000352"  # Computer & Office
+        if any(w in q for w in ["tablet", "ipad"]):
+            return "200000344"  # Tablets
+        if any(w in q for w in ["fone", "headphone", "earphone", "airpod", "tws"]):
+            return "200000346"  # Consumer Electronics > Audio
+        if any(w in q for w in ["smartwatch", "relogio", "relógio", "watch"]):
+            return "200003655"  # Watches
+        if any(w in q for w in ["tv", "televisao", "televisão", "monitor"]):
+            return "200000350"  # TV & Video
+        if any(w in q for w in ["camera", "câmera", "fotografia"]):
+            return "200000351"  # Camera & Photo
+        if any(w in q for w in ["ar condicionado", "geladeira", "eletrodomestico"]):
+            return "200001075"  # Home Appliances
+        return ""  # sem filtro de categoria
+
     async def _search_api(self, query: str, limit: int) -> List[OfferSchema]:
         timestamp = str(int(time.time() * 1000))
         params = {
@@ -114,6 +135,9 @@ class AliExpressProvider(BaseProvider):
             "ship_to_country": "BR",
             "min_sale_price": "50",
         }
+        cat = self._guess_category(query)
+        if cat:
+            params["category_ids"] = cat
         # tracking_id é opcional — não enviar se vazio (causa erro 402)
         if settings.ALIEXPRESS_TRACKING_ID:
             params["tracking_id"] = settings.ALIEXPRESS_TRACKING_ID
