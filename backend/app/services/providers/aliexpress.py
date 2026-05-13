@@ -67,26 +67,9 @@ class AliExpressProvider(BaseProvider):
         except Exception as e:
             logger.error(f"AliExpress portal error: {e}")
 
-        # Fallback final: retorna link de busca generico como oferta
-        tracking = settings.ALIEXPRESS_TRACKING_ID or "bestpricetoday"
-        import urllib.parse
-        search_url = f"https://s.click.aliexpress.com/e/_oFnMhD7?dl=https%3A%2F%2Fwww.aliexpress.com%2Fw%2Fwholesale-{urllib.parse.quote(query)}.html&aff_fcid={tracking}"
-        return [OfferSchema(
-            provider=ProviderEnum.aliexpress,
-            title=f"Ver resultados para '{query}' no AliExpress",
-            price=0.01,
-            shipping_free=True,
-            shipping_price=0,
-            final_price=0.01,
-            affiliate_url=search_url,
-            image_url="https://ae01.alicdn.com/kf/aliexpress-logo.png",
-            score=30,
-            economy=0,
-            discount_percent=0,
-            coupon_discount=0,
-            cashback_percent=0,
-            is_fake_discount=False,
-        )]
+        # Sem API key e portal falhou — não retorna lixo
+        logger.warning("AliExpress: sem credenciais e portal indisponível, skipping")
+        return []
 
     def _parse_portal(self, products: list) -> List[OfferSchema]:
         offers = []

@@ -38,13 +38,16 @@ class MercadoLivreProvider(BaseProvider):
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
         try:
-            token = await self._get_token()
+            token = settings.MERCADOLIVRE_ACCESS_TOKEN or await self._get_token()
             client = await self.get_client()
             resp = await client.get(
-                f"{self.BASE_URL}/products/search",
-                params={"site_id": "MLB", "q": query, "limit": limit},
+                f"{self.BASE_URL}/sites/MLB/search",
+                params={"q": query, "limit": limit},
                 headers={"Authorization": f"Bearer {token}"},
             )
+            if resp.status_code == 403:
+                logger.warning("MercadoLivre: acesso bloqueado (app novo). Aguardando liberação.")
+                return []
             resp.raise_for_status()
             data = resp.json()
             return self._parse_results(data.get("results", []))
@@ -55,27 +58,25 @@ class MercadoLivreProvider(BaseProvider):
     def _parse_results(self, results: list) -> List[OfferSchema]:
         offers = []
         for item in results:
-            buy_box = item.get("buy_box_winner", {})
-            price = float(buy_box.get("price") or item.get("price") or 0)
+            price = float(item.get("price") or 0)
             if not price:
                 continue
-            original = float(buy_box.get("original_price") or price)
+            original = float(item.get("original_price") or price)
             discount = round((1 - price / original) * 100, 1) if original > price else 0
-            free_shipping = buy_box.get("shipping", {}).get("free_shipping", False)
+            free_shipping = item.get("shipping", {}).get("free_shipping", False)
             shipping_cost = 0 if free_shipping else 15.0
-            pid = item.get("id", "")
-            pictures = item.get("pictures", [])
-            image = pictures[0].get("url", "") if pictures else ""
+            permalink = item.get("permalink", "")
+            image = item.get("thumbnail", "").replace("I.jpg", "O.jpg")  # imagem maior
             offers.append(OfferSchema(
                 provider=ProviderEnum.mercadolivre,
-                title=item.get("name", ""),
+                title=item.get("title", ""),
                 price=price,
                 original_price=original,
                 discount_percent=discount,
                 shipping_free=free_shipping,
                 shipping_price=shipping_cost,
                 final_price=price + shipping_cost,
-                affiliate_url=self._build_affiliate_url(f"https://www.mercadolivre.com.br/p/{pid}"),
+                affiliate_url=self._build_affiliate_url(permalink),
                 image_url=image,
                 economy=original - price if original > price else 0,
             ))
