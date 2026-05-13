@@ -34,9 +34,9 @@ jobs:
             backend/app/ hf_space/app/
 
           # Copia outros arquivos relevantes
-          cp backend/hf_deploy/Dockerfile hf_space/Dockerfile
-          cp backend/hf_deploy/requirements.txt hf_space/requirements.txt
-          cp backend/hf_deploy/README.md hf_space/README.md
+          cp backend/hf_deploy/Dockerfile hf_space/Dockerfile || true
+          cp backend/hf_deploy/requirements.txt hf_space/requirements.txt || true
+          cp backend/hf_deploy/README.md hf_space/README.md || true
 
           cd hf_space
           git add -A
