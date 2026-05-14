@@ -93,45 +93,21 @@ class LomadeeProvider(BaseProvider):
             pass
         return None
 
+    def _build_affiliate_url(self, product_url: str) -> str:
+        """Gera link de afiliado Lomadee com sourceId para rastreamento de comissão."""
+        if not product_url:
+            return ""
+        sep = "&" if "?" in product_url else "?"
+        return f"{product_url}{sep}utm_source=lomadee&utm_medium=affiliate&sourceId={self.CHANNEL_ID}"
+
     async def _generate_affiliate_link(
         self,
         product_url: str,
         organization_id: Optional[str],
         campaign_id: Optional[str] = None,
     ) -> Optional[str]:
-        """Gera link afiliado rastreado via POST /affiliate/shortener/url"""
-        if not product_url or not organization_id:
-            return None
-        try:
-            client = await self.get_client()
-            payload = {
-                "organizationId": organization_id,
-                "type": "Custom",
-                "url": product_url,
-            }
-            if campaign_id:
-                payload["featureId"] = campaign_id
-            resp = await client.post(
-                f"{self.BASE_URL}/shortener/url",
-                json=payload,
-                headers={"x-api-key": settings.LOMADEE_API_KEY},
-                timeout=5,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                channels = data.get("type") or data.get("channels") or data.get("data") or []
-                if isinstance(channels, list):
-                    for channel in channels:
-                        short_urls = channel.get("shortUrls") or []
-                        if short_urls:
-                            return short_urls[0]
-
-                short = (data.get("data") or {}).get("shortUrl") or data.get("shortUrl") or data.get("url")
-                return short
-            logger.warning(f"Lomadee shortener returned {resp.status_code}: {resp.text[:200]}")
-        except Exception as e:
-            logger.error(f"Lomadee shortener error: {e}")
-        return None
+        """Retorna link de afiliado com sourceId para rastreamento Lomadee."""
+        return self._build_affiliate_url(product_url)
 
     async def _has_catalog_access(self) -> bool:
         if self._catalog_access is not None:
