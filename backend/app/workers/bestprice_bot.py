@@ -89,9 +89,86 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
 
+        # Auto-share exceptional deals to channel
+        channel_id = os.getenv("TELEGRAM_CHANNEL_ID", "")
+        if result.offers and result.offers[0].score >= 85 and channel_id:
+            asyncio.create_task(auto_share_to_channel(result.offers[0], query))
+
     except Exception as e:
         logger.error(f"BestPriceToday bot error: {e}")
         await msg.edit_text("❌ Erro ao buscar. Tente novamente em instantes.")
+
+
+async def auto_share_to_channel(offer, query: str):
+    """Share an exceptional deal to the channel."""
+    try:
+        from app.workers.channel_broadcaster import post_offer_to_channel
+        await post_offer_to_channel(offer.__dict__ if hasattr(offer, '__dict__') else offer, query)
+    except Exception as e:
+        logger.warning(f"auto_share_to_channel error: {e}")
+
+
+async def cmd_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = await update.message.reply_text("🔍 Buscando top ofertas do dia...", parse_mode="Markdown")
+    try:
+        queries = ["smartphone", "notebook", "fone bluetooth", "smartwatch", "smart tv"]
+        lines = ["🏆 *TOP OFERTAS DO DIA*\n"]
+        buttons = []
+        found = 0
+        import httpx
+        API_URL = os.getenv("API_URL", "https://alessandro2090-bestpricetoday-api.hf.space")
+        PROVIDER_EMOJI = {
+            "mercadolivre": "🟡", "amazon": "📦", "shopee": "🟠",
+            "kabum": "🟢", "aliexpress": "🔴", "lomadee": "🟣", "awin": "🔵",
+        }
+        for query in queries:
+            if found >= 5:
+                break
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.get(f"{API_URL}/api/v1/search", params={"q": query, "limit": 1})
+                offers = r.json().get("offers", [])
+                if not offers:
+                    continue
+                offer = offers[0]
+                if not offer.get("affiliate_url") or offer.get("final_price", 0) < 20:
+                    continue
+                emoji = PROVIDER_EMOJI.get(offer.get("provider", ""), "🏪")
+                rank = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][found]
+                price = offer.get("final_price", 0)
+                discount = offer.get("discount_percent", 0)
+                title = (offer.get("title") or "")[:60]
+                price_str = f"R$ {price:,.2f}".replace(",", ".")
+                disc_str = f" 🔥-{discount:.0f}%" if discount >= 5 and not offer.get("is_fake_discount") else ""
+                lines.append(f"{rank} {emoji} *{offer.get('provider','').upper()}* — {price_str}{disc_str}")
+                lines.append(f"   _{title}..._\n")
+                if offer.get("affiliate_url"):
+                    buttons.append([InlineKeyboardButton(f"{rank} {price_str} — {query.title()}", url=offer["affiliate_url"])])
+                found += 1
+        if not found:
+            await msg.edit_text("😕 Nenhuma oferta encontrada agora.")
+            return
+        text = "\n".join(lines)
+        keyboard = InlineKeyboardMarkup(buttons) if buttons else None
+        await msg.edit_text(text[:4096], parse_mode="Markdown", reply_markup=keyboard, disable_web_page_preview=True)
+    except Exception as e:
+        logger.error(f"cmd_top error: {e}")
+        await msg.edit_text("❌ Erro ao buscar. Tente novamente.")
+
+
+async def cmd_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    channel_id = os.getenv("TELEGRAM_CHANNEL_ID", "")
+    channel_link = channel_id if channel_id.startswith("@") else "@BestPriceTodayBR"
+    await update.message.reply_text(
+        f"📣 *Canal BestPriceToday*\n\n"
+        f"Receba ofertas automaticamente todo dia!\n\n"
+        f"👉 Entre no canal: {channel_link}\n\n"
+        f"🛍️ Postamos as melhores ofertas com:\n"
+        f"• Descontos reais verificados\n"
+        f"• Frete grátis quando disponível\n"
+        f"• Links afiliados diretos\n\n"
+        f"🌐 bestpricetoday.vercel.app",
+        parse_mode="Markdown"
+    )
 
 
 async def cmd_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -114,6 +191,8 @@ def run():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("alertas", cmd_alertas))
+    app.add_handler(CommandHandler("top", cmd_top))
+    app.add_handler(CommandHandler("canal", cmd_canal))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search))
 
     logger.info("BestPriceToday Telegram bot started")

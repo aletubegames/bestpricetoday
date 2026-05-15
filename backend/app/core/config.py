@@ -50,6 +50,7 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHANNEL_ID: str = ""  # @BestPriceTodayBR or -1001234567890
 
     # Sentry
     SENTRY_DSN: str = ""

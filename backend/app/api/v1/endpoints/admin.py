@@ -595,3 +595,17 @@ async def get_report(
         }
     except Exception:
         return {"overview": {}, "marketplaces": [], "traffic": [], "top_products": []}
+
+
+@router.post("/broadcast/telegram")
+async def trigger_telegram_broadcast(
+    n: int = 3,
+    _: str = Depends(require_admin),
+):
+    """Manually trigger Telegram channel broadcast."""
+    try:
+        from app.workers.channel_broadcaster import broadcast_top_offers
+        result = await broadcast_top_offers(n_offers=n)
+        return {"ok": True, **result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

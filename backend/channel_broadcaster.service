@@ -1,0 +1,16 @@
+[Unit]
+Description=BestPriceToday Channel Broadcaster
+After=network.target
+
+[Service]
+Type=simple
+User=alessandro
+WorkingDirectory=/home/alessandro/bin/Git_Repo/BestPriceToday/backend
+Environment=PYTHONPATH=/home/alessandro/bin/Git_Repo/BestPriceToday/backend
+EnvironmentFile=/home/alessandro/bin/Git_Repo/BestPriceToday/backend/.env
+ExecStart=/home/alessandro/bin/Git_Repo/BestPriceToday/backend/venv/bin/python -m app.workers.channel_broadcaster
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
