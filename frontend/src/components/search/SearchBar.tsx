@@ -2,17 +2,7 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Loader2, ArrowRight } from "lucide-react";
-
-const SUGGESTIONS = [
-  "iPhone 16 Pro Max 256GB",
-  "Nike Air Force 1 42",
-  "Notebook Dell i7 16GB RAM",
-  "AirPods Pro 2ª geração",
-  "PS5 Slim + controle extra",
-  "Monitor LG 27 4K IPS",
-  "RTX 4070 Super 12GB",
-  "Samsung Galaxy S24 Ultra",
-];
+import { useTrendingSearches } from "@/hooks/useTrendingSearches";
 
 interface Props {
   onSearch: (query: string) => void;
@@ -24,6 +14,8 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debRef = useRef<NodeJS.Timeout>();
+  const { data: trendingData } = useTrendingSearches(12);
+  const suggestions = trendingData?.items ?? [];
 
   const submit = (v: string) => { onSearch(v); setFocused(false); };
 
@@ -93,7 +85,7 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
 
       {/* Suggestions */}
       <AnimatePresence>
-        {focused && !value && (
+        {focused && !value && suggestions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -8, scale: .98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -109,10 +101,10 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
             <p style={{ padding: "12px 16px 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted2)", borderBottom: "1px solid var(--bd)" }}>
               🔥 Em alta agora
             </p>
-            {SUGGESTIONS.map((s, i) => (
-              <motion.button key={s}
+            {suggestions.map((item, i) => (
+              <motion.button key={item.query}
                 initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * .025 }}
-                onClick={() => { setValue(s); submit(s); }}
+                onClick={() => { setValue(item.query); submit(item.query); }}
                 style={{
                   width: "100%", textAlign: "left", background: "none", border: "none",
                   padding: "12px 16px", cursor: "pointer",
@@ -124,7 +116,7 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
                 onMouseLeave={e => Object.assign(e.currentTarget.style, { background: "none", color: "var(--muted)" })}
               >
                 <Search size={13} style={{ color: "var(--muted2)", flexShrink: 0 }} />
-                {s}
+                {item.query}
               </motion.button>
             ))}
           </motion.div>

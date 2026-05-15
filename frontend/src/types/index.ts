@@ -48,3 +48,12 @@ export interface SearchResponse {
   cached: boolean;
   took_ms: number;
 }
+
+export interface TrendingSearchItem {
+  query: string;
+  score: number;
+}
+
+export interface TrendingSearchResponse {
+  items: TrendingSearchItem[];
+}

@@ -76,6 +76,15 @@ class SearchResponse(BaseModel):
     took_ms: int = 0
 
 
+class TrendingSearchItem(BaseModel):
+    query: str
+    score: int
+
+
+class TrendingSearchResponse(BaseModel):
+    items: List[TrendingSearchItem] = Field(default_factory=list)
+
+
 class PriceHistoryPoint(BaseModel):
     price: float
     provider: ProviderEnum

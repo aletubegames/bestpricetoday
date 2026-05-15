@@ -5,12 +5,8 @@ import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
 import OfferSkeleton from "@/components/offers/OfferSkeleton";
 import { useSearch } from "@/hooks/useSearch";
+import { useTrendingSearches } from "@/hooks/useTrendingSearches";
 import type { ProviderStatus } from "@/types";
-
-const TRENDING = [
-  "iPhone 16 Pro", "RTX 4070", "AirPods Pro 2", "PS5 Slim",
-  "MacBook Air M3", "Galaxy S24", "Monitor 4K", "Notebook i7",
-];
 
 const PROVIDER_LABELS: Record<string, string> = {
   mercadolivre: "Mercado Livre",
@@ -121,6 +117,8 @@ function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
 export default function HomePage() {
   const [query, setQuery] = useState("");
   const { data, isLoading, error } = useSearch(query);
+  const { data: trendingData } = useTrendingSearches(20);
+  const trending = trendingData?.items ?? [];
 
   const plural = (n: number) => n === 1 ? "oferta encontrada" : "ofertas encontradas";
 
@@ -208,27 +206,49 @@ export default function HomePage() {
           <SearchBar onSearch={setQuery} isLoading={isLoading} />
 
           {/* Trending pills */}
-          {!query && (
+          {!query && trending.length > 0 && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 20 }}
+              style={{ marginTop: 24, textAlign: "left" }}
             >
-              <span style={{ fontSize: 12, color: "var(--muted2)", alignSelf: "center" }}>Em alta:</span>
-              {TRENDING.map((t) => (
-                <button key={t} onClick={() => setQuery(t)}
-                  style={{
-                    fontSize: 12, fontWeight: 500,
-                    padding: "5px 12px", borderRadius: 99,
-                    background: "var(--s2)", border: "1px solid var(--bd)",
-                    color: "var(--muted)", cursor: "pointer",
-                    transition: "all .15s",
-                  }}
-                  onMouseEnter={e => Object.assign((e.target as HTMLElement).style, { borderColor: "rgba(124,106,255,.4)", color: "var(--acc2)", background: "rgba(124,106,255,.06)" })}
-                  onMouseLeave={e => Object.assign((e.target as HTMLElement).style, { borderColor: "var(--bd)", color: "var(--muted)", background: "var(--s2)" })}
-                >
-                  {t}
-                </button>
-              ))}
+              <span style={{ fontSize: 12, color: "var(--muted2)", display: "block", marginBottom: 12, textAlign: "center" }}>
+                Em alta:
+              </span>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: 10,
+                  width: "min(100%, 960px)",
+                  margin: "0 auto",
+                }}
+              >
+                {trending.map((item) => (
+                  <button key={item.query} onClick={() => setQuery(item.query)}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: "10px 14px",
+                      borderRadius: 14,
+                      background: "var(--s2)",
+                      border: "1px solid var(--bd)",
+                      color: "var(--muted)",
+                      cursor: "pointer",
+                      transition: "all .15s",
+                      textAlign: "left",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      minHeight: 42,
+                    }}
+                    title={item.query}
+                    onMouseEnter={e => Object.assign(e.currentTarget.style, { borderColor: "rgba(124,106,255,.4)", color: "var(--acc2)", background: "rgba(124,106,255,.06)", transform: "translateY(-1px)" })}
+                    onMouseLeave={e => Object.assign(e.currentTarget.style, { borderColor: "var(--bd)", color: "var(--muted)", background: "var(--s2)", transform: "translateY(0)" })}
+                  >
+                    {item.query}
+                  </button>
+                ))}
+              </div>
             </motion.div>
           )}
         </motion.div>
