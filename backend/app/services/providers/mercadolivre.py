@@ -33,18 +33,36 @@ class MercadoLivreProvider(BaseProvider):
         self._token_expires = time.time() + data.get("expires_in", 21600)
         return self._token
 
+    async def _get_best_token(self) -> Optional[str]:
+        """Returns the best available token: DB first, then settings, then client_credentials."""
+        # Try DB token service first (has OAuth user token + auto-refresh)
+        try:
+            from app.db.session import AsyncSessionLocal
+            from app.services.ml_token_service import get_token as get_db_token
+            async with AsyncSessionLocal() as db:
+                token = await get_db_token(db)
+                if token:
+                    return token
+        except Exception:
+            pass
+        # Fall back to settings env var
+        if settings.MERCADOLIVRE_ACCESS_TOKEN:
+            return settings.MERCADOLIVRE_ACCESS_TOKEN
+        # Last resort: client_credentials (limited access)
+        return await self._get_token()
+
     def _build_affiliate_url(self, product_url: str) -> str:
         return f"{product_url}?matt_tool={settings.MERCADOLIVRE_APP_ID}"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
-        if not settings.MERCADOLIVRE_ACCESS_TOKEN and not (settings.MERCADOLIVRE_APP_ID and settings.MERCADOLIVRE_SECRET):
+        if not settings.MERCADOLIVRE_APP_ID:
             self.set_status(
                 ProviderSearchState.not_configured,
                 message="Credenciais do Mercado Livre não configuradas.",
             )
             return []
         try:
-            token = settings.MERCADOLIVRE_ACCESS_TOKEN or await self._get_token()
+            token = await self._get_best_token()
             client = await self.get_client()
             resp = await client.get(
                 f"{self.BASE_URL}/sites/MLB/search",
