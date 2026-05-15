@@ -22,12 +22,25 @@ async def lifespan(app: FastAPI):
     import asyncio
     from app.workers.conversion_cron import start_conversion_cron
     cron_task = asyncio.create_task(start_conversion_cron())
+
+    # Start Telegram channel broadcaster
+    from app.workers.channel_broadcaster import run_broadcaster_loop
+    broadcast_task = asyncio.create_task(run_broadcaster_loop())
+
+    # Start Telegram bot polling
+    from app.workers.bestprice_bot import start_bot_polling
+    bot_task = asyncio.create_task(start_bot_polling())
+
     yield
+
     cron_task.cancel()
-    try:
-        await cron_task
-    except asyncio.CancelledError:
-        pass
+    broadcast_task.cancel()
+    bot_task.cancel()
+    for task in [cron_task, broadcast_task, bot_task]:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     logger.info("BestPriceToday shutting down")
 
 
