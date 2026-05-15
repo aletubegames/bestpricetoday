@@ -181,6 +181,41 @@ async def cmd_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def start_bot_polling():
+    """Run bot polling in background — for cloud deployment."""
+    token = settings.TELEGRAM_BOT_TOKEN
+    if not token:
+        logger.warning("TELEGRAM_BOT_TOKEN not set, bot disabled")
+        return
+
+    application = (
+        ApplicationBuilder()
+        .token(token)
+        .build()
+    )
+    application.add_handler(CommandHandler("start", cmd_start))
+    application.add_handler(CommandHandler("help", cmd_help))
+    application.add_handler(CommandHandler("alertas", cmd_alertas))
+    application.add_handler(CommandHandler("top", cmd_top))
+    application.add_handler(CommandHandler("canal", cmd_canal))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search))
+
+    logger.info("Starting Telegram bot polling (cloud mode)...")
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(drop_pending_updates=True)
+
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+
+
 def run():
     token = settings.TELEGRAM_BOT_TOKEN
     if not token:
