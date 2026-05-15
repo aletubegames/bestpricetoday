@@ -63,19 +63,29 @@ export default function AdminPage() {
     if (stored) setKey(stored);
   }, []);
 
+  const adminFetch = (url: string, k: string, options: RequestInit = {}) =>
+    fetch(`${API}${url}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Key": k,
+        ...(options.headers || {}),
+      },
+    }).then(r => r.json());
+
   const fetchAll = useCallback(async (k: string) => {
     setLoading(true);
     const provParam = activePlatform !== "all" ? `&provider=${activePlatform}` : "";
     const daysParam = `&days=${activePeriod}`;
     try {
       const [ov, an, mk, tr, tp, cl, cv] = await Promise.all([
-        fetch(`${API}/api/v1/admin/overview?admin_key=${k}${daysParam}${provParam}`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/analytics?admin_key=${k}&days=${activePeriod}`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/marketplaces?admin_key=${k}`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/traffic?admin_key=${k}`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/products/top?admin_key=${k}&limit=10`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/clicks?admin_key=${k}&limit=10&page=${clickPage}`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/conversions?admin_key=${k}&limit=10&page=${convPage}`).then(r => r.json()),
+        adminFetch(`/api/v1/admin/overview?days=${activePeriod}${provParam}`, k),
+        adminFetch(`/api/v1/admin/analytics?days=${activePeriod}`, k),
+        adminFetch(`/api/v1/admin/marketplaces`, k),
+        adminFetch(`/api/v1/admin/traffic`, k),
+        adminFetch(`/api/v1/admin/products/top?limit=10`, k),
+        adminFetch(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
+        adminFetch(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
       ]);
       setOverview(ov);
       setAnalytics(an.data || {});
@@ -98,7 +108,9 @@ export default function AdminPage() {
   const handleLogin = async () => {
     setLoginError("");
     try {
-      const res = await fetch(`${API}/api/v1/admin/overview?admin_key=${inputKey}&days=1`);
+      const res = await fetch(`${API}/api/v1/admin/overview?days=1`, {
+        headers: { "X-Admin-Key": inputKey },
+      });
       if (!res.ok) { setLoginError("Chave inválida"); return; }
       localStorage.setItem("admin_key", inputKey);
       setKey(inputKey);
@@ -332,7 +344,10 @@ export default function AdminPage() {
             </div>
             <button
               onClick={async () => {
-                const res = await fetch(`${API}/api/v1/admin/conversions/poll?admin_key=${key}`, { method: "POST" })
+                const res = await fetch(`${API}/api/v1/admin/conversions/poll`, {
+                  method: "POST",
+                  headers: { "X-Admin-Key": key },
+                });
                 const data = await res.json()
                 alert(`Poll concluído: ${JSON.stringify(data.new_conversions)}`)
                 fetchAll(key)

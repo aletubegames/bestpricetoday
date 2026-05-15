@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     MERCADOLIVRE_APP_ID: str = ""
     MERCADOLIVRE_SECRET: str = ""
     MERCADOLIVRE_ACCESS_TOKEN: str = ""
+    MERCADOLIVRE_REFRESH_TOKEN: str = ""
+    MERCADOLIVRE_TOKEN_EXPIRES_AT: int = 0  # Unix timestamp
 
     AMAZON_ACCESS_KEY: str = ""
     AMAZON_SECRET_KEY: str = ""
