@@ -514,6 +514,14 @@ class AliExpressClient(MarketplaceClient):
             params["tracking_id"] = settings.ALIEXPRESS_TRACKING_ID
 
         data = await self._call_top("aliexpress.affiliate.product.query", params)
+
+        # Se o tracking_id causou erro (resp_code 402), tenta sem ele
+        resp_result = data.get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {})
+        if resp_result.get("resp_code") == 402 and "tracking_id" in params:
+            logger.warning("AliExpress: tracking_id inválido, tentando sem tracking_id")
+            params.pop("tracking_id")
+            data = await self._call_top("aliexpress.affiliate.product.query", params)
+
         raw = self._parse_top_products(data)
         relevant = self._filter_relevant(query, raw)
 
