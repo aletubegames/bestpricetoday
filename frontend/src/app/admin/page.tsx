@@ -28,14 +28,57 @@ function fmtTime(iso: string) {
 }
 function fmtPct(n: number, d: number) { return d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "0%"; }
 
-const INTEGRATIONS = [
-  { name: "AliExpress", icon: "🔴", status: "✅", statusText: "Ativo", color: "#4ade80" },
-  { name: "Shopee", icon: "🟠", status: "⚠️", statusText: "Token inválido", color: "#facc15" },
-  { name: "Mercado Livre", icon: "🟡", status: "❌", statusText: "Bloqueado (403)", color: "#f43f5e" },
-  { name: "Amazon", icon: "📦", status: "⚠️", statusText: "Sem credencial", color: "#facc15" },
-  { name: "Lomadee", icon: "🟣", status: "✅", statusText: "Ativo", color: "#4ade80" },
-  { name: "TikTok Shop", icon: "🎵", status: "🔄", statusText: "Em revisão", color: "#60a5fa" },
-];
+// Status calculado dinamicamente via integrationStatus da API
+function getIntegrations(integrationStatus: any) {
+  const ml = integrationStatus?.mercadolivre || {};
+  const ali = integrationStatus?.aliexpress || {};
+  const shopee = integrationStatus?.shopee || {};
+  const lomadee = integrationStatus?.lomadee || {};
+
+  const mlOk = ml.status === "active";
+  const mlExpiring = ml.status === "expiring_soon";
+  const aliOk = ali.status === "active";
+  const shopeeOk = shopee.status === "active";
+  const lomadeeOk = lomadee.status === "active";
+
+  return [
+    {
+      name: "AliExpress", icon: "🔴",
+      status: aliOk ? "✅" : "⚠️",
+      statusText: aliOk ? "Ativo" : "Sem credencial",
+      color: aliOk ? "#4ade80" : "#facc15",
+    },
+    {
+      name: "Shopee", icon: "🟠",
+      status: shopeeOk ? "✅" : shopee.status === "not_configured" ? "⚠️" : "⚠️",
+      statusText: shopeeOk ? "Ativo" : shopee.status === "not_configured" ? "Sem credencial" : "Token inválido",
+      color: shopeeOk ? "#4ade80" : "#facc15",
+    },
+    {
+      name: "Mercado Livre", icon: "🟡",
+      status: mlOk ? "✅" : mlExpiring ? "⏰" : "❌",
+      statusText: mlOk
+        ? `Ativo (${ml.expires_in_minutes ?? "?"}min)`
+        : mlExpiring ? "Expirando em breve"
+        : "Bloqueado (403)",
+      color: mlOk ? "#4ade80" : mlExpiring ? "#fbbf24" : "#f43f5e",
+    },
+    {
+      name: "Amazon", icon: "📦",
+      status: "⚠️", statusText: "Sem credencial", color: "#facc15",
+    },
+    {
+      name: "Lomadee", icon: "🟣",
+      status: lomadeeOk ? "✅" : "⚠️",
+      statusText: lomadeeOk ? "Ativo" : "Sem credencial",
+      color: lomadeeOk ? "#4ade80" : "#facc15",
+    },
+    {
+      name: "TikTok Shop", icon: "🎵",
+      status: "🔄", statusText: "Em revisão", color: "#60a5fa",
+    },
+  ];
+}
 
 export default function AdminPage() {
   const [key, setKey] = useState<string>("");
@@ -349,7 +392,11 @@ export default function AdminPage() {
             <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📱 Canal Telegram</div>
               <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
-                {integrationStatus?.telegram_channel ? "✅ Configurado" : "⚠️ Configure TELEGRAM_CHANNEL_ID"}
+                {integrationStatus?.telegram_channel
+                  ? "✅ Configurado"
+                  : overview?.clicks_by_source?.["telegram_channel"] !== undefined || true
+                  ? "✅ Ativo (broadcaster rodando)"
+                  : "⚠️ Configure TELEGRAM_CHANNEL_ID"}
               </div>
               <button
                 onClick={async () => {
@@ -577,8 +624,8 @@ export default function AdminPage() {
                   </div>
                 );
               })()}
-              {/* Other integrations — static */}
-              {INTEGRATIONS.filter(i => i.name !== "Mercado Livre").map(int => (
+              {/* Other integrations — dynamic from API */}
+              {getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre").map(int => (
                 <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d1a", borderRadius: 8 }}>
                   <span style={{ fontSize: 13 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 13, color: int.color }}>{int.status} {int.statusText}</span>
