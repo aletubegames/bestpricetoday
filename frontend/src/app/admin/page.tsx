@@ -274,7 +274,7 @@ export default function AdminPage() {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span style={S.label}>Plataforma:</span>
             {platforms.map(p => (
-              <button key={p.id} onClick={() => setActivePlatform(p.id)} style={activePlatform === p.id ? pillActive : pillInactive}>
+              <button key={p.id} onClick={() => { setActivePlatform(p.id); setClickPage(1); setConvPage(1); }} style={activePlatform === p.id ? pillActive : pillInactive}>
                 {p.emoji} {p.label}
               </button>
             ))}
@@ -282,7 +282,7 @@ export default function AdminPage() {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span style={S.label}>Período:</span>
             {periods.map(p => (
-              <button key={p.days} onClick={() => setActivePeriod(p.days)} style={activePeriod === p.days ? pillActive : pillInactive}>
+              <button key={p.days} onClick={() => { setActivePeriod(p.days); setClickPage(1); setConvPage(1); }} style={activePeriod === p.days ? pillActive : pillInactive}>
                 {p.label}
               </button>
             ))}
