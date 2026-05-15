@@ -1,10 +1,11 @@
 'use client'
+import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://alessandro2090-bestpricetoday-api.hf.space'
 
-export default function AuthCallback() {
+function AuthCallbackInner() {
   const params = useSearchParams()
   const [status, setStatus] = useState('Processando...')
 
@@ -21,14 +22,7 @@ export default function AuthCallback() {
       return
     }
 
-    // Repassa o code pro backend
-    fetch(`${API}/auth/ml/callback?code=${code}`)
-      .then(r => r.text())
-      .then(html => {
-        // Redireciona para o backend que mostra os tokens
-        window.location.href = `${API}/auth/ml/callback?code=${code}`
-      })
-      .catch(e => setStatus(`Erro: ${e.message}`))
+    window.location.href = `${API}/auth/ml/callback?code=${code}`
   }, [params])
 
   return (
@@ -36,5 +30,17 @@ export default function AuthCallback() {
       <h2>🔐 Autenticação Mercado Livre</h2>
       <p>{status}</p>
     </div>
+  )
+}
+
+export default function AuthCallback() {
+  return (
+    <Suspense fallback={
+      <div style={{ fontFamily: 'monospace', padding: '2rem', background: '#111', color: '#0f0', minHeight: '100vh' }}>
+        <p>Carregando...</p>
+      </div>
+    }>
+      <AuthCallbackInner />
+    </Suspense>
   )
 }
