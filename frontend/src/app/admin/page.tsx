@@ -296,11 +296,11 @@ export default function AdminPage() {
         {/* KPI CARDS */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 16, marginBottom: 20 }}>
           {[
-            { label: "Cliques Hoje", value: overview?.total_clicks_today ?? "–", color: "#7c6aff", icon: "👆" },
-            { label: `Cliques ${activePeriod === 1 ? "Hoje" : activePeriod === 7 ? "7 dias" : "30 dias"}`, value: overview?.total_clicks_week ?? overview?.total_clicks_month ?? "–", color: "#60a5fa", icon: "📊" },
-            { label: "Conversões", value: overview?.total_conversions ?? "–", color: "#4ade80", icon: "✅" },
-            { label: "Receita Total", value: overview?.total_revenue != null ? fmtBRL(overview.total_revenue) : "–", color: "#facc15", icon: "💰" },
-            { label: "Comissão", value: overview?.total_commission != null ? fmtBRL(overview.total_commission) : "–", color: "#f87171", icon: "🏷️" },
+            { label: "Cliques Hoje", value: (overview?.total_clicks_today ?? 0).toLocaleString("pt-BR"), color: "#7c6aff", icon: "👆" },
+            { label: `Cliques ${activePeriod === 1 ? "Hoje" : activePeriod + " dias"}`, value: (activePeriod <= 7 ? overview?.total_clicks_week : overview?.total_clicks_month ?? 0).toLocaleString("pt-BR") ?? "0", color: "#60a5fa", icon: "📊" },
+            { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "#4ade80", icon: "✅" },
+            { label: "Receita Total", value: fmtBRL(overview?.total_revenue ?? 0), color: "#facc15", icon: "💰" },
+            { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "#f87171", icon: "🏷️" },
             { label: "CTR Clique→Venda", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "#00e5a0", icon: "🎯" },
             { label: "Receita/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "#fbbf24", icon: "💹" },
           ].map(card => (

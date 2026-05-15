@@ -213,6 +213,9 @@ async def get_overview(
             "revenue_by_provider": {},
             "recent_clicks": [],
             "recent_conversions": [],
+            "conversion_rate": 0.0,
+            "revenue_per_click": 0.0,
+            "avg_order_value": 0.0,
         }
 
 
