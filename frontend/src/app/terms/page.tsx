@@ -95,9 +95,9 @@ export default function TermsPage() {
 
         <Section title="11. Contato">
           Para dúvidas sobre estes Termos, entre em contato: <br />
-          <a href="mailto:contato@bestpricetoday.com.br"
+          <a href="mailto:aletubegames@gmail.com"
              style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            contato@bestpricetoday.com.br
+            aletubegames@gmail.com
           </a>
         </Section>
 

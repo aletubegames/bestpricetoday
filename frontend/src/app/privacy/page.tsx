@@ -33,9 +33,9 @@ export default function PrivacyPage() {
           Website: <a href="https://bestpricetoday.vercel.app" style={{ color: "var(--acc2)", textDecoration: "none" }}>
             bestpricetoday.vercel.app
           </a><br />
-          Contato: <a href="mailto:privacidade@bestpricetoday.com.br"
+          Contato: <a href="mailto:aletubegames@gmail.com"
                       style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            privacidade@bestpricetoday.com.br
+            aletubegames@gmail.com
           </a>
         </Section>
 
@@ -130,9 +130,9 @@ export default function PrivacyPage() {
             <li><strong>Oposição:</strong> contestar o uso de dados baseado em legítimo interesse</li>
           </ul>
           Para exercer seus direitos, envie e-mail para{" "}
-          <a href="mailto:privacidade@bestpricetoday.com.br"
+          <a href="mailto:aletubegames@gmail.com"
              style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            privacidade@bestpricetoday.com.br
+            aletubegames@gmail.com
           </a>{" "}
           com o assunto "Direitos LGPD". Responderemos em até 15 dias úteis.
         </Section>
@@ -178,9 +178,9 @@ export default function PrivacyPage() {
 
         <Section title="12. Contato e DPO">
           Para questões de privacidade ou para exercer seus direitos:<br /><br />
-          📧 <a href="mailto:privacidade@bestpricetoday.com.br"
+          📧 <a href="mailto:aletubegames@gmail.com"
                 style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            privacidade@bestpricetoday.com.br
+            aletubegames@gmail.com
           </a><br />
           🌐 <a href="https://bestpricetoday.vercel.app"
                 style={{ color: "var(--acc2)", textDecoration: "none" }}>
