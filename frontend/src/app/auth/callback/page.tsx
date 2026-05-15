@@ -22,7 +22,7 @@ function AuthCallbackInner() {
       return
     }
 
-    window.location.href = `${API}/auth/ml/callback?code=${code}`
+    window.location.href = `${API}/api/v1/auth/ml/callback?code=${code}`
   }, [params])
 
   return (
