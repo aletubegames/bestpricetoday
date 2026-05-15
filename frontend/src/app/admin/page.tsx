@@ -3,41 +3,60 @@ import { useState, useEffect, useCallback } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "https://alessandro2090-bestpricetoday-api.hf.space";
 
-interface Overview {
-  total_clicks_today: number;
-  total_clicks_week: number;
-  total_clicks_month: number;
-  total_conversions: number;
-  total_revenue: number;
-  total_commission: number;
-  top_provider: string;
-  avg_commission_rate: number;
-  clicks_by_provider: Record<string, number>;
-  clicks_by_source: Record<string, number>;
-  revenue_by_provider: Record<string, number>;
-  recent_clicks: any[];
-  recent_conversions: any[];
-}
+const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
+const PROVIDER_COLORS: Record<string, string> = {
+  aliexpress: "#f43f5e", shopee: "#f87171", mercadolivre: "#facc15",
+  amazon: "#fb923c", lomadee: "#c084fc", awin: "#60a5fa", tiktok: "#ff0050",
+  unknown: "#64748b", web: "#7c6aff", telegram: "#29b6f6", direct: "#4ade80",
+};
+const PROVIDER_EMOJI: Record<string, string> = {
+  aliexpress: "🔴", shopee: "🟠", mercadolivre: "🟡", amazon: "📦", lomadee: "🟣", awin: "🔵"
+};
 
+const S = {
+  card: { background: "#111120", border: "1px solid #2a2a3a", borderRadius: 14, padding: "20px 24px" } as React.CSSProperties,
+  label: { color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 6 } as React.CSSProperties,
+  bigValue: { color: "#fff", fontSize: 32, fontWeight: 800, lineHeight: 1 } as React.CSSProperties,
+  th: { padding: "10px 12px", textAlign: "left" as const, color: "#64748b", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #2a2a3a", cursor: "pointer", userSelect: "none" as const } as React.CSSProperties,
+  td: { padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #1a1a2e" } as React.CSSProperties,
+};
+
+function fmtBRL(v: number) { return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function fmtTime(iso: string) {
   if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
+function fmtPct(n: number, d: number) { return d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "0%"; }
 
-function fmtBRL(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+const INTEGRATIONS = [
+  { name: "AliExpress", icon: "🔴", status: "✅", statusText: "Ativo", color: "#4ade80" },
+  { name: "Shopee", icon: "🟠", status: "⚠️", statusText: "Token inválido", color: "#facc15" },
+  { name: "Mercado Livre", icon: "🟡", status: "❌", statusText: "Bloqueado (403)", color: "#f43f5e" },
+  { name: "Amazon", icon: "📦", status: "⚠️", statusText: "Sem credencial", color: "#facc15" },
+  { name: "Lomadee", icon: "🟣", status: "✅", statusText: "Ativo", color: "#4ade80" },
+  { name: "TikTok Shop", icon: "🎵", status: "🔄", statusText: "Em revisão", color: "#60a5fa" },
+];
 
 export default function AdminPage() {
   const [key, setKey] = useState<string>("");
   const [inputKey, setInputKey] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [overview, setOverview] = useState<Overview | null>(null);
+  const [activePlatform, setActivePlatform] = useState<string>("all");
+  const [activePeriod, setActivePeriod] = useState<number>(7);
+  const [overview, setOverview] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<Record<string, Record<string, number>>>({});
   const [marketplaces, setMarketplaces] = useState<any[]>([]);
   const [traffic, setTraffic] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [recentClicks, setRecentClicks] = useState<any[]>([]);
+  const [recentConversions, setRecentConversions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [clickPage, setClickPage] = useState(1);
+  const [convPage, setConvPage] = useState(1);
+  const [marketSort, setMarketSort] = useState<string>("clicks");
+  const [marketSortDir, setMarketSortDir] = useState<"asc" | "desc">("desc");
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("admin_key");
@@ -46,42 +65,45 @@ export default function AdminPage() {
 
   const fetchAll = useCallback(async (k: string) => {
     setLoading(true);
+    const provParam = activePlatform !== "all" ? `&provider=${activePlatform}` : "";
+    const daysParam = `&days=${activePeriod}`;
     try {
-      const [ov, mk, tr, tp] = await Promise.all([
-        fetch(`${API}/api/v1/admin/overview?admin_key=${k}`).then(r => r.json()),
+      const [ov, an, mk, tr, tp, cl, cv] = await Promise.all([
+        fetch(`${API}/api/v1/admin/overview?admin_key=${k}${daysParam}${provParam}`).then(r => r.json()),
+        fetch(`${API}/api/v1/admin/analytics?admin_key=${k}&days=${activePeriod}`).then(r => r.json()),
         fetch(`${API}/api/v1/admin/marketplaces?admin_key=${k}`).then(r => r.json()),
         fetch(`${API}/api/v1/admin/traffic?admin_key=${k}`).then(r => r.json()),
-        fetch(`${API}/api/v1/admin/products/top?admin_key=${k}`).then(r => r.json()),
+        fetch(`${API}/api/v1/admin/products/top?admin_key=${k}&limit=10`).then(r => r.json()),
+        fetch(`${API}/api/v1/admin/clicks?admin_key=${k}&limit=10&page=${clickPage}`).then(r => r.json()),
+        fetch(`${API}/api/v1/admin/conversions?admin_key=${k}&limit=10&page=${convPage}`).then(r => r.json()),
       ]);
       setOverview(ov);
+      setAnalytics(an.data || {});
       setMarketplaces(Array.isArray(mk) ? mk : []);
       setTraffic(Array.isArray(tr) ? tr : []);
       setTopProducts(Array.isArray(tp) ? tp : []);
+      setRecentClicks(cl.items || []);
+      setRecentConversions(cv.items || []);
+      setLastUpdated(new Date());
     } catch (e) {
-      // ignore
+      console.error(e);
     }
     setLoading(false);
-  }, []);
+  }, [activePlatform, activePeriod, clickPage, convPage]);
 
   useEffect(() => {
-    if (!key) return;
-    fetchAll(key);
-    const interval = setInterval(() => fetchAll(key), 30000);
-    return () => clearInterval(interval);
+    if (key) fetchAll(key);
   }, [key, fetchAll]);
 
   const handleLogin = async () => {
     setLoginError("");
     try {
-      const res = await fetch(`${API}/api/v1/admin/overview?admin_key=${inputKey}`);
-      if (res.ok) {
-        localStorage.setItem("admin_key", inputKey);
-        setKey(inputKey);
-      } else {
-        setLoginError("Chave inválida. Verifique o ADMIN_MANAGER_KEY.");
-      }
+      const res = await fetch(`${API}/api/v1/admin/overview?admin_key=${inputKey}&days=1`);
+      if (!res.ok) { setLoginError("Chave inválida"); return; }
+      localStorage.setItem("admin_key", inputKey);
+      setKey(inputKey);
     } catch {
-      setLoginError("Erro de conexão com a API.");
+      setLoginError("Erro ao conectar com a API");
     }
   };
 
@@ -91,304 +113,419 @@ export default function AdminPage() {
     setOverview(null);
   };
 
+  const exportCSV = () => {
+    const rows = [
+      ["Hora", "Plataforma", "Produto", "Preço", "Fonte"],
+      ...recentClicks.map((c: any) => [c.clicked_at, c.provider, c.product_title, c.price, c.source])
+    ];
+    const csv = rows.map(r => r.map(v => `"${v || ""}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bestprice_clicks_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const sortedMarketplaces = [...marketplaces].sort((a, b) => {
+    const va = a[marketSort] || 0;
+    const vb = b[marketSort] || 0;
+    return marketSortDir === "desc" ? vb - va : va - vb;
+  });
+
+  const handleSortMarket = (col: string) => {
+    if (marketSort === col) setMarketSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setMarketSort(col); setMarketSortDir("desc"); }
+  };
+
+  const analyticsKeys = Object.keys(analytics).sort();
+  const analyticsTotals = analyticsKeys.map(d => Object.values(analytics[d] || {}).reduce((a, b) => a + b, 0));
+  const maxBar = Math.max(...analyticsTotals, 1);
+
+  const revByProvider = overview?.revenue_by_provider || {};
+  const maxRev = Math.max(...Object.values(revByProvider).map(Number), 1);
+
+  const platforms = [
+    { id: "all", label: "Todos", emoji: "🌐" },
+    { id: "aliexpress", label: "AliExpress", emoji: "🔴" },
+    { id: "shopee", label: "Shopee", emoji: "🟠" },
+    { id: "mercadolivre", label: "Mercado Livre", emoji: "🟡" },
+    { id: "amazon", label: "Amazon", emoji: "📦" },
+    { id: "lomadee", label: "Lomadee", emoji: "🟣" },
+  ];
+  const periods = [
+    { days: 1, label: "Hoje" },
+    { days: 7, label: "7 dias" },
+    { days: 30, label: "30 dias" },
+  ];
+
+  const pillActive: React.CSSProperties = { background: "linear-gradient(135deg,#7c6aff,#a78bfa)", color: "#fff", border: "none", borderRadius: 20, padding: "6px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600 };
+  const pillInactive: React.CSSProperties = { background: "#111120", border: "1px solid #2a2a3a", color: "#888", borderRadius: 20, padding: "6px 16px", cursor: "pointer", fontSize: 13 };
+
+  // LOGIN SCREEN
   if (!key) {
     return (
       <div style={{ minHeight: "100vh", background: "#07070f", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif" }}>
-        <div style={{ background: "var(--s2, #111120)", border: "1px solid var(--bd, #2a2a3a)", borderRadius: 16, padding: "40px 48px", width: "100%", maxWidth: 420, textAlign: "center" }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🛡️</div>
-          <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 700, marginBottom: 4 }}>BestPriceToday Admin</h1>
-          <p style={{ color: "var(--muted2, #888)", fontSize: 14, marginBottom: 28 }}>Painel de gestão e analytics</p>
+        <div style={{ ...S.card, width: 380, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
+          <h2 style={{ color: "#fff", margin: "0 0 8px", fontSize: 22, fontWeight: 800 }}>BestPriceToday Admin</h2>
+          <p style={{ color: "#64748b", fontSize: 14, marginBottom: 24 }}>Digite sua chave de administrador</p>
           <input
             type="password"
+            placeholder="Admin key..."
             value={inputKey}
             onChange={e => setInputKey(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleLogin()}
-            placeholder="ADMIN_MANAGER_KEY"
-            style={{
-              width: "100%", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--bd, #2a2a3a)",
-              background: "#07070f", color: "#fff", fontSize: 15, outline: "none", marginBottom: 12,
-              boxSizing: "border-box",
-            }}
+            style={{ width: "100%", boxSizing: "border-box", background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 8, padding: "12px 16px", color: "#fff", fontSize: 14, marginBottom: 12, outline: "none" }}
           />
-          {loginError && <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 12 }}>{loginError}</p>}
+          {loginError && <p style={{ color: "#f43f5e", fontSize: 13, marginBottom: 12 }}>{loginError}</p>}
           <button
             onClick={handleLogin}
-            style={{
-              width: "100%", padding: "12px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#7c6aff,#a78bfa)", color: "#fff",
-              fontSize: 15, fontWeight: 700, cursor: "pointer",
-            }}
-          >Entrar</button>
+            style={{ width: "100%", background: "linear-gradient(135deg,#7c6aff,#a78bfa)", border: "none", borderRadius: 8, padding: "12px", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+          >
+            Entrar
+          </button>
         </div>
       </div>
     );
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: "var(--s2, #111120)",
-    border: "1px solid var(--bd, #2a2a3a)",
-    borderRadius: 14,
-    padding: "20px 24px",
-  };
-
-  const labelStyle: React.CSSProperties = { color: "var(--muted2, #888)", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 };
-  const valueStyle: React.CSSProperties = { color: "#fff", fontSize: 28, fontWeight: 800 };
-
-  const maxClicks = Math.max(...Object.values(overview?.clicks_by_provider || {}), 1);
-
+  // DASHBOARD
   return (
-    <div style={{ minHeight: "100vh", background: "#07070f", color: "#fff", fontFamily: "system-ui, sans-serif", padding: "0 0 60px" }}>
-      {/* Header */}
-      <div style={{ borderBottom: "1px solid var(--bd, #2a2a3a)", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <span style={{ fontSize: 20, fontWeight: 800 }}>🛡️ Admin Dashboard</span>
-          <span style={{ marginLeft: 12, fontSize: 12, color: "var(--muted2, #888)" }}>Auto-refresh 30s</span>
-          {loading && <span style={{ marginLeft: 8, fontSize: 12, color: "var(--acc2, #a78bfa)" }}>⟳ atualizando...</span>}
+    <div style={{ minHeight: "100vh", background: "#07070f", fontFamily: "system-ui, sans-serif", color: "#e2e8f0" }}>
+
+      {/* HEADER */}
+      <div style={{ background: "#0d0d1a", borderBottom: "1px solid #2a2a3a", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 24 }}>💹</span>
+          <span style={{ fontWeight: 800, fontSize: 18, color: "#fff" }}>BestPriceToday</span>
+          <span style={{ color: "#64748b", fontSize: 14 }}>Admin Dashboard</span>
         </div>
-        <button onClick={handleLogout} style={{ background: "none", border: "1px solid var(--bd, #2a2a3a)", borderRadius: 8, color: "var(--muted2, #888)", padding: "6px 16px", cursor: "pointer", fontSize: 13 }}>
-          Sair
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {loading && <span style={{ color: "#7c6aff", fontSize: 13 }}>⟳ Atualizando...</span>}
+          {lastUpdated && !loading && <span style={{ color: "#64748b", fontSize: 12 }}>Atualizado {lastUpdated.toLocaleTimeString("pt-BR")}</span>}
+          <button onClick={() => fetchAll(key)} style={{ background: "#1a1a2e", border: "1px solid #2a2a3a", borderRadius: 8, padding: "6px 14px", color: "#a78bfa", cursor: "pointer", fontSize: 13 }}>↻ Refresh</button>
+          <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid #2a2a3a", borderRadius: 8, padding: "6px 14px", color: "#64748b", cursor: "pointer", fontSize: 13 }}>Sair</button>
+        </div>
       </div>
 
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ padding: "20px 24px", maxWidth: 1400, margin: "0 auto" }}>
 
-        {/* Overview Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+        {/* FILTER BAR */}
+        <div style={{ ...S.card, marginBottom: 20, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" as const }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={S.label}>Plataforma:</span>
+            {platforms.map(p => (
+              <button key={p.id} onClick={() => setActivePlatform(p.id)} style={activePlatform === p.id ? pillActive : pillInactive}>
+                {p.emoji} {p.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={S.label}>Período:</span>
+            {periods.map(p => (
+              <button key={p.days} onClick={() => setActivePeriod(p.days)} style={activePeriod === p.days ? pillActive : pillInactive}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button onClick={() => fetchAll(key)} style={{ ...pillInactive, color: "#a78bfa" }}>↻ Refresh</button>
+            <button onClick={exportCSV} style={{ ...pillInactive, color: "#4ade80" }}>⬇ Export CSV</button>
+          </div>
+        </div>
+
+        {/* KPI CARDS */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 20 }}>
           {[
-            { label: "Cliques Hoje", value: overview?.total_clicks_today ?? 0 },
-            { label: "Cliques Mês", value: overview?.total_clicks_month ?? 0 },
-            { label: "Conversões", value: overview?.total_conversions ?? 0 },
-            { label: "Comissão Total", value: fmtBRL(overview?.total_commission ?? 0), raw: true },
-          ].map(({ label, value, raw }) => (
-            <div key={label} style={cardStyle}>
-              <div style={labelStyle}>{label}</div>
-              <div style={valueStyle}>{raw ? value : value.toLocaleString("pt-BR")}</div>
+            { label: "Cliques Hoje", value: overview?.total_clicks_today ?? "–", color: "#7c6aff", icon: "👆" },
+            { label: `Cliques ${activePeriod === 1 ? "Hoje" : activePeriod === 7 ? "7 dias" : "30 dias"}`, value: overview?.total_clicks_week ?? overview?.total_clicks_month ?? "–", color: "#60a5fa", icon: "📊" },
+            { label: "Conversões", value: overview?.total_conversions ?? "–", color: "#4ade80", icon: "✅" },
+            { label: "Receita Total", value: overview?.total_revenue != null ? fmtBRL(overview.total_revenue) : "–", color: "#facc15", icon: "💰" },
+            { label: "Comissão", value: overview?.total_commission != null ? fmtBRL(overview.total_commission) : "–", color: "#f87171", icon: "🏷️" },
+          ].map(card => (
+            <div key={card.label} style={S.card}>
+              <div style={{ fontSize: 22, marginBottom: 8 }}>{card.icon}</div>
+              <div style={S.label}>{card.label}</div>
+              <div style={{ ...S.bigValue, color: card.color, fontSize: 26 }}>{card.value}</div>
             </div>
           ))}
         </div>
 
-        {/* Revenue + Top Provider */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-          <div style={cardStyle}>
-            <div style={labelStyle}>Receita Total</div>
-            <div style={{ ...valueStyle, color: "var(--acc2, #a78bfa)" }}>{fmtBRL(overview?.total_revenue ?? 0)}</div>
-            <div style={{ color: "var(--muted2, #888)", fontSize: 13, marginTop: 8 }}>
-              Taxa média de comissão: <strong style={{ color: "#fff" }}>{(overview?.avg_commission_rate ?? 0).toFixed(1)}%</strong>
+        {/* FUNNEL */}
+        <div style={{ ...S.card, marginBottom: 20 }}>
+          <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🔽 Funil de Conversão</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
+            {[
+              { label: "Buscas", value: overview?.total_clicks_month ?? 0, color: "#7c6aff", icon: "🔍" },
+              { label: "Cliques", value: overview?.total_clicks_week ?? overview?.total_clicks_month ?? 0, color: "#60a5fa", icon: "👆" },
+              { label: "Compras", value: overview?.total_conversions ?? 0, color: "#4ade80", icon: "🛒" },
+              { label: "Comissão", value: overview?.total_commission != null ? fmtBRL(overview.total_commission) : "R$0", color: "#facc15", icon: "💸", isStr: true },
+            ].map((stage, i, arr) => {
+              const totalClicks = overview?.total_clicks_month || 1;
+              const pct = stage.isStr ? fmtPct(overview?.total_conversions || 0, totalClicks) : fmtPct(typeof stage.value === "number" ? stage.value : 0, totalClicks);
+              return (
+                <div key={stage.label} style={{ display: "flex", alignItems: "center" }}>
+                  <div style={{ textAlign: "center", background: "#0d0d1a", border: `1px solid ${stage.color}33`, borderRadius: 12, padding: "16px 24px", minWidth: 120 }}>
+                    <div style={{ fontSize: 28, marginBottom: 4 }}>{stage.icon}</div>
+                    <div style={{ color: stage.color, fontSize: 22, fontWeight: 800 }}>{stage.isStr ? stage.value : stage.value.toLocaleString()}</div>
+                    <div style={{ color: "#64748b", fontSize: 11, marginTop: 4, textTransform: "uppercase" as const, letterSpacing: 0.5 }}>{stage.label}</div>
+                    <div style={{ color: stage.color, fontSize: 12, marginTop: 4 }}>{i === 0 ? "100%" : pct}</div>
+                  </div>
+                  {i < arr.length - 1 && <div style={{ color: "#2a2a3a", fontSize: 28, margin: "0 8px" }}>→</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CHARTS ROW */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+          {/* Time Series */}
+          <div style={S.card}>
+            <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>📈 Cliques por Dia</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 130, overflowX: "auto" as const }}>
+              {analyticsKeys.length === 0 && <span style={{ color: "#64748b", fontSize: 13 }}>Sem dados</span>}
+              {analyticsKeys.map((day, i) => {
+                const total = analyticsTotals[i];
+                const h = Math.max(4, (total / maxBar) * 120);
+                const label = day.slice(5); // MM-DD
+                return (
+                  <div key={day} style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", flex: 1, minWidth: 28 }}>
+                    <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>{total}</div>
+                    <div style={{ width: "100%", background: "linear-gradient(180deg,#7c6aff,#a78bfa)", borderRadius: "4px 4px 0 0", height: h }} title={`${day}: ${total}`} />
+                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 3, writingMode: "vertical-rl" as const, transform: "rotate(180deg)", height: 30 }}>{label}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <div style={{ ...cardStyle, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={labelStyle}>Top Marketplace</div>
-            <div style={{ fontSize: 36, textTransform: "capitalize", fontWeight: 800, color: "var(--acc2, #a78bfa)" }}>
-              {overview?.top_provider || "—"}
+
+          {/* Revenue by Provider */}
+          <div style={S.card}>
+            <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>💰 Receita por Plataforma</div>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+              {Object.entries(revByProvider).length === 0 && <span style={{ color: "#64748b", fontSize: 13 }}>Sem dados</span>}
+              {Object.entries(revByProvider).sort(([, a], [, b]) => Number(b) - Number(a)).map(([prov, val]) => {
+                const w = (Number(val) / maxRev) * 100;
+                const color = PROVIDER_COLORS[prov] || "#64748b";
+                return (
+                  <div key={prov} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ minWidth: 90, fontSize: 12, color: "#ccc" }}>{PROVIDER_EMOJI[prov] || "•"} {prov}</div>
+                    <div style={{ flex: 1, background: "#1a1a2e", borderRadius: 4, height: 16 }}>
+                      <div style={{ width: `${w}%`, background: color, borderRadius: 4, height: 16 }} />
+                    </div>
+                    <div style={{ minWidth: 80, fontSize: 12, color, textAlign: "right" as const }}>{fmtBRL(Number(val))}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Clicks by Provider (bar chart) */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ ...labelStyle, marginBottom: 16 }}>Cliques por Marketplace</div>
-          {Object.entries(overview?.clicks_by_provider || {}).length === 0 && (
-            <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>
-          )}
-          {Object.entries(overview?.clicks_by_provider || {}).sort((a, b) => b[1] - a[1]).map(([provider, cnt]) => (
-            <div key={provider} style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 14, textTransform: "capitalize" }}>{provider}</span>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{cnt}</span>
-              </div>
-              <div style={{ background: "var(--s3, #1a1a2e)", borderRadius: 6, height: 8, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 6, background: "linear-gradient(90deg,#7c6aff,#a78bfa)", width: `${(cnt / maxClicks) * 100}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Traffic Sources */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ ...labelStyle, marginBottom: 16 }}>Fontes de Tráfego</div>
-          {traffic.length === 0 ? (
-            <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        {/* MARKETPLACE TABLE */}
+        <div style={{ ...S.card, marginBottom: 20 }}>
+          <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🏪 Comparativo de Marketplaces</div>
+          <div style={{ overflowX: "auto" as const }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: 13 }}>
               <thead>
-                <tr style={{ color: "var(--muted2, #888)", textAlign: "left" }}>
-                  <th style={{ padding: "8px 0" }}>Fonte</th>
-                  <th style={{ padding: "8px 0" }}>Cliques</th>
-                  <th style={{ padding: "8px 0" }}>%</th>
-                  <th style={{ padding: "8px 0" }}>Conversões</th>
+                <tr>
+                  {[
+                    { key: "provider", label: "Marketplace" },
+                    { key: "clicks", label: "Cliques" },
+                    { key: "conversions", label: "Conversões" },
+                    { key: "conversion_rate", label: "Taxa Conv%" },
+                    { key: "revenue", label: "Receita" },
+                    { key: "commission", label: "Comissão" },
+                    { key: "avg_price", label: "Preço Médio" },
+                  ].map(col => (
+                    <th key={col.key} style={S.th} onClick={() => handleSortMarket(col.key)}>
+                      {col.label} {marketSort === col.key ? (marketSortDir === "desc" ? "↓" : "↑") : ""}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {traffic.map((t: any) => (
-                  <tr key={t.source} style={{ borderTop: "1px solid var(--bd, #2a2a3a)" }}>
-                    <td style={{ padding: "10px 0", textTransform: "capitalize" }}>{t.source}</td>
-                    <td style={{ padding: "10px 0" }}>{t.clicks}</td>
-                    <td style={{ padding: "10px 0" }}>{t.percentage}%</td>
-                    <td style={{ padding: "10px 0" }}>{t.conversions}</td>
-                  </tr>
-                ))}
+                {sortedMarketplaces.length === 0 && (
+                  <tr><td colSpan={7} style={{ ...S.td, textAlign: "center" as const, color: "#64748b" }}>Sem dados</td></tr>
+                )}
+                {sortedMarketplaces.map((row, i) => {
+                  const isTop = i === 0 && sortedMarketplaces.length > 1;
+                  const color = PROVIDER_COLORS[row.provider] || "#64748b";
+                  return (
+                    <tr key={row.provider} style={isTop ? { borderLeft: "3px solid #4ade80" } : {}}>
+                      <td style={S.td}><span style={{ color }}>{PROVIDER_EMOJI[row.provider] || "•"} {row.provider}</span></td>
+                      <td style={S.td}>{(row.clicks || 0).toLocaleString()}</td>
+                      <td style={S.td}>{row.conversions || 0}</td>
+                      <td style={S.td}>{(row.conversion_rate || 0).toFixed(2)}%</td>
+                      <td style={{ ...S.td, color: "#facc15" }}>{fmtBRL(row.revenue || 0)}</td>
+                      <td style={{ ...S.td, color: "#4ade80" }}>{fmtBRL(row.commission || 0)}</td>
+                      <td style={S.td}>{fmtBRL(row.avg_price || 0)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          )}
-        </div>
-
-        {/* Recent Clicks & Conversions */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-          <div style={cardStyle}>
-            <div style={{ ...labelStyle, marginBottom: 16 }}>Cliques Recentes</div>
-            {(overview?.recent_clicks || []).length === 0 ? (
-              <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ color: "var(--muted2, #888)" }}>
-                    <th style={{ padding: "6px 0", textAlign: "left" }}>Hora</th>
-                    <th style={{ padding: "6px 0", textAlign: "left" }}>Marketplace</th>
-                    <th style={{ padding: "6px 0", textAlign: "left" }}>Produto</th>
-                    <th style={{ padding: "6px 0", textAlign: "right" }}>Preço</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(overview?.recent_clicks || []).map((c: any) => (
-                    <tr key={c.id} style={{ borderTop: "1px solid var(--bd, #2a2a3a)" }}>
-                      <td style={{ padding: "8px 0", color: "var(--muted2, #888)" }}>{fmtTime(c.clicked_at)}</td>
-                      <td style={{ padding: "8px 0", textTransform: "capitalize" }}>{c.provider}</td>
-                      <td style={{ padding: "8px 0", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.product_title || "—"}</td>
-                      <td style={{ padding: "8px 0", textAlign: "right" }}>{c.price ? fmtBRL(c.price) : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div style={cardStyle}>
-            <div style={{ ...labelStyle, marginBottom: 16 }}>Conversões Recentes</div>
-            {(overview?.recent_conversions || []).length === 0 ? (
-              <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ color: "var(--muted2, #888)" }}>
-                    <th style={{ padding: "6px 0", textAlign: "left" }}>Hora</th>
-                    <th style={{ padding: "6px 0", textAlign: "left" }}>Marketplace</th>
-                    <th style={{ padding: "6px 0", textAlign: "right" }}>Venda</th>
-                    <th style={{ padding: "6px 0", textAlign: "right" }}>Comissão</th>
-                    <th style={{ padding: "6px 0", textAlign: "left" }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(overview?.recent_conversions || []).map((c: any) => (
-                    <tr key={c.id} style={{ borderTop: "1px solid var(--bd, #2a2a3a)" }}>
-                      <td style={{ padding: "8px 0", color: "var(--muted2, #888)" }}>{fmtTime(c.converted_at)}</td>
-                      <td style={{ padding: "8px 0", textTransform: "capitalize" }}>{c.provider}</td>
-                      <td style={{ padding: "8px 0", textAlign: "right" }}>{c.sale_price ? fmtBRL(c.sale_price) : "—"}</td>
-                      <td style={{ padding: "8px 0", textAlign: "right" }}>{c.commission_value ? fmtBRL(c.commission_value) : "—"}</td>
-                      <td style={{ padding: "8px 0", color: c.status === "confirmed" ? "#4ade80" : c.status === "rejected" ? "#f87171" : "var(--muted2, #888)" }}>
-                        {c.status}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
           </div>
         </div>
 
-        {/* Marketplace Comparison */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ ...labelStyle, marginBottom: 16 }}>Comparativo Marketplaces</div>
-          {marketplaces.length === 0 ? (
-            <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <thead>
-                <tr style={{ color: "var(--muted2, #888)", textAlign: "left" }}>
-                  <th style={{ padding: "8px 0" }}>Marketplace</th>
-                  <th style={{ padding: "8px 0" }}>Cliques</th>
-                  <th style={{ padding: "8px 0" }}>Conversões</th>
-                  <th style={{ padding: "8px 0" }}>Taxa</th>
-                  <th style={{ padding: "8px 0" }}>Receita</th>
-                  <th style={{ padding: "8px 0" }}>Comissão</th>
-                </tr>
-              </thead>
-              <tbody>
-                {marketplaces.map((m: any) => (
-                  <tr key={m.provider} style={{ borderTop: "1px solid var(--bd, #2a2a3a)" }}>
-                    <td style={{ padding: "10px 0", textTransform: "capitalize", fontWeight: 600 }}>{m.provider}</td>
-                    <td style={{ padding: "10px 0" }}>{m.clicks}</td>
-                    <td style={{ padding: "10px 0" }}>{m.conversions}</td>
-                    <td style={{ padding: "10px 0" }}>{m.conversion_rate}%</td>
-                    <td style={{ padding: "10px 0" }}>{fmtBRL(m.revenue)}</td>
-                    <td style={{ padding: "10px 0" }}>{fmtBRL(m.commission)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Top Products */}
-        <div style={{ ...cardStyle, marginBottom: 24 }}>
-          <div style={{ ...labelStyle, marginBottom: 16 }}>Top Produtos por Cliques</div>
-          {topProducts.length === 0 ? (
-            <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>
-          ) : (
-            <div>
-              {topProducts.map((p: any, i: number) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i > 0 ? "1px solid var(--bd, #2a2a3a)" : "none" }}>
-                  <span style={{ color: "var(--muted2, #888)", fontSize: 13, minWidth: 24 }}>#{i + 1}</span>
-                  <span style={{ flex: 1, fontSize: 14 }}>{p.product_title}</span>
-                  <span style={{ fontSize: 13, textTransform: "capitalize", color: "var(--muted2, #888)" }}>{p.provider}</span>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{p.clicks} cliques</span>
+        {/* TRAFFIC + INTEGRATIONS */}
+        <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16, marginBottom: 20 }}>
+          <div style={S.card}>
+            <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🌐 Fontes de Tráfego</div>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+              {traffic.length === 0 && <span style={{ color: "#64748b", fontSize: 13 }}>Sem dados</span>}
+              {traffic.map((src: any) => {
+                const color = PROVIDER_COLORS[src.source] || "#7c6aff";
+                const pct = src.percentage || 0;
+                return (
+                  <div key={src.source} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ minWidth: 80, fontSize: 12, color: "#ccc" }}>{src.source}</div>
+                    <div style={{ flex: 1, background: "#1a1a2e", borderRadius: 4, height: 14 }}>
+                      <div style={{ width: `${pct}%`, background: color, borderRadius: 4, height: 14 }} />
+                    </div>
+                    <div style={{ minWidth: 50, fontSize: 12, color: "#888", textAlign: "right" as const }}>{src.clicks} ({pct}%)</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div style={S.card}>
+            <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🔌 Status das Integrações</div>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+              {INTEGRATIONS.map(int => (
+                <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d1a", borderRadius: 8 }}>
+                  <span style={{ fontSize: 13 }}>{int.icon} {int.name}</span>
+                  <span style={{ fontSize: 13, color: int.color }}>{int.status} {int.statusText}</span>
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Analytics — last 7 days simple bar */}
-        <div style={cardStyle}>
-          <div style={{ ...labelStyle, marginBottom: 16 }}>Últimos 7 dias — Cliques por dia</div>
-          <AnalyticsChart adminKey={key} />
+        {/* TOP PRODUCTS */}
+        <div style={{ ...S.card, marginBottom: 20 }}>
+          <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🏆 Top 10 Produtos</div>
+          {topProducts.length === 0 && <p style={{ color: "#64748b", fontSize: 13 }}>Sem dados</p>}
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+            {topProducts.map((p: any, i: number) => {
+              const isExpanded = expandedProduct === p.product_title;
+              const color = PROVIDER_COLORS[p.provider] || "#64748b";
+              const filteredClicks = recentClicks.filter(c => c.product_title === p.product_title);
+              return (
+                <div key={i}>
+                  <div
+                    onClick={() => setExpandedProduct(isExpanded ? null : p.product_title)}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#0d0d1a", borderRadius: 8, cursor: "pointer", border: `1px solid ${isExpanded ? color + "44" : "transparent"}` }}
+                  >
+                    <span style={{ color: "#7c6aff", fontWeight: 800, minWidth: 24 }}>#{i + 1}</span>
+                    <span style={{ flex: 1, fontSize: 13, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{p.product_title || "–"}</span>
+                    <span style={{ color, fontSize: 12, background: color + "22", padding: "2px 8px", borderRadius: 10 }}>{PROVIDER_EMOJI[p.provider] || ""} {p.provider}</span>
+                    <span style={{ color: "#64748b", fontSize: 12 }}>{p.clicks} cliques</span>
+                    {p.price && <span style={{ color: "#facc15", fontSize: 12 }}>{fmtBRL(p.price)}</span>}
+                    <span style={{ color: "#64748b", fontSize: 11 }}>{isExpanded ? "▲" : "▼"}</span>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ background: "#0d0d1a", borderRadius: "0 0 8px 8px", padding: "8px 14px", borderTop: "1px solid #1a1a2e" }}>
+                      {filteredClicks.length === 0 ? (
+                        <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>Nenhum clique recente disponível (dados não carregados para este produto)</p>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: 12 }}>
+                          <thead>
+                            <tr>
+                              {["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} style={{ ...S.th, fontSize: 11 }}>{h}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredClicks.slice(0, 5).map((c: any, ci: number) => (
+                              <tr key={ci}>
+                                <td style={S.td}>{fmtTime(c.clicked_at)}</td>
+                                <td style={S.td}>{c.source}</td>
+                                <td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td>
+                                <td style={S.td}>{c.ip_address || "–"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        {/* RECENT CLICKS + CONVERSIONS */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+          {/* Recent Clicks */}
+          <div style={S.card}>
+            <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🖱️ Cliques Recentes</div>
+            <div style={{ overflowX: "auto" as const }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {["Hora", "Plataforma", "Produto", "Preço", "Fonte"].map(h => <th key={h} style={{ ...S.th, fontSize: 11 }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentClicks.length === 0 && <tr><td colSpan={5} style={{ ...S.td, textAlign: "center" as const, color: "#64748b" }}>Sem dados</td></tr>}
+                  {recentClicks.map((c: any, i: number) => (
+                    <tr key={i}>
+                      <td style={S.td}>{fmtTime(c.clicked_at)}</td>
+                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider] || "#ccc" }}>{PROVIDER_EMOJI[c.provider] || ""} {c.provider}</td>
+                      <td style={{ ...S.td, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }} title={c.product_title}>{c.product_title || "–"}</td>
+                      <td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td>
+                      <td style={S.td}>{c.source || "–"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
+              <button onClick={() => setClickPage(p => Math.max(1, p - 1))} disabled={clickPage === 1} style={{ ...pillInactive, opacity: clickPage === 1 ? 0.5 : 1 }}>← Anterior</button>
+              <span style={{ color: "#888", padding: "6px 12px" }}>Página {clickPage}</span>
+              <button onClick={() => setClickPage(p => p + 1)} style={pillInactive}>Próxima →</button>
+            </div>
+          </div>
+
+          {/* Recent Conversions */}
+          <div style={S.card}>
+            <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>✅ Conversões Recentes</div>
+            <div style={{ overflowX: "auto" as const }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" as const, fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {["Hora", "Plataforma", "Produto", "Venda", "Comissão", "Status"].map(h => <th key={h} style={{ ...S.th, fontSize: 11 }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentConversions.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center" as const, color: "#64748b" }}>Sem dados</td></tr>}
+                  {recentConversions.map((c: any, i: number) => {
+                    const statusColor = c.status === "confirmed" ? "#4ade80" : c.status === "pending" ? "#facc15" : "#f43f5e";
+                    return (
+                      <tr key={i}>
+                        <td style={S.td}>{fmtTime(c.converted_at || c.created_at)}</td>
+                        <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider] || "#ccc" }}>{PROVIDER_EMOJI[c.provider] || ""} {c.provider}</td>
+                        <td style={{ ...S.td, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }} title={c.product_title}>{c.product_title || "–"}</td>
+                        <td style={S.td}>{c.sale_value ? fmtBRL(c.sale_value) : "–"}</td>
+                        <td style={{ ...S.td, color: "#4ade80" }}>{c.commission ? fmtBRL(c.commission) : "–"}</td>
+                        <td style={{ ...S.td, color: statusColor }}>{c.status || "–"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
+              <button onClick={() => setConvPage(p => Math.max(1, p - 1))} disabled={convPage === 1} style={{ ...pillInactive, opacity: convPage === 1 ? 0.5 : 1 }}>← Anterior</button>
+              <span style={{ color: "#888", padding: "6px 12px" }}>Página {convPage}</span>
+              <button onClick={() => setConvPage(p => p + 1)} style={pillInactive}>Próxima →</button>
+            </div>
+          </div>
+        </div>
+
       </div>
-    </div>
-  );
-}
-
-function AnalyticsChart({ adminKey }: { adminKey: string }) {
-  const [data, setData] = useState<Record<string, Record<string, number>>>({});
-
-  useEffect(() => {
-    fetch(`${API}/api/v1/admin/analytics?days=7&admin_key=${adminKey}`)
-      .then(r => r.json())
-      .then(d => setData(d.data || {}))
-      .catch(() => {});
-  }, [adminKey]);
-
-  const days = Object.keys(data).sort();
-  const totals = days.map(d => Object.values(data[d]).reduce((a, b) => a + b, 0));
-  const maxVal = Math.max(...totals, 1);
-
-  if (days.length === 0) {
-    return <div style={{ color: "var(--muted2, #888)", fontSize: 14 }}>Sem dados ainda</div>;
-  }
-
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 120 }}>
-      {days.map((day, i) => (
-        <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 11, color: "var(--muted2, #888)" }}>{totals[i]}</span>
-          <div style={{
-            width: "100%", borderRadius: 6,
-            background: "linear-gradient(180deg,#7c6aff,#a78bfa)",
-            height: `${(totals[i] / maxVal) * 90}px`,
-            minHeight: 4,
-          }} />
-          <span style={{ fontSize: 10, color: "var(--muted2, #888)" }}>{day.slice(5)}</span>
-        </div>
-      ))}
     </div>
   );
 }
