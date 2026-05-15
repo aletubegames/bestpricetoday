@@ -323,6 +323,43 @@ export default function HomePage() {
           )}
         </AnimatePresence>
       </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{
+        borderTop: "1px solid var(--bd)",
+        background: "rgba(7,7,15,0.85)",
+        padding: "20px",
+        textAlign: "center",
+      }}>
+        <div style={{
+          maxWidth: 1200,
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 24,
+          flexWrap: "wrap",
+          fontSize: 13,
+          color: "var(--muted2)",
+        }}>
+          <span>© {new Date().getFullYear()} BestPriceToday</span>
+          <span style={{ color: "var(--bd)" }}>|</span>
+          <a href="/terms" style={{ color: "var(--muted2)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
+          >Termos de Uso</a>
+          <span style={{ color: "var(--bd)" }}>|</span>
+          <a href="/privacy" style={{ color: "var(--muted2)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
+          >Política de Privacidade</a>
+          <span style={{ color: "var(--bd)" }}>|</span>
+          <a href="mailto:aletubegames@gmail.com" style={{ color: "var(--muted2)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
+          >Contato</a>
+        </div>
+      </footer>
     </div>
   );
 }
