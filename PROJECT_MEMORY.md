@@ -74,7 +74,7 @@ backend/app/
 |---------------|--------|-------------|-------------|-------------------|
 | **AliExpress**| ✅ refatorado | ✅ ativo | ✅ APP_KEY+SECRET ok | ✅ Funciona — retorna produtos (com filtro de relevância) |
 | **Lomadee**   | ✅      | ✅ ativo | ✅ API_KEY ok | ✅ Funciona — retorna produtos |
-| MercadoLivre  | ✅      | ✅ ativo | ⚠️ token expirado | ❌ 401 Unauthorized — access_token venceu (dura 6h). Precisa refresh com REFRESH_TOKEN |
+| MercadoLivre  | ✅      | ✅ ativo | ⚠️ sem acesso à busca | ❌ 403 permanente em `/sites/MLB/search` — app não aprovado no programa de afiliados ML |
 | Shopee        | ✅ refatorado | ✅ ativo | ⚠️ veja seção abaixo | ❌ 10020 Invalid Signature |
 | Amazon        | ✅      | ✅ ativo | ❌ sem ACCESS_KEY | `not_configured` |
 | KaBuM         | ✅      | ❌ comentado | sem token | pendente |
@@ -153,15 +153,41 @@ o problema é a credencial errada, não o algoritmo.
 
 ---
 
-## Mercado Livre — token expirado
+## Mercado Livre — diagnóstico completo (2026-05-15)
 
-`MERCADOLIVRE_ACCESS_TOKEN` no `.env` expirou (tokens ML duram 6h).
-Para renovar sem OAuth manual:
-1. Usar `MERCADOLIVRE_REFRESH_TOKEN` (se disponível) via `POST /oauth/token` com `grant_type=refresh_token`
-2. Ou refazer o fluxo OAuth via `/auth/ml/callback`
+**`/sites/MLB/search` está permanentemente bloqueado para apps não aprovados.**
 
-O token sendo gerado com `client_credentials` (sem usuário) não acessa buscas públicas —
-provavelmente precisa de `authorization_code` com conta válida ou usar o token diretamente.
+Não é problema de token expirado. É uma mudança de política do ML (aconteceu ~2024/2025).
+Todos os apps de terceiros recebem 403 `forbidden` nesse endpoint,
+independente de token, user-agent ou parâmetros.
+
+Confirmado programaticamente (2026-05-15):
+- `client_credentials` ainda funciona e gera token válido para o app
+- Token gerado: `APP_USR-2661096739949809-...` (user_id=6727655, nickname=ALESSANDRO SOUZA45)
+- Com esse token, `/users/me` e `/sites/MLB/categories` funcionam
+- `/sites/MLB/search` → 403 com qualquer combinação de parâmetros/headers
+
+**O que ainda funciona com client_credentials:**
+- `GET /users/me` — info da conta
+- `GET /sites/MLB/categories` — lista de categorias
+- `GET /users/{id}/items/search` — itens do próprio vendedor
+
+**O que está bloqueado (403):**
+- `GET /sites/MLB/search?q=...` — busca pública de produtos
+- `GET /items/{id}` — detalhe de produto por ID
+
+**Como desbloquear:**
+O Mercado Livre tem um **Programa de Afiliados** separado:
+https://www.mercadolivre.com.br/ajuda/programa-afiliados  
+Apps aprovados no programa recebem acesso ao endpoint de busca.
+O app atual (`APP_ID=2661096739949809`) ainda não tem essa aprovação.
+
+**Ação necessária:**
+1. Solicitar aprovação do app no **Programa de Parceiros/Afiliados** do ML
+2. Enquanto não aprovado: depender de AliExpress + Shopee + Lomadee para os resultados
+3. O provider ML pode ser desativado no orquestrador até a aprovação para não poluir o status com erros
+
+**Não existe workaround técnico** — a API está restrita por política, não por configuração.
 
 ---
 
