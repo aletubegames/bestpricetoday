@@ -388,3 +388,4 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
     </motion.article>
   );
 }
+
