@@ -96,42 +96,40 @@ async def get_overview(
     try:
         now = datetime.utcnow()
         # Usa UTC-3 (Brasília) para calcular "hoje"
-        from datetime import timedelta as td
-        brt_offset = td(hours=-3)
+        brt_offset = timedelta(hours=-3)
         now_brt = now + brt_offset
-        today_start_brt = now_brt.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_start = today_start_brt - brt_offset  # converte de volta para UTC
-        week_start = now - timedelta(days=days if days and days <= 7 else 7)
+        today_start = now_brt.replace(hour=0, minute=0, second=0, microsecond=0) - brt_offset
+        week_start = now - timedelta(days=7)
         month_start = now - timedelta(days=days if days else 30)
 
-        # Filtro de provider
-        def pf(model):
-            """Retorna filtros de provider se especificado."""
-            if provider:
-                return [model.provider == provider]
-            return []
-
         # clicks today
-        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= today_start, *pf(ClickEvent)))
-        clicks_today = r.scalar() or 0
+        q = select(func.count()).where(ClickEvent.clicked_at >= today_start)
+        if provider: q = q.where(ClickEvent.provider == provider)
+        clicks_today = (await db.execute(q)).scalar() or 0
 
-        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= week_start, *pf(ClickEvent)))
-        clicks_week = r.scalar() or 0
+        q = select(func.count()).where(ClickEvent.clicked_at >= week_start)
+        if provider: q = q.where(ClickEvent.provider == provider)
+        clicks_week = (await db.execute(q)).scalar() or 0
 
-        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= month_start, *pf(ClickEvent)))
-        clicks_month = r.scalar() or 0
+        q = select(func.count()).where(ClickEvent.clicked_at >= month_start)
+        if provider: q = q.where(ClickEvent.provider == provider)
+        clicks_month = (await db.execute(q)).scalar() or 0
 
-        r = await db.execute(select(func.count()).select_from(ConversionEvent).where(*pf(ConversionEvent)))
-        total_conversions = r.scalar() or 0
+        q = select(func.count()).select_from(ConversionEvent)
+        if provider: q = q.where(ConversionEvent.provider == provider)
+        total_conversions = (await db.execute(q)).scalar() or 0
 
-        r = await db.execute(select(func.sum(ConversionEvent.sale_price)).where(*pf(ConversionEvent)))
-        total_revenue = float(r.scalar() or 0)
+        q = select(func.sum(ConversionEvent.sale_price))
+        if provider: q = q.where(ConversionEvent.provider == provider)
+        total_revenue = float((await db.execute(q)).scalar() or 0)
 
-        r = await db.execute(select(func.sum(ConversionEvent.commission_value)).where(*pf(ConversionEvent)))
-        total_commission = float(r.scalar() or 0)
+        q = select(func.sum(ConversionEvent.commission_value))
+        if provider: q = q.where(ConversionEvent.provider == provider)
+        total_commission = float((await db.execute(q)).scalar() or 0)
 
-        r = await db.execute(select(func.avg(ConversionEvent.commission_rate)).where(*pf(ConversionEvent)))
-        avg_commission_rate = float(r.scalar() or 0)
+        q = select(func.avg(ConversionEvent.commission_rate))
+        if provider: q = q.where(ConversionEvent.provider == provider)
+        avg_commission_rate = float((await db.execute(q)).scalar() or 0)
 
         # clicks by provider
         q = select(ClickEvent.provider, func.count().label("cnt")).group_by(ClickEvent.provider)
