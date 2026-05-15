@@ -4,18 +4,19 @@ Conversion Tracker — fecha o loop clique → conversão.
 Fluxo:
   1. Cron job ou endpoint manual chama poll_all_conversions()
   2. Para cada plataforma, busca orders recentes via API
-  3. Tenta vincular order ao click_id via tracking_id
+  3. Tenta vincular order ao click_id via matching por provider/tempo
   4. Salva na tabela conversion_events (evita duplicatas via external_order_id)
+  5. Falhas vão para ConversionRetryQueue (até 3 tentativas)
 """
 from __future__ import annotations
 import hashlib, hmac, time, httpx
 from datetime import datetime, timedelta
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from app.core.config import settings
 from app.core.logging import logger
-from app.models.models import ConversionEvent, ClickEvent
+from app.models.models import ConversionEvent, ClickEvent, ConversionRetryQueue
 
 
 async def _sign_top(method: str, params: dict, app_key: str, app_secret: str) -> dict:
@@ -28,20 +29,90 @@ async def _sign_top(method: str, params: dict, app_key: str, app_secret: str) ->
     return all_params
 
 
-async def _find_click_by_tracking(db: AsyncSession, tracking_id: str, provider: str) -> Optional[str]:
-    """Try to find the click_id that originated this conversion."""
+async def _find_matching_click(db: AsyncSession, provider: str, product_title: str = None) -> Optional[str]:
+    """
+    Find best matching click for this conversion.
+    Strategy: most recent click from same provider within 30 days.
+    Future: fuzzy match product_title.
+    """
     since = datetime.utcnow() - timedelta(days=30)
-    r = await db.execute(
-        select(ClickEvent.id)
-        .where(ClickEvent.provider == provider)
-        .where(ClickEvent.clicked_at >= since)
-        .order_by(ClickEvent.clicked_at.desc())
-        .limit(1)
-    )
+    q = select(ClickEvent.id).where(
+        and_(
+            ClickEvent.provider == provider,
+            ClickEvent.clicked_at >= since,
+        )
+    ).order_by(ClickEvent.clicked_at.desc()).limit(1)
+    r = await db.execute(q)
     row = r.scalar()
     return str(row) if row else None
 
 
+# Keep old name as alias for backward compat
+_find_click_by_tracking = _find_matching_click
+
+
+async def _save_conversion_safe(
+    db: AsyncSession,
+    external_order_id: str,
+    provider: str,
+    product_title: Optional[str],
+    sale_price: float,
+    commission_rate: float,
+    commission_value: float,
+    status: str,
+    click_id: Optional[str] = None,
+) -> bool:
+    """Save conversion. On failure, add to retry queue."""
+    try:
+        # Check duplicate
+        r = await db.execute(select(ConversionEvent).where(
+            ConversionEvent.external_order_id == external_order_id
+        ))
+        if r.scalar():
+            return False  # already saved
+
+        conv = ConversionEvent(
+            external_order_id=external_order_id,
+            click_id=click_id,
+            provider=provider,
+            product_title=product_title[:200] if product_title else None,
+            sale_price=sale_price,
+            commission_rate=commission_rate,
+            commission_value=commission_value,
+            status=status,
+        )
+        db.add(conv)
+        await db.commit()
+        logger.info(f"Conversion saved: {provider} order={external_order_id} commission={commission_value:.2f} status={status}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save conversion {external_order_id}: {type(e).__name__}")
+        # Add to retry queue
+        try:
+            await db.rollback()
+            retry = ConversionRetryQueue(
+                provider=provider,
+                external_order_id=external_order_id,
+                payload={
+                    "external_order_id": external_order_id,
+                    "provider": provider,
+                    "product_title": product_title,
+                    "sale_price": sale_price,
+                    "commission_rate": commission_rate,
+                    "commission_value": commission_value,
+                    "status": status,
+                    "click_id": click_id,
+                },
+                error=str(e)[:500],
+            )
+            db.add(retry)
+            await db.commit()
+        except Exception:
+            pass
+        return False
+
+
+# Backward-compat alias used by old code paths
 async def _save_conversion(
     db: AsyncSession,
     external_order_id: str,
@@ -53,26 +124,46 @@ async def _save_conversion(
     status: str,
     click_id: Optional[str] = None,
 ) -> bool:
-    """Save conversion if not already saved (idempotent via external_order_id check)."""
-    r = await db.execute(
-        select(ConversionEvent).where(ConversionEvent.external_order_id == external_order_id)
+    return await _save_conversion_safe(
+        db, external_order_id, provider, product_title,
+        sale_price, commission_rate, commission_value, status, click_id
     )
-    if r.scalar():
-        return False  # already saved
 
-    conv = ConversionEvent(
-        click_id=click_id,
-        external_order_id=external_order_id,
-        provider=provider,
-        product_title=product_title,
-        sale_price=sale_price,
-        commission_rate=commission_rate,
-        commission_value=commission_value,
-        status=status,
+
+async def process_retry_queue(db: AsyncSession) -> int:
+    """Process pending items in retry queue. Called hourly."""
+    r = await db.execute(
+        select(ConversionRetryQueue).where(
+            and_(
+                ConversionRetryQueue.resolved == False,
+                ConversionRetryQueue.attempts < ConversionRetryQueue.max_attempts,
+            )
+        ).limit(20)
     )
-    db.add(conv)
-    await db.commit()
-    return True
+    items = r.scalars().all()
+    processed = 0
+    for item in items:
+        try:
+            p = item.payload
+            success = await _save_conversion_safe(
+                db, p["external_order_id"], p["provider"], p.get("product_title"),
+                p.get("sale_price", 0), p.get("commission_rate", 0),
+                p.get("commission_value", 0), p.get("status", "pending"),
+                p.get("click_id"),
+            )
+            item.attempts += 1
+            item.last_attempt_at = datetime.utcnow()
+            item.resolved = success
+            if not success:
+                item.error = "retry failed"
+            await db.commit()
+            if success:
+                processed += 1
+        except Exception as e:
+            item.attempts += 1
+            item.error = str(e)[:500]
+            await db.commit()
+    return processed
 
 
 async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 2) -> list[dict]:
@@ -126,8 +217,8 @@ async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 2) -> list
             commission_rate = float(commission_rate_str or 0)
             title = (order.get("product_name", "") or "")[:200]
 
-            click_id = await _find_click_by_tracking(db, settings.ALIEXPRESS_TRACKING_ID or "", "aliexpress")
-            ok = await _save_conversion(
+            click_id = await _find_matching_click(db, "aliexpress", title)
+            ok = await _save_conversion_safe(
                 db, f"ali_{order_id}", "aliexpress", title,
                 sale_price, commission_rate, commission, status, click_id
             )
@@ -175,8 +266,8 @@ async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[di
                 "pending"
             )
 
-            click_id = await _find_click_by_tracking(db, "", "lomadee")
-            ok = await _save_conversion(
+            click_id = await _find_matching_click(db, "lomadee", title)
+            ok = await _save_conversion_safe(
                 db, f"lom_{order_id}", "lomadee", title,
                 sale_price, commission_rate, commission_value, status, click_id
             )
@@ -228,8 +319,8 @@ async def handle_ml_webhook(data: dict, db: AsyncSession) -> dict:
         commission_rate = 4.0
         commission_value = total * 0.04
 
-        click_id = await _find_click_by_tracking(db, str(order_id), "mercadolivre")
-        await _save_conversion(
+        click_id = await _find_matching_click(db, "mercadolivre", title[:200])
+        await _save_conversion_safe(
             db, f"ml_{order_id}", "mercadolivre", title[:200],
             total, commission_rate, commission_value, status, click_id
         )
@@ -241,18 +332,26 @@ async def handle_ml_webhook(data: dict, db: AsyncSession) -> dict:
 
 
 async def poll_all_conversions(db: AsyncSession) -> dict:
-    """Run all polling tasks and return summary."""
-    results: dict[str, list] = {"aliexpress": [], "lomadee": []}
-    tasks = [
-        ("aliexpress", poll_aliexpress_orders(db)),
-        ("lomadee", poll_lomadee_orders(db)),
-    ]
-    for name, coro in tasks:
-        try:
-            results[name] = await coro
-        except Exception as e:
-            logger.error(f"Conversion poll {name}: {e}")
+    """Run all polling with detailed logging."""
+    start = datetime.utcnow()
+    results = {}
 
-    total_new = sum(len(v) for v in results.values())
-    logger.info(f"Conversion poll complete: {total_new} new conversions")
-    return {k: len(v) for k, v in results.items()}
+    logger.info(f"[ConversionPoll] Starting at {start.strftime('%H:%M:%S')}")
+
+    for name, coro_fn in [("aliexpress", poll_aliexpress_orders), ("lomadee", poll_lomadee_orders)]:
+        try:
+            saved = await coro_fn(db)
+            results[name] = {"saved": len(saved), "items": saved}
+            logger.info(f"[ConversionPoll] {name}: {len(saved)} new conversions")
+        except Exception as e:
+            results[name] = {"saved": 0, "error": str(e)}
+            logger.error(f"[ConversionPoll] {name} failed: {e}")
+
+    # Process retry queue
+    retried = await process_retry_queue(db)
+    results["retried"] = retried
+
+    elapsed = (datetime.utcnow() - start).total_seconds()
+    logger.info(f"[ConversionPoll] Done in {elapsed:.1f}s — {sum(r.get('saved', 0) if isinstance(r, dict) else 0 for r in results.values())} total new")
+
+    return {k: (v.get("saved", v) if isinstance(v, dict) else v) for k, v in results.items()}

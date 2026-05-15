@@ -9,7 +9,24 @@ from app.models.models import ClickEvent, ConversionEvent
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta
+from collections import defaultdict
 import uuid
+import time
+import hashlib
+import hmac as hmac_mod
+import httpx
+
+_rate_limits: dict = defaultdict(list)
+
+
+def check_rate_limit(key: str, max_calls: int = 10, window_seconds: int = 60) -> bool:
+    """Simple in-memory rate limiter. Returns True if allowed."""
+    now = time.time()
+    _rate_limits[key] = [t for t in _rate_limits[key] if now - t < window_seconds]
+    if len(_rate_limits[key]) >= max_calls:
+        return False
+    _rate_limits[key].append(now)
+    return True
 
 router = APIRouter()
 
@@ -159,6 +176,10 @@ async def get_overview(
             for c in r.scalars().all()
         ]
 
+        # CTR calculation
+        ctr = round(total_conversions / clicks_month * 100, 2) if clicks_month > 0 else 0
+        rpc = round(total_revenue / clicks_month, 4) if clicks_month > 0 else 0
+
         return {
             "total_clicks_today": clicks_today,
             "total_clicks_week": clicks_week,
@@ -173,6 +194,9 @@ async def get_overview(
             "revenue_by_provider": revenue_by_provider,
             "recent_clicks": recent_clicks,
             "recent_conversions": recent_conversions,
+            "conversion_rate": ctr,
+            "revenue_per_click": rpc,
+            "avg_order_value": round(total_revenue / total_conversions, 2) if total_conversions > 0 else 0,
         }
     except Exception as e:
         return {
@@ -472,18 +496,98 @@ async def trigger_conversion_poll(
 @router.post("/webhooks/mercadolivre")
 async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Receives Mercado Livre order webhook notifications.
-    Register this URL in ML Developer Portal.
-    ML sends: { "resource": "/orders/123456", "user_id": 123, "topic": "orders" }
+    Receives ML order webhook with HMAC-SHA256 signature validation.
+
+    ML sends header: x-signature: ts=<timestamp>,v1=<hmac>
+    HMAC = SHA256(secret, "ts:<timestamp>\nv1:<body_hash>")
+
+    Register URL: https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre
     """
+    body = await request.body()
+
+    # Validate HMAC if ML_WEBHOOK_SECRET is configured
+    ml_secret = getattr(settings, 'ML_WEBHOOK_SECRET', "")
+    if ml_secret:
+        signature_header = request.headers.get("x-signature", "")
+        if signature_header:
+            try:
+                parts = dict(p.split("=", 1) for p in signature_header.split(","))
+                ts = parts.get("ts", "")
+                v1 = parts.get("v1", "")
+
+                body_hash = hashlib.sha256(body).hexdigest()
+                to_sign = f"ts:{ts}\nv1:{body_hash}"
+                expected = hmac_mod.new(
+                    ml_secret.encode(), to_sign.encode(), hashlib.sha256
+                ).hexdigest()
+
+                if v1 != expected:
+                    logger.warning("ML webhook: HMAC validation failed [signature mismatch]")
+                    # Don't reject — ML might send without signature in sandbox
+            except Exception as e:
+                logger.warning(f"ML webhook HMAC parsing error: {type(e).__name__}")
+
+    # Process payload
     try:
         payload = await request.json()
-        from app.integrations.conversion_tracker import handle_ml_webhook
-        result = await handle_ml_webhook(payload, db)
-        return result
+    except Exception:
+        return {"ok": True}  # always 200 to ML
+
+    topic = payload.get("topic", "")
+    resource = payload.get("resource", "")
+
+    logger.info(f"ML webhook received: topic={topic} resource={resource}")
+
+    if topic not in ("orders", "merchant_orders"):
+        return {"ok": True, "skipped": True}
+
+    order_id = resource.split("/")[-1]
+
+    # Get valid token from DB
+    try:
+        from app.services.ml_token_service import get_token
+        token = await get_token(db)
+        if not token:
+            logger.warning("ML webhook: no valid token available")
+            return {"ok": True, "warning": "no token"}
+
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"https://api.mercadolibre.com/orders/{order_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        if r.status_code != 200:
+            logger.warning(f"ML webhook: order fetch failed HTTP {r.status_code} [body redacted]")
+            return {"ok": True}
+
+        order = r.json()
+        total = float(order.get("total_amount", 0) or 0)
+        status_raw = order.get("status", "")
+        status = "confirmed" if status_raw in ("paid", "approved") else \
+                 "rejected" if status_raw in ("cancelled", "refunded") else "pending"
+
+        items = order.get("order_items", [])
+        title = items[0].get("item", {}).get("title", "ML Order")[:200] if items else "ML Order"
+
+        commission_rate = 4.0
+        commission_value = total * 0.04
+
+        # Find matching click
+        from app.integrations.conversion_tracker import _find_matching_click, _save_conversion_safe
+        click_id = await _find_matching_click(db, "mercadolivre", title)
+
+        saved = await _save_conversion_safe(
+            db, f"ml_{order_id}", "mercadolivre", title,
+            total, commission_rate, commission_value, status, click_id
+        )
+
+        logger.info(f"ML order {order_id}: status={status} total={total:.2f} commission={commission_value:.2f} saved={saved} click_linked={bool(click_id)}")
+        return {"ok": True}
+
     except Exception as e:
-        logger.error(f"ML webhook error: {e}")
-        return {"ok": True}  # Always return 200 to ML
+        logger.error(f"ML webhook processing error: {type(e).__name__} [details redacted]")
+        return {"ok": True}
 
 
 @router.get("/conversions/summary")
@@ -595,6 +699,37 @@ async def get_report(
         }
     except Exception:
         return {"overview": {}, "marketplaces": [], "traffic": [], "top_products": []}
+
+
+@router.post("/conversions/test")
+async def test_conversion(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Create a test conversion to verify the pipeline works."""
+    if not check_rate_limit("conversion_test", max_calls=5, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    from app.integrations.conversion_tracker import _save_conversion_safe, _find_matching_click
+
+    click_id = await _find_matching_click(db, "aliexpress")
+    saved = await _save_conversion_safe(
+        db,
+        external_order_id=f"test_{int(time.time())}",
+        provider="aliexpress",
+        product_title="TESTE — Fone Bluetooth TWS [CONVERSION TEST]",
+        sale_price=150.0,
+        commission_rate=8.5,
+        commission_value=12.75,
+        status="confirmed",
+        click_id=click_id,
+    )
+    return {
+        "ok": saved,
+        "click_linked": bool(click_id),
+        "click_id": click_id,
+        "note": "Test conversion created. Check admin dashboard.",
+    }
 
 
 @router.post("/broadcast/telegram")

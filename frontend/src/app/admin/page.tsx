@@ -251,13 +251,15 @@ export default function AdminPage() {
         </div>
 
         {/* KPI CARDS */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 16, marginBottom: 20 }}>
           {[
             { label: "Cliques Hoje", value: overview?.total_clicks_today ?? "–", color: "#7c6aff", icon: "👆" },
             { label: `Cliques ${activePeriod === 1 ? "Hoje" : activePeriod === 7 ? "7 dias" : "30 dias"}`, value: overview?.total_clicks_week ?? overview?.total_clicks_month ?? "–", color: "#60a5fa", icon: "📊" },
             { label: "Conversões", value: overview?.total_conversions ?? "–", color: "#4ade80", icon: "✅" },
             { label: "Receita Total", value: overview?.total_revenue != null ? fmtBRL(overview.total_revenue) : "–", color: "#facc15", icon: "💰" },
             { label: "Comissão", value: overview?.total_commission != null ? fmtBRL(overview.total_commission) : "–", color: "#f87171", icon: "🏷️" },
+            { label: "CTR Clique→Venda", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "#00e5a0", icon: "🎯" },
+            { label: "Receita/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "#fbbf24", icon: "💹" },
           ].map(card => (
             <div key={card.label} style={S.card}>
               <div style={{ fontSize: 22, marginBottom: 8 }}>{card.icon}</div>
@@ -393,6 +395,7 @@ export default function AdminPage() {
               <div style={{ ...S.label }}>Loop de Conversão</div>
               <div style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Clique → Venda → Comissão</div>
             </div>
+            <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={async () => {
                 const res = await fetch(`${API}/api/v1/admin/conversions/poll`, {
@@ -411,6 +414,27 @@ export default function AdminPage() {
             >
               ↻ Buscar conversões agora
             </button>
+            <button
+              onClick={async () => {
+                const res = await fetch(`${API}/api/v1/admin/conversions/test`, {
+                  method: "POST", headers: { "X-Admin-Key": key }
+                })
+                const d = await res.json()
+                alert(d.ok
+                  ? `✅ Conversão teste criada!\nClique vinculado: ${d.click_linked ? "SIM" : "NÃO"}\nClick ID: ${d.click_id || "nenhum"}`
+                  : "❌ Falha ao criar conversão teste")
+                fetchAll(key)
+              }}
+              style={{
+                padding: "8px 16px", borderRadius: 8,
+                border: "1px solid rgba(251,191,36,0.3)",
+                background: "rgba(251,191,36,0.08)",
+                color: "#fbbf24", fontWeight: 600, fontSize: 13, cursor: "pointer",
+              }}
+            >
+              🧪 Criar conversão teste
+            </button>
+            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr auto 1fr", alignItems: "center", gap: 8 }}>
