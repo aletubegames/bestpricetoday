@@ -668,8 +668,7 @@ async def get_integration_status(
             "tracking_id_set": bool(settings.ALIEXPRESS_TRACKING_ID),
         },
         "shopee": {
-            "status": "token_invalid" if settings.SHOPEE_APP_ID else "not_configured",
-            "note": "Get correct secret from affiliate.shopee.com.br → My Tools → Open API",
+            "status": "active" if settings.SHOPEE_APP_ID and settings.SHOPEE_SECRET else "not_configured",
         },
         "amazon": {
             "status": "not_configured",
