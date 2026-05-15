@@ -1,42 +1,59 @@
-"use client";
-import { motion } from "framer-motion";
+"use client"
+import { motion } from "framer-motion"
 
-function Sk() {
+const shimmer = `
+  @keyframes shimmer {
+    0% { background-position: -1000px 0 }
+    100% { background-position: 1000px 0 }
+  }
+`
+
+function SkeletonBlock({ w = "100%", h = 16, radius = 6 }: { w?: string | number; h?: number; radius?: number }) {
   return (
-    <div className="card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <div className="sk" style={{ width: 100, height: 22, borderRadius: 99 }} />
-        <div className="sk" style={{ width: 60, height: 22, borderRadius: 99 }} />
-      </div>
-      <div style={{ display: "flex", gap: 12 }}>
-        <div className="sk" style={{ width: 72, height: 72, borderRadius: 12, flexShrink: 0 }} />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div className="sk" style={{ height: 13, width: "90%" }} />
-          <div className="sk" style={{ height: 13, width: "75%" }} />
-          <div className="sk" style={{ height: 13, width: "60%" }} />
-        </div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="sk" style={{ height: 12, width: 60 }} />
-          <div className="sk" style={{ height: 36, width: 140 }} />
-        </div>
-        <div className="sk" style={{ width: 52, height: 52, borderRadius: 12 }} />
-      </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <div className="sk" style={{ height: 22, width: 90, borderRadius: 99 }} />
-        <div className="sk" style={{ height: 22, width: 60, borderRadius: 99 }} />
-      </div>
-      <div className="sk" style={{ height: 46, borderRadius: 12 }} />
-    </div>
-  );
+    <div style={{
+      width: w, height: h, borderRadius: radius,
+      background: "linear-gradient(90deg, #111120 25%, #1a1a2e 50%, #111120 75%)",
+      backgroundSize: "1000px 100%",
+      animation: "shimmer 2s infinite linear",
+    }} />
+  )
 }
 
 export default function OfferSkeleton() {
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-      {Array.from({ length: 8 }).map((_, i) => <Sk key={i} />)}
-    </motion.div>
-  );
+    <>
+      <style>{shimmer}</style>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+        gap: 16,
+      }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <motion.div key={i}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ delay: i * 0.05 }}
+            style={{
+              background: "#0d0d1a", border: "1px solid rgba(124,106,255,0.1)",
+              borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 14,
+            }}
+          >
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <SkeletonBlock w={80} h={80} radius={10} />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                <SkeletonBlock h={14} />
+                <SkeletonBlock w="80%" h={14} />
+                <SkeletonBlock w="60%" h={14} />
+              </div>
+            </div>
+            <SkeletonBlock h={36} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <SkeletonBlock w="30%" h={22} radius={99} />
+              <SkeletonBlock w="35%" h={22} radius={99} />
+            </div>
+            <SkeletonBlock h={44} radius={10} />
+          </motion.div>
+        ))}
+      </div>
+    </>
+  )
 }

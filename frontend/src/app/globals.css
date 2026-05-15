@@ -21,6 +21,9 @@
   --muted:     rgba(240,240,248,0.45);
   --muted2:    rgba(240,240,248,0.20);
   --r:         16px;
+  --neon-purple: #7c6aff;
+  --neon-green:  #00e5a0;
+  --neon-pink:   #e879f9;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,9 +46,10 @@ body {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--s1); }
-::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 99px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #07070f; }
+::-webkit-scrollbar-thumb { background: rgba(124, 106, 255, 0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124, 106, 255, 0.5); }
 
 /* Skeleton */
 .sk {
@@ -61,13 +65,13 @@ body {
 
 /* Card glass */
 .card {
-  background: var(--s2);
-  border: 1px solid var(--bd);
-  border-radius: var(--r);
-  transition: border-color .2s, box-shadow .2s, transform .2s;
+  background: #0d0d1a;
+  border: 1px solid rgba(124, 106, 255, 0.12);
+  border-radius: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
 }
 .card:hover {
-  border-color: var(--bdhov);
-  box-shadow: 0 8px 32px rgba(0,0,0,.4), 0 0 0 1px rgba(124,106,255,.12);
+  border-color: rgba(124, 106, 255, 0.35);
+  box-shadow: 0 0 24px rgba(124, 106, 255, 0.08), 0 4px 20px rgba(0, 0, 0, 0.4);
   transform: translateY(-2px);
 }

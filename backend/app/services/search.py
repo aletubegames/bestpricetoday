@@ -10,6 +10,7 @@ from app.services.providers.amazon import AmazonProvider
 from app.services.providers.shopee import ShopeeProvider
 from app.services.providers.aliexpress import AliExpressProvider
 from app.services.providers.lomadee import LomadeeProvider
+from app.services.providers.base import add_utm
 # Pendente:
 # from app.services.providers.kabum import KabumProvider
 # from app.services.providers.awin import AwinProvider
@@ -252,6 +253,12 @@ async def search_all(
     await asyncio.gather(*[i.close() for i in instances], return_exceptions=True)
 
     ranked = rank_offers(all_offers)[:limit]
+
+    # Add UTM params to all affiliate links
+    for offer in ranked:
+        if offer.affiliate_url:
+            offer.affiliate_url = add_utm(offer.affiliate_url, offer.provider)
+
     took_ms = int((time.time() - start) * 1000)
 
     response = SearchResponse(
