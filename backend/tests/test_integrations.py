@@ -283,27 +283,54 @@ class TestAliExpressParsing:
 # ─── ShopeeSigner ────────────────────────────────────────────────────────────
 
 class TestShopeeSigner:
+    """
+    SHA256(AppId + Timestamp + Payload + Secret) — NÃO HMAC.
+    Ref: Shopee Affiliate Open API Authentication docs.
+    """
+
     def test_auth_header_format(self):
         signer = ShopeeSigner(app_id="12345", app_secret="mysecret")
-        header = signer.auth_header()
+        header = signer.auth_header(payload='{"query":"{ __typename }"}')
         assert header.startswith("SHA256 Credential=12345,Timestamp=")
         assert "Signature=" in header
 
-    def test_auth_header_signature_is_hex_lowercase(self):
+    def test_auth_header_signature_is_hex_lowercase_64(self):
         signer = ShopeeSigner(app_id="12345", app_secret="mysecret")
-        header = signer.auth_header()
+        header = signer.auth_header(payload='{"query":"{ __typename }"}')
         sig_part = header.split("Signature=")[1]
-        # HMAC-SHA256 em hex = 64 chars lowercase
         assert len(sig_part) == 64
         assert sig_part == sig_part.lower()
 
+    def test_sha256_puro_nao_hmac(self):
+        """Confirma SHA256 puro: SHA256(appid+ts+payload+secret)."""
+        import hashlib, re
+        signer = ShopeeSigner(app_id="123456", app_secret="demo")
+        payload = '{"query":"{ __typename }"}'
+        header = signer.auth_header(payload=payload)
+        ts = re.search(r"Timestamp=(\d+)", header).group(1)
+        sig = re.search(r"Signature=([a-f0-9]+)", header).group(1)
+        expected = hashlib.sha256(("123456" + ts + payload + "demo").encode()).hexdigest()
+        assert sig == expected
+
+    def test_payload_diferente_gera_assinatura_diferente(self):
+        """Payload faz parte da assinatura: body diferente = sig diferente."""
+        import unittest.mock
+        signer = ShopeeSigner(app_id="12345", app_secret="mysecret")
+        with unittest.mock.patch("time.time", return_value=1700000000):
+            h1 = signer.auth_header(payload='{"query":"{ __typename }"}')
+            h2 = signer.auth_header(payload='{"query":"{ products { id } }"}')
+        sig1 = h1.split("Signature=")[1]
+        sig2 = h2.split("Signature=")[1]
+        assert sig1 != sig2
+
     def test_auth_header_changes_with_time(self):
-        """Dois headers gerados em momentos diferentes devem ter timestamps diferentes."""
+        """Timestamps diferentes = assinaturas diferentes."""
         import time
         signer = ShopeeSigner(app_id="12345", app_secret="mysecret")
-        h1 = signer.auth_header()
+        payload = '{"query":"{ __typename }"}'
+        h1 = signer.auth_header(payload=payload)
         time.sleep(1)
-        h2 = signer.auth_header()
+        h2 = signer.auth_header(payload=payload)
         ts1 = h1.split("Timestamp=")[1].split(",")[0]
         ts2 = h2.split("Timestamp=")[1].split(",")[0]
         assert ts1 != ts2

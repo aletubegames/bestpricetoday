@@ -19,7 +19,6 @@ Endpoints implementados:
 from __future__ import annotations
 
 import hashlib
-import hmac
 import time
 from typing import Any, Dict, List, Optional
 
@@ -46,25 +45,32 @@ class ShopeeSigner:
     """
     Gera o header de autenticação para a API Shopee Affiliate.
 
-    Formato do header:
-      SHA256 Credential={app_id},Timestamp={ts},Signature={sig}
+    Algoritmo (documentação oficial Shopee Affiliate Open API):
+      factor    = AppId + Timestamp + Payload + Secret
+      signature = SHA256(factor).hexdigest()  ← SHA256 puro, NÃO HMAC
+      header    = SHA256 Credential={AppId},Timestamp={ts},Signature={signature}
 
-    Assinatura:
-      HMAC-SHA256(app_secret, "{app_id}{timestamp}")
+    IMPORTANTE:
+      - Payload é o body JSON da requisição (string exata enviada)
+      - SHA256 puro — não HMAC
+      - Timestamp em segundos
+      - Signature em hex lowercase 64 chars
     """
 
     def __init__(self, app_id: str, app_secret: str) -> None:
         self.app_id = app_id
         self.app_secret = app_secret
 
-    def auth_header(self) -> str:
+    def auth_header(self, payload: str = "") -> str:
+        """
+        Gera o header Authorization para o payload fornecido.
+
+        Args:
+            payload: string exata do body JSON que será enviado na requisição
+        """
         ts = str(int(time.time()))
-        sign_str = f"{self.app_id}{ts}"
-        signature = hmac.new(
-            self.app_secret.encode("utf-8"),
-            sign_str.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        factor = self.app_id + ts + payload + self.app_secret
+        signature = hashlib.sha256(factor.encode("utf-8")).hexdigest()
         return f"SHA256 Credential={self.app_id},Timestamp={ts},Signature={signature}"
 
 
@@ -98,12 +104,18 @@ class ShopeeClient(MarketplaceClient):
         if not signer:
             raise RuntimeError("Shopee não configurado (APP_ID/SECRET ausentes)")
 
+        import json
+        body = {"query": query}
+        if variables:
+            body["variables"] = variables
+        payload_str = json.dumps(body, separators=(",", ":"))
+
         client = await self._get_client()
         resp = await client.post(
             GRAPHQL_ENDPOINT,
-            json={"query": query, "variables": variables},
+            content=payload_str.encode("utf-8"),
             headers={
-                "Authorization": signer.auth_header(),
+                "Authorization": signer.auth_header(payload=payload_str),
                 "Content-Type": "application/json",
             },
         )
