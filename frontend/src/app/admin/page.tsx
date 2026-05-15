@@ -323,6 +323,77 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* ── CONVERSION TRACKING STATUS ── */}
+        <div style={{ ...S.card, marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div>
+              <div style={{ ...S.label }}>Loop de Conversão</div>
+              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Clique → Venda → Comissão</div>
+            </div>
+            <button
+              onClick={async () => {
+                const res = await fetch(`${API}/api/v1/admin/conversions/poll?admin_key=${key}`, { method: "POST" })
+                const data = await res.json()
+                alert(`Poll concluído: ${JSON.stringify(data.new_conversions)}`)
+                fetchAll(key)
+              }}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "1px solid rgba(0,229,160,0.3)",
+                background: "rgba(0,229,160,0.08)", color: "#00e5a0", fontWeight: 600,
+                fontSize: 13, cursor: "pointer",
+              }}
+            >
+              ↻ Buscar conversões agora
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr auto 1fr", alignItems: "center", gap: 8 }}>
+            {[
+              { label: "Cliques", value: overview?.total_clicks_month ?? 0, color: "#7c6aff", pct: "100%" },
+              null,
+              { label: "Conversões", value: overview?.total_conversions ?? 0, color: "#00e5a0",
+                pct: overview?.total_clicks_month ? `${((overview.total_conversions/overview.total_clicks_month)*100).toFixed(1)}%` : "0%" },
+              null,
+              { label: "Receita", value: `R$${(overview?.total_revenue ?? 0).toFixed(0)}`, color: "#fbbf24", pct: "—" },
+              null,
+              { label: "Comissão", value: `R$${(overview?.total_commission ?? 0).toFixed(0)}`, color: "#f43f5e", pct: "—" },
+            ].map((item, i) =>
+              item === null ? (
+                <div key={i} style={{ textAlign: "center", color: "#2a2a3a", fontSize: 20 }}>→</div>
+              ) : (
+                <div key={i} style={{
+                  background: `${item.color}10`, border: `1px solid ${item.color}30`,
+                  borderRadius: 12, padding: "16px 12px", textAlign: "center",
+                }}>
+                  <div style={{ color: item.color, fontSize: 22, fontWeight: 800 }}>{typeof item.value === "number" ? item.value.toLocaleString() : item.value}</div>
+                  <div style={{ color: "#64748b", fontSize: 11, fontWeight: 600, marginTop: 4 }}>{item.label}</div>
+                  <div style={{ color: item.color, fontSize: 12, marginTop: 2, opacity: 0.8 }}>{item.pct}</div>
+                </div>
+              )
+            )}
+          </div>
+
+          {(overview?.total_conversions ?? 0) === 0 && (
+            <div style={{
+              marginTop: 16, padding: "12px 16px", borderRadius: 10,
+              background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)",
+              fontSize: 13, color: "#fbbf24",
+            }}>
+              ⚠️ Nenhuma conversão registrada ainda. Clique em &ldquo;Buscar conversões agora&rdquo; para sincronizar com AliExpress e Lomadee, ou aguarde o polling automático (a cada 1h).
+            </div>
+          )}
+
+          <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 10, background: "#0a0a14", border: "1px solid #1e293b" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>Webhook Mercado Livre</div>
+            <div style={{ fontFamily: "monospace", fontSize: 12, color: "#a78bfa" }}>
+              POST https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre
+            </div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>
+              Registre esta URL no ML Developer Portal → Notificações para receber confirmações de compra em tempo real.
+            </div>
+          </div>
+        </div>
+
         {/* MARKETPLACE TABLE */}
         <div style={{ ...S.card, marginBottom: 20 }}>
           <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🏪 Comparativo de Marketplaces</div>
