@@ -297,7 +297,7 @@ export default function AdminPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 16, marginBottom: 20 }}>
           {[
             { label: "Cliques Hoje", value: (overview?.total_clicks_today ?? 0).toLocaleString("pt-BR"), color: "#7c6aff", icon: "👆" },
-            { label: `Cliques ${activePeriod === 1 ? "Hoje" : activePeriod + " dias"}`, value: (activePeriod <= 7 ? overview?.total_clicks_week : overview?.total_clicks_month ?? 0).toLocaleString("pt-BR") ?? "0", color: "#60a5fa", icon: "📊" },
+            { label: `Cliques ${activePeriod === 1 ? "Hoje" : activePeriod + " dias"}`, value: ((activePeriod <= 7 ? (overview?.total_clicks_week ?? 0) : (overview?.total_clicks_month ?? 0))).toLocaleString("pt-BR"), color: "#60a5fa", icon: "📊" },
             { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "#4ade80", icon: "✅" },
             { label: "Receita Total", value: fmtBRL(overview?.total_revenue ?? 0), color: "#facc15", icon: "💰" },
             { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "#f87171", icon: "🏷️" },
