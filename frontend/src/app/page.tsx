@@ -18,6 +18,52 @@ const PROVIDER_LABELS: Record<string, string> = {
   kabum: "KaBuM",
 };
 
+// Logos SVG inline por marketplace
+const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
+  aliexpress: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#FF4747"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="system-ui">AE</text>
+    </svg>
+  ),
+  shopee: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#EE4D2D"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold" fontFamily="system-ui">S</text>
+    </svg>
+  ),
+  mercadolivre: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#FFE600"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="#333" fontSize="13" fontWeight="bold" fontFamily="system-ui">ML</text>
+    </svg>
+  ),
+  amazon: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#FF9900"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="system-ui">amz</text>
+    </svg>
+  ),
+  lomadee: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#7C3AED"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold" fontFamily="system-ui">L</text>
+    </svg>
+  ),
+  kabum: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#FF6B00"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="system-ui">KB</text>
+    </svg>
+  ),
+  awin: (
+    <svg width="22" height="22" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="8" fill="#0066CC"/>
+      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="system-ui">AW</text>
+    </svg>
+  ),
+};
+
 const STATUS_META: Record<ProviderStatus["status"], { label: string; color: string; border: string; background: string }> = {
   ok: {
     label: "OK",
@@ -66,46 +112,51 @@ function formatProviderNumbers(status: ProviderStatus) {
   return parts.join(" • ");
 }
 
+// Status que o usuário NÃO precisa ver (erro interno, sem credencial, bloqueado)
+const HIDDEN_STATUSES = new Set(["blocked", "not_configured", "error"]);
+
 function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
-  if (!statuses.length) return null;
+  // Mostra apenas providers que têm resultado ou 0 resultados — esconde erros internos
+  const visible = statuses.filter(s => !HIDDEN_STATUSES.has(s.status));
+  if (!visible.length) return null;
 
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        gap: 12,
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
         marginBottom: 20,
       }}
     >
-      {statuses.map((status) => {
+      {visible.map((status) => {
         const meta = STATUS_META[status.status];
         const providerLabel = PROVIDER_LABELS[status.provider] || status.provider;
-        const numbers = formatProviderNumbers(status);
+        const logo = PROVIDER_LOGOS[status.provider];
+        const count = status.returned_count || 0;
 
         return (
           <div
             key={status.provider}
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
               background: meta.background,
               border: meta.border,
-              borderRadius: "var(--r)",
-              padding: "14px 16px",
+              borderRadius: 99,
+              padding: "6px 14px 6px 8px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-              <strong style={{ fontSize: 14 }}>{providerLabel}</strong>
-              <span style={{ fontSize: 11, fontWeight: 700, color: meta.color }}>{meta.label}</span>
-            </div>
-            {status.message && (
-              <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, margin: 0 }}>
-                {status.message}
-              </p>
+            {logo && <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{logo}</span>}
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{providerLabel}</span>
+            {status.status === "ok" && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: meta.color, background: `${meta.color}18`, borderRadius: 99, padding: "1px 8px" }}>
+                {count}
+              </span>
             )}
-            {numbers && (
-              <p style={{ fontSize: 11, color: "var(--muted2)", margin: "8px 0 0" }}>
-                {numbers}
-              </p>
+            {status.status === "no_results" && (
+              <span style={{ fontSize: 11, color: "var(--muted2)" }}>0</span>
             )}
           </div>
         );
