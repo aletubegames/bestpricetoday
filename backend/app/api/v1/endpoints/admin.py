@@ -93,7 +93,12 @@ async def get_overview(
 ):
     try:
         now = datetime.utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Usa UTC-3 (Brasília) para calcular "hoje"
+        from datetime import timezone, timedelta as td
+        brt_offset = td(hours=-3)
+        now_brt = now + brt_offset
+        today_start_brt = now_brt.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = today_start_brt - brt_offset  # converte de volta para UTC
         week_start = now - timedelta(days=7)
         month_start = now - timedelta(days=30)
 
