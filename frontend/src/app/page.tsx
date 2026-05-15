@@ -358,6 +358,11 @@ export default function HomePage() {
             onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
             onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
           >Contato</a>
+          <span style={{ color: "var(--bd)" }}>|</span>
+          <a href="/admin" style={{ color: "var(--muted2)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
+          >Admin</a>
         </div>
       </footer>
     </div>
