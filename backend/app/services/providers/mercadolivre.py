@@ -51,6 +51,17 @@ class MercadoLivreProvider(BaseProvider):
                 params={"q": query, "limit": limit},
                 headers={"Authorization": f"Bearer {token}"},
             )
+            if resp.status_code == 401:
+                # Token expired — auto-refresh via get_valid_ml_token() is available.
+                # Full retry requires persistent token storage (out of scope here).
+                # Import: from app.api.v1.endpoints.auth import get_valid_ml_token
+                logger.info("ML 401 received — token may be expired [token redacted]. Use /auth/ml/refresh to renew.")
+                self.set_status(
+                    ProviderSearchState.error,
+                    message="Mercado Livre retornou 401 — token expirado. Renove via /auth/ml/refresh.",
+                    http_status=401,
+                )
+                return []
             if resp.status_code == 403:
                 self.set_status(
                     ProviderSearchState.blocked,
