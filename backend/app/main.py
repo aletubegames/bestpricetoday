@@ -17,7 +17,16 @@ async def lifespan(app: FastAPI):
         sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
     await init_db()
     logger.info("BestPriceToday started")
+    # Start conversion cron
+    import asyncio
+    from app.workers.conversion_cron import start_conversion_cron
+    cron_task = asyncio.create_task(start_conversion_cron())
     yield
+    cron_task.cancel()
+    try:
+        await cron_task
+    except asyncio.CancelledError:
+        pass
     logger.info("BestPriceToday shutting down")
 
 

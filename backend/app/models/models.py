@@ -192,6 +192,7 @@ class ConversionEvent(Base):
     __tablename__ = "conversion_events"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     click_id = Column(UUID(as_uuid=True), nullable=True)
+    external_order_id = Column(String, nullable=True, index=True)  # AliExpress order_id, Lomadee orderId, etc.
     provider = Column(String, nullable=True, index=True)
     product_title = Column(String, nullable=True)
     sale_price = Column(Float, nullable=True)

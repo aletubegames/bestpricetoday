@@ -3,6 +3,7 @@ from fastapi import Query as FQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from app.core.config import settings
+from app.core.logging import logger
 from app.db.session import get_db
 from app.models.models import ClickEvent, ConversionEvent
 from pydantic import BaseModel
@@ -452,6 +453,95 @@ async def get_top_products(
         return [{"product_title": row.product_title, "provider": row.provider, "clicks": row.clicks} for row in rows]
     except Exception:
         return []
+
+
+@router.post("/conversions/poll")
+async def trigger_conversion_poll(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Manually trigger order polling from all affiliate platforms."""
+    from app.integrations.conversion_tracker import poll_all_conversions
+    try:
+        results = await poll_all_conversions(db)
+        return {"ok": True, "new_conversions": results}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/webhooks/mercadolivre")
+async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Receives Mercado Livre order webhook notifications.
+    Register this URL in ML Developer Portal.
+    ML sends: { "resource": "/orders/123456", "user_id": 123, "topic": "orders" }
+    """
+    try:
+        payload = await request.json()
+        from app.integrations.conversion_tracker import handle_ml_webhook
+        result = await handle_ml_webhook(payload, db)
+        return result
+    except Exception as e:
+        logger.error(f"ML webhook error: {e}")
+        return {"ok": True}  # Always return 200 to ML
+
+
+@router.get("/conversions/summary")
+async def conversion_summary(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Detailed conversion funnel with click→conversion matching."""
+    since = datetime.utcnow() - timedelta(days=days)
+
+    r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= since))
+    total_clicks = r.scalar() or 0
+
+    r = await db.execute(
+        select(
+            func.count().label("count"),
+            func.sum(ConversionEvent.sale_price).label("revenue"),
+            func.sum(ConversionEvent.commission_value).label("commission"),
+        ).where(ConversionEvent.converted_at >= since)
+    )
+    row = r.fetchone()
+    total_conversions = row.count or 0
+    total_revenue = float(row.revenue or 0)
+    total_commission = float(row.commission or 0)
+
+    r = await db.execute(
+        select(
+            ConversionEvent.provider,
+            func.count().label("count"),
+            func.sum(ConversionEvent.commission_value).label("commission"),
+        )
+        .where(ConversionEvent.converted_at >= since)
+        .group_by(ConversionEvent.provider)
+    )
+    by_provider = [
+        {"provider": row.provider, "conversions": row.count, "commission": float(row.commission or 0)}
+        for row in r.fetchall()
+    ]
+
+    conversion_rate = (total_conversions / total_clicks * 100) if total_clicks else 0
+
+    return {
+        "period_days": days,
+        "total_clicks": total_clicks,
+        "total_conversions": total_conversions,
+        "conversion_rate": round(conversion_rate, 2),
+        "total_revenue": total_revenue,
+        "total_commission": total_commission,
+        "roi": round(total_commission, 2),
+        "by_provider": by_provider,
+        "funnel": {
+            "clicks": total_clicks,
+            "conversions": total_conversions,
+            "revenue": total_revenue,
+            "commission": total_commission,
+        }
+    }
 
 
 @router.get("/report")
