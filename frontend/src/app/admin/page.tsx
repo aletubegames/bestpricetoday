@@ -338,6 +338,54 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* ── MARKETING / BROADCAST ── */}
+        <div style={{ ...S.card, marginBottom: 24 }}>
+          <div style={{ ...S.label, marginBottom: 16 }}>📣 Marketing Automático</div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* Telegram Channel */}
+            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📱 Canal Telegram</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
+                {integrationStatus?.telegram_channel ? "✅ Configurado" : "⚠️ Configure TELEGRAM_CHANNEL_ID"}
+              </div>
+              <button
+                onClick={async () => {
+                  const res = await fetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, {
+                    method: "POST", headers: { "X-Admin-Key": key }
+                  })
+                  const d = await res.json()
+                  alert(d.ok ? `✅ ${d.posted} ofertas postadas!` : `❌ ${d.error || "Erro"}`)
+                }}
+                style={{
+                  width: "100%", padding: "10px", borderRadius: 8,
+                  background: "rgba(41,182,246,0.1)", border: "1px solid rgba(41,182,246,0.3)",
+                  color: "#29b6f6", fontWeight: 600, fontSize: 13, cursor: "pointer",
+                }}
+              >
+                📤 Postar 3 ofertas agora
+              </button>
+            </div>
+
+            {/* SEO Status */}
+            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>🔍 SEO / Páginas</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>15 páginas de produto indexáveis</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>Sitemap em /sitemap.xml</div>
+              <a href="/sitemap.xml" target="_blank"
+                style={{
+                  display: "block", textAlign: "center",
+                  padding: "10px", borderRadius: 8,
+                  background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.3)",
+                  color: "#a78bfa", fontWeight: 600, fontSize: 13, textDecoration: "none",
+                }}
+              >
+                Ver sitemap →
+              </a>
+            </div>
+          </div>
+        </div>
+
         {/* ── CONVERSION TRACKING STATUS ── */}
         <div style={{ ...S.card, marginBottom: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
