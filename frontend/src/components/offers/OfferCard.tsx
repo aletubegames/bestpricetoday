@@ -3,6 +3,23 @@ import { motion } from "framer-motion";
 import { ExternalLink, Truck, Tag, TrendingDown, AlertTriangle, Zap, Star } from "lucide-react";
 import type { Offer } from "@/types";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://alessandro2090-bestpricetoday-api.hf.space';
+
+function trackClick(offer: Offer) {
+  fetch(`${API_URL}/api/v1/admin/clicks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      offer_id: offer.product_id || '',
+      provider: offer.provider,
+      product_title: offer.title,
+      price: offer.final_price,
+      affiliate_url: offer.affiliate_url,
+      source: 'web',
+    }),
+  }).catch(() => {}); // fire and forget
+}
+
 const PROVIDERS: Record<string, { name: string; color: string; bg: string; emoji: string }> = {
   mercadolivre: { name: "Mercado Livre", color: "#FACC15", bg: "rgba(250,204,21,.1)",  emoji: "🟡" },
   amazon:       { name: "Amazon",        color: "#FB923C", bg: "rgba(251,146,60,.1)",  emoji: "📦" },
@@ -161,6 +178,7 @@ export default function OfferCard({ offer, rank }: Props) {
       <div style={{ padding: "0 16px 16px" }}>
         {offer.affiliate_url ? (
           <a href={offer.affiliate_url} target="_blank" rel="noopener noreferrer"
+          onClick={() => trackClick(offer)}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             padding: "13px 20px", borderRadius: 12,

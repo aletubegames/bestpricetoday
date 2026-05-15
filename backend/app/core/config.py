@@ -60,6 +60,8 @@ class Settings(BaseSettings):
         "https://bestpricetoday.com.br",
     ]
 
+    ADMIN_MANAGER_KEY: str = ""
+
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 30
 

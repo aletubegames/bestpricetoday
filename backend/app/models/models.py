@@ -171,3 +171,31 @@ class Analytics(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     session_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ClickEvent(Base):
+    __tablename__ = "click_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    offer_id = Column(String, nullable=True, index=True)
+    provider = Column(String, nullable=True, index=True)
+    product_title = Column(String, nullable=True)
+    price = Column(Float, nullable=True)
+    affiliate_url = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    referrer = Column(String, nullable=True)
+    source = Column(String, default="web")  # web, telegram, tiktok, direct
+    clicked_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ConversionEvent(Base):
+    __tablename__ = "conversion_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    click_id = Column(UUID(as_uuid=True), nullable=True)
+    provider = Column(String, nullable=True, index=True)
+    product_title = Column(String, nullable=True)
+    sale_price = Column(Float, nullable=True)
+    commission_rate = Column(Float, nullable=True)
+    commission_value = Column(Float, nullable=True)
+    status = Column(String, default="pending")  # pending, confirmed, rejected
+    converted_at = Column(DateTime, default=datetime.utcnow, index=True)
