@@ -6,25 +6,29 @@ from app.services.providers.lomadee import LomadeeProvider
 
 
 def test_aliexpress_filters_irrelevant_accessories():
-    provider = AliExpressProvider()
-    offers = [
-        OfferSchema(
-            provider=ProviderEnum.aliexpress,
+    """Filtro de relevância movido para AliExpressClient._filter_relevant."""
+    from app.integrations.aliexpress import AliExpressClient
+    from app.integrations.base import ProductResult, MarketplaceId
+
+    client = AliExpressClient()
+    results = [
+        ProductResult(
+            marketplace=MarketplaceId.aliexpress,
+            external_id="1",
             title="Caixa de telefone clara com bolso para iPhone 16 Pro",
             price=19.9,
-            final_price=19.9,
             affiliate_url="https://example.com/case",
         ),
-        OfferSchema(
-            provider=ProviderEnum.aliexpress,
+        ProductResult(
+            marketplace=MarketplaceId.aliexpress,
+            external_id="2",
             title="Apple iPhone 16 Pro Smartphone 256GB",
             price=5999.0,
-            final_price=5999.0,
             affiliate_url="https://example.com/phone",
         ),
     ]
 
-    filtered = provider._filter_relevant_offers("iphone 16 pro", offers)
+    filtered = client._filter_relevant("iphone 16 pro", results)
 
     assert len(filtered) == 1
     assert filtered[0].title == "Apple iPhone 16 Pro Smartphone 256GB"

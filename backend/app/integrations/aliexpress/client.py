@@ -100,10 +100,18 @@ STOPWORDS = {
 }
 
 ACCESSORY_KEYWORDS = {
-    "case", "cover", "capa", "capinha", "pelicula", "película", "tempered glass",
-    "screen protector", "sticker", "adesivo", "decal", "pin", "badge", "bracelet",
-    "bracelete", "pulseira", "strap", "shell", "housing", "keychain", "chaveiro",
-    "suporte", "holder", "stand", "cabo", "cable", "carregador charger",
+    # Capas e protetores
+    "case", "cover", "capa", "capinha", "caixa", "bolso",
+    "pelicula", "película", "tempered glass", "screen protector",
+    # Decorativos
+    "sticker", "adesivo", "decal", "pin", "badge",
+    # Pulseiras e correias
+    "bracelet", "bracelete", "pulseira", "strap",
+    # Estrutura
+    "shell", "housing", "keychain", "chaveiro",
+    "suporte", "holder", "stand",
+    # Cabos e carregadores
+    "cabo", "cable", "carregador", "charger",
 }
 
 
