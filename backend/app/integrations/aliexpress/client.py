@@ -99,20 +99,25 @@ STOPWORDS = {
     "uma", "um", "por", "na", "no", "em", "new", "original", "plus", "o", "a",
 }
 
+# Palavras que indicam claramente produto acessório (capa, película, etc)
 ACCESSORY_KEYWORDS = {
-    # Capas e protetores
-    "case", "cover", "capa", "capinha", "caixa", "bolso",
+    # Capas / protetores para dispositivos
+    "case", "cover", "capa", "capinha",
+    "caixa de telefone", "caixa de celular",
+    "bolso",
     "pelicula", "película", "tempered glass", "screen protector",
-    # Decorativos
-    "sticker", "adesivo", "decal", "pin", "badge",
-    # Pulseiras e correias
-    "bracelet", "bracelete", "pulseira", "strap",
-    # Estrutura
-    "shell", "housing", "keychain", "chaveiro",
-    "suporte", "holder", "stand",
-    # Cabos e carregadores
-    "cabo", "cable", "carregador", "charger",
+    "vidro temperado", "protetor de tela",
+    # Decorativos puros
+    "sticker", "adesivo", "decal",
+    # Mouse pads
+    "mouse pad", "mousepad",
+    # Bolsas/mangas para laptop (quando query pede o notebook em si)
+    "bolsa manga", "laptop bag", "notebook bag",
 }
+
+# Produtos que parecem acessório mas são standalone legítimos
+# (pulseiras de relógio, cabos, carregadores, suportes, etc)
+# NÃO filtrar como acessório.
 
 
 # ─────────────────────────────────────────────
@@ -278,16 +283,19 @@ class AliExpressClient(MarketplaceClient):
         if not query_tokens or not title_tokens:
             return False
 
-        # Tokens numéricos devem estar presentes (ex: "4070", "256gb", "42")
+        # Tokens numéricos: exige que o número exato esteja presente
+        # "rtx 4070" não aceita "rtx 4060"
         numeric = [t for t in query_tokens if t.isdigit() or re.match(r"^\d+gb$", t)]
         if numeric and not all(t in title_tokens for t in numeric):
             return False
 
-        # Sobreposição mínima de tokens relevantes
-        overlap = [t for t in query_tokens if t in title_tokens]
-        min_overlap = 1 if len(query_tokens) < 3 else 2
-        if len(overlap) < min_overlap:
-            return False
+        # Sobreposição mínima de tokens de texto (ignora numéricos para este check)
+        text_query_tokens = [t for t in query_tokens if not t.isdigit() and not re.match(r"^\d+gb$", t)]
+        if text_query_tokens:
+            overlap = [t for t in text_query_tokens if t in title_tokens]
+            min_overlap = 1  # pelo menos 1 token de texto em comum
+            if len(overlap) < min_overlap:
+                return False
 
         # Rejeita acessórios quando a query não é de acessório
         if self._is_accessory(title) and not self._is_accessory(query):
@@ -296,7 +304,16 @@ class AliExpressClient(MarketplaceClient):
         return True
 
     def _filter_relevant(self, query: str, results: List[ProductResult]) -> List[ProductResult]:
-        return [r for r in results if self._is_relevant(query, r.title)]
+        """Filtra resultados relevantes. Fallback por preço (> R$50) se nada passar."""
+        relevant = [r for r in results if self._is_relevant(query, r.title)]
+        if relevant:
+            return relevant
+        # Fallback: só produtos com preço > R$50 (tipicamente produtos standalone, não acessórios)
+        fallback = sorted(
+            [r for r in results if r.final_price >= 50.0],
+            key=lambda r: r.final_price, reverse=True
+        )
+        return fallback
 
     # ── Parsers ──────────────────────────────
 
