@@ -1,103 +1,81 @@
-"""Shopee Affiliate Provider."""
-import httpx
-import time
-import hmac
-import hashlib
+"""
+Shopee Provider — ponte entre a camada de integração e o orquestrador de busca.
+
+Usa ShopeeClient (integrations/shopee) para todas as chamadas.
+Converte ProductResult → OfferSchema.
+"""
 from typing import List
+
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
-from app.core.config import settings
+from app.integrations.shopee import ShopeeClient
+from app.integrations.base import ProductResult
 from app.core.logging import logger
 
 
 class ShopeeProvider(BaseProvider):
     name = "shopee"
-    BASE_URL = "https://open-api.affiliate.shopee.com.br/graphql"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._client = ShopeeClient()
+
+    def _to_offer(self, p: ProductResult) -> OfferSchema:
+        return OfferSchema(
+            provider=ProviderEnum.shopee,
+            title=p.title,
+            price=p.price,
+            original_price=p.original_price,
+            discount_percent=p.discount_pct,
+            coupon_code=p.coupon_code,
+            coupon_discount=p.coupon_discount,
+            cashback_percent=p.cashback_pct,
+            shipping_free=p.shipping_free,
+            shipping_price=p.shipping_price,
+            final_price=p.final_price,
+            product_url=p.product_url,
+            affiliate_url=p.affiliate_url or "",
+            image_url=p.image_url,
+            economy=p.economy,
+            is_fake_discount=False,
+        )
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
+        from app.core.config import settings
+
         if not settings.SHOPEE_APP_ID or not settings.SHOPEE_SECRET:
             self.set_status(
                 ProviderSearchState.not_configured,
-                message="Credenciais da Shopee não configuradas.",
+                message="Credenciais Shopee (APP_ID/SECRET) não configuradas.",
             )
-            logger.warning("Shopee: not configured, skipping")
             return []
+
         try:
-            offers = await self._do_search(query, limit)
+            results = await self._client.search(query, limit=limit)
+
+            if not results:
+                self.set_status(
+                    ProviderSearchState.no_results,
+                    message="Shopee não retornou produtos para esta busca.",
+                )
+                return []
+
+            offers = [self._to_offer(p) for p in results]
             self.set_status(
-                ProviderSearchState.ok if offers else ProviderSearchState.no_results,
-                message=(
-                    f"Shopee retornou {len(offers)} ofertas."
-                    if offers
-                    else "Shopee respondeu sem ofertas para esta busca."
-                ),
+                ProviderSearchState.ok,
+                message=f"Shopee retornou {len(offers)} ofertas.",
                 raw_count=len(offers),
                 returned_count=len(offers),
             )
             return offers
+
         except Exception as e:
-            self.set_status(ProviderSearchState.error, message=f"Shopee falhou: {e}")
-            logger.error(f"Shopee error: {e}")
+            self.set_status(
+                ProviderSearchState.error,
+                message=f"Shopee falhou: {e}",
+            )
+            logger.error(f"ShopeeProvider error: {e}")
             return []
 
-    async def _do_search(self, query: str, limit: int) -> List[OfferSchema]:
-        timestamp = int(time.time())
-        payload = {
-            "query": """
-            query searchProducts($keyword: String!, $limit: Int!) {
-              productOfferV2(listType: 0, sortType: 2, limit: $limit, keyword: $keyword) {
-                nodes {
-                  itemId
-                  productName
-                  priceMin
-                  priceMax
-                  imageUrl
-                  shopName
-                  offerLink
-                  commissionRate
-                  sales
-                }
-              }
-            }
-            """,
-            "variables": {"keyword": query, "limit": limit},
-        }
-
-        sign_string = f"{settings.SHOPEE_APP_ID}{timestamp}"
-        signature = hmac.new(
-            settings.SHOPEE_SECRET.encode(),
-            sign_string.encode(),
-            hashlib.sha256
-        ).hexdigest()
-
-        client = await self.get_client()
-        resp = await client.post(
-            self.BASE_URL,
-            json=payload,
-            headers={
-                "Authorization": f"SHA256 Credential={settings.SHOPEE_APP_ID},Timestamp={timestamp},Signature={signature}",
-                "Content-Type": "application/json",
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return self._parse(data)
-
-    def _parse(self, data: dict) -> List[OfferSchema]:
-        offers = []
-        nodes = data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
-        for item in nodes:
-            price = float(item.get("priceMin", 0))
-            cashback = float(item.get("commissionRate", 0))
-            offers.append(OfferSchema(
-                provider=ProviderEnum.shopee,
-                title=item.get("productName", ""),
-                price=price,
-                cashback_percent=cashback,
-                shipping_free=True,
-                shipping_price=0,
-                final_price=price,
-                affiliate_url=item.get("offerLink", ""),
-                image_url=item.get("imageUrl", ""),
-            ))
-        return offers
+    async def close(self) -> None:
+        await self._client.close()
