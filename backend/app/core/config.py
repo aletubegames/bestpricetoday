@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     MERCADOLIVRE_ACCESS_TOKEN: str = ""
     MERCADOLIVRE_REFRESH_TOKEN: str = ""
     MERCADOLIVRE_TOKEN_EXPIRES_AT: int = 0  # Unix timestamp
+    ML_WEBHOOK_SECRET: str = ""  # Optional: HMAC secret from ML Developer Portal
 
     AMAZON_ACCESS_KEY: str = ""
     AMAZON_SECRET_KEY: str = ""
