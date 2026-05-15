@@ -188,6 +188,25 @@ class ClickEvent(Base):
     clicked_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class MLToken(Base):
+    """
+    Stores Mercado Livre OAuth tokens.
+    Single row per user_id — upserted on each refresh.
+    Tokens stored as-is (HF Space secrets + DB access are already restricted).
+    In a production multi-tenant setup these should be AES-256 encrypted.
+    """
+    __tablename__ = "ml_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String, unique=True, index=True, nullable=False)  # ML user_id
+    access_token = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)  # when access_token expires
+    scope = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class ConversionEvent(Base):
     __tablename__ = "conversion_events"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

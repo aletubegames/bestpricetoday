@@ -544,6 +544,39 @@ async def conversion_summary(
     }
 
 
+@router.get("/integrations/status")
+async def get_integration_status(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Returns integration status for all providers — used by admin dashboard."""
+    from app.services.ml_token_service import get_token_status
+
+    ml_status = await get_token_status(db)
+
+    return {
+        "mercadolivre": {
+            **ml_status,
+            "note": "Register webhook at: https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre"
+        },
+        "aliexpress": {
+            "status": "active" if settings.ALIEXPRESS_APP_KEY and settings.ALIEXPRESS_APP_SECRET else "not_configured",
+            "tracking_id_set": bool(settings.ALIEXPRESS_TRACKING_ID),
+        },
+        "shopee": {
+            "status": "token_invalid" if settings.SHOPEE_APP_ID else "not_configured",
+            "note": "Get correct secret from affiliate.shopee.com.br → My Tools → Open API",
+        },
+        "amazon": {
+            "status": "not_configured",
+            "note": "Set AMAZON_ACCESS_KEY and AMAZON_SECRET_KEY",
+        },
+        "lomadee": {
+            "status": "active" if settings.LOMADEE_API_KEY else "not_configured",
+        },
+    }
+
+
 @router.get("/report")
 async def get_report(
     db: AsyncSession = Depends(get_db),

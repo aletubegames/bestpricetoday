@@ -1,9 +1,11 @@
 """OAuth callback do Mercado Livre — troca code por access_token + refresh_token."""
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 from app.core.config import settings
 from app.core.logging import logger
+from app.db.session import get_db
 import time
 
 router = APIRouter()
@@ -59,7 +61,7 @@ async def get_valid_ml_token() -> str | None:
 
 
 @router.get("/auth/ml/callback")
-async def ml_oauth_callback(code: str = None, error: str = None):
+async def ml_oauth_callback(code: str = None, error: str = None, db: AsyncSession = Depends(get_db)):
     """
     OAuth callback — trades code for tokens.
     SECURITY: tokens are NEVER exposed in the response body.
@@ -94,6 +96,13 @@ async def ml_oauth_callback(code: str = None, error: str = None):
     # SECURITY: Never log or return the actual token values
     logger.info(f"ML OAuth success — expires_in={expires_in}s, user_id={data.get('user_id')} [tokens redacted]")
 
+    # Save tokens to DB for persistent storage + auto-refresh
+    try:
+        from app.services.ml_token_service import save_from_oauth
+        await save_from_oauth(db, data)
+    except Exception as e:
+        logger.error(f"Failed to save ML tokens to DB: {type(e).__name__} [details redacted]")
+
     # Return confirmation WITHOUT token values
     # Operator must retrieve tokens from secure backend storage
     return HTMLResponse("""
@@ -115,17 +124,17 @@ async def ml_oauth_callback(code: str = None, error: str = None):
 
 
 @router.post("/auth/ml/refresh")
-async def ml_refresh_token():
-    """
-    Manually trigger token refresh.
-    Called by admin or cron — never exposes token in response.
-    """
-    refresh = settings.MERCADOLIVRE_REFRESH_TOKEN
-    if not refresh:
-        return {"ok": False, "error": "MERCADOLIVRE_REFRESH_TOKEN not configured"}
+async def ml_refresh_token(db: AsyncSession = Depends(get_db)):
+    from app.services.ml_token_service import get_token, get_token_status
+    token = await get_token(db)
+    status = await get_token_status(db)
+    if token:
+        return {"ok": True, "status": status}
+    return {"ok": False, "error": "refresh failed or not configured", "status": status}
 
-    data = await _do_token_refresh(refresh)
-    if data:
-        logger.info("ML token manually refreshed [token value redacted]")
-        return {"ok": True, "expires_in": data.get("expires_in"), "user_id": data.get("user_id")}
-    return {"ok": False, "error": "refresh failed"}
+
+@router.get("/auth/ml/status")
+async def ml_token_status(db: AsyncSession = Depends(get_db)):
+    """Returns ML token status without exposing token values. Used by admin dashboard."""
+    from app.services.ml_token_service import get_token_status
+    return await get_token_status(db)

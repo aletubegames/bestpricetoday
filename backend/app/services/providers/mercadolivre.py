@@ -56,6 +56,7 @@ class MercadoLivreProvider(BaseProvider):
                 # Full retry requires persistent token storage (out of scope here).
                 # Import: from app.api.v1.endpoints.auth import get_valid_ml_token
                 logger.info("ML 401 received — token may be expired [token redacted]. Use /auth/ml/refresh to renew.")
+                # TODO: auto-refresh via ml_token_service.get_token(db) once provider receives db session
                 self.set_status(
                     ProviderSearchState.error,
                     message="Mercado Livre retornou 401 — token expirado. Renove via /auth/ml/refresh.",

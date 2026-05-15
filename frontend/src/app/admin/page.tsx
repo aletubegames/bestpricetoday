@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [recentClicks, setRecentClicks] = useState<any[]>([]);
   const [recentConversions, setRecentConversions] = useState<any[]>([]);
+  const [integrationStatus, setIntegrationStatus] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [clickPage, setClickPage] = useState(1);
@@ -78,7 +79,7 @@ export default function AdminPage() {
     const provParam = activePlatform !== "all" ? `&provider=${activePlatform}` : "";
     const daysParam = `&days=${activePeriod}`;
     try {
-      const [ov, an, mk, tr, tp, cl, cv] = await Promise.all([
+      const [ov, an, mk, tr, tp, cl, cv, intStatus] = await Promise.all([
         adminFetch(`/api/v1/admin/overview?days=${activePeriod}${provParam}`, k),
         adminFetch(`/api/v1/admin/analytics?days=${activePeriod}`, k),
         adminFetch(`/api/v1/admin/marketplaces`, k),
@@ -86,6 +87,7 @@ export default function AdminPage() {
         adminFetch(`/api/v1/admin/products/top?limit=10`, k),
         adminFetch(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
         adminFetch(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
+        fetch(`${API}/api/v1/admin/integrations/status`, { headers: { "X-Admin-Key": k } }).then(r => r.json()).catch(() => ({})),
       ]);
       setOverview(ov);
       setAnalytics(an.data || {});
@@ -94,6 +96,7 @@ export default function AdminPage() {
       setTopProducts(Array.isArray(tp) ? tp : []);
       setRecentClicks(cl.items || []);
       setRecentConversions(cv.items || []);
+      setIntegrationStatus(intStatus || {});
       setLastUpdated(new Date());
     } catch (e) {
       console.error(e);
@@ -479,7 +482,31 @@ export default function AdminPage() {
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 16, fontSize: 13 }}>🔌 Status das Integrações</div>
             <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-              {INTEGRATIONS.map(int => (
+              {/* Mercado Livre — live data from API */}
+              {(() => {
+                const ml = integrationStatus?.mercadolivre || {};
+                const mlColor = ml.status === "active" ? "#00e5a0" : ml.status === "expiring_soon" ? "#fbbf24" : "#ff6b6b";
+                const mlIcon = ml.status === "active" ? "✅" : ml.status === "expiring_soon" ? "⏰" : "❌";
+                const mlLabel = ml.status === "active"
+                  ? `Ativo (expira em ${ml.expires_in_minutes}min)`
+                  : ml.status === "expiring_soon" ? "Expirando em breve"
+                  : ml.status === "env_only" ? "Apenas env (sem DB)"
+                  : ml.status === "not_configured" ? "Não configurado"
+                  : "Token expirado";
+                return (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d1a", borderRadius: 8, gap: 8 }}>
+                    <span style={{ fontSize: 13 }}>🟡 Mercado Livre</span>
+                    <span style={{ fontSize: 13, color: mlColor }}>{mlIcon} {mlLabel}</span>
+                    <button
+                      onClick={() => fetch(`${API}/api/v1/auth/ml/refresh`, { method: "POST", headers: { "X-Admin-Key": key } })
+                        .then(r => r.json()).then(d => { alert(d.ok ? "Token renovado!" : `Erro: ${d.error}`); fetchAll(key); })}
+                      style={{ fontSize: 11, padding: "3px 8px", background: "#1a1a2e", border: "1px solid #333", borderRadius: 6, color: "#a78bfa", cursor: "pointer" }}
+                    >Renovar</button>
+                  </div>
+                );
+              })()}
+              {/* Other integrations — static */}
+              {INTEGRATIONS.filter(i => i.name !== "Mercado Livre").map(int => (
                 <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d0d1a", borderRadius: 8 }}>
                   <span style={{ fontSize: 13 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 13, color: int.color }}>{int.status} {int.statusText}</span>
