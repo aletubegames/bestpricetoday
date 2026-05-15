@@ -89,69 +89,79 @@ async def record_click(
 @router.get("/overview")
 async def get_overview(
     db: AsyncSession = Depends(get_db),
+    provider: Optional[str] = None,
+    days: Optional[int] = None,
     _: str = Depends(require_admin),
 ):
     try:
         now = datetime.utcnow()
         # Usa UTC-3 (Brasília) para calcular "hoje"
-        from datetime import timezone, timedelta as td
+        from datetime import timedelta as td
         brt_offset = td(hours=-3)
         now_brt = now + brt_offset
         today_start_brt = now_brt.replace(hour=0, minute=0, second=0, microsecond=0)
         today_start = today_start_brt - brt_offset  # converte de volta para UTC
-        week_start = now - timedelta(days=7)
-        month_start = now - timedelta(days=30)
+        week_start = now - timedelta(days=days if days and days <= 7 else 7)
+        month_start = now - timedelta(days=days if days else 30)
+
+        # Filtro de provider
+        def pf(model):
+            """Retorna filtros de provider se especificado."""
+            if provider:
+                return [model.provider == provider]
+            return []
 
         # clicks today
-        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= today_start))
+        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= today_start, *pf(ClickEvent)))
         clicks_today = r.scalar() or 0
 
-        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= week_start))
+        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= week_start, *pf(ClickEvent)))
         clicks_week = r.scalar() or 0
 
-        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= month_start))
+        r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= month_start, *pf(ClickEvent)))
         clicks_month = r.scalar() or 0
 
-        r = await db.execute(select(func.count()).select_from(ConversionEvent))
+        r = await db.execute(select(func.count()).select_from(ConversionEvent).where(*pf(ConversionEvent)))
         total_conversions = r.scalar() or 0
 
-        r = await db.execute(select(func.sum(ConversionEvent.sale_price)))
+        r = await db.execute(select(func.sum(ConversionEvent.sale_price)).where(*pf(ConversionEvent)))
         total_revenue = float(r.scalar() or 0)
 
-        r = await db.execute(select(func.sum(ConversionEvent.commission_value)))
+        r = await db.execute(select(func.sum(ConversionEvent.commission_value)).where(*pf(ConversionEvent)))
         total_commission = float(r.scalar() or 0)
 
-        r = await db.execute(select(func.avg(ConversionEvent.commission_rate)))
+        r = await db.execute(select(func.avg(ConversionEvent.commission_rate)).where(*pf(ConversionEvent)))
         avg_commission_rate = float(r.scalar() or 0)
 
         # clicks by provider
-        r = await db.execute(
-            select(ClickEvent.provider, func.count().label("cnt"))
-            .group_by(ClickEvent.provider)
-        )
+        q = select(ClickEvent.provider, func.count().label("cnt")).group_by(ClickEvent.provider)
+        if provider:
+            q = q.where(ClickEvent.provider == provider)
+        r = await db.execute(q)
         clicks_by_provider = {row.provider or "unknown": row.cnt for row in r.fetchall()}
 
         # clicks by source
-        r = await db.execute(
-            select(ClickEvent.source, func.count().label("cnt"))
-            .group_by(ClickEvent.source)
-        )
+        q = select(ClickEvent.source, func.count().label("cnt")).group_by(ClickEvent.source)
+        if provider:
+            q = q.where(ClickEvent.provider == provider)
+        r = await db.execute(q)
         clicks_by_source = {row.source or "web": row.cnt for row in r.fetchall()}
 
         # revenue by provider
-        r = await db.execute(
-            select(ConversionEvent.provider, func.sum(ConversionEvent.sale_price).label("rev"))
-            .group_by(ConversionEvent.provider)
-        )
+        q = select(ConversionEvent.provider, func.sum(ConversionEvent.sale_price).label("rev")).group_by(ConversionEvent.provider)
+        if provider:
+            q = q.where(ConversionEvent.provider == provider)
+        r = await db.execute(q)
         revenue_by_provider = {row.provider or "unknown": float(row.rev or 0) for row in r.fetchall()}
 
         # top provider
         top_provider = max(clicks_by_provider, key=lambda k: clicks_by_provider[k], default="aliexpress")
 
         # recent clicks
-        r = await db.execute(
-            select(ClickEvent).order_by(ClickEvent.clicked_at.desc()).limit(10)
-        )
+        q = select(ClickEvent).order_by(ClickEvent.clicked_at.desc()).limit(10)
+        if provider:
+            q = q.where(ClickEvent.provider == provider)
+        r = await db.execute(q)
         recent_clicks = [
             {
                 "id": str(c.id),
