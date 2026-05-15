@@ -115,13 +115,19 @@ class AliExpressSigner:
     """
     Gera assinaturas para requisições AliExpress Open Platform.
 
-    Protocolo TOP (sync endpoint):
-      sign = HMAC_SHA256(app_secret, sorted_params_concatenated)
-      Formato: app_secret + "".join(k+v for k,v in sorted(params)) + app_secret
-      Resultado: HEX UPPERCASE
+    Algoritmo comum (TOP e GOP):
+      sign = HMAC-SHA256(key=app_secret, message=<string>).hexdigest().upper()
 
-    Protocolo GOP (rest endpoint):
-      similar ao TOP mas o path da API é prefixado antes dos params
+    Diferença entre protocolos:
+      TOP  (Business Interface, método com ponto):
+        message = sorted(k+v for k,v in all_params)   ← sem prefixo, método é parâmetro
+      GOP  (System Interface, path com barra):
+        message = api_path + sorted(k+v for k,v in all_params)  ← api_path prefixado
+
+    Referência: https://openplatform.aliexpress.com/doc/doc.htm#/?docId=9871
+    Vetores de teste (app_secret='helloworld'):
+      TOP → F7F7926B67316C9D1E8E15F7E66940ED3059B1638C497D77973F30046EFB5BBB
+      GOP → 35607762342831B6A417A0DED84B79C05FEFBF116969C48AD6DC00279A9F4D81
     """
 
     def __init__(self, app_key: str, app_secret: str) -> None:
@@ -151,20 +157,21 @@ class AliExpressSigner:
 
     def _compute_top_sign(self, params: Dict[str, str]) -> str:
         """
-        Algoritmo de assinatura TOP:
-          1. Ordenar parâmetros por nome (ASCII)
-          2. Concatenar: app_secret + k1v1k2v2... + app_secret
-          3. HMAC-SHA256
+        Algoritmo de assinatura TOP (Business Interface):
+          1. Ordenar todos os parâmetros por nome (ASCII)
+             → inclui 'method' como parâmetro normal
+          2. Concatenar: k1v1k2v2k3v3...
+             → app_secret NÃO entra na string (é apenas a chave HMAC)
+          3. HMAC-SHA256(key=app_secret, msg=string)
           4. HEX UPPERCASE
         """
         sorted_items = sorted(params.items())
-        concat = self.app_secret + "".join(f"{k}{v}" for k, v in sorted_items) + self.app_secret
-        digest = hmac.new(
+        concat = "".join(f"{k}{v}" for k, v in sorted_items)
+        return hmac.new(
             self.app_secret.encode("utf-8"),
             concat.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest().upper()
-        return digest
 
     def sign_gop(self, api_path: str, params: Dict[str, str]) -> Dict[str, str]:
         """
@@ -183,19 +190,16 @@ class AliExpressSigner:
 
     def _compute_gop_sign(self, api_path: str, params: Dict[str, str]) -> str:
         """
-        Algoritmo de assinatura GOP:
-          1. Ordenar parâmetros por nome (ASCII)
-          2. Concatenar: app_secret + api_path + k1v1k2v2... + app_secret
-          3. HMAC-SHA256
+        Algoritmo de assinatura GOP (System Interface):
+          1. Ordenar todos os parâmetros por nome (ASCII)
+             → 'method' NÃO é parâmetro; api_path é prefixado na string
+          2. Concatenar: api_path + k1v1k2v2k3v3...
+             → app_secret NÃO entra na string (é apenas a chave HMAC)
+          3. HMAC-SHA256(key=app_secret, msg=api_path+sorted_params)
           4. HEX UPPERCASE
         """
         sorted_items = sorted(params.items())
-        concat = (
-            self.app_secret
-            + api_path
-            + "".join(f"{k}{v}" for k, v in sorted_items)
-            + self.app_secret
-        )
+        concat = api_path + "".join(f"{k}{v}" for k, v in sorted_items)
         return hmac.new(
             self.app_secret.encode("utf-8"),
             concat.encode("utf-8"),

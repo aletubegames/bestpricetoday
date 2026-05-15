@@ -2,10 +2,10 @@
 Testes da camada integrations/ — AliExpress e Shopee.
 
 Cobre:
-  - AliExpressSigner: TOP e GOP
+  - AliExpressSigner: TOP e GOP validados contra vetores OFICIAIS da documentação
   - Filtros de relevância e acessórios
   - Parsing de respostas mock
-  - ShopeeClient: parsing
+  - ShopeeClient signer
   - ProductResult: final_price, economy
 """
 import pytest
@@ -17,11 +17,99 @@ from app.integrations.shopee import ShopeeSigner
 # ─── AliExpressSigner ────────────────────────────────────────────────────────
 
 class TestAliExpressSigner:
+    """
+    Testa o signer contra vetores OFICIAIS da documentação AliExpress Open Platform.
+    Ref: https://openplatform.aliexpress.com/doc/doc.htm#/?docId=9871
+
+    Algoritmo correto:
+      sign = HMAC-SHA256(key=app_secret, msg=<string>).hexdigest().upper()
+      TOP:  msg = sorted(k+v)           (method é parâmetro normal)
+      GOP:  msg = api_path + sorted(k+v) (api_path prefixado, sem 'method')
+
+    IMPORTANTE: app_secret é APENAS a chave HMAC — não entra na string.
+    O padrão antigo (MD5-style) concatenava secret+params+secret, o que é ERRADO.
+    """
+
     def setup_method(self):
-        self.signer = AliExpressSigner(app_key="testkey", app_secret="testsecret")
+        self.signer_official = AliExpressSigner(app_key="123456", app_secret="helloworld")
+        self.signer_test = AliExpressSigner(app_key="testkey", app_secret="testsecret")
+
+    # ── Vetores oficiais ──────────────────────────────────────────────────────
+
+    def test_top_vector_oficial(self):
+        """
+        Case 1 (Business Interface) da documentação oficial.
+        Params ordenados: access_token, aliexpress_category_id, app_key, method,
+                          sign_method, timestamp
+        App Secret: helloworld
+        Esperado: F7F7926B67316C9D1E8E15F7E66940ED3059B1638C497D77973F30046EFB5BBB
+        """
+        full_params = {
+            "access_token":           "test",
+            "aliexpress_category_id": "200135143",
+            "app_key":                "123456",
+            "method":                 "aliexpress.logistics.redefining.getonlinelogisticsinfo",
+            "sign_method":            "sha256",
+            "timestamp":              "1517820392000",
+        }
+        sig = self.signer_official._compute_top_sign(full_params)
+        assert sig == "F7F7926B67316C9D1E8E15F7E66940ED3059B1638C497D77973F30046EFB5BBB"
+
+    def test_gop_vector_oficial(self):
+        """
+        Case 2 (System Interface) da documentação oficial.
+        api_path: /auth/token/create
+        Params: app_key=12345678, code=3_500102_..., sign_method=sha256, timestamp=...
+        App Secret: helloworld
+        Esperado: 35607762342831B6A417A0DED84B79C05FEFBF116969C48AD6DC00279A9F4D81
+        """
+        signer = AliExpressSigner(app_key="12345678", app_secret="helloworld")
+        full_params = {
+            "app_key":     "12345678",
+            "code":        "3_500102_JxZ05Ux3cnnSSUm6dCxYg6Q26",
+            "sign_method": "sha256",
+            "timestamp":   "1517820392000",
+        }
+        sig = signer._compute_gop_sign("/auth/token/create", full_params)
+        assert sig == "35607762342831B6A417A0DED84B79C05FEFBF116969C48AD6DC00279A9F4D81"
+
+    def test_top_secret_nao_entra_na_string(self):
+        """
+        Garante que o app_secret NÃO é concatenado na mensagem (erro do padrão MD5).
+        O padrão antigo fazia: secret + sorted_params + secret → ERRADO.
+        O correto: secret é apenas a chave do HMAC.
+        """
+        import hmac as _hmac, hashlib as _hashlib
+
+        full_params = {
+            "app_key":     "123456",
+            "method":      "aliexpress.affiliate.product.query",
+            "sign_method": "sha256",
+            "timestamp":   "1517820392000",
+        }
+        secret = "helloworld"
+        sorted_items = sorted(full_params.items())
+
+        # Algoritmo correto: secret como chave HMAC apenas
+        correct_msg = "".join(f"{k}{v}" for k, v in sorted_items)
+        correct_sig = _hmac.new(
+            secret.encode(), correct_msg.encode(), _hashlib.sha256
+        ).hexdigest().upper()
+
+        # Algoritmo errado: secret na string (padrão MD5 antigo)
+        wrong_msg = secret + correct_msg + secret
+        wrong_sig = _hmac.new(
+            secret.encode(), wrong_msg.encode(), _hashlib.sha256
+        ).hexdigest().upper()
+
+        computed = self.signer_official._compute_top_sign(full_params)
+        assert computed == correct_sig
+        assert computed != wrong_sig
+
+    # ── Formato e estrutura ───────────────────────────────────────────────────
 
     def test_sign_top_returns_all_required_fields(self):
-        params = self.signer.sign_top(
+        params = self.signer_test.sign_top(
             "aliexpress.affiliate.product.query",
             {"keywords": "iphone", "page_size": "10"},
         )
@@ -34,42 +122,22 @@ class TestAliExpressSigner:
         assert params["v"] == "2.0"
 
     def test_sign_top_produces_64_char_hex_uppercase(self):
-        params = self.signer.sign_top("aliexpress.affiliate.product.query", {})
+        params = self.signer_test.sign_top("aliexpress.affiliate.product.query", {})
         assert len(params["sign"]) == 64
         assert params["sign"] == params["sign"].upper()
 
-    def test_sign_top_is_deterministic_for_same_secret(self):
-        """Mesmos params + secret devem produzir mesma assinatura."""
-        ts = "1715800000000"
-        p1 = {
-            "app_key": "testkey",
-            "method": "aliexpress.affiliate.product.query",
-            "timestamp": ts,
-            "format": "json",
-            "v": "2.0",
-            "sign_method": "sha256",
-            "keywords": "iphone",
-        }
-        p2 = p1.copy()
-        import hmac, hashlib
-        def compute(params, secret):
-            sorted_items = sorted(params.items())
-            concat = secret + "".join(f"{k}{v}" for k, v in sorted_items) + secret
-            return hmac.new(
-                secret.encode(), concat.encode(), hashlib.sha256
-            ).hexdigest().upper()
-        assert compute(p1, "testsecret") == compute(p2, "testsecret")
-
     def test_sign_gop_includes_api_path_in_sign(self):
-        """GOP e TOP com os mesmos params devem gerar assinaturas diferentes (path no GOP)."""
+        """
+        GOP prefixia api_path na string; TOP não.
+        Mesmo secret + mesmos business params → assinaturas diferentes.
+        """
         shared_params = {"code": "abc123"}
-        top = self.signer.sign_top("aliexpress.affiliate.product.query", shared_params)
-        gop = self.signer.sign_gop("/auth/token/create", shared_params)
-        # Assinaturas diferentes porque GOP prefixo o api_path
+        top = self.signer_test.sign_top("aliexpress.affiliate.product.query", shared_params)
+        gop = self.signer_test.sign_gop("/auth/token/create", shared_params)
         assert top["sign"] != gop["sign"]
 
     def test_sign_gop_hex_uppercase_64(self):
-        params = self.signer.sign_gop("/auth/token/create", {"code": "xyz"})
+        params = self.signer_test.sign_gop("/auth/token/create", {"code": "xyz"})
         assert len(params["sign"]) == 64
         assert params["sign"] == params["sign"].upper()
 
@@ -225,7 +293,7 @@ class TestShopeeSigner:
         signer = ShopeeSigner(app_id="12345", app_secret="mysecret")
         header = signer.auth_header()
         sig_part = header.split("Signature=")[1]
-        # SHA256 em hex = 64 chars lowercase
+        # HMAC-SHA256 em hex = 64 chars lowercase
         assert len(sig_part) == 64
         assert sig_part == sig_part.lower()
 
