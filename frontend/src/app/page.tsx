@@ -112,12 +112,12 @@ function formatProviderNumbers(status: ProviderStatus) {
   return parts.join(" • ");
 }
 
-// Status que o usuário NÃO precisa ver (erro interno, sem credencial, bloqueado)
+// Mostra apenas providers que retornaram pelo menos 1 produto
+// (esconde erros internos, sem credencial, 0 resultados — independente do status)
 const HIDDEN_STATUSES = new Set(["blocked", "not_configured", "error"]);
 
 function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
-  // Mostra apenas providers que têm resultado ou 0 resultados — esconde erros internos
-  const visible = statuses.filter(s => !HIDDEN_STATUSES.has(s.status));
+  const visible = statuses.filter(s => (s.returned_count ?? 0) > 0);
   if (!visible.length) return null;
 
   return (

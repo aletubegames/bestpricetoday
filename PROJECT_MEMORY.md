@@ -16,7 +16,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
-| Frontend      | https://bestpricetoday.vercel.app (Next.js, Vercel free)                  |
+| Frontend      | https://bestpricetoday.vercel.app (Next.js 14, Vercel)                    |
 | Backend       | https://alessandro2090-bestpricetoday-api.hf.space (FastAPI, HuggingFace) |
 | Banco         | Neon PostgreSQL (free tier) — string no `.env`                            |
 | Cache         | Upstash Redis (free tier) — string no `.env`                              |
@@ -27,258 +27,278 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 ## Stack
 
 - **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
-- **Frontend:** Next.js 14 + TypeScript + Tailwind CSS
+- **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
-- **Deploy backend:** assets de deploy em `backend/deploy/` + workflow sincroniza `backend/app/` para o Space HF
-- **Deploy frontend:** Vercel (auto-deploy no push)
-- **Testes:** pytest + pytest-asyncio (backend) — 40 testes, todos passando
+- **Deploy backend:** workflow GitHub Actions sincroniza `backend/app/` → HF Space
+- **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
+- **Testes:** pytest + pytest-asyncio — 35+ testes passando
 
 ---
 
-## Arquitetura do backend (atualizada)
+## Arquitetura do backend
 
 ```
 backend/app/
-├── main.py
+├── main.py                          # FastAPI app + lifespan (cron de conversão)
 ├── api/v1/
 │   ├── router.py
-│   └── endpoints/{search,alerts,favorites,products,auth}.py
-├── core/{config,cache,logging}.py
+│   └── endpoints/
+│       ├── search.py                # GET/POST /search + trending + debug/aliexpress
+│       ├── alerts.py
+│       ├── favorites.py
+│       ├── products.py
+│       ├── auth.py                  # OAuth ML + /auth/ml/status + /auth/ml/refresh
+│       └── admin.py                 # Dashboard admin completo (requer X-Admin-Key header)
+├── core/{config,cache,logging}.py   # logging tem SanitizingFilter (redacta tokens)
 ├── db/session.py
-├── models/models.py
+├── models/models.py                 # inclui ClickEvent, ConversionEvent, MLToken
 ├── schemas/schemas.py
-├── integrations/                    ← NOVO (2026-05-15)
-│   ├── base.py                      # MarketplaceClient ABC + ProductResult + CouponResult
-│   ├── aliexpress/client.py         # AliExpressSigner (TOP+GOP) + AliExpressClient
-│   └── shopee/client.py             # ShopeeSigner + ShopeeClient (GraphQL)
+├── integrations/
+│   ├── base.py
+│   ├── aliexpress/client.py         # AliExpressSigner TOP+GOP + AliExpressClient
+│   ├── shopee/client.py             # ShopeeSigner + ShopeeClient (GraphQL)
+│   └── conversion_tracker.py       # polling AliExpress + Lomadee orders
 ├── services/
-│   ├── search.py                    # orquestrador paralelo
+│   ├── search.py
+│   ├── ml_token_service.py          # ← NOVO: ML token store + auto-refresh
 │   ├── ranking/engine.py
 │   └── providers/
-│       ├── base.py
 │       ├── aliexpress.py            # usa integrations/aliexpress
-│       ├── shopee.py                # usa integrations/shopee
-│       ├── mercadolivre.py
+│       ├── shopee.py
+│       ├── mercadolivre.py          # usa ml_token_service.get_token() do banco
 │       ├── amazon.py
 │       ├── lomadee.py
-│       ├── kabum.py                 # implementado, não integrado
-│       └── awin.py                  # implementado, não integrado
-└── workers/bestprice_bot.py         # Telegram bot
+│       ├── kabum.py                 # implementado, não ativo
+│       └── awin.py                  # implementado, não ativo
+└── workers/
+    ├── bestprice_bot.py             # Telegram bot
+    └── conversion_cron.py           # polling horário de conversões
 ```
 
 ---
 
 ## Providers — estado real (2026-05-15)
 
-| Provider      | Código | Orquestrador | Credenciais | Resultado em prod |
-|---------------|--------|-------------|-------------|-------------------|
-| **AliExpress**| ✅ refatorado | ✅ ativo | ✅ APP_KEY+SECRET ok | ✅ Funciona — retorna produtos (com filtro de relevância) |
-| **Lomadee**   | ✅      | ✅ ativo | ✅ API_KEY ok | ✅ Funciona — retorna produtos |
-| MercadoLivre  | ✅      | ✅ ativo | ⚠️ sem acesso à busca | ❌ 403 permanente em `/sites/MLB/search` — app não aprovado no programa de afiliados ML |
-| Shopee        | ✅ refatorado | ✅ ativo | ⚠️ veja seção abaixo | ❌ 10020 Invalid Signature |
-| Amazon        | ✅      | ✅ ativo | ❌ sem ACCESS_KEY | `not_configured` |
-| KaBuM         | ✅      | ❌ comentado | sem token | pendente |
-| Awin          | ✅      | ❌ comentado | sem token | pendente |
-
----
-
-## Afiliados cadastrados
-
-| Loja           | Status  | ID / Detalhe                              |
-|----------------|---------|-------------------------------------------|
-| Mercado Livre  | ✅ ativo | APP_ID: 2661096739949809                  |
-| Amazon         | ✅ ativo | Associate tag: `aletubegames-20`          |
-| Shopee         | ✅ ativo | APP_ID: 18308041054                       |
-| AliExpress     | ✅ ativo | API aprovada + Advanced API liberada      |
-| Lomadee        | ✅ ativo | Source ID: 6ff2699e-ceaa-4fad-...         |
+| Provider      | Status prod | Detalhe |
+|---------------|-------------|---------|
+| **AliExpress**| ✅ Funciona | Retorna produtos com filtro relevância + fallback sem tracking_id se 402 |
+| **Lomadee**   | ✅ Funciona | Source ID: `6ff2699e-ceaa-4fad-a58a-8b91f885485f` |
+| **Mercado Livre** | ❌ 403 | App não aprovado no Programa de Afiliados ML. OAuth token ✅ salvo no banco. |
+| **Shopee**    | ❌ Invalid Signature | Secret errado — precisa ser do portal affiliate.shopee.com.br |
+| **Amazon**    | ⚠️ sem ACCESS_KEY | Associate tag: `aletubegames-20` configurado, falta ACCESS_KEY |
+| KaBuM / Awin | ⏸️ pendente | Código pronto, sem credenciais |
 
 ---
 
 ## AliExpress — algoritmo de assinatura (CONFIRMADO E VALIDADO)
 
-Protocolo TOP (Business APIs, método com ponto):
+Protocolo TOP:
 ```
 msg  = "".join(f"{k}{v}" for k, v in sorted(all_params.items()))
 sign = HMAC-SHA256(key=app_secret, msg=msg).hexdigest().upper()
-# app_secret é APENAS a chave do HMAC — não entra na string
-# method (ex: aliexpress.affiliate.product.query) é parâmetro normal
 ```
-
-Protocolo GOP (System APIs, path com barra):
+Protocolo GOP:
 ```
 msg  = api_path + "".join(f"{k}{v}" for k, v in sorted(params.items()))
 sign = HMAC-SHA256(key=app_secret, msg=msg).hexdigest().upper()
-# api_path é prefixado (ex: /auth/token/create)
-# 'method' NÃO é parâmetro nos GOP
 ```
 
-Vetores de teste oficiais (app_secret='helloworld') — AMBOS PASSANDO:
-- TOP → `F7F7926B67316C9D1E8E15F7E66940ED3059B1638C497D77973F30046EFB5BBB` ✅
-- GOP → `35607762342831B6A417A0DED84B79C05FEFBF116969C48AD6DC00279A9F4D81` ✅
+**Bug corrigido (2026-05-15):** ALIEXPRESS_TRACKING_ID inválido no HF → 402.
+Fix: `search()` faz retry sem tracking_id quando recebe 402.
 
-Endpoints implementados em `integrations/aliexpress/client.py`:
-- `search()` → `aliexpress.affiliate.product.query` (TOP)
-- `get_hot_products()` → `aliexpress.affiliate.hotproduct.query` (TOP)
-- `get_product_detail()` → `aliexpress.affiliate.product.detail.get` (TOP)
-- `get_affiliate_link()` → `aliexpress.affiliate.link.generate` (TOP) + fallback deep link
-- `get_coupons()` → `aliexpress.affiliate.promotion.flash.get` (TOP)
+**Filtro de relevância:**
+- `ACCESSORY_KEYWORDS`: capas, películas, mouse pads, bolsa manga — filtrados
+- `_filter_relevant()`: numérico exato (4070 ≠ 4060), min 1 token texto em comum
+- Fallback: produtos > R$50 quando filtro zera tudo
 
 ---
 
-## Shopee — problema de autenticação (INVESTIGADO 2026-05-15)
+## Mercado Livre — token e OAuth
 
-**Status:** API ativa no portal, APP_ID=18308041054, SECRET presente no `.env`.
+**OAuth implementado e funcional:**
+- Callback: `GET /api/v1/auth/ml/callback?code=...`
+- Salva tokens no banco (`ml_tokens` table) via `ml_token_service.py`
+- Auto-refresh: 10min antes de expirar, salva NOVO par (refresh_token é single-use)
+- Status: `GET /api/v1/auth/ml/status` — mostra estado sem expor valores
+- Renovação manual: `POST /api/v1/auth/ml/refresh`
 
-**Problema:** endpoint retorna `error [10020]: Invalid Signature`.
+**Para gerar novo OAuth:**
+```
+https://auth.mercadolivre.com.br/authorization?response_type=code
+  &client_id=2661096739949809
+  &redirect_uri=https://bestpricetoday.vercel.app/auth/callback
+```
+Logar com conta principal (user_id=6727655) — não colaborador.
 
-**O que foi confirmado via testes:**
-- Formato do header está correto: `SHA256 Credential={APP_ID},Timestamp={ts},Signature={sig}`
-- Timestamp deve ser em **segundos** (milissegundos retorna "Request Expired")
-- APP_ID é válido (formato diferente retorna "Invalid Credential" vs "Invalid Signature")
-- Algoritmo testado sem sucesso: HMAC(secret, appid+ts), SHA256(appid+ts+secret),
-  HMAC(appid, secret+ts), com path, com body hash, com milissegundos, uppercase, lowercase, etc.
-
-**Hipótese mais provável:**
-O `SHOPEE_SECRET` no `.env` é o segredo do painel **Open Platform** (API de vendedores),
-não o segredo da **Affiliate API** (painel de afiliados). São portais diferentes:
-- Vendedor: https://open.shopee.com (partner_key para operações de loja)
-- Afiliado:  https://affiliate.shopee.com.br (secret específico para GraphQL afiliado)
-
-**Ação necessária:**
-Logar em https://affiliate.shopee.com.br → My Tools → Open API → copiar o
-**App Secret** específico do portal de afiliados e atualizar `SHOPEE_SECRET` no `.env`.
-
-O código de autenticação (`integrations/shopee/client.py`) está correto —
-o problema é a credencial errada, não o algoritmo.
+**Busca bloqueada (403):**
+`/sites/MLB/search` bloqueado para apps não aprovados no Programa de Afiliados.
+Não é problema de token — é política da plataforma. Precisa aprovar o app.
 
 ---
 
-## Mercado Livre — diagnóstico completo (2026-05-15)
+## Shopee — diagnóstico
 
-**`/sites/MLB/search` está permanentemente bloqueado para apps não aprovados.**
-
-Não é problema de token expirado. É uma mudança de política do ML (aconteceu ~2024/2025).
-Todos os apps de terceiros recebem 403 `forbidden` nesse endpoint,
-independente de token, user-agent ou parâmetros.
-
-Confirmado programaticamente (2026-05-15):
-- `client_credentials` ainda funciona e gera token válido para o app
-- Token gerado: `APP_USR-2661096739949809-...` (user_id=6727655, nickname=ALESSANDRO SOUZA45)
-- Com esse token, `/users/me` e `/sites/MLB/categories` funcionam
-- `/sites/MLB/search` → 403 com qualquer combinação de parâmetros/headers
-
-**O que ainda funciona com client_credentials:**
-- `GET /users/me` — info da conta
-- `GET /sites/MLB/categories` — lista de categorias
-- `GET /users/{id}/items/search` — itens do próprio vendedor
-
-**O que está bloqueado (403):**
-- `GET /sites/MLB/search?q=...` — busca pública de produtos
-- `GET /items/{id}` — detalhe de produto por ID
-
-**Como desbloquear:**
-O Mercado Livre tem um **Programa de Afiliados** separado:
-https://www.mercadolivre.com.br/ajuda/programa-afiliados  
-Apps aprovados no programa recebem acesso ao endpoint de busca.
-O app atual (`APP_ID=2661096739949809`) ainda não tem essa aprovação.
-
-**Ação necessária:**
-1. Solicitar aprovação do app no **Programa de Parceiros/Afiliados** do ML
-2. Enquanto não aprovado: depender de AliExpress + Shopee + Lomadee para os resultados
-3. O provider ML pode ser desativado no orquestrador até a aprovação para não poluir o status com erros
-
-**Não existe workaround técnico** — a API está restrita por política, não por configuração.
+APP_ID=18308041054, SECRET presente mas **errado**.
+O `SHOPEE_SECRET` no `.env` é do portal Open Platform (vendedores).
+A Affiliate API precisa do secret de: https://affiliate.shopee.com.br → My Tools → Open API
+O código está correto — problema é credencial errada.
 
 ---
 
-## Testes (2026-05-15)
+## Admin Dashboard (`/admin`)
 
-**40/40 passando** — `pytest backend/tests/ -v`
+**Acesso:** `https://bestpricetoday.vercel.app/admin`
+**Auth:** header `X-Admin-Key: ADMIN_MANAGER_KEY` (configurar no HF Space secrets)
 
-Cobertura:
-- `test_api.py` — 7 testes: health, search validação, alertas, cache
-- `test_integrations.py` — 28 testes: signer TOP+GOP com vetores oficiais, parsing, filtros, Shopee, ProductResult
-- `test_providers.py` — 2 testes: filtro de acessórios AliExpress, Lomadee parsing
-- `test_ranking.py` — 3 testes: ranking, fake discount detection
+**Endpoints backend (`/api/v1/admin/`):**
+- `POST /clicks` — registra clique (sem auth — chamado automaticamente)
+- `GET /overview` — métricas + cliques por provider
+- `GET /analytics` — série temporal por dia
+- `GET /marketplaces` — performance por marketplace
+- `GET /traffic` — fontes de tráfego
+- `GET /conversions` — lista paginada
+- `POST /conversions/poll` — força polling AliExpress + Lomadee
+- `POST /webhooks/mercadolivre` — recebe notificações ML
+- `GET /integrations/status` — status real de todas as plataformas
+- `GET /products/top` — top produtos por cliques
+- `GET /report` — relatório completo
+
+**Webhook ML para registrar no portal:**
+```
+POST https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre
+```
+
+**Features do dashboard:**
+- Filtros: plataforma + período (hoje/7d/30d)
+- KPI cards, funil conversão, gráfico temporal, tabela comparativa
+- Status integrações (tempo real via API)
+- Export CSV
+- Top 10 produtos expandíveis
 
 ---
 
-## Busca ao vivo — resultado real (2026-05-15)
+## Segurança implementada (2026-05-15)
 
-**`iphone 16 pro`**: AliExpress retorna 3 ofertas (películas — filtro precisa de "protetor" na lista)
-**`rtx 4070`**: Lomadee retorna 1 PC Gamer com RTX 4070 por R$10.966
-
-Problemas identificados:
-- `ACCESSORY_KEYWORDS` do AliExpress não cobre "protetor de tela", "cobertura" → passa acessórios
-- ML retorna 401 (token expirado, era 403 antes)
+- `SanitizingFilter` no logger — redacta `Bearer xxx`, `access_token=xxx`, tokens `APP-`
+- OAuth callback não exibe tokens em HTML (estava como textarea — CORRIGIDO)
+- `admin_key` vai em header `X-Admin-Key`, não em query string
+- Security headers em todas as respostas: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, etc.
+- Tokens ML nunca logados — só `[token redacted]`
+- `ml_tokens` no banco com `expires_at` — sem tokens em `.env` em produção
 
 ---
 
-## O que está quebrado / pendente HOJE
+## Frontend — features implementadas
+
+**OfferCard premium:**
+- Logo SVG de cada marketplace (inline, sem deps externas)
+- Score IA: anel SVG circular animado + label "Ótimo/Bom/Fraco"
+- Mini sparkline de tendência de preço (7 pontos)
+- Badges dinâmicos (máx 3): 🔥 Quente, ⭐ Melhor Preço, ↓ Queda, ⚠️ Inflado, 🚚 Frete, 💰 Cashback, 🏷️ Cupom
+- Hover: glow neon + translateY(-2px)
+- Botão ⊕ para comparar (máx 3)
+
+**Comparador lado a lado:**
+- Barra flutuante no rodapé com selecionados
+- Modal com destaque ✓ MENOR PREÇO
+
+**Provider status pills:**
+- Só mostra providers com `returned_count > 0`
+- Shopee/ML/Amazon/erros ficam invisíveis ao usuário quando sem resultado
+
+**Click tracking:** POST `/admin/clicks` fire-and-forget em cada "Ver oferta"
+**UTM:** `utm_source=bestpricetoday&utm_medium=affiliate&utm_content={provider}`
+**Skeleton:** shimmer animado estilo Netflix
+
+**Footer:** Termos de Uso | Política de Privacidade | Contato | Admin
+
+---
+
+## TikTok Developer Portal
+
+**Status:** App em review (`This version of BestPriceToday is in review`)
+
+**Arquivos de verificação em `frontend/public/`:**
+- `tiktokXjVhFhEDGo79Czy1rcORT0chwwzKFGeN.txt` → `/`
+- `terms/tiktokVrNQ8yzd58acU8Fnwh6GvIUr5tFXjHCZ.txt` → `/terms/`
+- `privacy/tiktoknM3Ajz7U5iXok5D3vus1iKIT4JQEzbhl.txt` → `/privacy/`
+
+**Scopes solicitados:** `video.upload`, `user.info.basic`
+**Produtos:** Login Kit + Content Posting API v2
+
+**publisher.py** em `/home/alessandro/wan2/publisher.py`:
+- `upload_tiktok()` implementado (Content Posting API v2)
+- `tiktok_token.json` existe mas `access_token` vazio — preencher após aprovação
+
+---
+
+## Pipeline Wan2.1
+
+- **Modelo:** `/home/alessandro/wan2/models/Wan2.1-T2V-14B-Diffusers/` (75GB)
+- **Pipeline:** `/home/alessandro/wan2/video_engine.py`
+- **Publisher:** `/home/alessandro/wan2/publisher.py` (Telegram ✅, YouTube ✅, TikTok ⏳)
+- **GPU:** RTX 4090 24GB (bfloat16 + cpu offload)
+- **Status:** modelo baixado, pipeline completo, **pendente teste real de geração**
+
+---
+
+## Conversão — loop clique→venda
+
+**Rastreamento de cliques:** ✅ Funciona — `click_events` table via POST /admin/clicks
+**Polling de orders:** ✅ Implementado em `conversion_tracker.py`
+- AliExpress: `aliexpress.affiliate.order.list.by.index` a cada 1h
+- Lomadee: `/report/commission` a cada 1h
+- ML: webhook (registrar URL no portal ML)
+**Deduplicação:** `external_order_id` — mesma order nunca duplica
+
+---
+
+## Pendências prioritárias
 
 ### Alta prioridade
-1. **Shopee Invalid Signature** → pegar o App Secret correto do portal de afiliados (não Open Platform)
-2. **Mercado Livre 401** → renovar access_token (expirou); implementar refresh automático com REFRESH_TOKEN
-3. **AliExpress filtra mal** → adicionar ao `ACCESSORY_KEYWORDS`: "protetor", "protetor de tela", "cobertura", "vidro temperado", "tempered", "glass"
-4. **Favorite.user_id nullable=False** → endpoint `/favorites` quebra; precisa de migration
-5. **`docker-compose.yml` + Makefile** → `dev-bot` e serviço `telegram_bot` referenciam módulo inexistente (`telegram_bot` vs `bestprice_bot`)
+1. **Shopee** → pegar App Secret de https://affiliate.shopee.com.br → My Tools → Open API
+2. **ML Programa de Afiliados** → solicitar aprovação para desbloquear `/sites/MLB/search`
+3. **ADMIN_MANAGER_KEY** → configurar nos secrets do HF Space
+4. **Webhook ML** → registrar URL no ML Developer Portal → Notificações
 
 ### Média prioridade
-6. **Sem rate limiting** — `RATE_LIMIT_PER_MINUTE=30` declarado mas não implementado
-7. **OAuth callback expõe tokens em HTML** — `auth/ml/callback` retorna access_token em textarea
-8. **alertas/page.tsx** não carrega alertas existentes do banco (sem useEffect de fetch)
-9. **og-image.png / manifest.json / apple-touch-icon** — referenciados no metadata mas não existem em `public/`
-10. **`migrations/versions/` vazio** — Alembic nunca gerou migrations reais; todo schema via `create_all()`
+5. **Favorite.user_id** → nullable=True + migration Alembic real
+6. **alertas/page.tsx** → não carrega alertas do banco (sem useEffect de fetch)
+7. **og-image.png / manifest.json / apple-touch-icon** → não existem em `public/`
+8. **Migrations Alembic** → `versions/` vazio, schema via `create_all()` apenas
+9. **Wan2.1** → testar pipeline completo com 1 produto real
 
 ### Baixa prioridade
-11. `calculate_score()` em `engine.py` — código morto com lógica errada (nunca chamada)
-12. `CuponomiaProvider` — implementado, não integrado em lugar nenhum
-13. `datetime.utcnow` deprecated no Python 3.12 — warnings nos testes
-14. `next-pwa@5.6.0` incompatível com Next.js 14 App Router
+10. `calculate_score()` em `engine.py` — código morto (nunca chamada)
+11. `CuponomiaProvider` — implementado, não integrado
+12. `datetime.utcnow` deprecated no Python 3.12 — warnings nos testes
+13. Rate limiting — declarado mas não implementado
+14. `docker-compose.yml` + Makefile — referenciam `telegram_bot` (correto: `bestprice_bot`)
 
 ---
 
-## Pipeline de vídeo automático (Wan2.1)
+## Variáveis de ambiente
 
-- **Modelo:** Wan2.1-T2V-14B (75GB, text-to-video)
-- **Localização:** `/home/alessandro/wan2/models/Wan2.1-T2V-14B-Diffusers/`
-- **Venv:** `/home/alessandro/wan2/venv/`
-- **Pipeline:** `/home/alessandro/wan2/pipeline.py`
-- **Fluxo:** busca oferta na API → gera prompt → Wan2.1 gera vídeo → edge-tts narra → ffmpeg combina → posta no Telegram
-- **GPU:** RTX 4090 24GB (bfloat16 + cpu offload)
-- **Saída:** `/home/alessandro/wan2/videos/`
-- **Status:** modelo baixado, pipeline escrito, pendente teste de geração real
-
----
-
-## Próximos passos prioritários
-
-1. **Shopee** → pegar App Secret correto do portal afiliado e testar
-2. **ML token** → renovar `MERCADOLIVRE_ACCESS_TOKEN` ou implementar refresh automático
-3. **AliExpress keywords** → adicionar "protetor", "cobertura", "tempered", "vidro"
-4. **Favorite bug** → `nullable=True` + migration Alembic
-5. **docker-compose/Makefile** → corrigir nome do módulo do bot
-6. **Wan2.1** → testar pipeline completo com 1 produto real
-
----
-
-## Variáveis de ambiente (.env)
-
-- `DATABASE_URL` — Neon PostgreSQL
-- `REDIS_URL` — Upstash Redis
-- `MERCADOLIVRE_APP_ID=2661096739949809` / `MERCADOLIVRE_SECRET` / `MERCADOLIVRE_ACCESS_TOKEN` (⚠️ expirado)
-- `AMAZON_PARTNER_TAG=aletubegames-20` (sem ACCESS_KEY ainda)
-- `LOMADEE_API_KEY` / `LOMADEE_SOURCE_ID=6ff2699e-ceaa-4fad-a58a-8b91f885485f`
-- `ALIEXPRESS_APP_KEY` / `ALIEXPRESS_APP_SECRET` / `ALIEXPRESS_TRACKING_ID`
-- `SHOPEE_APP_ID=18308041054` / `SHOPEE_SECRET` (⚠️ provavelmente credencial errada — ver seção Shopee)
-- `TELEGRAM_BOT_TOKEN`
-
-## Fonte da verdade dos `.env`
-
-- **Backend local / Docker:** `backend/.env`
-- **Frontend local:** `frontend/.env.local`
-- **Hugging Face Space:** secrets/variables do Space HF (não `hf_deploy/.env`)
+### `backend/.env` (local) e HF Space secrets (produção)
+```
+DATABASE_URL               # Neon PostgreSQL
+REDIS_URL                  # Upstash Redis
+MERCADOLIVRE_APP_ID=2661096739949809
+MERCADOLIVRE_SECRET
+MERCADOLIVRE_ACCESS_TOKEN  # obsoleto — tokens agora no banco (ml_tokens)
+MERCADOLIVRE_REFRESH_TOKEN # obsoleto — tokens agora no banco (ml_tokens)
+AMAZON_PARTNER_TAG=aletubegames-20
+LOMADEE_API_KEY
+LOMADEE_SOURCE_ID=6ff2699e-ceaa-4fad-a58a-8b91f885485f
+ALIEXPRESS_APP_KEY
+ALIEXPRESS_APP_SECRET
+ALIEXPRESS_TRACKING_ID     # ⚠️ inválido no HF → código faz fallback sem tracking
+SHOPEE_APP_ID=18308041054
+SHOPEE_SECRET              # ⚠️ errado — precisa ser do portal afiliado
+TELEGRAM_BOT_TOKEN
+ADMIN_MANAGER_KEY          # ⚠️ configurar no HF Space secrets
+```
 
 ---
 
-_Atualizado: 2026-05-15_
+_Atualizado: 2026-05-15 (11h05 BRT)_
