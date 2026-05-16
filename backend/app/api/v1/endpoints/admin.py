@@ -5,7 +5,7 @@ from sqlalchemy import select, func, and_
 from app.core.config import settings
 from app.core.logging import logger
 from app.db.session import get_db
-from app.models.models import ClickEvent, ConversionEvent
+from app.models.models import ClickEvent, ConversionEvent, ShortLink
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta
@@ -759,3 +759,35 @@ async def trigger_telegram_broadcast(
         return {"ok": True, **result}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@router.get("/links/stats")
+async def get_link_stats(
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Top performing short links."""
+    try:
+        r = await db.execute(
+            select(ShortLink)
+            .order_by(ShortLink.clicks.desc())
+            .limit(limit)
+        )
+        links = r.scalars().all()
+        return [
+            {
+                "code": l.code,
+                "url": f"https://bestpricetoday.vercel.app/r/{l.code}",
+                "provider": l.provider,
+                "product": l.product_title[:60] if l.product_title else "",
+                "clicks": l.clicks,
+                "source": l.source,
+                "campaign": l.campaign,
+                "created_at": l.created_at.isoformat() if l.created_at else None,
+                "last_clicked": l.last_clicked_at.isoformat() if l.last_clicked_at else None,
+            }
+            for l in links
+        ]
+    except Exception:
+        return []

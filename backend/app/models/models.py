@@ -237,3 +237,24 @@ class ConversionRetryQueue(Base):
     resolved = Column(Boolean, default=False)
     error = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ShortLink(Base):
+    """
+    Short link for tracked affiliate redirects.
+    URL: bestpricetoday.vercel.app/r/{code}
+    Flow: user clicks → register analytics → 302 redirect to affiliate URL
+    """
+    __tablename__ = "short_links"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code = Column(String(12), unique=True, index=True, nullable=False)  # e.g. "abc123XY"
+    affiliate_url = Column(String, nullable=False)  # real affiliate URL
+    provider = Column(String, nullable=True)
+    product_title = Column(String, nullable=True)
+    price = Column(Float, nullable=True)
+    source = Column(String, default="video")  # video, telegram, youtube, tiktok, web
+    campaign = Column(String, nullable=True)  # e.g. "smartwatch_07h_seg"
+    clicks = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_clicked_at = Column(DateTime, nullable=True)
