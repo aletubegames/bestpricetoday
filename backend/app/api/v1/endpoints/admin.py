@@ -819,3 +819,43 @@ async def debug_db(
         return results
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.get("/debug/orm")
+async def debug_orm(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Debug: testa o ORM diretamente."""
+    from sqlalchemy import select, func, text
+    try:
+        # Testa count via ORM
+        r = await db.execute(select(func.count()).select_from(ClickEvent))
+        orm_count = r.scalar()
+        
+        # Testa com where
+        from datetime import datetime, timedelta
+        month_start = datetime.utcnow() - timedelta(days=30)
+        r2 = await db.execute(
+            select(func.count()).where(ClickEvent.clicked_at >= month_start)
+        )
+        orm_month = r2.scalar()
+        
+        # Testa today (BRT)
+        brt = timedelta(hours=-3)
+        now = datetime.utcnow()
+        today = (now+brt).replace(hour=0,minute=0,second=0,microsecond=0) - brt
+        r3 = await db.execute(
+            select(func.count()).where(ClickEvent.clicked_at >= today)
+        )
+        orm_today = r3.scalar()
+        
+        return {
+            "orm_total": orm_count,
+            "orm_month": orm_month,
+            "orm_today": orm_today,
+            "today_utc": str(today),
+            "now_utc": str(now),
+        }
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
