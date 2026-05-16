@@ -191,30 +191,22 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
-  const VIDEO_LOCAL = "http://localhost:8765";
-  const [videoApiOnline, setVideoApiOnline] = React.useState<boolean | null>(null);
+    const [videoApiOnline, setVideoApiOnline] = React.useState<boolean | null>(null);
 
-  // Verifica se a Video API local está online
+  // Verifica status da Video API via backend (que tem VIDEO_API_URL configurado)
   React.useEffect(() => {
-    fetch(`${VIDEO_LOCAL}/health`, { signal: AbortSignal.timeout(2000) })
+    fetch(`${apiBase}/api/v1/admin/video/health`, { headers: { "X-Admin-Key": adminKey } })
       .then(r => r.ok ? r.json() : null)
       .then(d => setVideoApiOnline(!!d?.ok))
       .catch(() => setVideoApiOnline(false));
-  }, []);
+  }, [apiBase, adminKey]);
+
   const pollStatus = React.useCallback((jid: string) => {
     stopPoll();
     pollRef.current = setInterval(async () => {
       try {
-        // Tenta Video API local primeiro, fallback para HF Space
-        let data: any = null;
-        try {
-          const r = await fetch(`${VIDEO_LOCAL}/video/status/${jid}`);
-          if (r.ok) data = await r.json();
-        } catch {}
-        if (!data) {
-          const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
-          data = await r.json();
-        }
+        const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
+        const data = await r.json();
         if (data?.ok) {
           setJobLog(data.log_tail || []);
           if (data.done) { setJobDone(true); stopPoll(); setLoading(false); }
@@ -235,27 +227,12 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       formato: selectedFormat,
     };
     try {
-      // Tenta Video API local (porta 8765) primeiro
-      let d: any = null;
-      try {
-        const r = await fetch(`${VIDEO_LOCAL}/video/publish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (r.ok) d = await r.json();
-      } catch { /* local offline */ }
-
-      // Fallback: HF Space (proxy para a local via VIDEO_API_URL no .env)
-      if (!d) {
-        const r = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
-          body: JSON.stringify(payload),
-        });
-        d = await r.json();
-      }
-
+      const r = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+        body: JSON.stringify(payload),
+      });
+      const d = await r.json();
       if (d.ok) {
         setJobId(d.job_id);
         setJobLog([`✅ Job ${d.job_id} iniciado (pid ${d.pid || '?'})`]);
@@ -479,14 +456,15 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         color: videoApiOnline ? "#4ade80" : "#fbbf24",
         display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap"
       }}>
-        {videoApiOnline === null && <span>🔍 Verificando Video API local...</span>}
-        {videoApiOnline === true  && <span>✅ Video API local online (porta 8765) — GPU pronta</span>}
+        {videoApiOnline === null && <span>🔍 Verificando Video API...</span>}
+        {videoApiOnline === true  && <span>✅ Video API online — GPU pronta para gerar vídeos</span>}
         {videoApiOnline === false && (
           <span>
-            ⚠️ Video API offline. Inicie na máquina local:
+            ⚠️ Video API offline. Na máquina local:
             <code style={{ background: "rgba(0,0,0,0.4)", padding: "1px 6px", borderRadius: 3, marginLeft: 6 }}>
               cd ~/wan2 &amp;&amp; python video_api.py
             </code>
+            {" "}e configure <code style={{ background: "rgba(0,0,0,0.4)", padding: "1px 6px", borderRadius: 3 }}>VIDEO_API_URL</code> no HF Space.
           </span>
         )}
       </div>
