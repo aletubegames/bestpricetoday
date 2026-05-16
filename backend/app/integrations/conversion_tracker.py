@@ -338,7 +338,7 @@ async def poll_all_conversions(db: AsyncSession) -> dict:
 
     logger.info(f"[ConversionPoll] Starting at {start.strftime('%H:%M:%S')}")
 
-    for name, coro_fn in [("aliexpress", poll_aliexpress_orders), ("lomadee", poll_lomadee_orders)]:
+    for name, coro_fn in [("aliexpress", poll_aliexpress_orders), ("lomadee", poll_lomadee_orders), ("shopee", poll_shopee_conversions)]:
         try:
             saved = await coro_fn(db)
             results[name] = {"saved": len(saved), "items": saved}
