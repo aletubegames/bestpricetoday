@@ -268,7 +268,48 @@ ALERT_CHECK_INTERVAL       # Intervalo do alert_checker em segundos (default: 18
 
 ---
 
-_Atualizado: 2026-05-16 (02h45 BRT)_
+## Admin — Gerador de Vídeo IA (2026-05-16)
+
+### Endpoint backend
+- `POST /api/v1/admin/video/publish` — dispara `traffic_machine.py` como subprocess não-bloqueante
+  - Body: `{ query, plataformas: ["telegram","youtube","tiktok"], formato }`
+  - Retorna `{ job_id, pid, log }` imediatamente
+- `GET /api/v1/admin/video/status/{job_id}` — retorna tail do log + flag `done`
+
+### UI no admin (`VideoPublisher` component)
+1. **Passo 1 — Produto:** botão Auto ou Top 10 cliques (carregados do dashboard)
+2. **Passo 2 — Formato:** sugestão inteligente ao selecionar produto
+   - Desconto ≥ 30% → Oferta Choque (TOP)
+   - Preço ≥ R$1.500 → WAN2.1 Cinemático
+   - ≥ 20 cliques → Viral TikTok
+   - Marca conhecida → VS Comparativo
+   - Categoria ampla → Top 3
+   - Preço < R$100 → Última Chance
+   - O formato TOP é selecionado automaticamente; mostra motivo da sugestão
+3. **Passo 3 — Plataformas:** toggle Telegram / YouTube / TikTok
+4. **Log em tempo real:** poll a cada 3s, mostra tail do stdout do processo
+
+### `traffic_machine.py` atualizado
+- Aceita `redes` no dict `decisao` (vindo do admin)
+- Default anterior `["telegram", "youtube"]` mantido quando não especificado
+
+---
+
+## Broadcaster Telegram (2026-05-16)
+
+### Problema corrigido
+- Sempre enviava as mesmas ofertas porque não havia memória do que já foi postado
+- `fetch_best_offer` sempre retornava top-1 do cache Redis
+
+### Soleição
+- **Deduplicado:** hash MD5 do `affiliate_url` salvo em `/tmp/broadcaster_dedup.json` por 24h
+- **10 categorias** (smartphones, games, casa, audio, tv_video, tablets, cameras, periferico, wearables, informatica)
+- **Sorteia N categorias diferentes** por rodada
+- **Seleção ponderada por score** dentro de cada categoria — não deterministic
+
+---
+
+_Atualizado: 2026-05-16 (03h00 BRT)_
 
 ---
 
