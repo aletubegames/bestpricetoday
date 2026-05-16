@@ -66,6 +66,10 @@ class Settings(BaseSettings):
 
     ADMIN_MANAGER_KEY: str = ""
 
+    # Video API (GPU local via ngrok ou URL fixa)
+    VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
+    VIDEO_API_KEY: str = ""
+
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 30
 
