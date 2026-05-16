@@ -31,12 +31,17 @@ async def lifespan(app: FastAPI):
     from app.workers.bestprice_bot import start_bot_polling
     bot_task = asyncio.create_task(start_bot_polling())
 
+    # Start price alert checker
+    from app.workers.alert_checker import run_checker_loop
+    alert_task = asyncio.create_task(run_checker_loop())
+
     yield
 
     cron_task.cancel()
     broadcast_task.cancel()
     bot_task.cancel()
-    for task in [cron_task, broadcast_task, bot_task]:
+    alert_task.cancel()
+    for task in [cron_task, broadcast_task, bot_task, alert_task]:
         try:
             await task
         except asyncio.CancelledError:

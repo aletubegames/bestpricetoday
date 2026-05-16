@@ -316,8 +316,8 @@ async def handle_ml_webhook(data: dict, db: AsyncSession) -> dict:
         items = order.get("order_items", [])
         title = items[0].get("item", {}).get("title", "ML Order") if items else "ML Order"
 
-        commission_rate = 4.0
-        commission_value = total * 0.04
+        commission_rate = None
+        commission_value = None
 
         click_id = await _find_matching_click(db, "mercadolivre", title[:200])
         await _save_conversion_safe(

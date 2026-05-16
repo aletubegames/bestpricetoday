@@ -2,8 +2,7 @@
 import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://alessandro2090-bestpricetoday-api.hf.space'
+import { API_BASE as API } from '@/lib/api'
 
 function AuthCallbackInner() {
   const params = useSearchParams()

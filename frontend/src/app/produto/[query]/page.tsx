@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import ProductSearchClient from "./ProductSearchClient"
-
-const API = process.env.NEXT_PUBLIC_API_URL || "https://alessandro2090-bestpricetoday-api.hf.space"
+import { API_BASE as API } from "@/lib/api"
 
 interface Props {
   params: { query: string }

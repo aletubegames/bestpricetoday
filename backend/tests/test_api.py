@@ -72,31 +72,63 @@ async def test_search_returns_offers():
 # ─── Alertas ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_alert_anonymous():
-    """Alerta anônimo (sem user_id) deve ser aceito com telegram_id."""
-    with patch("app.api.v1.endpoints.alerts.get_db") as mock_db:
-        # mocka sessão do banco
-        session = AsyncMock()
-        session.flush = AsyncMock()
-        session.__aenter__ = AsyncMock(return_value=session)
-        session.__aexit__ = AsyncMock(return_value=False)
-        mock_db.return_value = session
+async def test_create_alert_with_owner_id():
+    """Alerta deve ser aceito com owner_id obrigatório."""
+    from app.db.session import get_db as real_get_db
+    from app.models.models import PriceAlert
+    import uuid
+    from datetime import datetime
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post("/api/v1/alerts", json={
-                "query": "notebook gamer",
-                "target_price": 3500.0,
-                "telegram_id": "5899118807",
-            })
+    fake_alert = PriceAlert(
+        id=uuid.uuid4(),
+        user_id=None,
+        owner_id="5899118807",
+        query="notebook gamer",
+        target_price=3500.0,
+        is_active=True,
+        created_at=datetime.utcnow(),
+    )
 
-    # 200 ou 500 dependendo do banco; o importante é não 422
+    session = AsyncMock()
+    session.flush = AsyncMock()
+    session.add = MagicMock(side_effect=lambda obj: None)
+
+    async def override_get_db():
+        yield session
+
+    # Patch the endpoint to return a fake alert rather than relying on DB
+    with patch("app.api.v1.endpoints.alerts.PriceAlert", return_value=fake_alert):
+        app.dependency_overrides[real_get_db] = override_get_db
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.post("/api/v1/alerts", json={
+                    "query": "notebook gamer",
+                    "target_price": 3500.0,
+                    "owner_id": "5899118807",
+                })
+        finally:
+            app.dependency_overrides.pop(real_get_db, None)
+
+    # 201 esperado; ao menos não deve ser 422
     assert resp.status_code != 422
 
 
 @pytest.mark.asyncio
 async def test_alert_requires_query_and_price():
+    """Alerta sem target_price deve retornar 422 mesmo com owner_id."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.post("/api/v1/alerts", json={"query": "notebook"})
+        resp = await client.post("/api/v1/alerts", json={"query": "notebook", "owner_id": "user123"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_alert_requires_owner_id():
+    """Alerta sem owner_id deve retornar 422."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/api/v1/alerts", json={
+            "query": "notebook gamer",
+            "target_price": 3500.0,
+        })
     assert resp.status_code == 422
 
 

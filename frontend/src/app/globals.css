@@ -51,6 +51,26 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(124, 106, 255, 0.3); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(124, 106, 255, 0.5); }
 
+/* ── Responsive base ── */
+@media (max-width: 640px) {
+  html { font-size: 15px; }
+
+  /* Containers com padding menor no mobile */
+  .container-pad { padding: 16px !important; }
+
+  /* Tabelas ficam em scroll horizontal no mobile */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Grids de KPI: 2 colunas no mobile */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Header empilha */
+  .header-row { flex-direction: column !important; align-items: flex-start !important; }
+
+  /* Filter bar empilha */
+  .filter-bar { flex-direction: column !important; gap: 10px !important; }
+}
+
 /* Skeleton */
 .sk {
   background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);

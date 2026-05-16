@@ -587,8 +587,8 @@ async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         items = order.get("order_items", [])
         title = items[0].get("item", {}).get("title", "ML Order")[:200] if items else "ML Order"
 
-        commission_rate = 4.0
-        commission_value = total * 0.04
+        commission_rate = None
+        commission_value = None
 
         # Find matching click
         from app.integrations.conversion_tracker import _find_matching_click, _save_conversion_safe
@@ -599,7 +599,9 @@ async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             total, commission_rate, commission_value, status, click_id
         )
 
-        logger.info(f"ML order {order_id}: status={status} total={total:.2f} commission={commission_value:.2f} saved={saved} click_linked={bool(click_id)}")
+        logger.info(
+            f"ML order {order_id}: status={status} total={total:.2f} commission=unknown saved={saved} click_linked={bool(click_id)}"
+        )
         return {"ok": True}
 
     except Exception as e:
@@ -715,37 +717,6 @@ async def get_report(
         }
     except Exception:
         return {"overview": {}, "marketplaces": [], "traffic": [], "top_products": []}
-
-
-@router.post("/conversions/test")
-async def test_conversion(
-    db: AsyncSession = Depends(get_db),
-    _: str = Depends(require_admin),
-):
-    """Create a test conversion to verify the pipeline works."""
-    if not check_rate_limit("conversion_test", max_calls=5, window_seconds=60):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-
-    from app.integrations.conversion_tracker import _save_conversion_safe, _find_matching_click
-
-    click_id = await _find_matching_click(db, "aliexpress")
-    saved = await _save_conversion_safe(
-        db,
-        external_order_id=f"test_{int(time.time())}",
-        provider="aliexpress",
-        product_title="TESTE — Fone Bluetooth TWS [CONVERSION TEST]",
-        sale_price=150.0,
-        commission_rate=8.5,
-        commission_value=12.75,
-        status="confirmed",
-        click_id=click_id,
-    )
-    return {
-        "ok": saved,
-        "click_linked": bool(click_id),
-        "click_id": click_id,
-        "note": "Test conversion created. Check admin dashboard.",
-    }
 
 
 @router.post("/broadcast/telegram")
