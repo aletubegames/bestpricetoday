@@ -355,3 +355,113 @@ async def poll_all_conversions(db: AsyncSession) -> dict:
     logger.info(f"[ConversionPoll] Done in {elapsed:.1f}s — {sum(r.get('saved', 0) if isinstance(r, dict) else 0 for r in results.values())} total new")
 
     return {k: (v.get("saved", v) if isinstance(v, dict) else v) for k, v in results.items()}
+
+
+# ─── Shopee conversion polling ────────────────────────────────────────────────
+
+async def poll_shopee_conversions(db: AsyncSession, since_hours: int = 2) -> list[dict]:
+    """
+    Busca conversões da Shopee via GraphQL Affiliate API.
+    Retorna lista de conversões novas salvas.
+    """
+    import hashlib, time, httpx, json
+
+    app_id = settings.SHOPEE_APP_ID
+    secret = settings.SHOPEE_SECRET
+    if not app_id or not secret:
+        return []
+
+    now = datetime.utcnow()
+    since = now - timedelta(hours=since_hours)
+
+    query = """
+    {
+      conversionReport(
+        purchaseTimeStart: %d
+        purchaseTimeEnd: %d
+        conversionStatus: ALL
+        limit: 50
+      ) {
+        nodes {
+          clickTime
+          purchaseTime
+          conversionStatus
+          estimatedTotalCommission
+          orders {
+            orderId
+            orderStatus
+            items {
+              itemId
+              itemName
+              actualAmount
+              itemTotalCommission
+              itemSellerCommissionRate
+              fraudStatus
+            }
+          }
+        }
+        pageInfo { hasNextPage }
+      }
+    }
+    """ % (int(since.timestamp()), int(now.timestamp()))
+
+    body = json.dumps({"query": query})
+    ts = int(time.time())
+    sig = hashlib.sha256(f"{app_id}{ts}{body}{secret}".encode()).hexdigest()
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={app_id},Timestamp={ts},Signature={sig}",
+    }
+
+    saved = []
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(
+                "https://open-api.affiliate.shopee.com.br/graphql",
+                content=body, headers=headers
+            )
+        d = r.json()
+        errors = d.get("errors", [])
+        if errors:
+            logger.warning(f"Shopee conversion API: {errors[0].get('message','')}")
+            return []
+
+        nodes = d.get("data", {}).get("conversionReport", {}).get("nodes", []) or []
+        for node in nodes:
+            status_raw = node.get("conversionStatus", "")
+            status = "confirmed" if "COMPLETED" in status_raw else \
+                     "rejected"  if "CANCELLED" in status_raw else "pending"
+
+            commission_total = float(node.get("estimatedTotalCommission", 0) or 0)
+            orders = node.get("orders", []) or []
+
+            for order in orders:
+                order_id = str(order.get("orderId", ""))
+                if not order_id:
+                    continue
+
+                items = order.get("items", []) or []
+                for item in items:
+                    if item.get("fraudStatus") == "FRAUDULENT":
+                        continue
+
+                    external_id = f"shopee_{order_id}_{item.get('itemId','')}"
+                    sale_price = float(item.get("actualAmount", 0) or 0)
+                    commission_value = float(item.get("itemTotalCommission", 0) or 0)
+                    commission_rate = float(item.get("itemSellerCommissionRate", 0) or 0)
+                    title = str(item.get("itemName", ""))[:200]
+
+                    click_id = await _find_matching_click(db, "shopee", title)
+                    ok = await _save_conversion_safe(
+                        db, external_id, "shopee", title,
+                        sale_price, commission_rate, commission_value, status, click_id
+                    )
+                    if ok:
+                        saved.append({"order_id": order_id, "status": status,
+                                      "commission": commission_value})
+                        logger.info(f"Shopee: salvo order={order_id} item={title[:40]} "
+                                    f"comissão=R${commission_value:.2f}")
+    except Exception as e:
+        logger.error(f"Shopee conversion polling failed: {type(e).__name__}")
+
+    return saved
