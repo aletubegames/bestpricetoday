@@ -610,4 +610,52 @@ ADMIN_MANAGER_KEY          # ⚠️ configurar no HF Space secrets
 
 ---
 
-_Atualizado: 2026-05-15 (11h05 BRT)_
+## Video API local (2026-05-16)
+
+### Problema
+O admin estava chamando `/admin/video/publish` no HF Space, que tentava rodar `traffic_machine.py` em `/root/wan2` (inexistente). O Wan2.1 e a GPU só existem na máquina local.
+
+### Solução: `~/wan2/video_api.py`
+Servidor FastAPI leve (porta 8765) que roda **localmente** e expõe:
+- `POST /video/publish` — dispara `traffic_machine.py` como subprocess
+- `GET /video/status/{job_id}` — retorna tail do log
+- `GET /health` — verifica se está online
+
+```bash
+# Iniciar manualmente
+cd ~/wan2 && python video_api.py
+
+# Instalar como serviço systemd (persistência)
+sudo cp ~/wan2/bestprice-video-api.service /etc/systemd/system/
+sudo systemctl enable --now bestprice-video-api
+```
+
+### Fluxo admin → vídeo
+```
+Admin (browser)
+  1. Tenta POST http://localhost:8765/video/publish (direto na máquina local)
+  2. Se offline, fallback via HF Space que usa VIDEO_API_URL do .env
+Video API local executa traffic_machine.py com os parâmetros
+Admin faz poll GET /video/status/{job_id} a cada 3s, mostra log em tempo real
+Admin mostra ✅ / ❌ online/offline da API local
+```
+
+### Variáveis de ambiente adicionadas
+```
+VIDEO_API_URL = http://localhost:8765   # URL da Video API (usada pelo HF Space como proxy)
+VIDEO_API_KEY =                         # chave opcional (vazio = aceita tudo localmente)
+VIDEO_API_PORT = 8765                   # porta da Video API
+```
+
+### publisher.py — bug corrigido
+- `max(0, orig - preco)` falhava com `NoneType - float` quando a API retornava `original_price: null`
+- Corrigido: todos os campos numéricos usam `float(offer.get(...) or 0)`
+
+### Serviço de timer (scheduler existente)
+- `bestprice-video.timer` roda a cada 2h24min via systemd (✅ ativo)
+- Status: `active (waiting)` — próxima execução em ~15min após cada ciclo
+- Log em `~/wan2/scheduler.log`
+
+---
+
+_Atualizado: 2026-05-16 (04h45 BRT)_
