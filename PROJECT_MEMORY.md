@@ -31,6 +31,274 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
 - **Deploy backend:** workflow GitHub Actions sincroniza `backend/app/` → HF Space
 - **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
+- **Testes:** pytest + pytest-asyncio — **24 testes passando** (test_integrity.py:16 + test_api.py:8)
+
+---
+
+## Arquitetura do backend
+
+```
+backend/app/
+├── main.py                          # FastAPI app + lifespan (workers: conversion cron, broadcaster, bot, alert checker)
+├── api/v1/
+│   ├── router.py
+│   └── endpoints/
+│       ├── search.py                # GET/POST /search + trending
+│       ├── alerts.py                # CRUD alertas — owner_id obrigatório
+│       ├── favorites.py             # CRUD favoritos — owner_id obrigatório
+│       ├── products.py
+│       ├── links.py                 # POST /links/create + GET /r/{code} (tracked redirect)
+│       ├── auth.py                  # OAuth ML + /auth/ml/status + /auth/ml/refresh
+│       └── admin.py                 # Dashboard admin completo (requer X-Admin-Key header)
+├── core/{config,cache,logging}.py
+├── db/session.py
+├── models/models.py                 # ClickEvent, ConversionEvent, MLToken, ShortLink, PriceAlert, Favorite
+├── schemas/schemas.py               # AlertCreate/FavoriteCreate exigem owner_id obrigatório
+├── integrations/
+│   ├── aliexpress/client.py
+│   ├── shopee/client.py
+│   └── conversion_tracker.py       # polling AliExpress + Lomadee + Shopee, sem valores hardcoded
+├── services/
+│   ├── search.py
+│   ├── ml_token_service.py
+│   ├── ranking/engine.py
+│   └── providers/{aliexpress,shopee,mercadolivre,amazon,lomadee,kabum,awin}.py
+└── workers/
+    ├── bestprice_bot.py             # Telegram bot — /alertas funcional (sem "Em breve")
+    ├── channel_broadcaster.py
+    ├── conversion_cron.py           # polling horário de conversões
+    └── alert_checker.py            # ← NOVO: verifica alertas a cada 30min, envia Telegram se preço caiu
+
+backend/hf_deploy/                   # Deploy target HuggingFace Space (standalone)
+├── app/api/v1/endpoints/alerts.py   # ← sincronizado via sync_hf_deploy.sh
+├── app/api/v1/endpoints/favorites.py
+├── app/schemas/schemas.py
+└── ...                              # NÃO inclui admin.py nem links.py
+
+backend/sync_hf_deploy.sh            # ← NOVO: copia alerts.py, favorites.py, schemas.py → hf_deploy
+backend/scripts/migration_owner_id.py # ← NOVO: migration owner_id aplicada em produção
+backend/tests/test_integrity.py      # ← NOVO: 16 testes estruturais
+```
+
+---
+
+## Modelo de identidade — owner_id (BREAKING CHANGE 2026-05-16)
+
+Alertas e favoritos usam `owner_id` obrigatório em vez de `telegram_id` opcional.
+
+| Contexto         | Valor de owner_id                             |
+|------------------|-----------------------------------------------|
+| Browser          | `localStorage["bpt_anon_id"]` (gerado uma vez) |
+| Telegram bot     | `str(update.effective_user.id)`               |
+
+**Migration aplicada em produção:**
+- Coluna `owner_id VARCHAR NOT NULL` adicionada em `alertas` e `favoritos`
+- Dados migrados: `owner_id = telegram_id` onde existia, senão `migrated_{uuid}`
+- `user_id` nas duas tabelas agora é nullable
+- Índice criado: `ix_alertas_owner_id`, `ix_favoritos_owner_id`
+
+**API — todos os endpoints exigem owner_id:**
+- `GET /alerts?owner_id=...` — obrigatório (Query param)
+- `DELETE /alerts/{id}?owner_id=...` — valida ownership antes de desativar
+- `POST /alerts` body: `{query, target_price, owner_id}` — 422 sem owner_id ou com vazio
+- Idem para /favorites
+
+---
+
+## Monetização — fluxo completo
+
+```
+Busca → Ranking → OfferCard → trackClick() → POST /admin/clicks
+                            ↓
+                     Link afiliado com UTM
+                     (ou /r/{code} para links de vídeo)
+                            ↓
+                    302 → Site do marketplace
+                            ↓
+               Conversão registrada via:
+               • Webhook ML (registrar URL no portal)
+               • Polling horário AliExpress + Lomadee + Shopee
+               → tabela conversion_events
+               → dashboard admin mostra receita/comissão real
+```
+
+**Short links** (`/r/{code}`):
+- Criado por `POST /api/v1/links/create` (sem auth — chamado pelo pipeline Wan2.1)
+- Redirect registra ClickEvent antes do 302
+- Estatísticas: `short_links.clicks` + `last_clicked_at`
+
+---
+
+## Providers — estado real (2026-05-16)
+
+| Provider       | Status prod | Detalhe |
+|----------------|-------------|----------|
+| **AliExpress** | ✅ Funciona | Retry sem tracking_id quando 402 |
+| **Lomadee**    | ✅ Funciona | Source ID: `6ff2699e-ceaa-4fad-a58a-8b91f885485f` |
+| **Mercado Livre** | ❌ 403  | App não aprovado no Programa de Afiliados. OAuth ✅ no banco. |
+| **Shopee**     | ❌ Invalid Signature | Secret errado — precisa do portal affiliate.shopee.com.br |
+| **Amazon**     | ⚠️ sem ACCESS_KEY | Associate tag: `aletubegames-20` configurado |
+| KaBuM / Awin   | ⏸️ pendente | Código pronto, sem credenciais |
+
+---
+
+## Admin Dashboard (`/admin`)
+
+**Acesso:** `https://bestpricetoday.vercel.app/admin`
+**Auth:** header `X-Admin-Key: ADMIN_MANAGER_KEY`
+**Layout:** responsivo — funciona em mobile e desktop
+
+**Endpoints backend (`/api/v1/admin/`):**
+- `POST /clicks` — registra clique (sem auth)
+- `GET /overview` — métricas gerais
+- `GET /analytics` — série temporal
+- `GET /marketplaces` — performance por marketplace
+- `GET /traffic` — fontes de tráfego
+- `GET /conversions` — lista paginada
+- `POST /conversions/poll` — força polling afiliados
+- `POST /webhooks/mercadolivre` — webhook ML
+- `GET /integrations/status` — status real das plataformas
+- `GET /products/top` — top produtos
+- `GET /report` — relatório completo
+- `POST /broadcast/telegram` — posta ofertas no canal
+
+---
+
+## Testes (`backend/tests/`)
+
+```bash
+cd backend
+PYTHONPATH=. .venv312/bin/pytest tests/ -v
+# 24/24 passando (2026-05-16)
+```
+
+**test_integrity.py** (16 testes estruturais):
+1. Sem endpoint `/conversions/test` no código nem nas rotas registradas
+2. Sem `commission_rate`/`commission_value` hardcoded em arquivos de produção
+3. `conversion_tracker.py` usa dados reais (sem flat rate, sem `DEFAULT_COMMISSION`)
+4. Ownership: todos endpoints de alerts/favorites retornam 422 sem `owner_id`
+5. Frontend: nenhum arquivo fora de `lib/api.ts` declara fallback de URL
+6. `hf_deploy` sincronizado com canônico (falha se `sync_hf_deploy.sh` não rodou)
+
+**test_api.py** (8 testes):
+- Health, validação de busca, mock de providers, schema de alertas, cache hit
+
+---
+
+## Frontend — centralizção da API URL
+
+**Fonte única:** `frontend/src/lib/api.ts`
+```typescript
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://alessandro2090-bestpricetoday-api.hf.space";
+```
+
+Todos os arquivos importam `{ API_BASE }` dali. Nenhum fallback inline ou `localhost` restante.
+
+---
+
+## Alertas de preço — fluxo completo
+
+1. Usuário acessa `/alertas`, `bpt_anon_id` gerado e persistido em `localStorage`
+2. `POST /api/v1/alerts` com `{query, target_price, owner_id: bpt_anon_id}`
+3. `alert_checker.py` roda a cada 30min, busca alertas ativos sem `triggered_at`
+4. Para cada alerta: busca preço atual via `/api/v1/search`
+5. Se `preço_atual ≤ target_price`:
+   - `owner_id` numérico → envia mensagem Telegram
+   - `owner_id` bpt_anon → marca como processado (web push futuro)
+   - `triggered_at = now`, `is_active = False`
+6. Telegram bot `/alertas` mostra link do site + ID do usuário para vincular
+
+---
+
+## Pipeline Wan2.1
+
+- **Modelo:** `/home/alessandro/wan2/models/Wan2.1-T2V-14B-Diffusers/` (75GB)
+- **Publisher:** `/home/alessandro/wan2/publisher.py` — corrigido (sem duplicatas, TinyURL, link clicável)
+- **GPU:** RTX 4090 24GB
+- **Fluxo:** gera vídeo → encurta link → publica Telegram ✅ YouTube ✅ TikTok ⏳
+- **YouTube links:** encurtados via TinyURL API para garantir clicabilidade na descrição
+
+---
+
+## Pendências prioritárias
+
+### Alta prioridade
+1. **Shopee secret** → pegar de https://affiliate.shopee.com.br → My Tools → Open API
+2. **ML Programa de Afiliados** → solicitar aprovação para desbloquear `/sites/MLB/search`
+3. **ADMIN_MANAGER_KEY** → configurar nos secrets do HF Space
+4. **Webhook ML** → registrar URL no portal ML Developer → Notificações
+
+### Média prioridade
+5. **Migration Alembic real** → `versions/` vazio; schema via `create_all()` apenas
+6. **og-image.png / manifest.json / apple-touch-icon** → ausentes em `public/`
+7. **Wan2.1** → testar pipeline completo com 1 produto real
+8. **Web push para alertas anônimos** → `bpt_anon_id` sem canal de entrega ainda
+
+### Baixa prioridade
+9. `calculate_score()` em `engine.py` — código morto
+10. `CuponomiaProvider` — implementado, não integrado
+11. `datetime.utcnow` deprecated → warnings nos testes (Python 3.12)
+12. `docker-compose.yml` + Makefile — referenciam `telegram_bot` (correto: `bestprice_bot`)
+
+---
+
+## Variáveis de ambiente
+
+### `backend/.env` (local) e HF Space secrets (produção)
+```
+DATABASE_URL               # Neon PostgreSQL
+REDIS_URL                  # Upstash Redis
+MERCADOLIVRE_APP_ID=2661096739949809
+MERCADOLIVRE_SECRET
+AMAZON_PARTNER_TAG=aletubegames-20
+LOMADEE_API_KEY
+LOMADEE_SOURCE_ID=6ff2699e-ceaa-4fad-a58a-8b91f885485f
+ALIEXPRESS_APP_KEY
+ALIEXPRESS_APP_SECRET
+ALIEXPRESS_TRACKING_ID     # ⚠️ inválido no HF → fallback sem tracking
+SHOPEE_APP_ID=18308041054
+SHOPEE_SECRET              # ⚠️ errado — precisa do portal afiliado
+TELEGRAM_BOT_TOKEN
+ADMIN_MANAGER_KEY          # ⚠️ configurar no HF Space secrets
+INTERNAL_API_URL           # URL interna para alert_checker.py buscar preços (default: localhost:8000)
+ALERT_CHECK_INTERVAL       # Intervalo do alert_checker em segundos (default: 1800)
+```
+
+---
+
+_Atualizado: 2026-05-16 (02h45 BRT)_
+
+---
+
+## O que é
+
+Comparador de preços com monetização 100% via afiliados.
+O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e você ganha comissão.
+**Nenhuma cobrança ao usuário. Custo zero até R$40k/mês de receita.**
+
+---
+
+## Infraestrutura
+
+| Serviço       | URL / Detalhe                                                              |
+|---------------|----------------------------------------------------------------------------|
+| Frontend      | https://bestpricetoday.vercel.app (Next.js 14, Vercel)                    |
+| Backend       | https://alessandro2090-bestpricetoday-api.hf.space (FastAPI, HuggingFace) |
+| Banco         | Neon PostgreSQL (free tier) — string no `.env`                            |
+| Cache         | Upstash Redis (free tier) — string no `.env`                              |
+| Repo          | https://github.com/aletubegames/bestpricetoday                            |
+
+---
+
+## Stack
+
+- **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
+- **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
+- **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
+- **Deploy backend:** workflow GitHub Actions sincroniza `backend/app/` → HF Space
+- **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
 - **Testes:** pytest + pytest-asyncio — 35+ testes passando
 
 ---
