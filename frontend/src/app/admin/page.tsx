@@ -438,6 +438,10 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       </div>
 
       {/* DISPATCH */}
+      <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 8, fontSize: 11, color: "#fbbf24" }}>
+        ⚠️ O gerador de vídeo roda <strong>localmente</strong> na máquina com GPU (RTX 4090).
+        Configure <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3 }}>WAN2_DIR</code> no <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3 }}>.env</code> se o caminho for diferente de <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3 }}>~/wan2</code>.
+      </div>
       <button
         onClick={dispatch}
         disabled={loading || !selectedPlats.length}
@@ -446,8 +450,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
           background: loading ? "#1a1a2e" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
           border: "none", color: loading ? "#64748b" : "#fff",
           opacity: !selectedPlats.length ? 0.5 : 1,
-          marginBottom: jobId || jobLog.length ? 16 : 0,
-          transition: "all .2s",
+          marginBottom: 16, transition: "all .2s",
         }}>
         {loading ? "⏳ Gerando..." : `🚀 Gerar e publicar em ${selectedPlats.map(id => PLATAFORMAS.find(p => p.id === id)?.emoji).join(" ")}`}
       </button>
@@ -462,7 +465,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
             <div style={{ color: "#4ade80", marginBottom: 6 }}>✅ Concluído!</div>
           )}
           {jobLog.map((line, i) => (
-            <div key={i} style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "#f87171" : line.includes("✅") ? "#4ade80" : "#94a3b8", lineHeight: 1.6 }}>
+            <div key={i} style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "#f87171" : line.includes("✅") || line.includes("RESULT") ? "#4ade80" : "#94a3b8", lineHeight: 1.6 }}>
               {line}
             </div>
           ))}

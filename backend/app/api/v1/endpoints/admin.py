@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
 import uuid
+import os
 import time
 import hashlib
 import hmac as hmac_mod
@@ -513,10 +514,9 @@ async def get_product_suggestions(
         """Busca interna sem HTTP — chama search_all diretamente."""
         try:
             from app.services.search import search_all
-            from app.schemas.schemas import SearchRequest, ProviderEnum
+            from app.schemas.schemas import ProviderEnum
             provs = [ProviderEnum(p) for p in providers] if providers else None
-            req = SearchRequest(query=query, limit=8, providers=provs)
-            resp = await search_all(req)
+            resp = await search_all(query=query, limit=8, providers=provs)
             return [o.model_dump() for o in resp.offers]
         except Exception as e:
             logger.debug(f"_search('{query}'): {e}")
@@ -935,40 +935,49 @@ async def trigger_video_publish(
 ):
     """
     Dispara geração e publicação de vídeo Wan2.1 via traffic_machine.py.
-
-    Roda como subprocess não-bloqueante — retorna job_id imediatamente.
-    O status pode ser consultado via GET /admin/video/status/{job_id}.
-
-    Plataformas válidas: telegram, youtube, tiktok
-    Formatos válidos: oferta_choque, viral_tiktok, top3, vs, alerta, ultima_chance, wan21_cinematic
+    Requer que o pipeline Wan2.1 esteja instalado na máquina local.
+    Configurável via env WAN2_DIR (default: ~/wan2).
     """
     import subprocess, sys, time, json as _json
 
-    WAN2_DIR = "/home/alessandro/wan2"
-    wan2_python = f"{WAN2_DIR}/.venv/bin/python3"
+    # Detecta o path do wan2: env var > ~/wan2 > erro claro
+    WAN2_DIR = os.getenv(
+        "WAN2_DIR",
+        str(Path.home() / "wan2")
+    )
+    if not Path(WAN2_DIR).exists():
+        return {
+            "ok": False,
+            "error": (
+                f"Pipeline Wan2.1 não encontrado em '{WAN2_DIR}'. "
+                "Configure WAN2_DIR no .env apontando para o diretório wan2, "
+                "ou execute o admin na máquina com a GPU local."
+            )
+        }
+
+    # Python do venv wan2 (preferido) ou python atual
+    wan2_python = str(Path(WAN2_DIR) / ".venv" / "bin" / "python3")
     if not Path(wan2_python).exists():
-        wan2_python = sys.executable  # fallback
+        wan2_python = sys.executable
 
     plataformas_validas = {"telegram", "youtube", "tiktok"}
     plats = [p for p in body.plataformas if p in plataformas_validas]
     if not plats:
         return {"ok": False, "error": "Nenhuma plataforma válida. Use: telegram, youtube, tiktok"}
 
-    job_id = f"vid_{int(time.time())}"
+    job_id   = f"vid_{int(time.time())}"
     log_file = f"/tmp/video_job_{job_id}.log"
 
-    # Monta comando que chama traffic_machine com os parâmetros certos
     cmd_args = [
         wan2_python, "-c",
         f"""
 import asyncio, sys
-sys.path.insert(0, '{WAN2_DIR}')
+sys.path.insert(0, {_json.dumps(WAN2_DIR)})
 from traffic_machine import executar_formato
-from content_strategy import load_memory
 
 async def main():
     decisao = {{
-        'format': '{body.formato}',
+        'format': {_json.dumps(body.formato)},
         'query': {_json.dumps(body.query or '')},
         'categoria': 'default',
         'variation': 0,
@@ -987,16 +996,17 @@ asyncio.run(main())
                 cmd_args,
                 stdout=lf, stderr=lf,
                 cwd=WAN2_DIR,
-                start_new_session=True,  # desacopla do processo FastAPI
+                start_new_session=True,
             )
         return {
-            "ok": True,
-            "job_id": job_id,
-            "pid": proc.pid,
-            "log": log_file,
+            "ok":         True,
+            "job_id":     job_id,
+            "pid":        proc.pid,
+            "log":        log_file,
             "plataformas": plats,
-            "formato": body.formato,
-            "note": "Job iniciado em background. Use GET /admin/video/status/{job_id} para acompanhar.",
+            "formato":    body.formato,
+            "wan2_dir":   WAN2_DIR,
+            "note":       "Job iniciado. Acompanhe em GET /admin/video/status/{job_id}",
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
