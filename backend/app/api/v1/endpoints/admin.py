@@ -931,8 +931,8 @@ class VideoPublishRequest(BaseModel):
 @router.get("/video/health")
 async def get_video_health(_: str = Depends(require_admin)):
     """Verifica se a Video API local está acessível via VIDEO_API_URL."""
-    VIDEO_API_URL = os.getenv("VIDEO_API_URL", "http://localhost:8765")
-    VIDEO_API_KEY = os.getenv("VIDEO_API_KEY", "")
+    VIDEO_API_URL = settings.VIDEO_API_URL
+    VIDEO_API_KEY = settings.VIDEO_API_KEY
     headers: dict = {}
     if VIDEO_API_KEY:
         headers["x-video-key"] = VIDEO_API_KEY
@@ -964,8 +964,8 @@ async def trigger_video_publish(
       VIDEO_API_URL  = URL da Video API local (default: http://localhost:8765)
       VIDEO_API_KEY  = chave de auth da Video API (opcional)
     """
-    VIDEO_API_URL = os.getenv("VIDEO_API_URL", "http://localhost:8765")
-    VIDEO_API_KEY = os.getenv("VIDEO_API_KEY", "")
+    VIDEO_API_URL = settings.VIDEO_API_URL
+    VIDEO_API_KEY = settings.VIDEO_API_KEY
 
     plats = [p for p in body.plataformas if p in {"telegram", "youtube", "tiktok"}]
     if not plats:
@@ -1006,8 +1006,8 @@ async def get_video_status(
     """
     Proxy para a Video API local — busca o status/log do job.
     """
-    VIDEO_API_URL = os.getenv("VIDEO_API_URL", "http://localhost:8765")
-    VIDEO_API_KEY = os.getenv("VIDEO_API_KEY", "")
+    VIDEO_API_URL = settings.VIDEO_API_URL
+    VIDEO_API_KEY = settings.VIDEO_API_KEY
 
     headers: dict = {}
     if VIDEO_API_KEY:
