@@ -48,7 +48,7 @@ const VIDEO_FORMATS = [
   { id: "viral_tiktok",    label: "Viral TikTok",        emoji: "🎙️", desc: "Gancho emocional, ritmo rápido" },
   { id: "top3",            label: "Top 3",               emoji: "🏆", desc: "Compara 3 opções da mesma categoria" },
   { id: "vs",              label: "VS Comparativo",      emoji: "⚔️", desc: "Marca cara vs barata" },
-  { id: "alerta",          label: "Alerta de Preço",     emoji: "🔔", desc: "\"Preço caiu! Não perca!\"" },
+  { id: "alerta",          label: "Alerta de Preço",     emoji: "🔔", desc: "\'Preço caiu! Não perca!\'" },
   { id: "ultima_chance",   label: "Última Chance",       emoji: "⏳", desc: "Urgência + escassez" },
   { id: "wan21_cinematic", label: "WAN2.1 Cinemático",  emoji: "🎥", desc: "Vídeo gerado por IA (usa GPU)" },
 ];
@@ -58,6 +58,70 @@ const PLATAFORMAS = [
   { id: "youtube",  label: "YouTube",  emoji: "📹", color: "#f43f5e" },
   { id: "tiktok",   label: "TikTok",   emoji: "🎙️", color: "#ff0050" },
 ];
+
+/**
+ * Sugere o melhor formato de vídeo com base nas características da oferta.
+ * Retorna uma lista ordenada: [{ id, reason }]
+ */
+function suggestFormats(p: any): { id: string; reason: string }[] {
+  const title    = (p?.product_title || "").toLowerCase();
+  const discount = p?.discount_percent || 0;
+  const price    = p?.price || 0;
+  const clicks   = p?.clicks || 0;
+  const suggestions: { id: string; score: number; reason: string }[] = [];
+
+  // Desconto alto → oferta choque é o mais eficaz
+  if (discount >= 30)
+    suggestions.push({ id: "oferta_choque", score: 95,
+      reason: `${discount.toFixed(0)}% OFF — desconto alto converte bem em choque` });
+  else if (discount >= 10)
+    suggestions.push({ id: "oferta_choque", score: 75,
+      reason: `${discount.toFixed(0)}% OFF — bom desconto para destaque` });
+
+  // Produto premium (preço alto) → WAN2.1 cinemático
+  if (price >= 1500)
+    suggestions.push({ id: "wan21_cinematic", score: 80,
+      reason: `R$${price.toFixed(0)} — produto premium, vídeo cinemático agrega percepção de valor` });
+
+  // Muitos cliques → já é viral, usar formato viral TikTok
+  if (clicks >= 20)
+    suggestions.push({ id: "viral_tiktok", score: 85,
+      reason: `${clicks} cliques — produto já tem tráfego, viral TikTok amplifica` });
+  else if (clicks >= 5)
+    suggestions.push({ id: "viral_tiktok", score: 60,
+      reason: `${clicks} cliques — boa tracção para formato viral` });
+
+  // Categorias que pedem VS ou Top 3
+  const vsTerms = ["samsung", "iphone", "apple", "xiaomi", "rtx", "amd", "intel", "dell", "lenovo"];
+  const top3Terms = ["fone", "notebook", "smartphone", "smartwatch", "tablet", "tv", "headset"];
+  if (vsTerms.some(t => title.includes(t)))
+    suggestions.push({ id: "vs", score: 72,
+      reason: "Produto de marca conhecida — VS Comparativo gera debate e engajamento" });
+  if (top3Terms.some(t => title.includes(t)))
+    suggestions.push({ id: "top3", score: 68,
+      reason: "Categoria com várias opções — Top 3 educa e converte" });
+
+  // Preço baixo → última chance funciona bem
+  if (price < 100 && price > 0)
+    suggestions.push({ id: "ultima_chance", score: 70,
+      reason: `R$${price.toFixed(0)} — preço acessível, urgência fecha a venda` });
+
+  // Alerta se desconto moderado
+  if (discount >= 5 && discount < 20)
+    suggestions.push({ id: "alerta", score: 65,
+      reason: `${discount.toFixed(0)}% OFF — alerta de queda de preço cria senso de oportunidade` });
+
+  // Sempre adiciona fallbacks
+  ["oferta_choque", "viral_tiktok", "alerta"].forEach(id => {
+    if (!suggestions.find(s => s.id === id))
+      suggestions.push({ id, score: 40, reason: "Formato genérico sempre funciona" });
+  });
+
+  return suggestions
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(({ id, reason }) => ({ id, reason }));
+}
 
 function VideoPublisher({ apiBase, adminKey, topProducts }: {
   apiBase: string;
@@ -72,6 +136,17 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   const [jobDone, setJobDone] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sugestões dinâmicas ao selecionar produto
+  const suggestions = React.useMemo(
+    () => selectedProduct ? suggestFormats(selectedProduct) : [],
+    [selectedProduct]
+  );
+
+  // Aplica sugestão top automaticamente ao selecionar produto
+  React.useEffect(() => {
+    if (suggestions.length > 0) setSelectedFormat(suggestions[0].id);
+  }, [suggestions]);
 
   const togglePlat = (id: string) =>
     setSelectedPlats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -181,19 +256,61 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
           2. Formato do vídeo
         </div>
+
+        {/* Sugestões inteligentes — aparecem só quando um produto foi selecionado */}
+        {suggestions.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+              ✨ Sugerido para este produto
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {suggestions.map((s, i) => {
+                const fmt = VIDEO_FORMATS.find(f => f.id === s.id);
+                if (!fmt) return null;
+                const isSel = selectedFormat === s.id;
+                return (
+                  <button key={s.id} onClick={() => setSelectedFormat(s.id)}
+                    title={s.reason}
+                    style={{
+                      padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", transition: "all .15s",
+                      background: isSel ? "rgba(251,191,36,0.18)" : "rgba(251,191,36,0.06)",
+                      border: `2px solid ${isSel ? "#fbbf24" : "rgba(251,191,36,0.3)"}`,
+                      color: isSel ? "#fbbf24" : "#94a3b8",
+                      position: "relative" as const,
+                    }}>
+                    {i === 0 && <span style={{ position: "absolute", top: -8, right: -6, fontSize: 9, background: "#fbbf24", color: "#000", borderRadius: 4, padding: "1px 4px", fontWeight: 800 }}>TOP</span>}
+                    {fmt.emoji} {fmt.label}
+                    <div style={{ fontSize: 9, color: isSel ? "#fbbf24" : "#64748b", marginTop: 2, maxWidth: 140, lineHeight: 1.3 }}>{s.reason}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Todos os formatos */}
+        <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+          {suggestions.length > 0 ? "Ou escolha manualmente" : "Escolha o formato"}
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {VIDEO_FORMATS.map(f => (
-            <button key={f.id} onClick={() => setSelectedFormat(f.id)}
-              title={f.desc}
-              style={{
-                padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                background: selectedFormat === f.id ? "rgba(124,106,255,0.2)" : "#0d0d1a",
-                border: `1px solid ${selectedFormat === f.id ? "#7c6aff" : "#2a2a3a"}`,
-                color: selectedFormat === f.id ? "#a78bfa" : "#94a3b8",
-              }}>
-              {f.emoji} {f.label}
-            </button>
-          ))}
+          {VIDEO_FORMATS.map(f => {
+            const isSuggested = suggestions.some(s => s.id === f.id);
+            const isSel = selectedFormat === f.id;
+            return (
+              <button key={f.id} onClick={() => setSelectedFormat(f.id)}
+                title={f.desc}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  background: isSel ? "rgba(124,106,255,0.2)" : "#0d0d1a",
+                  border: `1px solid ${isSel ? "#7c6aff" : isSuggested ? "rgba(251,191,36,0.3)" : "#2a2a3a"}`,
+                  color: isSel ? "#a78bfa" : isSuggested ? "#fbbf24" : "#94a3b8",
+                  opacity: isSuggested ? 1 : 0.7,
+                }}>
+                {f.emoji} {f.label}
+              </button>
+            );
+          })}
         </div>
         {fmt && (
           <div style={{ marginTop: 6, fontSize: 11, color: "#64748b" }}>
