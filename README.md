@@ -213,6 +213,19 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 
 ## Deploy
 
+### Video API local (GPU — obrigatório para geração de vídeo)
+```bash
+# Iniciar manualmente
+cd ~/wan2 && python video_api.py   # porta 8765
+
+# Instalar como serviço permanente
+sudo cp ~/wan2/bestprice-video-api.service /etc/systemd/system/
+sudo systemctl enable --now bestprice-video-api
+
+# Verificar
+curl http://localhost:8765/health
+```
+
 ### Frontend (Vercel)
 ```bash
 cd frontend && vercel --prod --yes
