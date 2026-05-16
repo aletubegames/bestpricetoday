@@ -928,6 +928,26 @@ class VideoPublishRequest(BaseModel):
     formato:     str           = "oferta_choque"
 
 
+@router.get("/video/health")
+async def get_video_health(_: str = Depends(require_admin)):
+    """Verifica se a Video API local está acessível via VIDEO_API_URL."""
+    VIDEO_API_URL = os.getenv("VIDEO_API_URL", "http://localhost:8765")
+    VIDEO_API_KEY = os.getenv("VIDEO_API_KEY", "")
+    headers: dict = {}
+    if VIDEO_API_KEY:
+        headers["x-video-key"] = VIDEO_API_KEY
+    try:
+        async with httpx.AsyncClient(timeout=4) as c:
+            r = await c.get(f"{VIDEO_API_URL}/health", headers=headers)
+        data = r.json()
+        return {"ok": data.get("ok", False), "url": VIDEO_API_URL, **data}
+    except httpx.ConnectError:
+        return {"ok": False, "url": VIDEO_API_URL,
+                "error": f"Video API não acessível em {VIDEO_API_URL}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @router.post("/video/publish")
 async def trigger_video_publish(
     body: VideoPublishRequest,
