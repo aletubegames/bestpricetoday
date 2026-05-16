@@ -2,7 +2,7 @@
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://alessandro2090-bestpricetoday-api.hf.space";
+import { API_BASE as API_URL } from "@/lib/api";
 
 const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
   aliexpress: (
@@ -116,36 +116,6 @@ function ScoreRing({ score }: { score: number }) {
         </div>
       </div>
       <span style={{ fontSize: 9, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</span>
-    </div>
-  );
-}
-
-function MiniSparkline({ discount, score }: { discount: number; score: number }) {
-  const points = Array.from({ length: 7 }, (_, i) => {
-    const base = 100;
-    const trend = discount > 0 ? -discount / 7 * i : Math.sin(i) * 5;
-    return Math.max(20, Math.min(100, base + trend + (Math.random() * 4 - 2)));
-  });
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const range = max - min || 1;
-
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 28, padding: "0 4px" }}>
-      {points.map((p, i) => {
-        const h = ((p - min) / range) * 22 + 4;
-        const isLast = i === points.length - 1;
-        return (
-          <div key={i} style={{
-            flex: 1, borderRadius: 2,
-            height: `${h}px`,
-            background: isLast
-              ? (discount > 0 ? "#00e5a0" : "#f43f5e")
-              : "rgba(124,106,255,0.3)",
-            transition: "height 0.3s ease",
-          }} />
-        );
-      })}
     </div>
   );
 }
@@ -275,7 +245,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
           </div>
         )}
 
-        {/* Product image + title + sparkline */}
+        {/* Product image + title */}
         <div style={{ display: "flex", gap: 14, marginBottom: 12 }}>
           <div style={{
             width: 80, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0,
@@ -301,7 +271,6 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             }}>
               {offer.title}
             </p>
-            <MiniSparkline discount={offer.discount_percent} score={offer.score} />
           </div>
         </div>
 

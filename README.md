@@ -1,136 +1,110 @@
 # BestPriceToday 🛍️
 
-> Comparador de preços inteligente para o Brasil — menor preço em tempo real com cupons automáticos, cashback e histórico de preços.
+Comparador de preços em tempo real com links afiliados rastreados e dashboard de monetização.
 
-![License](https://img.shields.io/badge/license-MIT-blue) ![Python](https://img.shields.io/badge/python-3.12-green) ![Next.js](https://img.shields.io/badge/next.js-14-black) ![Status](https://img.shields.io/badge/status-live-brightgreen)
+## Arquitetura
 
----
+```
+BestPriceToday/
+├── frontend/          # Next.js 14 (App Router) — Vercel
+├── backend/           # FastAPI + PostgreSQL — HuggingFace Space
+│   ├── app/
+│   │   ├── api/v1/endpoints/   # search, admin, links, alerts, favorites, auth
+│   │   ├── integrations/       # AliExpress, Shopee, ML OAuth, conversion_tracker
+│   │   ├── services/providers/ # mercadolivre, aliexpress, shopee, amazon, lomadee, awin, kabum
+│   │   ├── workers/            # alert_checker, bestprice_bot, channel_broadcaster, conversion_cron
+│   │   ├── models/models.py    # SQLAlchemy ORM (PostgreSQL)
+│   │   └── core/config.py      # Variáveis de ambiente (pydantic-settings)
+│   └── hf_deploy/              # Espelho para HuggingFace Space (sync via sync_hf_deploy.sh)
+└── shared/            # Tipos compartilhados
+```
 
-## 🌐 URLs de Produção
-
-| Serviço | URL |
-|---------|-----|
-| Frontend | https://bestpricetoday.vercel.app |
-| Backend API | https://alessandro2090-bestpricetoday-api.hf.space |
-| API Docs | https://alessandro2090-bestpricetoday-api.hf.space/docs |
-
----
-
-## ✨ Features
-
-- 🔍 **Busca paralela** em múltiplas lojas brasileiras
-- 🎟️ **Cupons automáticos** via Cuponomia
-- 💰 **Cashback** integrado
-- 📈 **Histórico de preços** com gráficos
-- 🚨 **Alertas de preço** via Telegram
-- 🤖 **Detecção de falso desconto** por IA
-- 📱 **PWA** instalável no celular
-- ⚡ **Cache Redis** agressivo
-- 🆓 **100% gratuito** até R$40k/mês
-
----
-
-## 🏗️ Stack Completa
-
-### Frontend
-| Tecnologia | Uso | Hospedagem |
-|-----------|-----|-----------|
-| Next.js 14 | Framework React | Vercel (grátis) |
-| Tailwind CSS | Estilização | — |
-| Framer Motion | Animações | — |
-| TanStack Query | Data fetching | — |
-| Zustand | State management | — |
-| Recharts | Gráficos | — |
-| Lucide React | Ícones | — |
-| next-pwa | PWA | — |
+## Como Rodar Localmente
 
 ### Backend
-| Tecnologia | Uso | Hospedagem |
-|-----------|-----|-----------|
-| FastAPI | API REST | Hugging Face Spaces (grátis) |
-| Python 3.12 | Linguagem | — |
-| AsyncIO | Concorrência | — |
-| SQLAlchemy | ORM | — |
-| Pydantic | Validação | — |
-| Uvicorn | ASGI Server | — |
-| Docker | Container | — |
-
-### Banco de Dados & Cache
-| Serviço | Uso | Plano |
-|---------|-----|-------|
-| Neon PostgreSQL | Banco principal | Free tier (grátis) |
-| Upstash Redis | Cache | Free tier (grátis) |
-
-### APIs de Afiliados
-| Plataforma | Status | Comissão |
-|-----------|--------|----------|
-| Mercado Livre Afiliados | ✅ Ativo | 2-12% |
-| Amazon Associados (aletubegames) | ✅ Ativo | 1-10% |
-| Shopee Afiliados | ✅ Ativo | 3-15% |
-| AliExpress Portals (bestpricetoday) | ✅ Ativo | 3-8% |
-
-### DevOps & Monitoramento
-| Ferramenta | Uso | Plano |
-|-----------|-----|-------|
-| Vercel | Deploy frontend + CI/CD | Free |
-| Hugging Face Spaces | Deploy backend Docker | Free |
-| GitHub Actions | CI/CD pipeline | Free |
-| Sentry | Error tracking | Free |
-| ngrok | Tunnel desenvolvimento | Free |
-
-### Canais de Distribuição
-| Canal | URL |
-|-------|-----|
-| YouTube | https://www.youtube.com/channel/UCDt5FafuWaqdu06fLWjYyuQ |
-| X/Twitter | https://x.com/AleTubeGames |
-| Instagram | https://www.instagram.com/alessandro.souza.77582 |
-| TikTok | https://www.tiktok.com/@aletubegames8 |
-| Facebook | https://www.facebook.com/alessandro.souza.77582/ |
-
----
-
-## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/seu-usuario/bestpricetoday
-cd bestpricetoday
-bash scripts/bootstrap.sh
-# Edite backend/.env com suas API keys
-make dev
+cd backend
+python -m venv .venv312
+source .venv312/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # edite com suas credenciais
+uvicorn app.main:app --reload --port 8000
 ```
 
-Acesse: http://localhost:3000
-API docs: http://localhost:8000/docs
-
----
-
-## 📋 Comandos
+### Frontend
 
 ```bash
-make setup       # Setup inicial
-make dev         # Docker completo
-make dev-backend # Só backend
-make dev-bot     # Só Telegram bot
-make test        # Rodar testes
-make lint        # Lint + type check
-make migrate     # Migrations banco
+cd frontend
+npm install
+cp .env.local.example .env.local  # edite NEXT_PUBLIC_API_URL
+npm run dev
 ```
 
----
+## Variáveis de Ambiente (Backend)
 
-## 💸 Monetização
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `DATABASE_URL` | ✅ | PostgreSQL async URL |
+| `ADMIN_MANAGER_KEY` | ✅ | Chave para endpoints /admin |
+| `ALIEXPRESS_APP_KEY` | Recomendado | Busca + rastreio AliExpress |
+| `ALIEXPRESS_APP_SECRET` | Recomendado | |
+| `ALIEXPRESS_TRACKING_ID` | Recomendado | |
+| `MERCADOLIVRE_APP_ID` | Recomendado | OAuth ML + busca |
+| `MERCADOLIVRE_SECRET` | Recomendado | |
+| `SHOPEE_APP_ID` | Opcional | Busca Shopee |
+| `SHOPEE_SECRET` | Opcional | |
+| `LOMADEE_API_KEY` | Opcional | Busca Lomadee |
+| `TELEGRAM_BOT_TOKEN` | Opcional | Bot alertas |
+| `TELEGRAM_CHANNEL_ID` | Opcional | Canal broadcast |
+| `REDIS_URL` | Opcional | Cache (default: redis://localhost:6379) |
 
+## Monetização
+
+### Fluxo de Clique
+1. Usuário clica em oferta → `OfferCard.tsx` chama `POST /api/v1/admin/clicks`
+2. O click fica salvo em `click_events` com provider, título, preço e IP
+3. Se usar `/r/{code}` (short link), o backend registra o clique e redireciona
+
+### Tracking de Conversões
+- **AliExpress:** API `aliexpress.affiliate.order.list.by.index` (poll horário)
+- **Lomadee:** API `/v3/{sourceId}/report/commission` (poll horário)
+- **Shopee:** GraphQL `conversionReport` (poll horário)
+- **Mercado Livre:** Webhook HMAC + GET `/orders/{id}`
+
+### Dashboard Admin
+`GET /api/v1/admin/overview` (requer `X-Admin-Key`)
+
+## Deploy
+
+### Frontend (Vercel)
+```bash
+cd frontend && vercel --prod --yes
 ```
-Fase 1 (0-1k usuários):   Afiliados — R$0 investimento
-Fase 2 (1k-10k):          Plano Premium R$9,90/mês
-Fase 3 (10k+):            API paga, White Label, Ads
+
+### Backend (HuggingFace Space)
+```bash
+cd backend && bash sync_hf_deploy.sh
+cd hf_deploy && git add -A && git commit -m "deploy" && git push
 ```
 
-**Estimativa:**
-- 1.000 usuários × 2 compras/mês × R$150 ticket × 5% = **R$15.000/mês**
+## Testes
 
----
+```bash
+cd backend
+PYTHONPATH=. .venv312/bin/pytest tests/test_integrity.py tests/test_api.py -v
+```
 
-## 📄 License
+## Endpoints Principais
 
-MIT — AleTubeGames
+| Método | Path | Descrição |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET/POST` | `/api/v1/search` | Busca multi-provider |
+| `GET` | `/api/v1/search/trending` | Buscas em alta |
+| `POST` | `/api/v1/admin/clicks` | Registra clique (sem auth) |
+| `GET` | `/api/v1/admin/overview` | Dashboard monetização |
+| `GET` | `/api/v1/r/{code}` | Redirect rastreado |
+| `POST` | `/api/v1/links/create` | Cria short link |
+| `GET/POST` | `/api/v1/alerts` | Alertas de preço |
+| `GET/POST` | `/api/v1/favorites` | Favoritos |

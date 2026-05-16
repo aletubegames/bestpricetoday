@@ -1,7 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-
-const API = process.env.NEXT_PUBLIC_API_URL || "https://alessandro2090-bestpricetoday-api.hf.space"
+import { API_BASE as API } from "@/lib/api"
 
 const PROVIDER_LOGOS: Record<string, string> = {
   aliexpress: "🔴", shopee: "🟠", mercadolivre: "🟡",

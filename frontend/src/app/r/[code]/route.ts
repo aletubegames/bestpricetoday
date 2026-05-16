@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-
-const API = process.env.NEXT_PUBLIC_API_URL || "https://alessandro2090-bestpricetoday-api.hf.space"
+import { API_BASE as API } from "@/lib/api"
 
 export async function GET(
   request: NextRequest,

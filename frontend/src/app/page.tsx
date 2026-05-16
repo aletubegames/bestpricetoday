@@ -206,13 +206,13 @@ export default function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 6,
-              fontSize: 12, fontWeight: 500, color: "var(--grn)",
-              background: "rgba(0,229,160,0.08)",
-              border: "1px solid rgba(0,229,160,0.2)",
+              fontSize: 12, fontWeight: 500, color: "var(--acc2)",
+              background: "rgba(124,106,255,0.1)",
+              border: "1px solid rgba(124,106,255,0.2)",
               padding: "4px 12px", borderRadius: 99,
             }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--grn)", animation: "pulse 2s infinite" }} />
-              7 lojas ao vivo
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--acc2)" }} />
+              Busca multi-loja
             </div>
             <a href="/alertas" style={{
               display: "flex", alignItems: "center", gap: 5,

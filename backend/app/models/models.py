@@ -127,8 +127,9 @@ class PriceAlert(Base):
     __tablename__ = "alertas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # nullable: suporte a alertas anônimos via telegram_id
-    telegram_id = Column(String, nullable=True, index=True)  # alerta anônimo via Telegram
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # owner_id: telegram_id real ou bpt_anon_id do browser — obrigatório para scoping
+    owner_id = Column(String, nullable=False, index=True)
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=True)
     query = Column(String, nullable=False)
     target_price = Column(Float, nullable=False)
@@ -143,7 +144,9 @@ class Favorite(Base):
     __tablename__ = "favoritos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # owner_id: telegram_id real ou bpt_anon_id do browser — obrigatório para scoping
+    owner_id = Column(String, nullable=False, index=True)
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

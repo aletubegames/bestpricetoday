@@ -92,10 +92,11 @@ class PriceHistoryPoint(BaseModel):
 
 
 class AlertCreate(BaseModel):
-    query: str
-    target_price: float
+    query: str = Field(..., min_length=1, max_length=200)
+    target_price: float = Field(..., gt=0)
     product_id: Optional[UUID] = None
-    telegram_id: Optional[str] = None  # para alertas anônimos via Telegram
+    owner_id: str = Field(..., min_length=1, max_length=128,
+                         description="ID do dono — telegram_id real ou bpt_anon_id do browser")
 
 
 class AlertResponse(BaseModel):
@@ -103,7 +104,7 @@ class AlertResponse(BaseModel):
     query: str
     target_price: float
     is_active: bool
-    telegram_id: Optional[str] = None
+    owner_id: str
     created_at: datetime
 
     class Config:
@@ -119,11 +120,14 @@ class ClickTrack(BaseModel):
 
 class FavoriteCreate(BaseModel):
     product_id: UUID
+    owner_id: str = Field(..., min_length=1, max_length=128,
+                         description="ID do dono — telegram_id real ou bpt_anon_id do browser")
 
 
 class FavoriteResponse(BaseModel):
     id: UUID
     product_id: UUID
+    owner_id: str
     created_at: datetime
 
     class Config:

@@ -172,11 +172,14 @@ async def cmd_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Instrui o usuário a criar alertas via site, passando o telegram_id."""
+    telegram_id = str(update.effective_user.id)
     await update.message.reply_text(
         "🔔 *Alertas de Preço*\n\n"
-        "Em breve você poderá criar alertas e receber notificação quando o preço cair!\n\n"
-        "Por enquanto, acesse:\n"
-        f"🌐 https://bestpricetoday.vercel.app",
+        "Acesse o site para criar alertas. Seus alertas serão vinculados ao seu Telegram:\n\n"
+        f"🌐 https://bestpricetoday.vercel.app/alertas\n\n"
+        "Quando o preço cair, você receberá uma notificação aqui mesmo! 🎉\n\n"
+        f"_Seu ID Telegram: `{telegram_id}`_",
         parse_mode="Markdown"
     )
 
