@@ -50,7 +50,8 @@ const VIDEO_FORMATS = [
   { id: "vs",              label: "VS Comparativo",      emoji: "⚔️", desc: "Marca cara vs barata" },
   { id: "alerta",          label: "Alerta de Preço",     emoji: "🔔", desc: "\'Preço caiu! Não perca!\'" },
   { id: "ultima_chance",   label: "Última Chance",       emoji: "⏳", desc: "Urgência + escassez" },
-  { id: "wan21_cinematic", label: "WAN2.1 Cinemático",  emoji: "🎥", desc: "Vídeo gerado por IA (usa GPU)" },
+  { id: "wan21_cinematic", label: "WAN2.1 Cinemático",  emoji: "🎥", desc: "Vídeo IA rápido (Wan2.1 apenas)" },
+  { id: "hybrid_cinema",   label: "Híbrido 4K ⭐",      emoji: "🔭", desc: "Wan2.1 → HunyuanVideo → Real-ESRGAN 4K (~7min, máxima qualidade)" },
 ];
 
 const PLATAFORMAS = [
