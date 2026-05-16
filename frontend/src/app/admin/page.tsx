@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE as API } from "@/lib/api";
 
 const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
@@ -40,6 +40,229 @@ function getIntegrations(integrationStatus: any) {
     { name: "Lomadee", icon: "🟣", status: lomadee.status === "active" ? "✅" : "⚠️", statusText: lomadee.status === "active" ? "Ativo" : "Sem credencial", color: lomadee.status === "active" ? "#4ade80" : "#facc15" },
     { name: "TikTok Shop", icon: "🎵", status: "🔄", statusText: "Em revisão", color: "#60a5fa" },
   ];
+}
+
+// ─── Formatos de vídeo disponíveis ───────────────────────────────────────────
+const VIDEO_FORMATS = [
+  { id: "oferta_choque",    label: "Oferta Choque",       emoji: "💥", desc: "Preço + desconto + urgência" },
+  { id: "viral_tiktok",    label: "Viral TikTok",        emoji: "🎙️", desc: "Gancho emocional, ritmo rápido" },
+  { id: "top3",            label: "Top 3",               emoji: "🏆", desc: "Compara 3 opções da mesma categoria" },
+  { id: "vs",              label: "VS Comparativo",      emoji: "⚔️", desc: "Marca cara vs barata" },
+  { id: "alerta",          label: "Alerta de Preço",     emoji: "🔔", desc: "\"Preço caiu! Não perca!\"" },
+  { id: "ultima_chance",   label: "Última Chance",       emoji: "⏳", desc: "Urgência + escassez" },
+  { id: "wan21_cinematic", label: "WAN2.1 Cinemático",  emoji: "🎥", desc: "Vídeo gerado por IA (usa GPU)" },
+];
+
+const PLATAFORMAS = [
+  { id: "telegram", label: "Telegram", emoji: "✈️", color: "#29b6f6" },
+  { id: "youtube",  label: "YouTube",  emoji: "📹", color: "#f43f5e" },
+  { id: "tiktok",   label: "TikTok",   emoji: "🎙️", color: "#ff0050" },
+];
+
+function VideoPublisher({ apiBase, adminKey, topProducts }: {
+  apiBase: string;
+  adminKey: string;
+  topProducts: any[];
+}) {
+  const [selectedProduct, setSelectedProduct] = React.useState<any | null>(null);
+  const [selectedFormat, setSelectedFormat]   = React.useState("oferta_choque");
+  const [selectedPlats, setSelectedPlats]     = React.useState<string[]>(["telegram"]);
+  const [jobId, setJobId]   = React.useState<string | null>(null);
+  const [jobLog, setJobLog] = React.useState<string[]>([]);
+  const [jobDone, setJobDone] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const togglePlat = (id: string) =>
+    setSelectedPlats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+
+  const stopPoll = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
+
+  const pollStatus = React.useCallback((jid: string) => {
+    stopPoll();
+    pollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
+        const d = await r.json();
+        if (d.ok) {
+          setJobLog(d.log_tail || []);
+          if (d.done) { setJobDone(true); stopPoll(); setLoading(false); }
+        }
+      } catch {}
+    }, 3000);
+  }, [apiBase, adminKey]);
+
+  const dispatch = async () => {
+    if (!selectedPlats.length) return;
+    setLoading(true);
+    setJobId(null);
+    setJobLog([]);
+    setJobDone(false);
+    try {
+      const res = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+        body: JSON.stringify({
+          query: selectedProduct?.product_title || null,
+          plataformas: selectedPlats,
+          formato: selectedFormat,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setJobId(d.job_id);
+        pollStatus(d.job_id);
+      } else {
+        setJobLog([`❌ ${d.error}`]);
+        setLoading(false);
+      }
+    } catch (e: any) {
+      setJobLog([`❌ Erro: ${e.message}`]);
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => () => stopPoll(), []);
+
+  const fmtBRL = (v: number) => v?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmt = VIDEO_FORMATS.find(f => f.id === selectedFormat);
+
+  return (
+    <div style={{ marginTop: 20, borderTop: "1px solid #1e293b", paddingTop: 20 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 16 }}>
+        🎥 Gerar Vídeo com IA
+      </div>
+
+      {/* STEP 1 — Produto */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+          1. Produto — Top 10 cliques
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            onClick={() => setSelectedProduct(null)}
+            style={{
+              padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+              background: !selectedProduct ? "rgba(124,106,255,0.2)" : "#0d0d1a",
+              border: `1px solid ${!selectedProduct ? "#7c6aff" : "#2a2a3a"}`,
+              color: !selectedProduct ? "#a78bfa" : "#64748b",
+            }}>
+            🌟 Auto (melhor oferta)
+          </button>
+          {topProducts.slice(0, 10).map((p: any, i: number) => {
+            const sel = selectedProduct?.product_title === p.product_title;
+            return (
+              <button key={i} onClick={() => setSelectedProduct(p)}
+                title={p.product_title}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  background: sel ? "rgba(124,106,255,0.2)" : "#0d0d1a",
+                  border: `1px solid ${sel ? "#7c6aff" : "#2a2a3a"}`,
+                  color: sel ? "#a78bfa" : "#94a3b8",
+                  maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                #{i + 1} {p.product_title?.slice(0, 22) || "Produto"}
+                {p.price ? <span style={{ color: "#facc15", marginLeft: 4 }}>{fmtBRL(p.price)}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+        {selectedProduct && (
+          <div style={{ marginTop: 8, fontSize: 11, color: "#7c6aff", background: "rgba(124,106,255,0.08)", borderRadius: 6, padding: "4px 10px", display: "inline-block" }}>
+            ✔ {selectedProduct.product_title?.slice(0, 60)}
+          </div>
+        )}
+      </div>
+
+      {/* STEP 2 — Formato */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+          2. Formato do vídeo
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {VIDEO_FORMATS.map(f => (
+            <button key={f.id} onClick={() => setSelectedFormat(f.id)}
+              title={f.desc}
+              style={{
+                padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                background: selectedFormat === f.id ? "rgba(124,106,255,0.2)" : "#0d0d1a",
+                border: `1px solid ${selectedFormat === f.id ? "#7c6aff" : "#2a2a3a"}`,
+                color: selectedFormat === f.id ? "#a78bfa" : "#94a3b8",
+              }}>
+              {f.emoji} {f.label}
+            </button>
+          ))}
+        </div>
+        {fmt && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "#64748b" }}>
+            {fmt.emoji} <em>{fmt.desc}</em>
+            {fmt.id === "wan21_cinematic" && (
+              <span style={{ color: "#fbbf24", marginLeft: 6 }}>⚠️ Requer GPU local — pode demorar 2-5 min</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* STEP 3 — Plataformas */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+          3. Publicar em
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {PLATAFORMAS.map(p => {
+            const on = selectedPlats.includes(p.id);
+            return (
+              <button key={p.id} onClick={() => togglePlat(p.id)}
+                style={{
+                  padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  background: on ? `${p.color}20` : "#0d0d1a",
+                  border: `2px solid ${on ? p.color : "#2a2a3a"}`,
+                  color: on ? p.color : "#64748b",
+                  transition: "all .15s",
+                }}>
+                {p.emoji} {p.label} {on ? "✔" : ""}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DISPATCH */}
+      <button
+        onClick={dispatch}
+        disabled={loading || !selectedPlats.length}
+        style={{
+          padding: "10px 24px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: loading ? "wait" : "pointer",
+          background: loading ? "#1a1a2e" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
+          border: "none", color: loading ? "#64748b" : "#fff",
+          opacity: !selectedPlats.length ? 0.5 : 1,
+          marginBottom: jobId || jobLog.length ? 16 : 0,
+          transition: "all .2s",
+        }}>
+        {loading ? "⏳ Gerando..." : `🚀 Gerar e publicar em ${selectedPlats.map(id => PLATAFORMAS.find(p => p.id === id)?.emoji).join(" ")}`}
+      </button>
+
+      {/* LOG */}
+      {(jobLog.length > 0 || jobId) && (
+        <div style={{ background: "#060610", border: "1px solid #1e293b", borderRadius: 8, padding: 12, fontFamily: "monospace", fontSize: 11 }}>
+          {jobId && !jobDone && (
+            <div style={{ color: "#7c6aff", marginBottom: 6 }}>⏳ Job {jobId} rodando... (atualiza a cada 3s)</div>
+          )}
+          {jobDone && (
+            <div style={{ color: "#4ade80", marginBottom: 6 }}>✅ Concluído!</div>
+          )}
+          {jobLog.map((line, i) => (
+            <div key={i} style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "#f87171" : line.includes("✅") ? "#4ade80" : "#94a3b8", lineHeight: 1.6 }}>
+              {line}
+            </div>
+          ))}
+          {!jobDone && jobId && <div style={{ color: "#64748b", marginTop: 4 }}>...</div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminPage() {
@@ -283,29 +506,36 @@ export default function AdminPage() {
 
         {/* MARKETING */}
         <div style={{ ...S.card, marginBottom: 16 }}>
-          <div style={{ ...S.label, marginBottom: 12 }}>📣 Marketing Automático</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 10, padding: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>📱 Canal Telegram</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10 }}>Envio manual disponível pelo painel admin</div>
+          <div style={{ ...S.label, marginBottom: 16 }}>📣 Marketing Automático</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+
+            {/* Canal Telegram */}
+            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📱 Canal Telegram</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>Posta ofertas de texto/imagem direto no canal</div>
               <button onClick={async () => {
                 const res = await fetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, { method: "POST", headers: { "X-Admin-Key": key } });
                 const d = await res.json();
-                alert(d.ok ? `✅ ${d.posted} ofertas postadas!` : `❌ ${d.error || "Erro"}`);
+                alert(d.ok ? `✅ ${d.posted} ofertas postadas!\n${d.titles?.join("\n") || ""}` : `❌ ${d.error || "Erro"}`);
               }} style={{ width: "100%", padding: "9px", borderRadius: 8, background: "rgba(41,182,246,0.1)", border: "1px solid rgba(41,182,246,0.3)", color: "#29b6f6", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
                 📤 Postar 3 ofertas agora
               </button>
             </div>
-            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 10, padding: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🔍 SEO / Páginas</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>Sitemap publicado para páginas públicas</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10 }}>Sitemap em /sitemap.xml</div>
+
+            {/* SEO */}
+            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🔍 SEO / Páginas</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Sitemap publicado para páginas públicas</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>Sitemap em /sitemap.xml</div>
               <a href="/sitemap.xml" target="_blank"
                 style={{ display: "block", textAlign: "center", padding: "9px", borderRadius: 8, background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.3)", color: "#a78bfa", fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
                 Ver sitemap →
               </a>
             </div>
           </div>
+
+          {/* ── GERADOR DE VÍDEO ── */}
+          <VideoPublisher apiBase={API} adminKey={key} topProducts={topProducts} />
         </div>
 
         {/* CONVERSION LOOP */}

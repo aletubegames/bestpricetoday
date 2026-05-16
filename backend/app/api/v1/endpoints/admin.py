@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.models import ClickEvent, ConversionEvent, ShortLink
 from pydantic import BaseModel
 from typing import Optional
+from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
 import uuid
@@ -729,6 +730,111 @@ async def trigger_telegram_broadcast(
         from app.workers.channel_broadcaster import broadcast_top_offers
         result = await broadcast_top_offers(n_offers=n)
         return {"ok": True, **result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+class VideoPublishRequest(BaseModel):
+    query: Optional[str] = None          # produto a buscar; None = deixa o script escolher
+    plataformas: list[str] = ["telegram"] # ["telegram", "youtube", "tiktok"]
+    formato: str = "oferta_choque"        # formato do vídeo
+
+
+@router.post("/video/publish")
+async def trigger_video_publish(
+    body: VideoPublishRequest,
+    _: str = Depends(require_admin),
+):
+    """
+    Dispara geração e publicação de vídeo Wan2.1 via traffic_machine.py.
+
+    Roda como subprocess não-bloqueante — retorna job_id imediatamente.
+    O status pode ser consultado via GET /admin/video/status/{job_id}.
+
+    Plataformas válidas: telegram, youtube, tiktok
+    Formatos válidos: oferta_choque, viral_tiktok, top3, vs, alerta, ultima_chance, wan21_cinematic
+    """
+    import subprocess, sys, time, json as _json
+
+    WAN2_DIR = "/home/alessandro/wan2"
+    wan2_python = f"{WAN2_DIR}/.venv/bin/python3"
+    if not Path(wan2_python).exists():
+        wan2_python = sys.executable  # fallback
+
+    plataformas_validas = {"telegram", "youtube", "tiktok"}
+    plats = [p for p in body.plataformas if p in plataformas_validas]
+    if not plats:
+        return {"ok": False, "error": "Nenhuma plataforma válida. Use: telegram, youtube, tiktok"}
+
+    job_id = f"vid_{int(time.time())}"
+    log_file = f"/tmp/video_job_{job_id}.log"
+
+    # Monta comando que chama traffic_machine com os parâmetros certos
+    cmd_args = [
+        wan2_python, "-c",
+        f"""
+import asyncio, sys
+sys.path.insert(0, '{WAN2_DIR}')
+from traffic_machine import executar_formato
+from content_strategy import load_memory
+
+async def main():
+    decisao = {{
+        'format': '{body.formato}',
+        'query': {_json.dumps(body.query or '')},
+        'categoria': 'default',
+        'variation': 0,
+        'redes': {_json.dumps(plats)},
+    }}
+    result = await executar_formato(decisao)
+    print('RESULT:', result)
+
+asyncio.run(main())
+"""
+    ]
+
+    try:
+        with open(log_file, "w") as lf:
+            proc = subprocess.Popen(
+                cmd_args,
+                stdout=lf, stderr=lf,
+                cwd=WAN2_DIR,
+                start_new_session=True,  # desacopla do processo FastAPI
+            )
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "pid": proc.pid,
+            "log": log_file,
+            "plataformas": plats,
+            "formato": body.formato,
+            "note": "Job iniciado em background. Use GET /admin/video/status/{job_id} para acompanhar.",
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@router.get("/video/status/{job_id}")
+async def get_video_status(
+    job_id: str,
+    _: str = Depends(require_admin),
+):
+    """Retorna as últimas linhas do log do job de vídeo."""
+    import subprocess
+    log_file = f"/tmp/video_job_{job_id}.log"
+    if not Path(log_file).exists():
+        return {"ok": False, "error": "Job não encontrado"}
+    try:
+        # Verifica se processo ainda está rodando
+        lines = Path(log_file).read_text(errors="replace").splitlines()
+        tail = lines[-30:] if len(lines) > 30 else lines
+        done = any("RESULT:" in l or "Erro" in l or "Error" in l for l in lines)
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "done": done,
+            "log_tail": tail,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
