@@ -123,16 +123,52 @@ function suggestFormats(p: any): { id: string; reason: string }[] {
     .map(({ id, reason }) => ({ id, reason }));
 }
 
+const PRODUCT_SOURCES = [
+  { id: "top_clicks",           label: "🔥 Top Cliques (nosso)",        desc: "Produtos mais clicados pelos usuários" },
+  { id: "trending",             label: "🔍 Mais Buscados",              desc: "Termos em alta no site" },
+  { id: "top_month",            label: "💰 Top Vendas do Mês",          desc: "Mais convertidos com comissão confirmada" },
+  { id: "high_discount",        label: "🏷️ Maiores Descontos Agora",  desc: "Desconto ≥ 10% sem fake discount" },
+  { id: "top_sales_aliexpress", label: "🔴 Mais Vendidos AliExpress",  desc: "Hot products via API AliExpress" },
+  { id: "top_sales_shopee",     label: "🟠 Mais Vendidos Shopee",      desc: "Hot sale Shopee" },
+  { id: "top_sales_mercadolivre", label: "🟡 Mais Vendidos ML",         desc: "Top vendas Mercado Livre" },
+];
+
 function VideoPublisher({ apiBase, adminKey, topProducts }: {
   apiBase: string;
   adminKey: string;
   topProducts: any[];
 }) {
+  const [productSource, setProductSource]     = React.useState("top_clicks");
+  const [sourceProducts, setSourceProducts]   = React.useState<any[]>([]);
+  const [loadingSource, setLoadingSource]     = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<any | null>(null);
   const [selectedFormat, setSelectedFormat]   = React.useState("oferta_choque");
   const [selectedPlats, setSelectedPlats]     = React.useState<string[]>(["telegram"]);
   const [jobId, setJobId]   = React.useState<string | null>(null);
   const [jobLog, setJobLog] = React.useState<string[]>([]);
+
+  // Carrega produtos da fonte selecionada
+  const loadSource = React.useCallback(async (src: string) => {
+    setLoadingSource(true);
+    setSelectedProduct(null);
+    try {
+      // top_clicks usa os topProducts já carregados para não fazer request extra
+      if (src === "top_clicks") {
+        setSourceProducts(topProducts.slice(0, 10));
+      } else {
+        const r = await fetch(
+          `${apiBase}/api/v1/admin/products/suggestions?source=${src}&limit=10`,
+          { headers: { "X-Admin-Key": adminKey } }
+        );
+        const data = await r.json();
+        setSourceProducts(Array.isArray(data) ? data : []);
+      }
+    } catch { setSourceProducts([]); }
+    setLoadingSource(false);
+  }, [apiBase, adminKey, topProducts]);
+
+  // Carrega top_clicks ao montar e quando topProducts mudar
+  React.useEffect(() => { loadSource(productSource); }, [topProducts]);
   const [jobDone, setJobDone] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -213,9 +249,37 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       {/* STEP 1 — Produto */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          1. Produto — Top 10 cliques
+          1. Produto
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+
+        {/* Dropdown de fonte */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+          <select
+            value={productSource}
+            onChange={e => { setProductSource(e.target.value); loadSource(e.target.value); }}
+            style={{
+              background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 8,
+              padding: "8px 12px", color: "#e2e8f0", fontSize: 12, cursor: "pointer",
+              minWidth: 220, outline: "none",
+            }}>
+            {PRODUCT_SOURCES.map(s => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => loadSource(productSource)}
+            title="Recarregar"
+            style={{ background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 8,
+              padding: "7px 12px", color: "#7c6aff", cursor: "pointer", fontSize: 13 }}>
+            {loadingSource ? "⏳" : "↻"}
+          </button>
+          <span style={{ fontSize: 10, color: "#475569" }}>
+            {PRODUCT_SOURCES.find(s => s.id === productSource)?.desc}
+          </span>
+        </div>
+
+        {/* Lista de produtos da fonte */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button
             onClick={() => setSelectedProduct(null)}
             style={{
@@ -224,29 +288,56 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
               border: `1px solid ${!selectedProduct ? "#7c6aff" : "#2a2a3a"}`,
               color: !selectedProduct ? "#a78bfa" : "#64748b",
             }}>
-            🌟 Auto (melhor oferta)
+            🌟 Auto
           </button>
-          {topProducts.slice(0, 10).map((p: any, i: number) => {
+
+          {loadingSource ? (
+            <span style={{ fontSize: 11, color: "#64748b", padding: "6px 0" }}>⏳ Carregando...</span>
+          ) : sourceProducts.length === 0 ? (
+            <span style={{ fontSize: 11, color: "#475569", padding: "6px 0" }}>Sem dados para esta fonte</span>
+          ) : sourceProducts.map((p: any, i: number) => {
             const sel = selectedProduct?.product_title === p.product_title;
+            const badge = p.badge || "";
+            const discount = p.discount ? ` -${Math.round(p.discount)}%` : "";
             return (
               <button key={i} onClick={() => setSelectedProduct(p)}
                 title={p.product_title}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", maxWidth: 180, overflow: "hidden",
+                  textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" as const,
                   background: sel ? "rgba(124,106,255,0.2)" : "#0d0d1a",
-                  border: `1px solid ${sel ? "#7c6aff" : "#2a2a3a"}`,
+                  border: `1px solid ${sel ? "#7c6aff" : "#1e293b"}`,
                   color: sel ? "#a78bfa" : "#94a3b8",
-                  maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
-                #{i + 1} {p.product_title?.slice(0, 22) || "Produto"}
+                <span style={{ fontSize: 10, opacity: 0.7 }}>#{i + 1} </span>
+                {p.product_title?.slice(0, 20) || "Produto"}
                 {p.price ? <span style={{ color: "#facc15", marginLeft: 4 }}>{fmtBRL(p.price)}</span> : null}
+                {discount ? <span style={{ color: "#4ade80", marginLeft: 3 }}>{discount}</span> : null}
               </button>
             );
           })}
         </div>
+
+        {/* Produto selecionado */}
         {selectedProduct && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "#7c6aff", background: "rgba(124,106,255,0.08)", borderRadius: 6, padding: "4px 10px", display: "inline-block" }}>
-            ✔ {selectedProduct.product_title?.slice(0, 60)}
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 11, color: "#7c6aff", background: "rgba(124,106,255,0.08)",
+              borderRadius: 6, padding: "4px 10px" }}>
+              ✔ {selectedProduct.product_title?.slice(0, 60)}
+            </div>
+            {selectedProduct.badge && (
+              <div style={{ fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.1)",
+                borderRadius: 6, padding: "3px 8px" }}>
+                {selectedProduct.badge}
+              </div>
+            )}
+            {selectedProduct.discount >= 10 && (
+              <div style={{ fontSize: 10, color: "#4ade80", background: "rgba(74,222,128,0.1)",
+                borderRadius: 6, padding: "3px 8px" }}>
+                -{Math.round(selectedProduct.discount)}% OFF
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -497,6 +497,152 @@ async def get_top_products(
         return []
 
 
+@router.get("/products/suggestions")
+async def get_product_suggestions(
+    source: str = "top_clicks",   # top_clicks | trending | top_sales_{provider} | top_month
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """
+    Retorna sugestões de produtos para geração de vídeo.
+
+    source:
+      top_clicks          - Top produtos por cliques (nosso banco)
+      trending            - Termos mais buscados (nosso banco)
+      top_sales_aliexpress - Mais vendidos AliExpress (bestseller)
+      top_sales_shopee    - Mais vendidos Shopee (hot products)
+      top_sales_ml        - Mais vendidos Mercado Livre (MLB#)
+      top_month           - Conversions com mais vendas este mês
+      high_discount       - Melhores descontos ativos agora
+    """
+    try:
+        if source == "top_clicks":
+            r = await db.execute(
+                select(
+                    ClickEvent.product_title,
+                    ClickEvent.provider,
+                    func.count().label("clicks"),
+                    func.avg(ClickEvent.price).label("avg_price"),
+                ).where(ClickEvent.product_title.isnot(None))
+                .group_by(ClickEvent.product_title, ClickEvent.provider)
+                .order_by(func.count().desc())
+                .limit(limit)
+            )
+            rows = r.fetchall()
+            return [{"product_title": row.product_title, "provider": row.provider,
+                     "clicks": row.clicks, "price": round(row.avg_price or 0, 2),
+                     "badge": "🔥 Top Cliques", "source": "top_clicks"} for row in rows]
+
+        elif source == "trending":
+            from app.services.search import get_trending_searches
+            items = await get_trending_searches(limit=limit)
+            return [{"product_title": item["query"], "provider": None,
+                     "clicks": item.get("score", 0), "price": None,
+                     "badge": "🔍 Mais Buscado", "source": "trending"} for item in items]
+
+        elif source == "top_month":
+            since = datetime.utcnow() - timedelta(days=30)
+            r = await db.execute(
+                select(
+                    ConversionEvent.product_title,
+                    ConversionEvent.provider,
+                    func.count().label("sales"),
+                    func.avg(ConversionEvent.sale_price).label("avg_price"),
+                    func.sum(ConversionEvent.commission_value).label("total_commission"),
+                ).where(
+                    ConversionEvent.created_at >= since,
+                    ConversionEvent.status == "confirmed",
+                    ConversionEvent.product_title.isnot(None),
+                )
+                .group_by(ConversionEvent.product_title, ConversionEvent.provider)
+                .order_by(func.count().desc())
+                .limit(limit)
+            )
+            rows = r.fetchall()
+            return [{"product_title": row.product_title, "provider": row.provider,
+                     "clicks": row.sales, "price": round(row.avg_price or 0, 2),
+                     "commission": round(row.total_commission or 0, 2),
+                     "badge": "💰 Top Vendas Mês", "source": "top_month"} for row in rows]
+
+        elif source == "high_discount":
+            # Busca produto com maiores descontos ativos na API
+            import httpx
+            queries = ["smartphone", "notebook", "fone bluetooth", "smartwatch", "airfryer"]
+            results = []
+            async with httpx.AsyncClient(timeout=15) as c:
+                for q in queries[:3]:  # limita chamadas
+                    try:
+                        r = await c.get(
+                            f"http://localhost:8000/api/v1/search",
+                            params={"q": q, "limit": 5},
+                        )
+                        offers = r.json().get("offers", [])
+                        for o in offers:
+                            if o.get("discount_percent", 0) >= 10 and not o.get("is_fake_discount"):
+                                results.append({
+                                    "product_title": o.get("title", "")[:80],
+                                    "provider": o.get("provider"),
+                                    "clicks": 0,
+                                    "price": o.get("final_price"),
+                                    "discount": o.get("discount_percent"),
+                                    "affiliate_url": o.get("affiliate_url"),
+                                    "badge": f"🏷️ -{o.get('discount_percent', 0):.0f}% OFF",
+                                    "source": "high_discount",
+                                })
+                    except Exception:
+                        pass
+            results.sort(key=lambda x: x.get("discount", 0), reverse=True)
+            return results[:limit]
+
+        elif source.startswith("top_sales_"):
+            provider = source.replace("top_sales_", "")
+            # Busca bestsellers via API de busca para o provider
+            import httpx
+            BESTSELLER_QUERIES: dict[str, list[str]] = {
+                "aliexpress": ["bestseller smartphone", "top venda fone", "mais vendido smartwatch"],
+                "shopee": ["mais vendido 2024", "hot sale", "top venda"],
+                "mercadolivre": ["mais vendido", "top vendas"],
+            }
+            queries = BESTSELLER_QUERIES.get(provider, ["mais vendido", "top sale"])
+            results = []
+            async with httpx.AsyncClient(timeout=15) as c:
+                for q in queries[:2]:
+                    try:
+                        r = await c.get(
+                            f"http://localhost:8000/api/v1/search",
+                            params={"q": q, "limit": 6, "providers": provider},
+                        )
+                        offers = r.json().get("offers", [])
+                        for o in offers:
+                            if o.get("final_price", 0) > 20:
+                                results.append({
+                                    "product_title": o.get("title", "")[:80],
+                                    "provider": o.get("provider"),
+                                    "clicks": 0,
+                                    "price": o.get("final_price"),
+                                    "discount": o.get("discount_percent", 0),
+                                    "badge": f"🏆 Top {provider.title()}",
+                                    "source": source,
+                                })
+                    except Exception:
+                        pass
+            # Deduplica por título
+            seen = set()
+            deduped = []
+            for r in results:
+                key = r["product_title"][:40]
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(r)
+            return deduped[:limit]
+
+        return []
+    except Exception as e:
+        logger.error(f"Product suggestions error ({source}): {e}")
+        return []
+
+
 @router.post("/conversions/poll")
 async def trigger_conversion_poll(
     db: AsyncSession = Depends(get_db),
