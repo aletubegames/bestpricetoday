@@ -191,15 +191,33 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
+  const VIDEO_LOCAL = "http://localhost:8765";
+  const [videoApiOnline, setVideoApiOnline] = React.useState<boolean | null>(null);
+
+  // Verifica se a Video API local está online
+  React.useEffect(() => {
+    fetch(`${VIDEO_LOCAL}/health`, { signal: AbortSignal.timeout(2000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setVideoApiOnline(!!d?.ok))
+      .catch(() => setVideoApiOnline(false));
+  }, []);
   const pollStatus = React.useCallback((jid: string) => {
     stopPoll();
     pollRef.current = setInterval(async () => {
       try {
-        const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
-        const d = await r.json();
-        if (d.ok) {
-          setJobLog(d.log_tail || []);
-          if (d.done) { setJobDone(true); stopPoll(); setLoading(false); }
+        // Tenta Video API local primeiro, fallback para HF Space
+        let data: any = null;
+        try {
+          const r = await fetch(`${VIDEO_LOCAL}/video/status/${jid}`);
+          if (r.ok) data = await r.json();
+        } catch {}
+        if (!data) {
+          const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
+          data = await r.json();
+        }
+        if (data?.ok) {
+          setJobLog(data.log_tail || []);
+          if (data.done) { setJobDone(true); stopPoll(); setLoading(false); }
         }
       } catch {}
     }, 3000);
@@ -211,19 +229,36 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     setJobId(null);
     setJobLog([]);
     setJobDone(false);
+    const payload = {
+      query: selectedProduct?.product_title || null,
+      plataformas: selectedPlats,
+      formato: selectedFormat,
+    };
     try {
-      const res = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
-        body: JSON.stringify({
-          query: selectedProduct?.product_title || null,
-          plataformas: selectedPlats,
-          formato: selectedFormat,
-        }),
-      });
-      const d = await res.json();
+      // Tenta Video API local (porta 8765) primeiro
+      let d: any = null;
+      try {
+        const r = await fetch(`${VIDEO_LOCAL}/video/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (r.ok) d = await r.json();
+      } catch { /* local offline */ }
+
+      // Fallback: HF Space (proxy para a local via VIDEO_API_URL no .env)
+      if (!d) {
+        const r = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+          body: JSON.stringify(payload),
+        });
+        d = await r.json();
+      }
+
       if (d.ok) {
         setJobId(d.job_id);
+        setJobLog([`✅ Job ${d.job_id} iniciado (pid ${d.pid || '?'})`]);
         pollStatus(d.job_id);
       } else {
         setJobLog([`❌ ${d.error}`]);
@@ -438,9 +473,22 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       </div>
 
       {/* DISPATCH */}
-      <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 8, fontSize: 11, color: "#fbbf24" }}>
-        ⚠️ O gerador de vídeo roda <strong>localmente</strong> na máquina com GPU (RTX 4090).
-        Configure <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3 }}>WAN2_DIR</code> no <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3 }}>.env</code> se o caminho for diferente de <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3 }}>~/wan2</code>.
+      <div style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8, fontSize: 11,
+        background: videoApiOnline ? "rgba(74,222,128,0.06)" : "rgba(251,191,36,0.06)",
+        border: `1px solid ${videoApiOnline ? "rgba(74,222,128,0.25)" : "rgba(251,191,36,0.2)"}`,
+        color: videoApiOnline ? "#4ade80" : "#fbbf24",
+        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap"
+      }}>
+        {videoApiOnline === null && <span>🔍 Verificando Video API local...</span>}
+        {videoApiOnline === true  && <span>✅ Video API local online (porta 8765) — GPU pronta</span>}
+        {videoApiOnline === false && (
+          <span>
+            ⚠️ Video API offline. Inicie na máquina local:
+            <code style={{ background: "rgba(0,0,0,0.4)", padding: "1px 6px", borderRadius: 3, marginLeft: 6 }}>
+              cd ~/wan2 &amp;&amp; python video_api.py
+            </code>
+          </span>
+        )}
       </div>
       <button
         onClick={dispatch}

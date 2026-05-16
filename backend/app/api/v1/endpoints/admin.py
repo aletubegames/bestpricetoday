@@ -923,9 +923,9 @@ async def trigger_telegram_broadcast(
 
 
 class VideoPublishRequest(BaseModel):
-    query: Optional[str] = None          # produto a buscar; None = deixa o script escolher
-    plataformas: list[str] = ["telegram"] # ["telegram", "youtube", "tiktok"]
-    formato: str = "oferta_choque"        # formato do vídeo
+    query:       Optional[str] = None
+    plataformas: list[str]     = ["telegram"]
+    formato:     str           = "oferta_choque"
 
 
 @router.post("/video/publish")
@@ -934,79 +934,45 @@ async def trigger_video_publish(
     _: str = Depends(require_admin),
 ):
     """
-    Dispara geração e publicação de vídeo Wan2.1 via traffic_machine.py.
-    Requer que o pipeline Wan2.1 esteja instalado na máquina local.
-    Configurável via env WAN2_DIR (default: ~/wan2).
+    Dispara geração de vídeo delegando para a Video API local (porta 8765).
+
+    Arquitetura:
+      - Frontend → HF Space (/admin/video/publish)  → Video API local (localhost:8765)
+      - A Video API roda na máquina com GPU e executa o traffic_machine.py
+
+    Configurável via env:
+      VIDEO_API_URL  = URL da Video API local (default: http://localhost:8765)
+      VIDEO_API_KEY  = chave de auth da Video API (opcional)
     """
-    import subprocess, sys, time, json as _json
+    VIDEO_API_URL = os.getenv("VIDEO_API_URL", "http://localhost:8765")
+    VIDEO_API_KEY = os.getenv("VIDEO_API_KEY", "")
 
-    # Detecta o path do wan2: env var > ~/wan2 > erro claro
-    WAN2_DIR = os.getenv(
-        "WAN2_DIR",
-        str(Path.home() / "wan2")
-    )
-    if not Path(WAN2_DIR).exists():
-        return {
-            "ok": False,
-            "error": (
-                f"Pipeline Wan2.1 não encontrado em '{WAN2_DIR}'. "
-                "Configure WAN2_DIR no .env apontando para o diretório wan2, "
-                "ou execute o admin na máquina com a GPU local."
-            )
-        }
-
-    # Python do venv wan2 (preferido) ou python atual
-    wan2_python = str(Path(WAN2_DIR) / ".venv" / "bin" / "python3")
-    if not Path(wan2_python).exists():
-        wan2_python = sys.executable
-
-    plataformas_validas = {"telegram", "youtube", "tiktok"}
-    plats = [p for p in body.plataformas if p in plataformas_validas]
+    plats = [p for p in body.plataformas if p in {"telegram", "youtube", "tiktok"}]
     if not plats:
-        return {"ok": False, "error": "Nenhuma plataforma válida. Use: telegram, youtube, tiktok"}
+        return {"ok": False, "error": "Nenhuma plataforma válida"}
 
-    job_id   = f"vid_{int(time.time())}"
-    log_file = f"/tmp/video_job_{job_id}.log"
-
-    cmd_args = [
-        wan2_python, "-c",
-        f"""
-import asyncio, sys
-sys.path.insert(0, {_json.dumps(WAN2_DIR)})
-from traffic_machine import executar_formato
-
-async def main():
-    decisao = {{
-        'format': {_json.dumps(body.formato)},
-        'query': {_json.dumps(body.query or '')},
-        'categoria': 'default',
-        'variation': 0,
-        'redes': {_json.dumps(plats)},
-    }}
-    result = await executar_formato(decisao)
-    print('RESULT:', result)
-
-asyncio.run(main())
-"""
-    ]
+    headers: dict = {"Content-Type": "application/json"}
+    if VIDEO_API_KEY:
+        headers["x-video-key"] = VIDEO_API_KEY
 
     try:
-        with open(log_file, "w") as lf:
-            proc = subprocess.Popen(
-                cmd_args,
-                stdout=lf, stderr=lf,
-                cwd=WAN2_DIR,
-                start_new_session=True,
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.post(
+                f"{VIDEO_API_URL}/video/publish",
+                json={"query": body.query, "plataformas": plats, "formato": body.formato},
+                headers=headers,
             )
+        if r.status_code == 200:
+            data = r.json()
+            return data
+        return {"ok": False, "error": f"Video API retornou {r.status_code}: {r.text[:200]}"}
+    except httpx.ConnectError:
         return {
-            "ok":         True,
-            "job_id":     job_id,
-            "pid":        proc.pid,
-            "log":        log_file,
-            "plataformas": plats,
-            "formato":    body.formato,
-            "wan2_dir":   WAN2_DIR,
-            "note":       "Job iniciado. Acompanhe em GET /admin/video/status/{job_id}",
+            "ok":    False,
+            "error": (
+                f"Video API não encontrada em {VIDEO_API_URL}. "
+                "Inicie o serviço na máquina local: cd ~/wan2 && python video_api.py"
+            )
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -1017,22 +983,22 @@ async def get_video_status(
     job_id: str,
     _: str = Depends(require_admin),
 ):
-    """Retorna as últimas linhas do log do job de vídeo."""
-    import subprocess
-    log_file = f"/tmp/video_job_{job_id}.log"
-    if not Path(log_file).exists():
-        return {"ok": False, "error": "Job não encontrado"}
+    """
+    Proxy para a Video API local — busca o status/log do job.
+    """
+    VIDEO_API_URL = os.getenv("VIDEO_API_URL", "http://localhost:8765")
+    VIDEO_API_KEY = os.getenv("VIDEO_API_KEY", "")
+
+    headers: dict = {}
+    if VIDEO_API_KEY:
+        headers["x-video-key"] = VIDEO_API_KEY
+
     try:
-        # Verifica se processo ainda está rodando
-        lines = Path(log_file).read_text(errors="replace").splitlines()
-        tail = lines[-30:] if len(lines) > 30 else lines
-        done = any("RESULT:" in l or "Erro" in l or "Error" in l for l in lines)
-        return {
-            "ok": True,
-            "job_id": job_id,
-            "done": done,
-            "log_tail": tail,
-        }
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(f"{VIDEO_API_URL}/video/status/{job_id}", headers=headers)
+        return r.json()
+    except httpx.ConnectError:
+        return {"ok": False, "error": "Video API offline"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
