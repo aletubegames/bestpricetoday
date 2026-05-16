@@ -791,3 +791,31 @@ async def get_link_stats(
         ]
     except Exception:
         return []
+
+
+@router.get("/debug/db")
+async def debug_db(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Debug: conta diretamente nas tabelas para diagnosticar."""
+    from sqlalchemy import text
+    try:
+        results = {}
+        for table in ["click_events", "conversion_events", "short_links", "clicks_afiliados"]:
+            try:
+                r = await db.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                results[table] = r.scalar()
+            except Exception as e:
+                results[table] = f"ERROR: {type(e).__name__}: {str(e)[:50]}"
+        
+        # Últimos cliques raw
+        try:
+            r = await db.execute(text("SELECT provider, source, clicked_at FROM click_events ORDER BY clicked_at DESC LIMIT 5"))
+            results["last_clicks"] = [{"provider": row[0], "source": row[1], "at": str(row[2])[:16]} for row in r]
+        except Exception as e:
+            results["last_clicks"] = f"ERROR: {e}"
+        
+        return results
+    except Exception as e:
+        return {"error": str(e)}
