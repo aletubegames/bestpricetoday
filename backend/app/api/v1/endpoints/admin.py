@@ -229,6 +229,7 @@ async def get_overview(
             "conversion_rate": 0.0,
             "revenue_per_click": 0.0,
             "avg_order_value": 0.0,
+            "error": f"{type(e).__name__}: {str(e)[:200]}",
         }
 
 
