@@ -499,24 +499,54 @@ async def get_top_products(
 
 @router.get("/products/suggestions")
 async def get_product_suggestions(
-    source: str = "top_clicks",   # top_clicks | trending | top_sales_{provider} | top_month
+    source: str = "top_clicks",
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(require_admin),
 ):
     """
     Retorna sugestões de produtos para geração de vídeo.
-
-    source:
-      top_clicks          - Top produtos por cliques (nosso banco)
-      trending            - Termos mais buscados (nosso banco)
-      top_sales_aliexpress - Mais vendidos AliExpress (bestseller)
-      top_sales_shopee    - Mais vendidos Shopee (hot products)
-      top_sales_ml        - Mais vendidos Mercado Livre (MLB#)
-      top_month           - Conversions com mais vendas este mês
-      high_discount       - Melhores descontos ativos agora
+    Chama search_all() diretamente (sem HTTP) para funcionar no HF Space.
     """
+
+    async def _search(query: str, providers: list[str] | None = None) -> list[dict]:
+        """Busca interna sem HTTP — chama search_all diretamente."""
+        try:
+            from app.services.search import search_all
+            from app.schemas.schemas import SearchRequest, ProviderEnum
+            provs = [ProviderEnum(p) for p in providers] if providers else None
+            req = SearchRequest(query=query, limit=8, providers=provs)
+            resp = await search_all(req)
+            return [o.model_dump() for o in resp.offers]
+        except Exception as e:
+            logger.debug(f"_search('{query}'): {e}")
+            return []
+
+    def _offer_to_row(o: dict, badge: str, src: str) -> dict:
+        return {
+            "product_title": (o.get("title") or "")[:80],
+            "provider":      o.get("provider"),
+            "clicks":        0,
+            "price":         o.get("final_price") or o.get("price"),
+            "discount":      o.get("discount_percent", 0),
+            "affiliate_url": o.get("affiliate_url"),
+            "image_url":     o.get("image_url"),
+            "badge":         badge,
+            "source":        src,
+        }
+
+    def _dedup(items: list[dict], key_len: int = 35) -> list[dict]:
+        seen: set[str] = set()
+        out = []
+        for item in items:
+            k = (item.get("product_title") or "")[:key_len].lower()
+            if k and k not in seen:
+                seen.add(k)
+                out.append(item)
+        return out
+
     try:
+        # ── top_clicks: banco próprio ────────────────────────────────────
         if source == "top_clicks":
             r = await db.execute(
                 select(
@@ -529,18 +559,34 @@ async def get_product_suggestions(
                 .order_by(func.count().desc())
                 .limit(limit)
             )
-            rows = r.fetchall()
-            return [{"product_title": row.product_title, "provider": row.provider,
-                     "clicks": row.clicks, "price": round(row.avg_price or 0, 2),
-                     "badge": "🔥 Top Cliques", "source": "top_clicks"} for row in rows]
+            return [
+                {"product_title": row.product_title, "provider": row.provider,
+                 "clicks": row.clicks, "price": round(row.avg_price or 0, 2),
+                 "badge": "🔥 Top Cliques", "source": "top_clicks"}
+                for row in r.fetchall()
+            ]
 
+        # ── trending: banco próprio ──────────────────────────────────────
         elif source == "trending":
             from app.services.search import get_trending_searches
             items = await get_trending_searches(limit=limit)
-            return [{"product_title": item["query"], "provider": None,
-                     "clicks": item.get("score", 0), "price": None,
-                     "badge": "🔍 Mais Buscado", "source": "trending"} for item in items]
+            if not items:
+                # fallback: queries populares genéricas se banco estiver vazio
+                items = [
+                    {"query": q, "score": 1} for q in [
+                        "smartphone samsung", "fone bluetooth", "notebook gamer",
+                        "smartwatch", "airfryer", "aspirador robô", "smart tv 4k",
+                        "teclado mecânico", "mouse gamer", "ssd nvme",
+                    ][:limit]
+                ]
+            return [
+                {"product_title": item["query"], "provider": None,
+                 "clicks": item.get("score", 0), "price": None,
+                 "badge": "🔍 Mais Buscado", "source": "trending"}
+                for item in items
+            ]
 
+        # ── top_month: conversões confirmadas ──────────────────────────
         elif source == "top_month":
             since = datetime.utcnow() - timedelta(days=30)
             r = await db.execute(
@@ -560,86 +606,82 @@ async def get_product_suggestions(
                 .limit(limit)
             )
             rows = r.fetchall()
-            return [{"product_title": row.product_title, "provider": row.provider,
-                     "clicks": row.sales, "price": round(row.avg_price or 0, 2),
-                     "commission": round(row.total_commission or 0, 2),
-                     "badge": "💰 Top Vendas Mês", "source": "top_month"} for row in rows]
+            if not rows:
+                return [{"product_title": "Sem conversões confirmadas este mês",
+                         "provider": None, "clicks": 0, "price": None,
+                         "badge": "💰 Top Vendas Mês", "source": "top_month"}]
+            return [
+                {"product_title": row.product_title, "provider": row.provider,
+                 "clicks": row.sales, "price": round(row.avg_price or 0, 2),
+                 "commission": round(row.total_commission or 0, 2),
+                 "badge": "💰 Top Vendas Mês", "source": "top_month"}
+                for row in rows
+            ]
 
+        # ── high_discount: busca interna com filtro de desconto ─────────
         elif source == "high_discount":
-            # Busca produto com maiores descontos ativos na API
-            import httpx
-            queries = ["smartphone", "notebook", "fone bluetooth", "smartwatch", "airfryer"]
-            results = []
-            async with httpx.AsyncClient(timeout=15) as c:
-                for q in queries[:3]:  # limita chamadas
-                    try:
-                        r = await c.get(
-                            f"http://localhost:8000/api/v1/search",
-                            params={"q": q, "limit": 5},
-                        )
-                        offers = r.json().get("offers", [])
-                        for o in offers:
-                            if o.get("discount_percent", 0) >= 10 and not o.get("is_fake_discount"):
-                                results.append({
-                                    "product_title": o.get("title", "")[:80],
-                                    "provider": o.get("provider"),
-                                    "clicks": 0,
-                                    "price": o.get("final_price"),
-                                    "discount": o.get("discount_percent"),
-                                    "affiliate_url": o.get("affiliate_url"),
-                                    "badge": f"🏷️ -{o.get('discount_percent', 0):.0f}% OFF",
-                                    "source": "high_discount",
-                                })
-                    except Exception:
-                        pass
+            queries = [
+                "smartphone barato", "notebook oferta", "fone desconto",
+                "smartwatch promoção", "airfryer promo",
+            ]
+            results: list[dict] = []
+            for q in queries:
+                offers = await _search(q)
+                for o in offers:
+                    disc = o.get("discount_percent", 0) or 0
+                    if disc >= 10 and not o.get("is_fake_discount") and o.get("final_price", 0) > 20:
+                        results.append(_offer_to_row(o, f"🏷️ -{disc:.0f}% OFF", "high_discount"))
+                if len(results) >= limit * 2:
+                    break
             results.sort(key=lambda x: x.get("discount", 0), reverse=True)
-            return results[:limit]
+            deduped = _dedup(results)[:limit]
+            if not deduped:
+                return [{"product_title": "Nenhum desconto ≥10% encontrado agora",
+                         "provider": None, "clicks": 0, "price": None,
+                         "badge": "🏷️ Maiores Descontos", "source": "high_discount"}]
+            return deduped
 
+        # ── top_sales_{provider}: bestsellers de uma plataforma ────────
         elif source.startswith("top_sales_"):
             provider = source.replace("top_sales_", "")
-            # Busca bestsellers via API de busca para o provider
-            import httpx
-            BESTSELLER_QUERIES: dict[str, list[str]] = {
-                "aliexpress": ["bestseller smartphone", "top venda fone", "mais vendido smartwatch"],
-                "shopee": ["mais vendido 2024", "hot sale", "top venda"],
-                "mercadolivre": ["mais vendido", "top vendas"],
+            PROVIDER_MAP = {
+                "aliexpress":    "aliexpress",
+                "shopee":        "shopee",
+                "mercadolivre":  "mercadolivre",
             }
-            queries = BESTSELLER_QUERIES.get(provider, ["mais vendido", "top sale"])
+            QUERIES: dict[str, list[str]] = {
+                "aliexpress":   ["mais vendido", "top venda eletrônico", "hot sale"],
+                "shopee":       ["hot sale", "top venda", "mais vendido shopee"],
+                "mercadolivre": ["mais vendido", "top vendas", "oferta do dia"],
+            }
+            prov_key = PROVIDER_MAP.get(provider, provider)
+            queries  = QUERIES.get(provider, ["mais vendido", "top sale"])
+            BADGE    = {
+                "aliexpress":   "🔴 Top AliExpress",
+                "shopee":       "🟠 Top Shopee",
+                "mercadolivre": "🟡 Top Mercado Livre",
+            }.get(provider, f"🏆 Top {provider.title()}")
+
             results = []
-            async with httpx.AsyncClient(timeout=15) as c:
-                for q in queries[:2]:
-                    try:
-                        r = await c.get(
-                            f"http://localhost:8000/api/v1/search",
-                            params={"q": q, "limit": 6, "providers": provider},
-                        )
-                        offers = r.json().get("offers", [])
-                        for o in offers:
-                            if o.get("final_price", 0) > 20:
-                                results.append({
-                                    "product_title": o.get("title", "")[:80],
-                                    "provider": o.get("provider"),
-                                    "clicks": 0,
-                                    "price": o.get("final_price"),
-                                    "discount": o.get("discount_percent", 0),
-                                    "badge": f"🏆 Top {provider.title()}",
-                                    "source": source,
-                                })
-                    except Exception:
-                        pass
-            # Deduplica por título
-            seen = set()
-            deduped = []
-            for r in results:
-                key = r["product_title"][:40]
-                if key not in seen:
-                    seen.add(key)
-                    deduped.append(r)
-            return deduped[:limit]
+            for q in queries[:3]:
+                offers = await _search(q, providers=[prov_key])
+                for o in offers:
+                    if o.get("final_price", 0) > 20:
+                        results.append(_offer_to_row(o, BADGE, source))
+                if len(results) >= limit * 2:
+                    break
+
+            deduped = _dedup(results)[:limit]
+            if not deduped:
+                return [{"product_title": f"Sem resultados para {provider} no momento",
+                         "provider": provider, "clicks": 0, "price": None,
+                         "badge": BADGE, "source": source}]
+            return deduped
 
         return []
+
     except Exception as e:
-        logger.error(f"Product suggestions error ({source}): {e}")
+        logger.error(f"Product suggestions error ({source}): {e}", exc_info=True)
         return []
 
 
