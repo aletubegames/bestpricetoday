@@ -211,7 +211,7 @@ class ConversionEvent(Base):
     __tablename__ = "conversion_events"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     click_id = Column(UUID(as_uuid=True), nullable=True)
-    external_order_id = Column(String, nullable=True, index=True, unique=True)  # dedup key
+    external_order_id = Column(String, nullable=True, index=True)  # dedup key (check in code)
     provider = Column(String, nullable=True, index=True)
     product_title = Column(String, nullable=True)
     sale_price = Column(Float, nullable=True)
@@ -219,8 +219,6 @@ class ConversionEvent(Base):
     commission_value = Column(Float, nullable=True)
     status = Column(String, default="pending")  # pending, confirmed, rejected
     converted_at = Column(DateTime, default=datetime.utcnow, index=True)
-    retry_count = Column(Integer, default=0)  # number of retry attempts
-    last_error = Column(String, nullable=True)  # last error message
 
 
 class ConversionRetryQueue(Base):
