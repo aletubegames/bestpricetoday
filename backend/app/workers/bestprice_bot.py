@@ -103,7 +103,7 @@ async def auto_share_to_channel(offer, query: str):
     """Share an exceptional deal to the channel."""
     try:
         from app.workers.channel_broadcaster import post_offer_to_channel
-        await post_offer_to_channel(offer.__dict__ if hasattr(offer, '__dict__') else offer, query)
+        await post_offer_to_channel(offer.__dict__ if hasattr(offer, '__dict__') else offer)
     except Exception as e:
         logger.warning(f"auto_share_to_channel error: {e}")
 

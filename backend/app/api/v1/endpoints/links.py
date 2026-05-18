@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.models.models import ShortLink, ClickEvent
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 import string
 
@@ -109,7 +109,7 @@ async def redirect_link(
 
         # Update link stats
         link.clicks += 1
-        link.last_clicked_at = datetime.utcnow()
+        link.last_clicked_at = datetime.now(timezone.utc)
 
         await db.commit()
 

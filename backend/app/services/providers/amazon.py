@@ -2,6 +2,7 @@
 import hmac
 import hashlib
 import datetime
+from datetime import timezone as _tz
 import json
 from typing import List
 from app.services.providers.base import BaseProvider
@@ -53,7 +54,7 @@ class AmazonProvider(BaseProvider):
             return []
 
     async def _do_search(self, query: str, limit: int) -> List[OfferSchema]:
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(_tz.utc)
         amz_date = now.strftime("%Y%m%dT%H%M%SZ")
         date_stamp = now.strftime("%Y%m%d")
 

@@ -9,7 +9,7 @@ from app.models.models import ClickEvent, ConversionEvent, ShortLink
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import uuid
 import os
@@ -96,7 +96,7 @@ async def get_overview(
     _: str = Depends(require_admin),
 ):
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Usa UTC-3 (Brasília) para calcular "hoje"
         brt_offset = timedelta(hours=-3)
         now_brt = now + brt_offset
@@ -253,7 +253,7 @@ async def list_clicks(
         if source:
             filters.append(ClickEvent.source == source)
         if days:
-            filters.append(ClickEvent.clicked_at >= datetime.utcnow() - timedelta(days=days))
+            filters.append(ClickEvent.clicked_at >= datetime.now(timezone.utc) - timedelta(days=days))
         if filters:
             q = q.where(and_(*filters))
         q = q.order_by(ClickEvent.clicked_at.desc()).offset((page - 1) * limit).limit(limit)
@@ -298,7 +298,7 @@ async def list_conversions(
         if status:
             filters.append(ConversionEvent.status == status)
         if days:
-            filters.append(ConversionEvent.converted_at >= datetime.utcnow() - timedelta(days=days))
+            filters.append(ConversionEvent.converted_at >= datetime.now(timezone.utc) - timedelta(days=days))
         if filters:
             q = q.where(and_(*filters))
         q = q.order_by(ConversionEvent.converted_at.desc()).offset((page - 1) * limit).limit(limit)
@@ -354,7 +354,7 @@ async def get_analytics(
     _: str = Depends(require_admin),
 ):
     try:
-        since = datetime.utcnow() - timedelta(days=days)
+        since = datetime.now(timezone.utc) - timedelta(days=days)
         r = await db.execute(
             select(
                 func.date(ClickEvent.clicked_at).label("day"),
@@ -588,7 +588,7 @@ async def get_product_suggestions(
 
         # ── top_month: conversões confirmadas ──────────────────────────
         elif source == "top_month":
-            since = datetime.utcnow() - timedelta(days=30)
+            since = datetime.now(timezone.utc) - timedelta(days=30)
             r = await db.execute(
                 select(
                     ConversionEvent.product_title,
@@ -597,7 +597,7 @@ async def get_product_suggestions(
                     func.avg(ConversionEvent.sale_price).label("avg_price"),
                     func.sum(ConversionEvent.commission_value).label("total_commission"),
                 ).where(
-                    ConversionEvent.created_at >= since,
+                    ConversionEvent.converted_at >= since,
                     ConversionEvent.status == "confirmed",
                     ConversionEvent.product_title.isnot(None),
                 )
@@ -805,7 +805,7 @@ async def conversion_summary(
     _: str = Depends(require_admin),
 ):
     """Detailed conversion funnel with click→conversion matching."""
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
 
     r = await db.execute(select(func.count()).where(ClickEvent.clicked_at >= since))
     total_clicks = r.scalar() or 0
@@ -1096,8 +1096,8 @@ async def debug_orm(
         orm_count = r.scalar()
         
         # Testa com where
-        from datetime import datetime, timedelta
-        month_start = datetime.utcnow() - timedelta(days=30)
+        from datetime import datetime, timedelta, timezone
+        month_start = datetime.now(timezone.utc) - timedelta(days=30)
         r2 = await db.execute(
             select(func.count()).where(ClickEvent.clicked_at >= month_start)
         )
@@ -1105,7 +1105,7 @@ async def debug_orm(
         
         # Testa today (BRT)
         brt = timedelta(hours=-3)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         today = (now+brt).replace(hour=0,minute=0,second=0,microsecond=0) - brt
         r3 = await db.execute(
             select(func.count()).where(ClickEvent.clicked_at >= today)

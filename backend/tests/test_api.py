@@ -77,7 +77,7 @@ async def test_create_alert_with_owner_id():
     from app.db.session import get_db as real_get_db
     from app.models.models import PriceAlert
     import uuid
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     fake_alert = PriceAlert(
         id=uuid.uuid4(),
@@ -86,7 +86,7 @@ async def test_create_alert_with_owner_id():
         query="notebook gamer",
         target_price=3500.0,
         is_active=True,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
     session = AsyncMock()
