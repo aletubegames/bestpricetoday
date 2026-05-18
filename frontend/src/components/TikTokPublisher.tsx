@@ -6,132 +6,87 @@ interface TikTokPublisherProps {
   offer: any
 }
 
+function fmt(n: number) {
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
-  const [isOpen, setIsOpen]     = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [content, setContent]   = useState({ title: "", description: "", hashtags: "" })
-  const [status, setStatus]     = useState<"idle" | "generating" | "auth" | "ready" | "publishing" | "success" | "error">("idle")
-  const [progress, setProgress] = useState(0)
-  const [errorMsg, setErrorMsg] = useState("")
-  const [publishId, setPublishId] = useState("")
+  const [isOpen, setIsOpen]       = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [copied, setCopied]       = useState<string | null>(null)
+  const [shortLink, setShortLink] = useState("")
+  const [content, setContent]     = useState({
+    title: "", caption: "", hashtags: "", link: "",
+  })
 
-  // ─── Passo 1: gerar conteúdo ──────────────────────────────────────────────
-  const generateContent = async () => {
+  // ── Gera conteúdo e cria short link rastreado ─────────────────────────────
+  const generate = async () => {
     setLoading(true)
-    setStatus("generating")
+
+    // 1. Criar short link rastreado no backend
+    let trackedLink = offer.affiliate_url ?? ""
     try {
-      // Tenta chamar o backend para gerar conteúdo via IA
-      const res = await fetch(`${API}/api/v1/admin/video/publish`, {
+      const res = await fetch(`${API}/api/v1/links/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: offer.title?.slice(0, 60) || "",
-          plataformas: ["tiktok"],
-          formato: "viral_tiktok",
+          affiliate_url: offer.affiliate_url,
+          provider: offer.provider,
+          product_title: offer.title,
+          price: offer.final_price,
+          source: "tiktok_user",
+          campaign: "user_content",
         }),
       })
-      // Independente do resultado, monta conteúdo a partir da oferta
-      const price = offer.final_price?.toFixed(2) ?? "?"
-      const orig  = offer.original_price > offer.final_price
-        ? `De R$ ${offer.original_price?.toFixed(2)} por ` : ""
-      const disc  = offer.discount_percent >= 5 ? ` (-${Math.round(offer.discount_percent)}%)` : ""
-      const title = `🔥 ${offer.title?.slice(0, 40) ?? "Oferta"}${disc}`
-      const desc  = `${orig}apenas R$ ${price}! Compre agora pelo link na bio ⬆️\n\nEncontrei no BestPriceToday — comparador de preços com cupons automáticos.\n👉 bestpricetoday.vercel.app`
-      const tags  = "#Oferta #Promoção #Desconto #BestPriceToday #" + (offer.provider ?? "loja")
-      setContent({ title, description: desc, hashtags: tags })
-      setStatus("ready")
+      if (res.ok) {
+        const data = await res.json()
+        trackedLink = `https://bestpricetoday.vercel.app/r/${data.code}`
+        setShortLink(trackedLink)
+      }
     } catch {
-      const price = offer.final_price?.toFixed(2) ?? "?"
-      const disc  = offer.discount_percent >= 5 ? ` (-${Math.round(offer.discount_percent)}%)` : ""
-      setContent({
-        title: `🔥 ${offer.title?.slice(0, 40) ?? "Oferta"}${disc}`,
-        description: `Por apenas R$ ${price}! Compre agora pelo link na bio ⬆️\n\n👉 bestpricetoday.vercel.app`,
-        hashtags: "#Oferta #Promoção #Desconto #BestPriceToday",
-      })
-      setStatus("ready")
-    } finally {
-      setLoading(false)
+      // fallback: usa link original
     }
+
+    // 2. Montar texto baseado na oferta
+    const name     = offer.title?.slice(0, 50) ?? "produto"
+    const price    = fmt(offer.final_price ?? 0)
+    const original = offer.original_price > offer.final_price
+      ? `~~R$ ${fmt(offer.original_price)}~~ ` : ""
+    const disc     = offer.discount_percent >= 5
+      ? `🔥 ${Math.round(offer.discount_percent)}% OFF — ` : ""
+    const frete    = offer.shipping_free ? "\n✅ Frete grátis" : ""
+    const provider = offer.provider
+      ? offer.provider.charAt(0).toUpperCase() + offer.provider.slice(1) : "loja"
+
+    const title = `${disc}${name}`
+
+    const caption =
+`${disc}${name}
+${original}👉 R$ ${price}${frete}
+
+🛒 Compra pelo link na bio ⬆️
+${trackedLink}
+
+Encontrei no BestPriceToday — compara preços em ${provider}, Amazon, Shopee e mais!`
+
+    const hashtags =
+`#oferta #desconto #promoção #bestpricetoday #${offer.provider ?? "compras"} #economize #dica #tiktokbrasil`
+
+    setContent({ title, caption, hashtags, link: trackedLink })
+    setLoading(false)
   }
 
-  // ─── Passo 2: iniciar OAuth TikTok ────────────────────────────────────────
-  const startTikTokAuth = async () => {
-    try {
-      const res  = await fetch(`${API}/api/v1/tiktok/auth`)
-      const data = await res.json()
-      if (data.auth_url) {
-        // Abre popup OAuth TikTok
-        const popup = window.open(data.auth_url, "tiktok_auth", "width=600,height=700,left=300,top=100")
-        setStatus("auth")
-        // Aguarda o callback via mensagem ou verificação periódica
-        const timer = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(timer)
-            // Quando popup fecha, tenta publicar (assume que token foi salvo)
-            publishVideo()
-          }
-        }, 500)
-      } else {
-        setErrorMsg("Não foi possível iniciar autenticação TikTok. Verifique as credenciais.")
-        setStatus("error")
-      }
-    } catch (e) {
-      setErrorMsg("Erro ao conectar com o servidor.")
-      setStatus("error")
-    }
+  const copyToClipboard = async (text: string, key: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
   }
 
-  // ─── Passo 3: publicar o vídeo ────────────────────────────────────────────
-  const publishVideo = async () => {
-    setStatus("publishing")
-    setProgress(10)
-
-    try {
-      // Simula progresso enquanto o backend processa
-      const interval = setInterval(() => {
-        setProgress(p => {
-          if (p >= 85) { clearInterval(interval); return 85 }
-          return p + 5
-        })
-      }, 600)
-
-      const res = await fetch(`${API}/api/v1/tiktok/publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          video_url: offer.affiliate_url ?? "",
-          title: content.title,
-          description: `${content.description}\n\n${content.hashtags}`,
-          access_token: "", // backend busca do DB
-        }),
-      })
-
-      clearInterval(interval)
-      const data = await res.json()
-
-      if (res.ok && data.data?.publish_id) {
-        setPublishId(data.data.publish_id)
-        setProgress(100)
-        setStatus("success")
-      } else if (res.status === 400 && data.detail?.includes("aprovação")) {
-        // App ainda aguardando aprovação TikTok
-        setErrorMsg("App TikTok aguardando aprovação. Assim que aprovado, a publicação funcionará automaticamente.")
-        setStatus("error")
-      } else {
-        setErrorMsg(data.detail ?? "Erro ao publicar. Tente novamente.")
-        setStatus("error")
-      }
-    } catch (e) {
-      setErrorMsg("Erro de conexão com o servidor.")
-      setStatus("error")
-    }
-  }
-
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ── Botão fechado ─────────────────────────────────────────────────────────
   if (!isOpen) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => { setIsOpen(true); generate() }}
         style={{
           marginTop: 8, width: "100%", padding: "10px", borderRadius: 10,
           background: "rgba(255,0,80,0.08)", border: "1px solid rgba(255,0,80,0.25)",
@@ -139,128 +94,154 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}
       >
-        <span>♪</span> Criar post TikTok
+        ♪ Criar legenda TikTok
       </button>
     )
   }
 
+  // ── Modal ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-      background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center",
-      justifyContent: "center", zIndex: 1000, padding: 20,
+      position: "fixed", inset: 0,
+      background: "rgba(0,0,0,0.85)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000, padding: 16,
     }}>
       <div style={{
         background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 20,
-        width: "100%", maxWidth: 520, padding: 28, position: "relative",
-        maxHeight: "90vh", overflowY: "auto",
+        width: "100%", maxWidth: 500, padding: 24, position: "relative",
+        maxHeight: "92vh", overflowY: "auto",
       }}>
         {/* Fechar */}
-        <button onClick={() => { setIsOpen(false); setStatus("idle"); setErrorMsg("") }}
-          style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 22 }}>
-          ✕
-        </button>
+        <button onClick={() => setIsOpen(false)} style={{
+          position: "absolute", top: 14, right: 14,
+          background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 22,
+        }}>✕</button>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#ff0050", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>♪</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: "linear-gradient(135deg,#ff0050,#ff3060)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+          }}>♪</div>
           <div>
-            <h2 style={{ color: "#fff", fontSize: 18, margin: 0 }}>Publicar no TikTok</h2>
-            <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>{offer.title?.slice(0, 50)}...</p>
+            <h2 style={{ color: "#fff", fontSize: 17, margin: 0, fontWeight: 800 }}>Legenda para TikTok</h2>
+            <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>Cole no seu vídeo e ganhe comissão</p>
           </div>
         </div>
 
-        {/* Estado: idle / generating */}
-        {(status === "idle" || status === "generating") && (
-          <div style={{ textAlign: "center", padding: "32px 0" }}>
-            <p style={{ color: "#94a3b8", marginBottom: 8, fontSize: 14 }}>Nossa IA cria o roteiro perfeito para sua oferta.</p>
-            <p style={{ color: "#475569", marginBottom: 28, fontSize: 12 }}>Título · Descrição · Hashtags · CTA</p>
-            <button onClick={generateContent} disabled={loading} style={{
-              padding: "13px 28px", borderRadius: 12, background: loading ? "#2a2a3a" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
-              color: "#fff", border: "none", fontWeight: 700, cursor: loading ? "default" : "pointer", fontSize: 15,
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "#94a3b8" }}>
+            Gerando conteúdo...
+          </div>
+        ) : (
+          <>
+            {/* Como usar */}
+            <div style={{
+              background: "rgba(124,106,255,0.08)", border: "1px solid rgba(124,106,255,0.2)",
+              borderRadius: 10, padding: "10px 14px", marginBottom: 20,
+              fontSize: 12, color: "#a78bfa", lineHeight: 1.6,
             }}>
-              {loading ? "Gerando conteúdo..." : "✨ Gerar Roteiro"}
-            </button>
-          </div>
-        )}
+              <strong>Como usar:</strong> Filme você mostrando o produto →
+              cole a legenda abaixo no TikTok → quando alguém comprar pelo link, você ganha comissão 💰
+            </div>
 
-        {/* Estado: ready */}
-        {status === "ready" && (
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ color: "#475569", fontSize: 11, fontWeight: 700, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".05em" }}>Título</label>
-              <input value={content.title} onChange={e => setContent({ ...content, title: e.target.value })}
-                style={{ width: "100%", background: "#1c1c2e", border: "1px solid #2a2a3a", padding: "10px 12px", borderRadius: 8, color: "#fff", fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ color: "#475569", fontSize: 11, fontWeight: 700, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".05em" }}>Descrição</label>
-              <textarea value={content.description} onChange={e => setContent({ ...content, description: e.target.value })} rows={4}
-                style={{ width: "100%", background: "#1c1c2e", border: "1px solid #2a2a3a", padding: "10px 12px", borderRadius: 8, color: "#fff", resize: "none", fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ color: "#475569", fontSize: 11, fontWeight: 700, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".05em" }}>Hashtags</label>
-              <input value={content.hashtags} onChange={e => setContent({ ...content, hashtags: e.target.value })}
-                style={{ width: "100%", background: "#1c1c2e", border: "1px solid #2a2a3a", padding: "10px 12px", borderRadius: 8, color: "#fff", fontSize: 13, boxSizing: "border-box" }} />
-            </div>
-            <button onClick={startTikTokAuth} style={{
-              width: "100%", padding: "14px", borderRadius: 12,
-              background: "linear-gradient(135deg,#ff0050,#ff3060)",
-              color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", fontSize: 15,
+            {/* Link rastreado */}
+            <Section label="🔗 Link de afiliado rastreado">
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input readOnly value={content.link}
+                  style={{
+                    flex: 1, background: "#1c1c2e", border: "1px solid #2a2a3a",
+                    padding: "9px 12px", borderRadius: 8, color: "#00e5a0",
+                    fontSize: 12, fontFamily: "monospace",
+                  }} />
+                <CopyBtn text={content.link} id="link" copied={copied} onCopy={copyToClipboard} />
+              </div>
+            </Section>
+
+            {/* Legenda completa */}
+            <Section label="📝 Legenda completa (copie tudo)">
+              <textarea readOnly value={content.caption} rows={7}
+                style={{
+                  width: "100%", background: "#1c1c2e", border: "1px solid #2a2a3a",
+                  padding: "10px 12px", borderRadius: 8, color: "#e2e8f0",
+                  fontSize: 12, resize: "none", lineHeight: 1.6, boxSizing: "border-box",
+                }} />
+              <CopyBtn text={content.caption} id="caption" copied={copied} onCopy={copyToClipboard} full />
+            </Section>
+
+            {/* Hashtags */}
+            <Section label="# Hashtags">
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <input readOnly value={content.hashtags}
+                  style={{
+                    flex: 1, background: "#1c1c2e", border: "1px solid #2a2a3a",
+                    padding: "9px 12px", borderRadius: 8, color: "#94a3b8", fontSize: 12,
+                  }} />
+                <CopyBtn text={content.hashtags} id="tags" copied={copied} onCopy={copyToClipboard} />
+              </div>
+            </Section>
+
+            {/* Dica */}
+            <div style={{
+              marginTop: 16, padding: "10px 14px", borderRadius: 10,
+              background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.15)",
+              fontSize: 11, color: "#00e5a0", lineHeight: 1.6,
             }}>
-              🎵 Conectar TikTok e Publicar
-            </button>
-          </div>
-        )}
-
-        {/* Estado: auth */}
-        {status === "auth" && (
-          <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🔑</div>
-            <p style={{ color: "#fff", fontWeight: 700, marginBottom: 8 }}>Autorizando TikTok...</p>
-            <p style={{ color: "#94a3b8", fontSize: 13 }}>Complete a autorização na janela que abriu. Ela fechará automaticamente.</p>
-          </div>
-        )}
-
-        {/* Estado: publishing */}
-        {status === "publishing" && (
-          <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <div style={{ width: "100%", height: 8, background: "#1c1c2e", borderRadius: 4, marginBottom: 20, overflow: "hidden" }}>
-              <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg,#ff0050,#ff6090)", transition: "width 0.6s ease", borderRadius: 4 }} />
+              💡 O link rastreado registra cliques e comissões automaticamente.
+              Cada venda pelo seu link conta para o seu histórico no BestPriceToday.
             </div>
-            <p style={{ color: "#fff", fontSize: 20, fontWeight: 800 }}>{progress}%</p>
-            <p style={{ color: "#94a3b8", marginTop: 8, fontSize: 13 }}>
-              {progress < 40 ? "Preparando vídeo..." : progress < 80 ? "Fazendo upload..." : "Finalizando..."}
-            </p>
-          </div>
-        )}
 
-        {/* Estado: success */}
-        {status === "success" && (
-          <div style={{ textAlign: "center", padding: "32px 0" }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-            <h3 style={{ color: "#fff", fontSize: 22, marginBottom: 8 }}>Publicado!</h3>
-            <p style={{ color: "#94a3b8", marginBottom: 6, fontSize: 14 }}>Seu vídeo foi enviado para o TikTok com sucesso.</p>
-            {publishId && <p style={{ color: "#475569", fontSize: 11 }}>ID: {publishId}</p>}
-            <button onClick={() => { setIsOpen(false); setStatus("idle") }}
-              style={{ marginTop: 24, padding: "12px 28px", borderRadius: 12, background: "#2a2a3a", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}>
-              Fechar
+            {/* Regenerar */}
+            <button onClick={generate} style={{
+              marginTop: 16, width: "100%", padding: "10px", borderRadius: 10,
+              background: "rgba(255,255,255,0.04)", border: "1px solid #2a2a3a",
+              color: "#475569", cursor: "pointer", fontSize: 12,
+            }}>
+              ↺ Regenerar conteúdo
             </button>
-          </div>
-        )}
-
-        {/* Estado: error */}
-        {status === "error" && (
-          <div style={{ textAlign: "center", padding: "32px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-            <p style={{ color: "#fb923c", fontWeight: 700, marginBottom: 8 }}>Ops!</p>
-            <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 24 }}>{errorMsg}</p>
-            <button onClick={() => setStatus("ready")}
-              style={{ padding: "11px 24px", borderRadius: 10, background: "#2a2a3a", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}>
-              Tentar novamente
-            </button>
-          </div>
+          </>
         )}
       </div>
     </div>
+  )
+}
+
+// ── Sub-componentes ────────────────────────────────────────────────────────
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{
+        color: "#475569", fontSize: 11, fontWeight: 700,
+        display: "block", marginBottom: 6,
+        textTransform: "uppercase", letterSpacing: ".05em",
+      }}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function CopyBtn({ text, id, copied, onCopy, full }: {
+  text: string; id: string; copied: string | null;
+  onCopy: (t: string, k: string) => void; full?: boolean
+}) {
+  const done = copied === id
+  return (
+    <button
+      onClick={() => onCopy(text, id)}
+      style={{
+        ...(full ? { width: "100%", marginTop: 8 } : { flexShrink: 0 }),
+        padding: full ? "9px" : "9px 14px",
+        borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+        background: done ? "rgba(0,229,160,0.15)" : "rgba(124,106,255,0.15)",
+        border: `1px solid ${done ? "rgba(0,229,160,0.3)" : "rgba(124,106,255,0.3)"}`,
+        color: done ? "#00e5a0" : "#a78bfa",
+        transition: "all .2s",
+      }}
+    >
+      {done ? "✓ Copiado!" : "Copiar"}
+    </button>
   )
 }
