@@ -1,20 +1,171 @@
-"""OAuth callback do Mercado Livre — troca code por access_token + refresh_token."""
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+"""
+auth.py — Autenticação de usuários (email + senha) + ML OAuth
+
+Rotas:
+  POST /auth/register     — cria conta
+  POST /auth/login        — retorna JWT
+  GET  /auth/me           — dados do usuário logado
+  GET  /auth/ml/callback  — OAuth ML
+  POST /auth/ml/refresh   — renova token ML
+  GET  /auth/ml/status    — status token ML
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import httpx
+import uuid
+from datetime import timedelta
+
 from app.core.config import settings
 from app.core.logging import logger
 from app.db.session import get_db
-import time
+from app.models.models import User
+from pydantic import BaseModel, EmailStr
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+from datetime import datetime, timezone
 
 router = APIRouter()
+security = HTTPBearer(auto_error=False)
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_DAYS = 30
 REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def hash_password(plain: str) -> str:
+    return pwd_ctx.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_ctx.verify(plain, hashed)
+
+
+def create_jwt(user_id: str, is_admin: bool = False) -> str:
+    payload = {
+        "sub": user_id,
+        "admin": is_admin,
+        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRE_DAYS),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_jwt(token: str) -> dict:
+    try:
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Token não fornecido.")
+    payload = decode_jwt(credentials.credentials)
+    user_id = payload.get("sub")
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Usuário não encontrado ou inativo.")
+    return user
+
+
+async def get_current_admin(user: User = Depends(get_current_user)) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador.")
+    return user
+
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
+class RegisterIn(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(BaseModel):
+    id: str
+    name: str | None
+    email: str | None
+    is_admin: bool
+
+    class Config:
+        from_attributes = True
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+# ── Rotas de usuário ──────────────────────────────────────────────────────────
+
+@router.post("/auth/register", response_model=TokenOut, status_code=201)
+async def register(data: RegisterIn, db: AsyncSession = Depends(get_db)):
+    # Verificar email duplicado
+    existing = await db.execute(select(User).where(User.email == data.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="E-mail já cadastrado.")
+
+    user = User(
+        id=uuid.uuid4(),
+        name=data.name,
+        email=data.email,
+        password_hash=hash_password(data.password),
+        is_active=True,
+        is_admin=False,
+    )
+    db.add(user)
+    await db.flush()
+
+    token = create_jwt(str(user.id), is_admin=False)
+    return TokenOut(
+        access_token=token,
+        user=UserOut(id=str(user.id), name=user.name, email=user.email, is_admin=False),
+    )
+
+
+@router.post("/auth/login", response_model=TokenOut)
+async def login(data: LoginIn, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+
+    if not user or not user.password_hash or not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos.")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Conta desativada.")
+
+    token = create_jwt(str(user.id), is_admin=user.is_admin)
+    return TokenOut(
+        access_token=token,
+        user=UserOut(id=str(user.id), name=user.name, email=user.email, is_admin=user.is_admin),
+    )
+
+
+@router.get("/auth/me", response_model=UserOut)
+async def me(user: User = Depends(get_current_user)):
+    return UserOut(id=str(user.id), name=user.name, email=user.email, is_admin=user.is_admin)
+
+
+# ── ML OAuth (mantido) ────────────────────────────────────────────────────────
+
 async def _do_token_refresh(refresh_token: str) -> dict | None:
-    """Exchange refresh_token for new access_token."""
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
@@ -26,52 +177,30 @@ async def _do_token_refresh(refresh_token: str) -> dict | None:
                     "refresh_token": refresh_token,
                 },
             )
-        if resp.status_code == 200:
-            return resp.json()
-        logger.warning(f"ML token refresh failed: HTTP {resp.status_code}")
-        return None
+        return resp.json() if resp.status_code == 200 else None
     except Exception as e:
         logger.error(f"ML token refresh error: {e}")
         return None
 
 
 async def get_valid_ml_token() -> str | None:
-    """
-    Returns a valid ML access_token, auto-refreshing if needed.
-    Uses settings.MERCADOLIVRE_ACCESS_TOKEN (checked first).
-    Falls back to refresh via settings.MERCADOLIVRE_REFRESH_TOKEN.
-    """
     token = settings.MERCADOLIVRE_ACCESS_TOKEN
     if token:
         return token
-
     refresh = settings.MERCADOLIVRE_REFRESH_TOKEN
     if not refresh:
         return None
-
     data = await _do_token_refresh(refresh)
     if data:
-        # Log only that refresh succeeded, never the token value
         logger.info("ML token refreshed successfully [token value redacted]")
-        # In production: persist new tokens to secure storage / env update
-        # For now, return the new token for use in this request
         return data.get("access_token")
-
     return None
 
 
 @router.get("/auth/ml/callback")
 async def ml_oauth_callback(code: str = None, error: str = None, db: AsyncSession = Depends(get_db)):
-    """
-    OAuth callback — trades code for tokens.
-    SECURITY: tokens are NEVER exposed in the response body.
-    Tokens are logged only as [REDACTED].
-    """
     if error or not code:
-        return HTMLResponse(
-            "<h2>❌ Erro de autenticação</h2><p>Parâmetro 'code' ausente ou erro retornado.</p>",
-            status_code=400
-        )
+        return HTMLResponse("<h2>❌ Erro de autenticação</h2>", status_code=400)
 
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
@@ -86,40 +215,26 @@ async def ml_oauth_callback(code: str = None, error: str = None, db: AsyncSessio
         )
 
     if resp.status_code != 200:
-        # Log error without exposing any credentials
-        logger.error(f"ML OAuth error: HTTP {resp.status_code} [response body redacted]")
         return HTMLResponse("<h2>❌ Erro ao obter token ML</h2>", status_code=400)
 
     data = resp.json()
-    expires_in = data.get("expires_in", 21600)
+    logger.info(f"ML OAuth success — user_id={data.get('user_id')} [tokens redacted]")
 
-    # SECURITY: Never log or return the actual token values
-    logger.info(f"ML OAuth success — expires_in={expires_in}s, user_id={data.get('user_id')} [tokens redacted]")
-
-    # Save tokens to DB for persistent storage + auto-refresh
     try:
         from app.services.ml_token_service import save_from_oauth
         await save_from_oauth(db, data)
     except Exception as e:
-        logger.error(f"Failed to save ML tokens to DB: {type(e).__name__} [details redacted]")
+        logger.error(f"Failed to save ML tokens: {type(e).__name__}")
 
-    # Return confirmation WITHOUT token values
-    # Operator must retrieve tokens from secure backend storage
     return HTMLResponse("""
-    <html>
-    <head><style>
-      body { font-family: system-ui; background: #07070f; color: #0f0; padding: 2rem; }
-      .box { background: #111; border: 1px solid #00e5a0; border-radius: 12px; padding: 1.5rem; max-width: 500px; }
-      .warn { color: #fbbf24; font-size: 13px; margin-top: 1rem; }
-    </style></head>
-    <body>
+    <html><head><style>
+      body{font-family:system-ui;background:#07070f;color:#0f0;padding:2rem}
+      .box{background:#111;border:1px solid #00e5a0;border-radius:12px;padding:1.5rem;max-width:500px}
+    </style></head><body>
     <div class="box">
       <h2>✅ Autenticação ML concluída</h2>
-      <p>Tokens obtidos com sucesso e registrados de forma segura.</p>
-      <p><strong>Próximo passo:</strong> Configure os tokens nas variáveis de ambiente do HF Space (MERCADOLIVRE_ACCESS_TOKEN e MERCADOLIVRE_REFRESH_TOKEN).</p>
-      <p class="warn">⚠️ Por segurança, os tokens não são exibidos nesta página. Recupere-os via canal seguro.</p>
-    </div>
-    </body></html>
+      <p>Tokens registrados com sucesso.</p>
+    </div></body></html>
     """)
 
 
@@ -128,13 +243,10 @@ async def ml_refresh_token(db: AsyncSession = Depends(get_db)):
     from app.services.ml_token_service import get_token, get_token_status
     token = await get_token(db)
     status = await get_token_status(db)
-    if token:
-        return {"ok": True, "status": status}
-    return {"ok": False, "error": "refresh failed or not configured", "status": status}
+    return {"ok": bool(token), "status": status}
 
 
 @router.get("/auth/ml/status")
 async def ml_token_status(db: AsyncSession = Depends(get_db)):
-    """Returns ML token status without exposing token values. Used by admin dashboard."""
     from app.services.ml_token_service import get_token_status
     return await get_token_status(db)
