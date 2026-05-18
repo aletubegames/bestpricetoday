@@ -1,8 +1,39 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
+
+// Botão de login/usuário no header
+function AuthButton() {
+  const [user, setUser] = useState<{name: string; is_admin: boolean} | null>(null)
+  useEffect(() => {
+    const stored = localStorage.getItem("bpt_user")
+    if (stored) setUser(JSON.parse(stored))
+  }, [])
+  if (user) {
+    return (
+      <a href={user.is_admin ? "/admin" : "/dashboard"} style={{
+        display: "flex", alignItems: "center", gap: 5,
+        fontSize: 12, fontWeight: 700, color: "#a78bfa",
+        background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)",
+        padding: "4px 12px", borderRadius: 99, textDecoration: "none",
+      }}>
+        {user.is_admin ? "👑" : "👤"} {user.name.split(" ")[0]}
+      </a>
+    )
+  }
+  return (
+    <a href="/login" style={{
+      display: "flex", alignItems: "center", gap: 5,
+      fontSize: 12, fontWeight: 600, color: "var(--muted)",
+      background: "var(--s2)", border: "1px solid var(--bd)",
+      padding: "4px 12px", borderRadius: 99, textDecoration: "none",
+    }}>
+      Entrar
+    </a>
+  )
+}
 import OfferSkeleton from "@/components/offers/OfferSkeleton";
 import { useSearch } from "@/hooks/useSearch";
 import { useTrendingSearches } from "@/hooks/useTrendingSearches";
@@ -225,6 +256,7 @@ export default function HomePage() {
             onMouseLeave={e => (e.currentTarget.style.color = "var(--muted)")}>
               🔔 Alertas
             </a>
+            <AuthButton />
           </div>
         </div>
       </header>

@@ -29,7 +29,9 @@ class User(Base):
     telegram_id = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
     name = Column(String, nullable=True)
+    password_hash = Column(String, nullable=True)  # None = social/telegram login only
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
