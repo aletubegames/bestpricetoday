@@ -12,9 +12,18 @@ interface Alert {
   created_at: string;
 }
 
-/** Gera ou recupera um ID anônimo persistido no localStorage */
-function getAnonId(): string {
+/** Retorna o owner_id correto: user.id se logado, senão bpt_anon_id */
+function getOwnerId(): string {
   if (typeof window === "undefined") return "";
+  // Usuário logado → usa o id da conta
+  const userStr = localStorage.getItem("bpt_user");
+  if (userStr) {
+    try {
+      const u = JSON.parse(userStr);
+      if (u.id) return u.id;
+    } catch {}
+  }
+  // Anônimo → gera/recupera bpt_anon_id
   let id = localStorage.getItem("bpt_anon_id");
   if (!id) {
     const uniquePart = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -37,7 +46,7 @@ export default function AlertasPage() {
 
   // Inicializa anonId no cliente (evita hydration mismatch)
   useEffect(() => {
-    setAnonId(getAnonId());
+    setAnonId(getOwnerId());
   }, []);
 
   // Carrega alertas ao montar, assim que anonId estiver disponível
@@ -72,7 +81,7 @@ export default function AlertasPage() {
         body: JSON.stringify({
           query: query.trim(),
           target_price: parseFloat(price),
-          owner_id: anonId,   // vincula alerta ao usuário anônimo
+          owner_id: anonId || getOwnerId(),  // garante que não envia vazio
         }),
       });
       if (r.ok) {
@@ -83,7 +92,10 @@ export default function AlertasPage() {
         setTimeout(() => setMsg(""), 4000);
       } else {
         const err = await r.json().catch(() => ({}));
-        setMsg(`❌ ${err.detail || "Erro ao criar alerta."}`);
+        const detail = typeof err.detail === "string" ? err.detail
+          : Array.isArray(err.detail) ? err.detail.map((e: any) => e.msg).join(", ")
+          : "Erro ao criar alerta.";
+        setMsg(`❌ ${detail}`);
       }
     } catch {
       setMsg("❌ Erro de conexão. Tente novamente.");
