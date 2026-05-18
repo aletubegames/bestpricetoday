@@ -10,6 +10,7 @@ interface Alert {
   target_price: number;
   is_active: boolean;
   created_at: string;
+  triggered_at?: string | null;
 }
 
 /** Retorna o owner_id correto: user.id se logado, senão bpt_anon_id */
@@ -116,8 +117,21 @@ export default function AlertasPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "40px 20px" }}>
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "0 0 40px" }}>
+
+      {/* Header de navegação */}
+      <header style={{ borderBottom: "1px solid var(--bd)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(7,7,15,0.95)", position: "sticky", top: 0, zIndex: 50 }}>
+        <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 22 }}>🛍️</span>
+          <span style={{ fontWeight: 800, fontSize: 16, color: "#7c6aff" }}>BestPriceToday</span>
+        </a>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <a href="/" style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textDecoration: "none", padding: "5px 12px", borderRadius: 8, border: "1px solid var(--bd)" }}>🔍 Buscar</a>
+          <AuthHeaderBtn />
+        </div>
+      </header>
+
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 20px 0" }}>
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 40 }}>
@@ -215,8 +229,8 @@ export default function AlertasPage() {
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.query}</p>
                       <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                        Alerta quando ≤ <span style={{ color: "var(--grn)", fontWeight: 700 }}>R$ {a.target_price.toFixed(2)}</span>
-                        <span style={{ marginLeft: 8, opacity: 0.5 }}>· {new Date(a.created_at).toLocaleDateString("pt-BR")}</span>
+                        Alerta quando ≤ <span style={{ color: "var(--grn)", fontWeight: 700 }}>R$ {a.target_price?.toFixed(2)}</span>
+                        <span style={{ marginLeft: 8, opacity: 0.5 }}>· {a.created_at ? new Date(a.created_at).toLocaleDateString("pt-BR") : ""}</span>
                       </p>
                     </div>
                   </div>
@@ -261,5 +275,21 @@ export default function AlertasPage() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </div>
+  );
+}
+
+function AuthHeaderBtn() {
+  const [user, setUser] = useState<{name: string; is_admin: boolean} | null>(null);
+  useEffect(() => {
+    const s = localStorage.getItem("bpt_user");
+    if (s) { try { setUser(JSON.parse(s)); } catch {} }
+  }, []);
+  if (!user) return (
+    <a href="/login" style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textDecoration: "none", padding: "5px 12px", borderRadius: 8, border: "1px solid var(--bd)" }}>Entrar</a>
+  );
+  return (
+    <a href={user.is_admin ? "/admin" : "/dashboard"} style={{ fontSize: 12, fontWeight: 700, color: "#a78bfa", textDecoration: "none", padding: "5px 12px", borderRadius: 8, background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)" }}>
+      {user.is_admin ? "👑" : "👤"} {user.name?.split(" ")[0]}
+    </a>
   );
 }
