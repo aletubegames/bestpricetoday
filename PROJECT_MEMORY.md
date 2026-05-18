@@ -4,6 +4,71 @@
 
 ---
 
+## Atualizações recentes (2026-05-17)
+
+### 1) Video API + ngrok (incidente 404 resolvido)
+
+- Erro observado no admin: `Video API retornou 404: <!DOCTYPE html> ...`
+- Causa raiz confirmada:
+  - `http://localhost:8765/health` estava OK (API local online)
+  - túnel público retornava página HTML do ngrok com `ERR_NGROK_3200` (endpoint offline)
+- Ação aplicada:
+  - criado serviço user-level: `~/.config/systemd/user/bestprice-ngrok.service`
+  - serviço habilitado com `systemctl --user enable --now bestprice-ngrok.service`
+  - validação: `https://sacrament-subduing-confined.ngrok-free.dev/health` retornando `{"ok": true}`
+- Observação operacional:
+  - para manter serviço user-level ativo mesmo sem login após reboot: `sudo loginctl enable-linger alessandro`
+
+### 2) Fonte única de segredos (`backend/.env`)
+
+- Decisão: `backend/.env` é a fonte da verdade para segredos.
+- Ajustes:
+  - `wan2/publisher.py` passou a carregar variáveis do arquivo `backend/.env`
+  - `.env` local em `~/wan2` removido
+  - variáveis adicionadas em `backend/.env` sem remover existentes:
+    - `TELEGRAM_CHANNEL_ID`
+    - `VIDEO_API_KEY`
+
+### 3) Organização de artefatos de vídeo
+
+- Cada execução agora cria diretório próprio em `~/wan2/videos` com padrão:
+  - `YYYYMMDD_HHMMSS_<formato>/`
+- Arquivos por execução (não limpa automaticamente):
+  - áudio, base, imagem de produto, vídeo final
+- Pipeline híbrido grava estágios em subpasta:
+  - `stages/` com S1/S2/S3 + áudio
+
+### 4) Prompts e narração (qualidade de campanha)
+
+- Implementado normalizador de fala PT-BR no `content_strategy.py`:
+  - regras para siglas/unidades técnicas (Wi-Fi, USB-C, GB, TB, mAh, Hz etc.)
+- Templates de narração por canal:
+  - `telegram`, `youtube`, `tiktok`, `multi`
+- Idioma de prompts T2V/I2V:
+  - padronização EN-only para estabilidade visual
+  - modo determinístico com variação criativa controlada
+
+### 5) Anti-repetição entre dias (scheduler)
+
+- Problema identificado: repetição de vídeos em dias distintos por reinício de sequência + catálogo fixo.
+- Correções aplicadas em `~/wan2/scheduler.py`:
+  - histórico persistente (`historico`) de postagens
+  - bloqueio de repetição por 72h para produto e título similar
+  - rotação determinística diária da lista de produtos (seed por data)
+  - fallback para produto alternativo quando oferta similar recente é detectada
+- Correção complementar em `content_strategy.py`:
+  - bucket criativo alterado para diário (mantém consistência no dia e varia entre dias)
+
+### 6) Situação atual
+
+- `video_api.py` local: online
+- ngrok público: online com auto start user-level
+- sintaxe Python validada nos arquivos alterados durante os ajustes do dia
+
+---
+
+---
+
 ## O que é
 
 Comparador de preços com monetização 100% via afiliados.
@@ -658,4 +723,22 @@ VIDEO_API_PORT = 8765                   # porta da Video API
 
 ---
 
-_Atualizado: 2026-05-16 (04h45 BRT)_
+## Correções traffic_machine.py + torchvision (2026-05-16 noite)
+
+### Bug 1 — `TypeError: register_post() got an unexpected keyword argument 'topic'`
+- `traffic_machine.py` chamava `register_post(topic=..., format_name=..., score=...)` mas a assinatura em `content_strategy.py` é `register_post(titulo: str, formato: str)`
+- **Fix em `~/wan2/traffic_machine.py`:** corrigido para `register_post(titulo=offer.get("titulo", ...), formato=format_name)`
+
+### Bug 2 — `Could not import module 'UMT5EncoderModel'` (WAN2.1 falhava)
+- **Causa raiz:** incompatibilidade `torch 2.12.0+cu130` + `torchvision 0.20.1+cu121` (cu121 é para torch ~2.5)
+- `torchvision::nms` falhava no registro, cascateando e quebrando import do transformers/UMT5
+- **Fix:** `pip install torchvision>=0.24.0 --index-url https://download.pytorch.org/whl/cu130` → instalado `0.27.0+cu130`
+- WAN2.1 e UMT5EncoderModel carregam normalmente após fix
+
+### Status wan2 repo
+- `~/wan2` é local sem remote git
+- Alterações em `traffic_machine.py`, `hybrid_pipeline.py`, `video_engine_v3.py` não versionadas remotamente
+
+---
+
+_Atualizado: 2026-05-16 (21h50 BRT)_

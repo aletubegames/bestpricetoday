@@ -10,7 +10,7 @@ Fluxo:
 """
 from __future__ import annotations
 import hashlib, hmac, time, httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -35,7 +35,7 @@ async def _find_matching_click(db: AsyncSession, provider: str, product_title: s
     Strategy: most recent click from same provider within 30 days.
     Future: fuzzy match product_title.
     """
-    since = datetime.utcnow() - timedelta(days=30)
+    since = datetime.now(timezone.utc) - timedelta(days=30)
     q = select(ClickEvent.id).where(
         and_(
             ClickEvent.provider == provider,
@@ -152,7 +152,7 @@ async def process_retry_queue(db: AsyncSession) -> int:
                 p.get("click_id"),
             )
             item.attempts += 1
-            item.last_attempt_at = datetime.utcnow()
+            item.last_attempt_at = datetime.now(timezone.utc)
             item.resolved = success
             if not success:
                 item.error = "retry failed"
@@ -171,7 +171,7 @@ async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 2) -> list
     if not settings.ALIEXPRESS_APP_KEY or not settings.ALIEXPRESS_APP_SECRET:
         return []
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     since = now - timedelta(hours=since_hours)
     fmt = "%Y-%m-%d %H:%M:%S"
 
@@ -235,7 +235,7 @@ async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[di
     if not settings.LOMADEE_API_KEY or not settings.LOMADEE_SOURCE_ID:
         return []
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     since = now - timedelta(hours=since_hours)
 
     saved = []
@@ -333,7 +333,7 @@ async def handle_ml_webhook(data: dict, db: AsyncSession) -> dict:
 
 async def poll_all_conversions(db: AsyncSession) -> dict:
     """Run all polling with detailed logging."""
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     results = {}
 
     logger.info(f"[ConversionPoll] Starting at {start.strftime('%H:%M:%S')}")
@@ -351,7 +351,7 @@ async def poll_all_conversions(db: AsyncSession) -> dict:
     retried = await process_retry_queue(db)
     results["retried"] = retried
 
-    elapsed = (datetime.utcnow() - start).total_seconds()
+    elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info(f"[ConversionPoll] Done in {elapsed:.1f}s — {sum(r.get('saved', 0) if isinstance(r, dict) else 0 for r in results.values())} total new")
 
     return {k: (v.get("saved", v) if isinstance(v, dict) else v) for k, v in results.items()}
@@ -371,7 +371,7 @@ async def poll_shopee_conversions(db: AsyncSession, since_hours: int = 2) -> lis
     if not app_id or not secret:
         return []
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     since = now - timedelta(hours=since_hours)
 
     query = """

@@ -19,7 +19,7 @@ import httpx
 import os
 import random
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -83,16 +83,16 @@ def already_posted(url: str) -> bool:
     if h not in data:
         return False
     posted_at = datetime.fromisoformat(data[h])
-    return datetime.utcnow() - posted_at < timedelta(hours=DEDUP_TTL_HOURS)
+    return datetime.now(timezone.utc) - posted_at < timedelta(hours=DEDUP_TTL_HOURS)
 
 
 def mark_posted(url: str):
     data = _load_dedup()
     # Limpa entradas antigas (> 24h)
-    cutoff = datetime.utcnow() - timedelta(hours=DEDUP_TTL_HOURS)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=DEDUP_TTL_HOURS)
     data = {h: ts for h, ts in data.items()
             if datetime.fromisoformat(ts) > cutoff}
-    data[_url_hash(url)] = datetime.utcnow().isoformat()
+    data[_url_hash(url)] = datetime.now(timezone.utc).isoformat()
     _save_dedup(data)
 
 

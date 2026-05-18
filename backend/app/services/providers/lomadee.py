@@ -19,7 +19,7 @@ import asyncio
 class LomadeeProvider(BaseProvider):
     name = "lomadee"
     BASE_URL = "https://api-beta.lomadee.com.br/affiliate"
-    CHANNEL_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
+    CHANNEL_ID = settings.LOMADEE_SOURCE_ID
 
     def __init__(self):
         super().__init__()

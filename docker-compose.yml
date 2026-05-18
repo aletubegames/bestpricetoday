@@ -19,7 +19,7 @@ services:
     depends_on:
       - postgres
       - redis
-    command: python -m app.workers.telegram_bot
+    command: python -m app.workers.bestprice_bot
 
   postgres:
     image: postgres:16-alpine

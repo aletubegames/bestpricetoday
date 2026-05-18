@@ -7,7 +7,7 @@ Key behaviors:
 - refresh_token is single-use: saves the NEW pair after every refresh
 - Never logs actual token values
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,7 @@ async def get_token(db: AsyncSession) -> Optional[str]:
 
     if row:
         # Check if still valid (with buffer)
-        if row.expires_at > datetime.utcnow() + timedelta(minutes=REFRESH_BUFFER_MINUTES):
+        if row.expires_at > datetime.now(timezone.utc) + timedelta(minutes=REFRESH_BUFFER_MINUTES):
             return row.access_token
         # Needs refresh
         logger.info("ML access_token near expiry, refreshing [token redacted]")
@@ -60,7 +60,7 @@ async def _save_tokens(db: AsyncSession, data: dict) -> None:
     """Upsert token row. Always saves both access + refresh token."""
     user_id = str(data.get("user_id", "default"))
     expires_in = int(data.get("expires_in", 21600))
-    expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
     # Check if row exists for this user
     r = await db.execute(select(MLToken).where(MLToken.user_id == user_id))
@@ -71,7 +71,7 @@ async def _save_tokens(db: AsyncSession, data: dict) -> None:
         row.refresh_token = data["refresh_token"]
         row.expires_at = expires_at
         row.scope = data.get("scope")
-        row.updated_at = datetime.utcnow()
+        row.updated_at = datetime.now(timezone.utc)
     else:
         row = MLToken(
             user_id=user_id,
@@ -124,7 +124,7 @@ async def get_token_status(db: AsyncSession) -> dict:
             "needs_reauth": not has_env_token,
         }
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expires_in_minutes = int((row.expires_at - now).total_seconds() / 60)
     is_expired = row.expires_at <= now
     needs_refresh = row.expires_at <= now + timedelta(minutes=REFRESH_BUFFER_MINUTES)

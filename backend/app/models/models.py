@@ -2,9 +2,13 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Foreig
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import enum
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class ProviderEnum(str, enum.Enum):
@@ -26,8 +30,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=True)
     name = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     searches = relationship("Search", back_populates="user")
     alerts = relationship("PriceAlert", back_populates="user")
@@ -43,7 +47,7 @@ class Search(Base):
     normalized_query = Column(String, nullable=True)
     results_count = Column(Integer, default=0)
     source = Column(String, default="web")  # web, telegram, api
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="searches")
     offers = relationship("Offer", back_populates="search")
@@ -62,8 +66,8 @@ class Product(Base):
     image_url = Column(String, nullable=True)
     url = Column(String, nullable=False)
     affiliate_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     offers = relationship("Offer", back_populates="product")
     price_history = relationship("PriceHistory", back_populates="product")
@@ -89,7 +93,7 @@ class Offer(Base):
     affiliate_url = Column(String, nullable=False)
     is_fake_discount = Column(Boolean, default=False)
     extra_data = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     search = relationship("Search", back_populates="offers")
     product = relationship("Product", back_populates="offers")
@@ -108,7 +112,7 @@ class Coupon(Base):
     valid_until = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     usage_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class PriceHistory(Base):
@@ -118,7 +122,7 @@ class PriceHistory(Base):
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
     provider = Column(SAEnum(ProviderEnum), nullable=False)
     price = Column(Float, nullable=False)
-    recorded_at = Column(DateTime, default=datetime.utcnow, index=True)
+    recorded_at = Column(DateTime, default=_utcnow, index=True)
 
     product = relationship("Product", back_populates="price_history")
 
@@ -135,7 +139,7 @@ class PriceAlert(Base):
     target_price = Column(Float, nullable=False)
     is_active = Column(Boolean, default=True)
     triggered_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="alerts")
 
@@ -148,7 +152,7 @@ class Favorite(Base):
     # owner_id: telegram_id real ou bpt_anon_id do browser — obrigatório para scoping
     owner_id = Column(String, nullable=False, index=True)
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="favorites")
 
@@ -162,7 +166,7 @@ class AffiliateClick(Base):
     provider = Column(SAEnum(ProviderEnum), nullable=False)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
-    clicked_at = Column(DateTime, default=datetime.utcnow, index=True)
+    clicked_at = Column(DateTime, default=_utcnow, index=True)
 
 
 class Analytics(Base):
@@ -173,7 +177,7 @@ class Analytics(Base):
     event_data = Column(JSON, nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     session_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
 
 
 class ClickEvent(Base):
@@ -188,7 +192,7 @@ class ClickEvent(Base):
     user_agent = Column(String, nullable=True)
     referrer = Column(String, nullable=True)
     source = Column(String, default="web")  # web, telegram, tiktok, direct
-    clicked_at = Column(DateTime, default=datetime.utcnow, index=True)
+    clicked_at = Column(DateTime, default=_utcnow, index=True)
 
 
 class MLToken(Base):
@@ -206,8 +210,8 @@ class MLToken(Base):
     refresh_token = Column(String, nullable=False)
     expires_at = Column(DateTime, nullable=False)  # when access_token expires
     scope = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
 
 class ConversionEvent(Base):
@@ -221,7 +225,7 @@ class ConversionEvent(Base):
     commission_rate = Column(Float, nullable=True)
     commission_value = Column(Float, nullable=True)
     status = Column(String, default="pending")  # pending, confirmed, rejected
-    converted_at = Column(DateTime, default=datetime.utcnow, index=True)
+    converted_at = Column(DateTime, default=_utcnow, index=True)
 
 
 class ConversionRetryQueue(Base):
@@ -237,7 +241,7 @@ class ConversionRetryQueue(Base):
     last_attempt_at = Column(DateTime, nullable=True)
     resolved = Column(Boolean, default=False)
     error = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class ShortLink(Base):
@@ -257,5 +261,5 @@ class ShortLink(Base):
     source = Column(String, default="video")  # video, telegram, youtube, tiktok, web
     campaign = Column(String, nullable=True)  # e.g. "smartwatch_07h_seg"
     clicks = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
     last_clicked_at = Column(DateTime, nullable=True)

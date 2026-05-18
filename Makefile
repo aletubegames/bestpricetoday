@@ -18,7 +18,7 @@ dev-frontend:
 	cd frontend && npm run dev
 
 dev-bot:
-	cd backend && . venv/bin/activate && python -m app.workers.telegram_bot
+	cd backend && . venv/bin/activate && python -m app.workers.bestprice_bot
 
 test:
 	cd backend && . venv/bin/activate && pytest tests -v

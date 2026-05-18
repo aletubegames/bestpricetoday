@@ -2,7 +2,7 @@ import logging
 import sys
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 REDACT_PATTERNS = [
@@ -25,7 +25,7 @@ class SanitizingFilter(logging.Filter):
 class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
