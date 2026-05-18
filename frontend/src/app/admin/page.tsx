@@ -527,7 +527,19 @@ export default function AdminPage() {
 
   useEffect(() => {
     const stored = localStorage.getItem("admin_key");
-    if (stored) setKey(stored);
+    if (stored) { setKey(stored); return; }
+    // Auto-login: se tem JWT de admin logado, usa a ADMIN_MANAGER_KEY do env
+    const userStr = localStorage.getItem("bpt_user");
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u.is_admin) {
+          // Redirecionar se não tem admin_key configurada ainda
+          const envKey = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+          if (envKey) { setKey(envKey); localStorage.setItem("admin_key", envKey); }
+        }
+      } catch {}
+    }
   }, []);
 
   const adminFetch = (url: string, k: string, options: RequestInit = {}) =>
@@ -570,7 +582,14 @@ export default function AdminPage() {
     } catch { setLoginError("Erro ao conectar com a API"); }
   };
 
-  const handleLogout = () => { localStorage.removeItem("admin_key"); setKey(""); setOverview(null); };
+  const handleLogout = () => {
+    localStorage.removeItem("admin_key");
+    localStorage.removeItem("bpt_token");
+    localStorage.removeItem("bpt_user");
+    setKey("");
+    setOverview(null);
+    window.location.href = "/login";
+  };
 
   const exportCSV = () => {
     const rows = [["Hora", "Plataforma", "Produto", "Preço", "Fonte"], ...recentClicks.map((c: any) => [c.clicked_at, c.provider, c.product_title, c.price, c.source])];

@@ -56,9 +56,10 @@ export default function DashboardPage() {
   }
 
   const logout = () => {
+    const isAdmin = user?.is_admin
     localStorage.removeItem("bpt_token")
     localStorage.removeItem("bpt_user")
-    router.push("/")
+    router.push(isAdmin ? "/admin" : "/login")
   }
 
   if (loading) return (
