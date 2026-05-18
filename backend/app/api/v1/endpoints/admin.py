@@ -1121,3 +1121,30 @@ async def debug_orm(
         }
     except Exception as e:
         return {"error": str(e), "type": type(e).__name__}
+
+
+@router.post("/migrate/users-auth")
+async def migrate_users_auth(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Aplica colunas de autenticação na tabela users (idempotente)."""
+    from sqlalchemy import text
+    results = {}
+    try:
+        await db.execute(text("""
+            ALTER TABLE users
+              ADD COLUMN IF NOT EXISTS password_hash VARCHAR,
+              ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE
+        """))
+        await db.commit()
+        results["migration"] = "ok"
+
+        # Verificar colunas
+        r = await db.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='users' ORDER BY ordinal_position"
+        ))
+        results["columns"] = [row[0] for row in r.fetchall()]
+    except Exception as e:
+        results["error"] = str(e)
+    return results
