@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
+import TikTokPublisher from "@/components/TikTokPublisher";
 
 import { API_BASE as API_URL } from "@/lib/api";
 
@@ -353,6 +354,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             Link indisponível
           </div>
         )}
+        <TikTokPublisher offer={offer} />
       </div>
     </motion.article>
   );
