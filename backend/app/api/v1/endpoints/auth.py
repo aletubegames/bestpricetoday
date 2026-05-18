@@ -24,13 +24,12 @@ from app.core.logging import logger
 from app.db.session import get_db
 from app.models.models import User
 from pydantic import BaseModel, EmailStr
-from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timezone
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt as _bcrypt
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
@@ -40,11 +39,14 @@ REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return pwd_ctx.hash(plain[:72])
+    return _bcrypt.hashpw(plain.encode("utf-8")[:72], _bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_ctx.verify(plain[:72], hashed)
+    try:
+        return _bcrypt.checkpw(plain.encode("utf-8")[:72], hashed.encode())
+    except Exception:
+        return False
 
 
 def create_jwt(user_id: str, is_admin: bool = False) -> str:
