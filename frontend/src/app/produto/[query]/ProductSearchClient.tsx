@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { API_BASE as API } from "@/lib/api"
+import TikTokPublisher from "@/components/TikTokPublisher"
 
 const PROVIDER_LOGOS: Record<string, string> = {
   aliexpress: "🔴", shopee: "🟠", mercadolivre: "🟡",
@@ -104,6 +105,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
                 >
                   Ver oferta →
                 </a>
+                <TikTokPublisher offer={offer} />
               </div>
             </div>
           )

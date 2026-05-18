@@ -66,6 +66,11 @@ class Settings(BaseSettings):
 
     ADMIN_MANAGER_KEY: str = ""
 
+    # TikTok API
+    TIKTOK_CLIENT_KEY: str = ""
+    TIKTOK_CLIENT_SECRET: str = ""
+    TIKTOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/api/v1/tiktok/callback"
+
     # Video API (GPU local via ngrok ou URL fixa)
     VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
     VIDEO_API_KEY: str = ""
