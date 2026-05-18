@@ -4,6 +4,62 @@
 
 ---
 
+## Atualizações recentes (2026-05-18)
+
+### 1) Integração TikTok
+
+- **Backend:**
+  - `backend/app/integrations/tiktok.py` — `TikTokClient`: OAuth2, troca de token, publicação via `PULL_FROM_URL`
+  - `backend/app/api/v1/endpoints/tiktok.py` — endpoints: `GET /tiktok/auth`, `GET /tiktok/callback`, `POST /tiktok/publish`
+  - `backend/app/api/v1/router.py` — rota `/tiktok` registrada
+  - `backend/app/core/config.py` — `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
+- **Frontend:**
+  - `frontend/src/components/TikTokPublisher.tsx` — modal IA: gera título/descrição/hashtags + botão publicar
+  - `frontend/src/app/produto/[query]/ProductSearchClient.tsx` — botão TikTok em cada oferta
+- **Verificação de domínio:** 7 arquivos `.txt` em `public/` + 2 em `public/privacy/` e `public/terms/` — todos 200 OK no Vercel
+- **Credenciais HF Space:** `TIKTOK_CLIENT_KEY=awllka8qo05dhkri` + `TIKTOK_CLIENT_SECRET` configurados
+- **Status:** `GET /tiktok/auth` funcionando, aguardando aprovação do app pelo TikTok
+- **Redirect URI:** `https://bestpricetoday.vercel.app/api/v1/tiktok/callback`
+
+### 2) Correções de bugs críticos (2026-05-17/18)
+
+- `auto_share_to_channel()` — TypeError silenciado corrigido (`bestprice_bot.py`)
+- `ConversionEvent.created_at` → `converted_at` (`admin.py:600`)
+- `docker-compose.yml` + `Makefile` — `telegram_bot` → `bestprice_bot`
+- `datetime.utcnow()` → `datetime.now(timezone.utc)` em 7 arquivos + testes
+- `DateTime` → `DateTime(timezone=True)` em todos os models — corrige 500 no POST /alerts
+- `calculate_score()` removida (código morto)
+- `SECRET_KEY` e `ADMIN_MANAGER_KEY` regeneradas com valores seguros
+- `INTERNAL_API_URL` adicionada ao `.env` (alert_checker usava localhost no HF)
+
+### 3) Alembic migrations
+
+- `backend/alembic/` inicializado com `env.py` async
+- Migration inicial gerada: `bef783622397_initial_schema.py`
+- Comando: `cd backend && PYTHONPATH=. alembic upgrade head`
+
+### 4) Assets frontend
+
+- `frontend/public/og-image.png` (1200×630) criado
+- `frontend/public/apple-touch-icon.png` (180×180) criado
+- `frontend/public/manifest.json` criado (PWA)
+- `frontend/next.config.mjs` — `protocol: "https"` adicionado nos `remotePatterns`
+
+### 5) sync_hf_deploy.sh expandido
+
+- Agora sincroniza: endpoints, providers, core, models, services, ranking
+- Antes sincronizava apenas `alerts.py`, `favorites.py`, `schemas.py`
+
+### 6) Situação atual (2026-05-18 01h30 BRT)
+
+- `health` ✅ | `search` ✅ | `POST /alerts` ✅ | Shopee ✅ | AliExpress ✅ (tracking pendente restart HF)
+- Admin dashboard ✅ (ADMIN_MANAGER_KEY corrigida no HF)
+- Bot Telegram ✅ `@BestPriceToday_bot`
+- TikTok ⏳ aguardando aprovação do app
+- 59/59 testes passando
+
+---
+
 ## Atualizações recentes (2026-05-17)
 
 ### 1) Video API + ngrok (incidente 404 resolvido)
