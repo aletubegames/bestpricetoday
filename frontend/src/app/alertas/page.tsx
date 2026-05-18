@@ -241,7 +241,7 @@ export default function AlertasPage() {
           <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>
             Seus alertas são salvos e monitorados automaticamente. Quando o preço cair, você será notificado via <strong style={{ color: "var(--txt)" }}>Telegram</strong>.
           </p>
-          <a href="https://t.me/BestPriceTodayBot" target="_blank" rel="noopener noreferrer"
+          <a href="https://t.me/BestPriceToday_bot" target="_blank" rel="noopener noreferrer"
             style={{
               display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 10,
               background: "rgba(41,182,246,0.1)", border: "1px solid rgba(41,182,246,0.25)",
