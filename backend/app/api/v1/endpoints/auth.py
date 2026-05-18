@@ -117,27 +117,32 @@ class TokenOut(BaseModel):
 
 @router.post("/auth/register", response_model=TokenOut, status_code=201)
 async def register(data: RegisterIn, db: AsyncSession = Depends(get_db)):
-    # Verificar email duplicado
-    existing = await db.execute(select(User).where(User.email == data.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="E-mail já cadastrado.")
+    try:
+        existing = await db.execute(select(User).where(User.email == data.email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="E-mail já cadastrado.")
 
-    user = User(
-        id=uuid.uuid4(),
-        name=data.name,
-        email=data.email,
-        password_hash=hash_password(data.password),
-        is_active=True,
-        is_admin=False,
-    )
-    db.add(user)
-    await db.flush()
+        user = User(
+            id=uuid.uuid4(),
+            name=data.name,
+            email=data.email,
+            password_hash=hash_password(data.password),
+            is_active=True,
+            is_admin=False,
+        )
+        db.add(user)
+        await db.flush()
 
-    token = create_jwt(str(user.id), is_admin=False)
-    return TokenOut(
-        access_token=token,
-        user=UserOut(id=str(user.id), name=user.name, email=user.email, is_admin=False),
-    )
+        token = create_jwt(str(user.id), is_admin=False)
+        return TokenOut(
+            access_token=token,
+            user=UserOut(id=str(user.id), name=user.name, email=user.email, is_admin=False),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Register error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro interno: {type(e).__name__}: {str(e)[:200]}")
 
 
 @router.post("/auth/login", response_model=TokenOut)
