@@ -46,7 +46,7 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-# Cache simples em memória: challenge -> verifier (TTL implícito pelo fluxo OAuth)
+# state = verifier direto (sem server-side storage — funciona com múltiplos workers)
 _pkce_store: dict[str, str] = {}
 
 
@@ -224,15 +224,14 @@ async def ml_authorize():
     from urllib.parse import urlencode
     import secrets
     verifier, challenge = _pkce_pair()
-    state = secrets.token_urlsafe(16)
-    _pkce_store[state] = verifier
+    # state = verifier — viaja pelo redirect sem precisar de storage server-side
     params = urlencode({
         "response_type": "code",
         "client_id": settings.MERCADOLIVRE_APP_ID,
         "redirect_uri": REDIRECT_URI,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
-        "state": state,
+        "state": verifier,
     })
     url = f"https://auth.mercadolivre.com.br/authorization?{params}"
     return HTMLResponse(f"""
@@ -256,8 +255,8 @@ async def ml_oauth_callback(code: str = None, error: str = None, state: str = No
     if error or not code:
         return HTMLResponse("<h2>❌ Erro de autenticação</h2>", status_code=400)
 
-    # Recupera code_verifier do PKCE store via state
-    code_verifier = _pkce_store.pop(state, None) if state else None
+    # state carrega o code_verifier diretamente (stateless PKCE)
+    code_verifier = state if state else None
 
     payload = {
         "grant_type": "authorization_code",
