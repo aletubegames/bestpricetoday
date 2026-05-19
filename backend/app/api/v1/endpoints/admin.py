@@ -928,6 +928,13 @@ class VideoPublishRequest(BaseModel):
     formato:     str           = "oferta_choque"
 
 
+@router.get("/video/url")
+async def get_video_url(_: str = Depends(require_admin)):
+    """Retorna a VIDEO_API_URL para o frontend chamar diretamente.
+    O browser admin está na mesma rede local que o ngrok — sem proxy."""
+    return {"url": settings.VIDEO_API_URL}
+
+
 @router.get("/video/health")
 async def get_video_health(_: str = Depends(require_admin)):
     """Verifica se a Video API local está acessível via VIDEO_API_URL."""

@@ -193,12 +193,25 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   };
 
     const [videoApiOnline, setVideoApiOnline] = React.useState<boolean | null>(null);
+  const [videoApiUrl, setVideoApiUrl] = React.useState<string>("");
 
-  // Verifica status da Video API via backend (que tem VIDEO_API_URL configurado)
+  // Busca a URL da Video API do backend e chama DIRETO do browser
+  // (sem proxy pelo HF Space — o browser admin está na mesma rede que o ngrok)
   React.useEffect(() => {
-    fetch(`${apiBase}/api/v1/admin/video/health`, { headers: { "X-Admin-Key": adminKey } })
+    fetch(`${apiBase}/api/v1/admin/video/url`, { headers: { "X-Admin-Key": adminKey } })
       .then(r => r.ok ? r.json() : null)
-      .then(d => setVideoApiOnline(!!d?.ok))
+      .then(d => {
+        if (!d?.url) return;
+        const url = d.url;
+        setVideoApiUrl(url);
+        // Checar health direto do browser
+        return fetch(`${url}/health`, {
+          headers: { "ngrok-skip-browser-warning": "true" }
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(h => setVideoApiOnline(!!h?.ok))
+          .catch(() => setVideoApiOnline(false));
+      })
       .catch(() => setVideoApiOnline(false));
   }, [apiBase, adminKey]);
 
@@ -206,7 +219,11 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     stopPoll();
     pollRef.current = setInterval(async () => {
       try {
-        const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
+        // Status direto da Video API via browser
+        const url = videoApiUrl || apiBase;
+        const r = videoApiUrl
+          ? await fetch(`${videoApiUrl}/video/status/${jid}`, { headers: { "ngrok-skip-browser-warning": "true" } })
+          : await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
         const data = await r.json();
         if (data?.ok) {
           setJobLog(data.log_tail || []);
@@ -214,7 +231,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         }
       } catch {}
     }, 3000);
-  }, [apiBase, adminKey]);
+  }, [apiBase, adminKey, videoApiUrl]);
 
   const dispatch = async () => {
     if (!selectedPlats.length) return;
@@ -228,11 +245,15 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       formato: selectedFormat,
     };
     try {
-      const r = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
-        body: JSON.stringify(payload),
-      });
+      // Publicar direto na Video API via browser (sem passar pelo HF Space)
+      const endpoint = videoApiUrl
+        ? `${videoApiUrl}/video/publish`
+        : `${apiBase}/api/v1/admin/video/publish`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (videoApiUrl) headers["ngrok-skip-browser-warning"] = "true";
+      else headers["X-Admin-Key"] = adminKey;
+
+      const r = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(payload) });
       const d = await r.json();
       if (d.ok) {
         setJobId(d.job_id);
