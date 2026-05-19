@@ -52,7 +52,7 @@ export default function ProductPage({ params }: Props) {
         </div>
       </header>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 24px" }}>
+      <div style={{ maxWidth: 1600, margin: "0 auto", padding: "40px 16px" }}>
         <h1 style={{ fontSize: "clamp(1.5rem,4vw,2.5rem)", fontWeight: 900, marginBottom: 8 }}>
           Menor preço: <span style={{ color: "#7c6aff" }}>{q}</span>
         </h1>
