@@ -206,8 +206,8 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         gap: 0,
         overflow: "hidden",
         position: "relative",
-        background: "#0d0d1a",
-        border: `1px solid ${isSelected ? "rgba(124,106,255,0.6)" : "rgba(124,106,255,0.15)"}`,
+        background: "#ffffff",
+        border: `1px solid ${isSelected ? "rgba(108,92,231,0.6)" : "rgba(108,92,231,0.15)"}`,
         borderRadius: 14,
         transition: "border-color 0.2s, box-shadow 0.2s, transform 0.15s",
         cursor: "default",
@@ -216,12 +216,12 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         y: -2,
       }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.borderColor = "rgba(124,106,255,0.4)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px rgba(124,106,255,0.1)";
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(108,92,231,0.4)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 24px rgba(108,92,231,0.12)";
       }}
       onMouseLeave={e => {
-        (e.currentTarget as HTMLElement).style.borderColor = isSelected ? "rgba(124,106,255,0.6)" : "rgba(124,106,255,0.15)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "none";
+        (e.currentTarget as HTMLElement).style.borderColor = isSelected ? "rgba(108,92,231,0.6)" : "rgba(108,92,231,0.15)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
       }}
     >
       {/* Best card top gradient border */}
@@ -290,8 +290,8 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         {/* Product image + title */}
         <div style={{ display: "flex", gap: 14, marginBottom: 12 }}>
           <div style={{
-            width: 80, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0,
-            background: "#1c1c2e", border: "1px solid rgba(124,106,255,0.1)",
+            width: 120, height: 120, borderRadius: 10, overflow: "hidden", flexShrink: 0,
+            background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.1)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             {offer.image_url && offer.image_url.startsWith("http") ? (
@@ -306,7 +306,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
             <p style={{
               fontSize: 13, lineHeight: 1.55,
-              color: "rgba(240,240,248,0.7)",
+              color: "rgba(26,26,46,0.75)",
               overflow: "hidden", display: "-webkit-box",
               WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const,
               margin: 0,
@@ -327,8 +327,8 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
               {offer.final_price && offer.final_price > 0.02 ? (
                 <>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,240,248,0.5)" }}>R$</span>
-                  <span style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1, color: "#f0f0f8" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(26,26,46,0.45)" }}>R$</span>
+                  <span style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1, color: "#1a1a2e" }}>
                     {fmtPrice(offer.final_price)}
                   </span>
                 </>
@@ -377,8 +377,8 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
               padding: "13px 20px", borderRadius: 12,
               fontSize: 14, fontWeight: 700, textDecoration: "none",
               background: best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "#111120",
-              color: best ? "#fff" : "rgba(240,240,248,0.7)",
-              border: best ? "none" : "1px solid #2a2a3a",
+              color: best ? "#fff" : "rgba(26,26,46,0.7)",
+              border: best ? "none" : "1px solid rgba(108,92,231,0.2)",
               transition: "filter .2s, transform .15s",
               opacity: loadingUrl ? 0.7 : 1,
             }}
@@ -390,8 +390,8 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         ) : (
           <div style={{
             padding: "13px 20px", borderRadius: 12, fontSize: 14,
-            textAlign: "center", color: "rgba(240,240,248,0.3)",
-            background: "#111120", border: "1px solid #2a2a3a",
+            textAlign: "center", color: "rgba(26,26,46,0.3)",
+            background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.15)",
           }}>
             Link indisponível
           </div>

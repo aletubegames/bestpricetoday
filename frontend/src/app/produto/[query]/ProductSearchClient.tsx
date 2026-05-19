@@ -43,7 +43,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
       <p style={{ color: "#94a3b8", marginBottom: 20 }}>
         <strong style={{ color: "#fff" }}>{total}</strong> oferta{total !== 1 ? "s" : ""} encontrada{total !== 1 ? "s" : ""}
       </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 16 }} className="offer-grid">
         {offers.map((offer, i) => {
           const isFirst = i === 0
           const logo = PROVIDER_LOGOS[offer.provider] || "🏪"
