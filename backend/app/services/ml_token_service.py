@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.core.config import settings
 from app.core.logging import logger
 from app.models.models import MLToken
@@ -57,31 +57,22 @@ async def save_from_oauth(db: AsyncSession, token_data: dict) -> None:
 
 
 async def _save_tokens(db: AsyncSession, data: dict) -> None:
-    """Upsert token row. Always saves both access + refresh token."""
+    """Upsert token row. Always saves both access + refresh token. Deletes old rows."""
     user_id = str(data.get("user_id", "default"))
     expires_in = int(data.get("expires_in", 21600))
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
-    # Check if row exists for this user
-    r = await db.execute(select(MLToken).where(MLToken.user_id == user_id))
-    row = r.scalar()
+    # Remove todos os tokens antigos (garante 1 linha só)
+    await db.execute(delete(MLToken))
 
-    if row:
-        row.access_token = data["access_token"]
-        row.refresh_token = data["refresh_token"]
-        row.expires_at = expires_at
-        row.scope = data.get("scope")
-        row.updated_at = datetime.now(timezone.utc)
-    else:
-        row = MLToken(
-            user_id=user_id,
-            access_token=data["access_token"],
-            refresh_token=data["refresh_token"],
-            expires_at=expires_at,
-            scope=data.get("scope"),
-        )
-        db.add(row)
-
+    row = MLToken(
+        user_id=user_id,
+        access_token=data["access_token"],
+        refresh_token=data["refresh_token"],
+        expires_at=expires_at,
+        scope=data.get("scope"),
+    )
+    db.add(row)
     await db.commit()
     logger.info(f"ML tokens saved for user_id={user_id} expires_at={expires_at} [values redacted]")
 
