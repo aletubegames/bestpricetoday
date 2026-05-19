@@ -1193,3 +1193,32 @@ async def ml_test_search(
         }
     except Exception as e:
         return {"error": str(e), "token_found": True}
+
+
+@router.get("/ml/test-endpoints")
+async def ml_test_endpoints(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Testa múltiplos endpoints ML com o token atual."""
+    import httpx
+    from app.services.ml_token_service import get_token
+    token = await get_token(db)
+    if not token:
+        return {"error": "sem token"}
+    
+    endpoints = [
+        ("sites_search",    f"https://api.mercadolibre.com/sites/MLB/search?q=smartphone&limit=2"),
+        ("products_search", f"https://api.mercadolibre.com/products/search?site_id=MLB&q=smartphone&limit=2"),
+        ("user_items",      f"https://api.mercadolibre.com/users/6727655/items/search?q=smartphone&limit=2"),
+        ("user_favorites",  f"https://api.mercadolibre.com/users/6727655/purchased_items"),
+    ]
+    results = {}
+    async with httpx.AsyncClient(timeout=10) as client:
+        for name, url in endpoints:
+            try:
+                r = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+                results[name] = {"status": r.status_code, "body": r.text[:200]}
+            except Exception as e:
+                results[name] = {"error": str(e)}
+    return results
