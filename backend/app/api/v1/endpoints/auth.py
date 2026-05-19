@@ -249,7 +249,9 @@ async def ml_oauth_callback(code: str = None, error: str = None, db: AsyncSessio
         )
 
     if resp.status_code != 200:
-        return HTMLResponse("<h2>❌ Erro ao obter token ML</h2>", status_code=400)
+        error_body = resp.text[:500]
+        logger.error(f"ML OAuth token exchange failed: HTTP {resp.status_code} — {error_body}")
+        return HTMLResponse(f"<h2>❌ Erro ao obter token ML</h2><pre>{resp.status_code}: {error_body}</pre>", status_code=400)
 
     data = resp.json()
     logger.info(f"ML OAuth success — user_id={data.get('user_id')} [tokens redacted]")
