@@ -433,6 +433,206 @@ Imagem Produto
 
 ---
 
+## Wan2.1 — Tipos de Vídeo, Modos e Prompts Completos
+
+### Contexto do modelo
+
+O Wan2.1 opera em dois modos:
+
+| Modo | Input | Uso |
+|------|-------|-----|
+| **T2V** (Text to Video) | Só texto | Gera cena do zero |
+| **I2V** (Image to Video) | Imagem + texto | Anima uma imagem existente |
+
+**Para produto: sempre I2V.** T2V perde o objeto de referência.
+
+---
+
+### Tipo 1 — Orbital / 360° (principal para produto)
+
+**Descrição:** Câmera circula lentamente ao redor do produto. Mostra todos os ângulos. Transmite qualidade e confiança.
+
+**Quando usar:** Lançamento, destaque de produto premium, hero shot.
+
+**Prompt:**
+```
+High-end product commercial video of the exact object from the reference image.
+The object remains perfectly identical to the reference image — no deformation, no mutation.
+No additional objects. No background changes.
+Clean studio background with soft gradient.
+Slow cinematic orbital camera movement around the product.
+Professional three-point studio lighting.
+Soft specular reflections on the surface.
+Realistic contact shadow at the base.
+Product perfectly centered and stable throughout all frames.
+Commercial advertising style.
+Ultra detailed surface texture.
+Stable geometry across all frames.
+Photorealistic render quality.
+```
+
+**Parâmetros:**
+```
+cfg: 5
+steps: 25
+motion_strength: 0.6
+frames: 81  (3s a 24fps)
+```
+
+---
+
+### Tipo 2 — Float / Levitação (lifestyle)
+
+**Descrição:** Produto flutua suavemente no centro. Movimento vertical leve, como respiração. Passa sensação de premium e tech.
+
+**Quando usar:** Eletrônicos, headphones, gadgets, relógios.
+
+**Prompt:**
+```
+High-end product commercial video of the exact object from the reference image.
+The product floats gently in mid-air with a subtle slow vertical oscillation.
+Clean white or dark gradient background.
+Product identical to reference — no shape changes, no deformation.
+Soft cinematic lighting from above and sides.
+Subtle lens flare on reflective surfaces.
+No camera movement — product is the only element in motion.
+Slow, elegant, breathing-like float.
+Product centered. Commercial advertising style.
+Ultra detailed. Stable geometry.
+```
+
+**Parâmetros:**
+```
+cfg: 4
+steps: 20
+motion_strength: 0.4
+frames: 81
+```
+
+---
+
+### Tipo 3 — Reveal / Entrada dramática
+
+**Descrição:** Produto entra em cena com movimento suave — vindo de baixo, cima ou desfocado. Cria expectativa.
+
+**Quando usar:** Black Friday, lançamento, oferta relâmpago.
+
+**Prompt:**
+```
+Cinematic product reveal video of the exact object from the reference image.
+The product slowly rises from below into frame, coming into sharp focus.
+Clean dark background with dramatic studio lighting.
+Single point of light creating strong highlight on the product surface.
+Product identical to reference — no modification, no deformation.
+Slow upward motion with depth of field blur dissolving to sharp.
+Cinematic color grading. Deep shadows. Soft rim light on edges.
+Commercial advertising style. Ultra detailed.
+Stable product geometry. No background objects.
+```
+
+**Parâmetros:**
+```
+cfg: 5
+steps: 28
+motion_strength: 0.7
+frames: 81
+```
+
+---
+
+### Tipo 4 — Zoom In / Detalhe de Textura
+
+**Descrição:** Câmera aproxima lentamente do produto, revelando textura e acabamento. Ideal para justificar preço premium.
+
+**Quando usar:** Tênis, bolsas, relógios, materiais nobres.
+
+**Prompt:**
+```
+Ultra close-up product detail video of the exact object from the reference image.
+Slow smooth camera push-in toward the product surface.
+Reveals fine texture, stitching, material grain and surface quality.
+Product identical to reference — no deformation, no color change.
+Macro studio lighting highlighting surface details.
+Extremely sharp focus on product texture.
+Clean neutral background. No distractions.
+Commercial advertising style. Photorealistic.
+Stable geometry. Ultra detailed surface.
+```
+
+**Parâmetros:**
+```
+cfg: 6
+steps: 30
+motion_strength: 0.5
+frames: 81
+```
+
+---
+
+### Tipo 5 — Splash / Efeito de Ambiente (avançado)
+
+**Descrição:** Partículas, fumaça leve, bokeh ao fundo. Cria atmosfera sem alterar o produto. Efeito de "comercial de TV".
+
+**Quando usar:** Perfume, cosméticos, bebidas, produto premium.
+
+**Prompt:**
+```
+High-end product commercial video of the exact object from the reference image.
+Soft ambient particles floating in the air around the product — not touching it.
+Subtle volumetric light rays from above creating atmosphere.
+Product absolutely identical to reference — no deformation, no mutation.
+Product remains perfectly still and centered.
+Clean dark or gradient background.
+Bokeh background with soft out-of-focus light circles.
+Cinematic studio lighting. Commercial advertising style.
+Ultra detailed product surface. Stable geometry.
+```
+
+**Parâmetros:**
+```
+cfg: 4
+steps: 25
+motion_strength: 0.3
+frames: 81
+```
+
+---
+
+### Regras transversais (todos os tipos)
+
+1. **Nunca use:** `masterpiece quality`, `best quality`, `award winning`, `highly detailed` isolado — inflam o CFG interno e causam mutação
+2. **Sempre especifique** que o objeto é idêntico à referência — repetir isso no prompt ajuda
+3. **CFG acima de 7:** destrói consistência inter-frame
+4. **motion_strength acima de 0.8:** o modelo começa a inventar geometria
+5. **Limite de geração:** 3-5 segundos (81 frames a 24fps). O resto é FFmpeg
+6. **Imagem de entrada:** PNG, fundo removido, upscale 4x, produto centralizado — vale mais que qualquer prompt
+
+---
+
+### Pipeline de pré-processamento da imagem (antes do Wan2.1)
+
+```
+foto bruta do produto
+    ↓
+remoção de fundo (rembg ou SAM)
+    ↓
+fundo neutro (branco, cinza escuro ou transparente)
+    ↓
+produto centralizado com padding 10-15%
+    ↓
+sombra fake (Gaussian blur do produto, opacidade 30%, deslocamento Y +10px)
+    ↓
+upscale 4x (Real-ESRGAN x4plus)
+    ↓
+sharpen leve (unsharp mask: radius=1, amount=0.5)
+    ↓
+salva como PNG 24bit
+    ↓
+Wan2.1 I2V
+```
+
+---
+
 ## Pendências prioritárias
 
 ### Alta prioridade
