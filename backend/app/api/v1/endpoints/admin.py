@@ -1171,16 +1171,25 @@ async def ml_test_search(
         return {"error": "sem token no banco", "token_found": False}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
+            # Testa /users/me para ver scopes
+            me_resp = await client.get(
+                "https://api.mercadolibre.com/users/me",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            # Testa busca
+            search_resp = await client.get(
                 "https://api.mercadolibre.com/sites/MLB/search",
                 params={"q": q, "limit": 3},
                 headers={"Authorization": f"Bearer {token}"},
             )
+        me_data = me_resp.json() if me_resp.status_code == 200 else me_resp.text[:200]
         return {
-            "http_status": resp.status_code,
             "token_found": True,
             "token_prefix": token[:20] + "...",
-            "response": resp.json() if resp.status_code == 200 else resp.text[:500],
+            "users_me_status": me_resp.status_code,
+            "users_me": {k: me_data.get(k) for k in ["id", "nickname", "email", "site_id"]} if isinstance(me_data, dict) else me_data,
+            "search_status": search_resp.status_code,
+            "search_response": search_resp.json() if search_resp.status_code == 200 else search_resp.text[:500],
         }
     except Exception as e:
         return {"error": str(e), "token_found": True}
