@@ -933,11 +933,11 @@ async def get_video_health(_: str = Depends(require_admin)):
     """Verifica se a Video API local está acessível via VIDEO_API_URL."""
     VIDEO_API_URL = settings.VIDEO_API_URL
     VIDEO_API_KEY = settings.VIDEO_API_KEY
-    headers: dict = {}
+    headers: dict = {"ngrok-skip-browser-warning": "true"}  # ngrok free requer este header
     if VIDEO_API_KEY:
         headers["x-video-key"] = VIDEO_API_KEY
     try:
-        async with httpx.AsyncClient(timeout=4) as c:
+        async with httpx.AsyncClient(timeout=6) as c:
             r = await c.get(f"{VIDEO_API_URL}/health", headers=headers)
         data = r.json()
         return {"ok": data.get("ok", False), "url": VIDEO_API_URL, **data}
@@ -971,7 +971,7 @@ async def trigger_video_publish(
     if not plats:
         return {"ok": False, "error": "Nenhuma plataforma válida"}
 
-    headers: dict = {"Content-Type": "application/json"}
+    headers: dict = {"Content-Type": "application/json", "ngrok-skip-browser-warning": "true"}
     if VIDEO_API_KEY:
         headers["x-video-key"] = VIDEO_API_KEY
 
@@ -1009,7 +1009,7 @@ async def get_video_status(
     VIDEO_API_URL = settings.VIDEO_API_URL
     VIDEO_API_KEY = settings.VIDEO_API_KEY
 
-    headers: dict = {}
+    headers: dict = {"ngrok-skip-browser-warning": "true"}
     if VIDEO_API_KEY:
         headers["x-video-key"] = VIDEO_API_KEY
 
