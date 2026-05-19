@@ -1155,3 +1155,32 @@ async def migrate_users_auth(
     except Exception as e:
         results["error"] = str(e)
     return results
+
+
+@router.get("/ml/test-search")
+async def ml_test_search(
+    q: str = "iphone",
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Testa busca ML com o token atual do banco. Diagnóstico apenas."""
+    import httpx
+    from app.services.ml_token_service import get_token
+    token = await get_token(db)
+    if not token:
+        return {"error": "sem token no banco", "token_found": False}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://api.mercadolibre.com/sites/MLB/search",
+                params={"q": q, "limit": 3},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        return {
+            "http_status": resp.status_code,
+            "token_found": True,
+            "token_prefix": token[:20] + "...",
+            "response": resp.json() if resp.status_code == 200 else resp.text[:500],
+        }
+    except Exception as e:
+        return {"error": str(e), "token_found": True}
