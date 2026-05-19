@@ -1,4 +1,5 @@
 "use client";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
 import TikTokPublisher from "@/components/TikTokPublisher";
@@ -122,10 +123,8 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 const trackClick = (offer: Offer) => {
-  const utmUrl = offer.affiliate_url?.includes("utm_source")
-    ? offer.affiliate_url
-    : `${offer.affiliate_url}${offer.affiliate_url?.includes("?") ? "&" : "?"}utm_source=bestpricetoday&utm_medium=affiliate&utm_content=${offer.provider}`;
-  fetch(`${API_URL}/api/v1/admin/clicks`, {
+  // Registra click via endpoint público (não usa /admin/clicks)
+  fetch(`${API_URL}/api/v1/clicks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -133,10 +132,38 @@ const trackClick = (offer: Offer) => {
       provider: offer.provider,
       product_title: offer.title,
       price: offer.final_price,
-      affiliate_url: utmUrl,
+      affiliate_url: offer.affiliate_url || "",
       source: "web",
     }),
   }).catch(() => {});
+};
+
+/**
+ * Gera (ou retorna cached) o short link rastreado para a oferta.
+ * O botão Comprar SEMPRE passa pelo /r/{code} para garantir rastreio.
+ */
+const getTrackedUrl = async (offer: Offer): Promise<string> => {
+  // Se já é um short link BPT, usa direto
+  if (offer.affiliate_url?.includes("/r/")) return offer.affiliate_url;
+  try {
+    const res = await fetch(`${API_URL}/api/v1/links/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        affiliate_url: offer.affiliate_url,
+        provider: offer.provider,
+        product_title: offer.title,
+        price: offer.final_price,
+        source: "web",
+        campaign: "offer_card",
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.url || offer.affiliate_url || "#";
+    }
+  } catch {}
+  return offer.affiliate_url || "#";
 };
 
 interface Props {
@@ -153,6 +180,20 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
   const best = rank === 0;
   const badges = computeBadges(offer);
   const fmtPrice = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  const [buyUrl, setBuyUrl] = useState<string>(offer.affiliate_url || "#");
+  const [loadingUrl, setLoadingUrl] = useState(false);
+
+  const handleBuy = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    trackClick(offer);
+    if (!loadingUrl) {
+      setLoadingUrl(true);
+      const url = await getTrackedUrl(offer);
+      setBuyUrl(url);
+      setLoadingUrl(false);
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, [offer, loadingUrl]);
 
   return (
     <motion.article
@@ -327,10 +368,10 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
       <div style={{ padding: "0 16px 16px" }}>
         {offer.affiliate_url ? (
           <a
-            href={offer.affiliate_url}
+            href={buyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackClick(offer)}
+            onClick={handleBuy}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               padding: "13px 20px", borderRadius: 12,
@@ -339,11 +380,12 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
               color: best ? "#fff" : "rgba(240,240,248,0.7)",
               border: best ? "none" : "1px solid #2a2a3a",
               transition: "filter .2s, transform .15s",
+              opacity: loadingUrl ? 0.7 : 1,
             }}
             onMouseEnter={e => Object.assign(e.currentTarget.style, { filter: "brightness(1.12)", transform: "translateY(-1px)" })}
             onMouseLeave={e => Object.assign(e.currentTarget.style, { filter: "brightness(1)", transform: "translateY(0)" })}
           >
-            Ver oferta →
+            {loadingUrl ? "Carregando..." : "Ver oferta →"}
           </a>
         ) : (
           <div style={{

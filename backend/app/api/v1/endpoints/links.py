@@ -17,6 +17,19 @@ import string
 
 router = APIRouter()
 
+# Rate limiting simples por IP para /links/create
+_link_create_limits: dict = {}
+
+def _check_link_rate(ip: str, max_per_min: int = 20) -> bool:
+    """Permite max_per_min criações por minuto por IP."""
+    import time
+    now = time.time()
+    _link_create_limits[ip] = [t for t in _link_create_limits.get(ip, []) if now - t < 60]
+    if len(_link_create_limits[ip]) >= max_per_min:
+        return False
+    _link_create_limits[ip].append(now)
+    return True
+
 
 def generate_code(length: int = 8) -> str:
     """Generate a random short code."""
@@ -36,13 +49,16 @@ class CreateLinkRequest(BaseModel):
 @router.post("/links/create")
 async def create_short_link(
     data: CreateLinkRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Creates a tracked short link.
-    Returns: { "code": "abc123XY", "url": "https://bestpricetoday.vercel.app/r/abc123XY" }
-    No auth required — called by the video pipeline.
+    Rate limited: 20 req/min por IP.
     """
+    ip = request.client.host if request.client else "unknown"
+    if not _check_link_rate(ip):
+        return JSONResponse(status_code=429, content={"error": "Rate limit exceeded. Max 20 links/min per IP."})
     try:
         # Generate unique code
         for _ in range(10):

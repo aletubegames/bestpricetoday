@@ -8,7 +8,19 @@ class Settings(BaseSettings):
     APP_NAME: str = "BestPriceToday"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+    # NÃO use o valor default em produção. Defina SECRET_KEY no .env
     SECRET_KEY: str = "change-me-in-production"
+
+    @property
+    def secret_key_validated(self) -> str:
+        if self.SECRET_KEY == "change-me-in-production":
+            import warnings
+            warnings.warn(
+                "SECRET_KEY is using the insecure default value. "
+                "Set SECRET_KEY in your .env file.",
+                RuntimeWarning, stacklevel=2,
+            )
+        return self.SECRET_KEY
     API_V1_STR: str = "/api/v1"
 
     # Database

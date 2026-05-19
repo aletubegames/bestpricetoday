@@ -527,20 +527,11 @@ export default function AdminPage() {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("admin_key");
+      const stored = localStorage.getItem("admin_key");
     if (stored) { setKey(stored); return; }
-    // Auto-login: se tem JWT de admin logado, usa a ADMIN_MANAGER_KEY do env
-    const userStr = localStorage.getItem("bpt_user");
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        if (u.is_admin) {
-          // Redirecionar se não tem admin_key configurada ainda
-          const envKey = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-          if (envKey) { setKey(envKey); localStorage.setItem("admin_key", envKey); }
-        }
-      } catch {}
-    }
+    // Auto-login via JWT de admin — redireciona para digitar a key manualmente
+    // REMOVIDO: NEXT_PUBLIC_ADMIN_KEY era exposto no bundle JS (risco de segurança)
+    // A admin_key deve ser digitada manualmente no login form
   }, []);
 
   const adminFetch = (url: string, k: string, options: RequestInit = {}) =>
