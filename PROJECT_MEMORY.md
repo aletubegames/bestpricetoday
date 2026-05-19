@@ -341,6 +341,96 @@ Todos os arquivos importam `{ API_BASE }` dali. Nenhum fallback inline ou `local
 - **Fluxo:** gera vídeo → encurta link → publica Telegram ✅ YouTube ✅ TikTok ⏳
 - **YouTube links:** encurtados via TinyURL API para garantir clicabilidade na descrição
 
+### Wan2.1 — Prompt Correto (2026-05-19)
+
+**NÃO usar:** `masterpiece quality` (piora resultado — gera lixo e mutação)
+
+**Usar:**
+```
+High-end product commercial video of the exact object from the reference image.
+The object remains identical to the reference image.
+No deformation.
+No additional objects.
+Clean background.
+Slow cinematic orbital camera movement.
+Professional studio lighting.
+Soft reflections.
+Realistic shadows.
+Product centered.
+Commercial advertising style.
+Ultra detailed.
+Stable geometry.
+```
+
+### Wan2.1 — Parâmetros Corretos
+- **cfg:** 4-6 (CFG alto = mais lixo, mais mutação, mais frame ruim)
+- **steps:** 20-30
+- **motion_strength:** baixo
+
+### O Segredo Real da Qualidade: A Imagem Inicial
+A maioria usa print lixo, fundo ruim, JPEG comprimido. O correto:
+1. PNG limpo
+2. Fundo removido, produto centralizado
+3. Sombra fake já pronta
+4. **Upscale 4x ANTES do Wan2.1**
+
+**Fluxo de pré-processamento:**
+```
+Produto real → Remove background → Upscale 4x → Sharpen leve → Wan2.1 motion → FFmpeg overlay
+```
+
+### Hack de Geração — Nunca Gerar Vídeo Longo
+- Gerar apenas 3-5 segundos de IA (máximo)
+- IA longa: destrói consistência, explode VRAM, gera mutação
+- Expandir tudo no FFmpeg: slow motion, frame interpolation, camera shake, zoom digital, particles, light sweep
+
+### TTS — Preferência de Qualidade
+- **Fish Speech:** melhor naturalidade, mais emoção → **usar para escala**
+- **GPT-SoVITS:** melhor clone de voz, mais pesado → usar para personagem/locutor fixo
+- **Edge-TTS:** NÃO usar para produção (não serve para canal)
+- Ordem: Fish Speech > Edge-TTS
+
+### FFmpeg — O Que Torna Profissional
+Não é o vídeo da IA — é o pós-processamento:
+- sound design, glow, particles, motion blur, typography, transitions, SFX
+
+Elementos FFmpeg que faltam implementar:
+- easing, blur, vignette, glow, sharpen, grain cinematográfico
+
+**Exemplo de filtro profissional:**
+```bash
+ffmpeg -i video.mp4 -i overlay.png -filter_complex "
+[0:v]eq=contrast=1.08:saturation=1.15,
+unsharp=5:5:1.0,
+vignette=PI/5,
+fps=60[v0];
+
+[v0][1:v]overlay=0:0,
+drawtext=text='R$ 99,90':
+fontfile=/fonts/Montserrat-Bold.ttf:
+fontsize=120:
+fontcolor=yellow:
+x=(w-text_w)/2:
+y=1550
+"
+-c:v libx264 -crf 18 final.mp4
+```
+
+### Pipeline Completo AleTubeGames
+```
+Imagem Produto
+→ Background Removal
+→ Upscale
+→ Template Visual
+→ Wan2.1 I2V
+→ Fish Speech
+→ FFmpeg Motion Graphics
+→ Auto Subtitle
+→ Auto Upload
+```
+
+> **Insight principal:** A parte inteligente do sistema NÃO é a IA — é o pipeline, a consistência, a automação, a identidade visual fixa e a velocidade. Isso é o que diferencia produto profissional de demo de IA.
+
 ---
 
 ## Pendências prioritárias
