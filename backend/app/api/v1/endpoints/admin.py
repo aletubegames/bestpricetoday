@@ -1314,3 +1314,48 @@ async def ml_test_buybox(
                     "permalink": data.get("permalink"),
                 })
     return {"count": len(details), "items": details}
+
+
+@router.get("/ml/test-items")
+async def ml_test_items(
+    q: str = "iphone",
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Testa /products/{id}/items para obter preço via token."""
+    import httpx
+    from app.services.ml_token_service import get_token
+    token = await get_token(db)
+    if not token:
+        return {"error": "sem token"}
+    async with httpx.AsyncClient(timeout=15) as client:
+        # Busca produto no catálogo
+        r = await client.get(
+            "https://api.mercadolibre.com/products/search",
+            params={"site_id": "MLB", "q": q, "limit": 5},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        results = r.json().get("results", []) if r.status_code == 200 else []
+        items_results = []
+        for prod in results[:3]:
+            pid = prod.get("id") or prod.get("catalog_product_id")
+            # Tenta /products/{id}/items
+            r2 = await client.get(
+                f"https://api.mercadolibre.com/products/{pid}/items",
+                params={"limit": 2},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            # Tenta /items/search por catalog_product_id
+            r3 = await client.get(
+                "https://api.mercadolibre.com/sites/MLB/search",
+                params={"catalog_product_id": pid, "limit": 2},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            items_results.append({
+                "product_id": pid,
+                "name": prod.get("name", "")[:50],
+                "items_status": r2.status_code,
+                "items_body": r2.json() if r2.status_code == 200 else r2.text[:200],
+                "catalog_search_status": r3.status_code,
+            })
+    return {"results": items_results}
