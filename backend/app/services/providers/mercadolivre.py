@@ -43,8 +43,8 @@ class MercadoLivreProvider(BaseProvider):
                 token = await get_db_token(db)
                 if token:
                     return token
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"ML _get_best_token DB lookup failed: {type(e).__name__}: {e}")
         # Fall back to settings env var
         if settings.MERCADOLIVRE_ACCESS_TOKEN:
             return settings.MERCADOLIVRE_ACCESS_TOKEN
