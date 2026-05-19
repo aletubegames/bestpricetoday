@@ -1171,28 +1171,20 @@ async def ml_test_search(
         return {"error": "sem token no banco", "token_found": False}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            # Testa /users/me para ver scopes
             me_resp = await client.get(
                 "https://api.mercadolibre.com/users/me",
                 headers={"Authorization": f"Bearer {token}"},
             )
-            # Testa busca
             search_resp = await client.get(
                 "https://api.mercadolibre.com/sites/MLB/search",
                 params={"q": q, "limit": 3},
                 headers={"Authorization": f"Bearer {token}"},
             )
+            app_info_resp = await client.get(
+                "https://api.mercadolibre.com/users/6727655/applications/2661096739949809",
+                headers={"Authorization": f"Bearer {token}"},
+            )
         me_data = me_resp.json() if me_resp.status_code == 200 else me_resp.text[:200]
-        # Pega scopes do token via /authorization/scopes
-        scope_resp = await client.get(
-            "https://api.mercadolibre.com/authorization/scopes",
-            headers={"Authorization": f"Bearer {token}"},
-        ) if False else None  # placeholder
-        # Tenta /users/{id}/applications/{app_id}
-        app_info_resp = await client.get(
-            f"https://api.mercadolibre.com/users/6727655/applications/2661096739949809",
-            headers={"Authorization": f"Bearer {token}"},
-        )
         return {
             "token_found": True,
             "token_prefix": token[:20] + "...",
