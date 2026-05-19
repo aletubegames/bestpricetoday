@@ -288,24 +288,24 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         )}
 
         {/* Product image + title */}
-        <div style={{ display: "flex", gap: 14, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
           <div style={{
-            width: 120, height: 120, borderRadius: 10, overflow: "hidden", flexShrink: 0,
+            width: "100%", height: 180, borderRadius: 10, overflow: "hidden",
             background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.1)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             {offer.image_url && offer.image_url.startsWith("http") ? (
               <img src={offer.image_url} alt={offer.title} loading="lazy"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }}
                 onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             ) : (
-              <span style={{ fontSize: 28, opacity: 0.5 }}>🛍️</span>
+              <span style={{ fontSize: 40, opacity: 0.4 }}>🛍️</span>
             )}
           </div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <p style={{
-              fontSize: 13, lineHeight: 1.55,
+              fontSize: 12, lineHeight: 1.5,
               color: "rgba(26,26,46,0.75)",
               overflow: "hidden", display: "-webkit-box",
               WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const,
