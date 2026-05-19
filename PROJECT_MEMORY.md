@@ -600,12 +600,79 @@ frames: 81
 
 ### Regras transversais (todos os tipos)
 
-1. **Nunca use:** `masterpiece quality`, `best quality`, `award winning`, `highly detailed` isolado — inflam o CFG interno e causam mutação
-2. **Sempre especifique** que o objeto é idêntico à referência — repetir isso no prompt ajuda
-3. **CFG acima de 7:** destrói consistência inter-frame
-4. **motion_strength acima de 0.8:** o modelo começa a inventar geometria
-5. **Limite de geração:** 3-5 segundos (81 frames a 24fps). O resto é FFmpeg
-6. **Imagem de entrada:** PNG, fundo removido, upscale 4x, produto centralizado — vale mais que qualquer prompt
+**NUNCA enviar para o modelo:**
+- Preço, logo, CTA, legenda, selo, texto de qualquer tipo
+- Modelos de vídeo não entendem tipografia — deformam letras, criam flicker, tentam animar caracteres
+- Todo layout é overlay no FFmpeg depois, nunca dentro do modelo
+
+**CFG — CRÍTICO (Wan não é Stable Diffusion):**
+- CFG alto derrete, faz overcook, cria artefato, explode consistência
+- **Ideal real: CFG 3.0~4.5**
+- Nunca passar de 5 para I2V de produto
+
+**Motion strength:**
+- O produto precisa de micro movimento, câmera lenta, parallax leve — não cinematic insanity
+- **Ideal: 0.35~0.55**
+- Acima de 0.8: modelo inventa geometria
+
+**Setup otimizado RTX 4090:**
+```
+Resolução: 720x1280
+Frames: 97
+CFG: 4.0
+Steps: 32
+Motion: 0.45
+Quantização: FP8 / NF4 / GGUF
+```
+Depois: interpolar para 60fps, upscale opcional
+
+**Maior erro de iniciante:**
+```
+1080p + 10s + 24fps + 200 frames + CFG 8 + motion 0.9
+= VRAM explodida + incoerência + instabilidade
+```
+
+**O que a IA deve fazer APENAS:**
+- Camera motion
+- Luz
+- Reflexo
+- Atmosfera
+
+**Todo o resto é FFmpeg / overlays / automação:**
+- Preço, logo, CTA, legenda, selos
+- Hook, cortes, zoom, ritmo, SFX
+- Templates visuais fixos
+
+**O que realmente vende:**
+- Hook inicial forte
+- Sound design
+- Zoom digital
+- Legenda agressiva
+- CTA claro
+- Ritmo e cortes
+
+Não é a qualidade absoluta da IA.
+
+1. **Nunca use no prompt:** `masterpiece quality`, `best quality`, `award winning` — inflam CFG interno
+2. **Sempre especifique** que o objeto é idêntico à referência
+3. **Limite de geração:** 3-5 segundos (97 frames). O resto é FFmpeg
+4. **Imagem de entrada:** PNG limpo, fundo removido, upscale 4x — vale mais que qualquer prompt
+
+---
+
+### Objetivo real do AleTubeGames
+
+**Não é:** criar filmes de IA incríveis
+
+**É:** fábrica automática de ads
+
+O dinheiro está em:
+- Volume
+- Consistência
+- Automação
+- Identidade visual fixa
+- CTA forte
+- Velocidade
 
 ---
 
@@ -630,6 +697,30 @@ salva como PNG 24bit
     ↓
 Wan2.1 I2V
 ```
+
+### Workflow completo para afiliado (RTX 4090)
+
+```
+Imagem produto
+    ↓
+RemBG
+    ↓
+Upscale imagem (4x)
+    ↓
+Wan I2V — 720x1280 / 97 frames / CFG 4 / Steps 32 / Motion 0.45
+    ↓
+Frame interpolation (24fps → 60fps)
+    ↓
+Overlay motion graphics (preço, logo, CTA, selo) — FFmpeg
+    ↓
+Voiceover (Fish Speech)
+    ↓
+Auto subtitles
+    ↓
+Upload
+```
+
+**Regra de ouro:** A IA gera movimento e atmosfera. O FFmpeg gera o produto comercial.
 
 ---
 
