@@ -36,19 +36,6 @@ JWT_EXPIRE_DAYS = 30
 REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
 
 
-def _pkce_pair() -> tuple[str, str]:
-    """Gera code_verifier e code_challenge para PKCE."""
-    import secrets, hashlib, base64
-    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode()).digest()
-    ).rstrip(b"=").decode()
-    return verifier, challenge
-
-
-# state = verifier direto (sem server-side storage — funciona com múltiplos workers)
-_pkce_store: dict[str, str] = {}
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
