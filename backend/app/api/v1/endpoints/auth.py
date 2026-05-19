@@ -33,7 +33,7 @@ import bcrypt as _bcrypt
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
-REDIRECT_URI = "https://alessandro2090-bestpricetoday-api.hf.space/api/v1/auth/ml/callback"
+REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
 ML_SCOPES = "read_catalog catalog_suggestions item_competition"
 
 
