@@ -246,6 +246,45 @@ class ConversionRetryQueue(Base):
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
 
+class TikTokAccount(Base):
+    """
+    Contas TikTok conectadas via Login Kit.
+
+    account_type:
+      - "admin"  → conta da plataforma BestPriceToday, pode publicar via Content Posting API
+      - "user"   → conta pessoal do usuário, só gera link + Share Kit
+    """
+    __tablename__ = "tiktok_accounts"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # None = admin da plataforma
+    account_type = Column(String, default="user")  # "admin" | "user"
+
+    # TikTok identifiers
+    tiktok_open_id   = Column(String, unique=True, index=True, nullable=False)
+    tiktok_union_id  = Column(String, nullable=True)
+    display_name     = Column(String, nullable=True)
+    avatar_url       = Column(String, nullable=True)
+    is_verified      = Column(Boolean, default=False)
+    profile_link     = Column(String, nullable=True)
+
+    # OAuth tokens
+    access_token     = Column(String, nullable=False)
+    refresh_token    = Column(String, nullable=True)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    scopes           = Column(String, nullable=True)  # escopos concedidos
+
+    # Stats
+    shares_count     = Column(Integer, default=0)  # vezes que gerou link pelo Share Kit
+    publishes_count  = Column(Integer, default=0)  # vezes que admin publicou via Content Posting
+
+    is_active    = Column(Boolean, default=True)
+    created_at   = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at   = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    user = relationship("User", backref="tiktok_accounts")
+
+
 class ShortLink(Base):
     """
     Short link for tracked affiliate redirects.

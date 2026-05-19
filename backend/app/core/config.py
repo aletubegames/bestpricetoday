@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_CHANNEL_ID: str = ""  # @BestPriceTodayBR or -1001234567890
+    TELEGRAM_CHANNEL_ID: str = ""  # @BestPriceTodayor -1001234567890
 
     # Sentry
     SENTRY_DSN: str = ""
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     # TikTok API
     TIKTOK_CLIENT_KEY: str = ""
     TIKTOK_CLIENT_SECRET: str = ""
-    TIKTOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/api/v1/tiktok/callback"
+    TIKTOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/tiktok/callback"
 
     # Video API (GPU local via ngrok ou URL fixa)
     VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"

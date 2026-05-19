@@ -1,9 +1,38 @@
 "use client"
-import { useState } from "react"
+/**
+ * TikTokPublisher — Fluxo correto BestPriceToday
+ * ================================================
+ * 1. Usuário conecta conta TikTok via Login Kit
+ * 2. Escolhe produto
+ * 3. Plataforma gera short link rastreado (comissão BestPriceToday)
+ * 4. Usuário compartilha no próprio TikTok via Share Kit
+ *
+ * A plataforma NÃO publica em nome do usuário.
+ * A comissão é rastreada pelo short link independente de quem postou.
+ */
+
+import { useState, useEffect } from "react"
 import { API_BASE as API } from "@/lib/api"
 
 interface TikTokPublisherProps {
   offer: any
+}
+
+type Step = "idle" | "connect" | "connected" | "generating" | "ready" | "error"
+
+interface TikTokAccount {
+  display_name: string
+  avatar_url: string
+  is_verified: boolean
+  profile_link: string
+  scopes: string
+}
+
+interface ShareResult {
+  short_link: string
+  share_kit_url: string
+  caption: string
+  hashtags: string
 }
 
 function fmt(n: number) {
@@ -12,81 +41,131 @@ function fmt(n: number) {
 
 export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
   const [isOpen, setIsOpen]       = useState(false)
-  const [loading, setLoading]     = useState(false)
+  const [step, setStep]           = useState<Step>("idle")
+  const [account, setAccount]     = useState<TikTokAccount | null>(null)
+  const [shareResult, setShare]   = useState<ShareResult | null>(null)
   const [copied, setCopied]       = useState<string | null>(null)
-  const [shortLink, setShortLink] = useState("")
-  const [content, setContent]     = useState({
-    title: "", caption: "", hashtags: "", link: "",
-  })
+  const [error, setError]         = useState<string | null>(null)
 
-  // ── Gera conteúdo e cria short link rastreado ─────────────────────────────
-  const generate = async () => {
-    setLoading(true)
+  // Verificar se há conta TikTok salva localmente (open_id no localStorage)
+  useEffect(() => {
+    const openId = localStorage.getItem("tiktok_open_id")
+    if (openId && isOpen) {
+      fetchAccountInfo(openId)
+    }
+  }, [isOpen])
 
-    // 1. Criar short link rastreado no backend
-    let trackedLink = offer.affiliate_url ?? ""
+  // ── Buscar conta conectada ─────────────────────────────────────────────────
+  const fetchAccountInfo = async (openId: string) => {
     try {
-      const res = await fetch(`${API}/api/v1/links/create`, {
+      const res = await fetch(`${API}/api/v1/tiktok/account/me?open_id=${openId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAccount(data)
+        setStep("connected")
+      } else {
+        localStorage.removeItem("tiktok_open_id")
+        setStep("connect")
+      }
+    } catch {
+      setStep("connect")
+    }
+  }
+
+  // ── Iniciar Login Kit ─────────────────────────────────────────────────────
+  const connectTikTok = async () => {
+    setStep("connect")
+    setError(null)
+    try {
+      const res  = await fetch(`${API}/api/v1/tiktok/auth/user`)
+      const data = await res.json()
+
+      // Salvar state para validar no callback
+      localStorage.setItem("tiktok_oauth_state", data.state)
+
+      // Abrir popup do TikTok
+      const popup = window.open(
+        data.auth_url,
+        "TikTok Login",
+        "width=480,height=700,scrollbars=yes"
+      )
+
+      // Escutar mensagem de retorno do callback (via postMessage ou polling)
+      const interval = setInterval(async () => {
+        if (popup?.closed) {
+          clearInterval(interval)
+          const openId = localStorage.getItem("tiktok_open_id")
+          if (openId) {
+            await fetchAccountInfo(openId)
+          } else {
+            setStep("idle")
+          }
+        }
+      }, 1000)
+    } catch (e: any) {
+      setError("Erro ao iniciar login TikTok. Tente novamente.")
+      setStep("error")
+    }
+  }
+
+  // ── Desconectar ───────────────────────────────────────────────────────────
+  const disconnect = () => {
+    localStorage.removeItem("tiktok_open_id")
+    setAccount(null)
+    setShare(null)
+    setStep("connect")
+  }
+
+  // ── Gerar link rastreado + Share Kit URL ──────────────────────────────────
+  const generateShareLink = async () => {
+    setStep("generating")
+    setError(null)
+    try {
+      const openId = localStorage.getItem("tiktok_open_id")
+      const res = await fetch(`${API}/api/v1/tiktok/share/link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          affiliate_url: offer.affiliate_url,
-          provider: offer.provider,
-          product_title: offer.title,
-          price: offer.final_price,
-          source: "tiktok_user",
-          campaign: "user_content",
+          affiliate_url:  offer.affiliate_url,
+          provider:       offer.provider,
+          product_title:  offer.title,
+          price:          offer.final_price,
+          tiktok_open_id: openId,
         }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        trackedLink = `https://bestpricetoday.vercel.app/r/${data.code}`
-        setShortLink(trackedLink)
-      }
-    } catch {
-      // fallback: usa link original
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json()
+      setShare(data)
+      setStep("ready")
+    } catch (e: any) {
+      setError("Erro ao gerar link. Tente novamente.")
+      setStep("connected")
     }
-
-    // 2. Montar texto baseado na oferta
-    const name     = offer.title?.slice(0, 50) ?? "produto"
-    const price    = fmt(offer.final_price ?? 0)
-    const original = offer.original_price > offer.final_price
-      ? `~~R$ ${fmt(offer.original_price)}~~ ` : ""
-    const disc     = offer.discount_percent >= 5
-      ? `🔥 ${Math.round(offer.discount_percent)}% OFF — ` : ""
-    const frete    = offer.shipping_free ? "\n✅ Frete grátis" : ""
-    const provider = offer.provider
-      ? offer.provider.charAt(0).toUpperCase() + offer.provider.slice(1) : "loja"
-
-    const title = `${disc}${name}`
-
-    const caption =
-`${disc}${name}
-${original}👉 R$ ${price}${frete}
-
-🛒 Compra pelo link na bio ⬆️
-${trackedLink}
-
-Encontrei no BestPriceToday — compara preços em ${provider}, Amazon, Shopee e mais!`
-
-    const hashtags =
-`#oferta #desconto #promoção #bestpricetoday #${offer.provider ?? "compras"} #economize #dica #tiktokbrasil`
-
-    setContent({ title, caption, hashtags, link: trackedLink })
-    setLoading(false)
   }
 
+  // ── Copiar para clipboard ─────────────────────────────────────────────────
   const copyToClipboard = async (text: string, key: string) => {
     await navigator.clipboard.writeText(text)
     setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+    setTimeout(() => setCopied(null), 2500)
+  }
+
+  // ── Abrir Share Kit ───────────────────────────────────────────────────────
+  const openShareKit = () => {
+    if (shareResult?.share_kit_url) {
+      window.open(shareResult.share_kit_url, "_blank")
+    }
   }
 
   // ── Botão fechado ─────────────────────────────────────────────────────────
   if (!isOpen) {
     return (
       <button
-        onClick={() => { setIsOpen(true); generate() }}
+        onClick={() => {
+          setIsOpen(true)
+          const openId = localStorage.getItem("tiktok_open_id")
+          setStep(openId ? "idle" : "connect")
+        }}
         style={{
           marginTop: 8, width: "100%", padding: "10px", borderRadius: 10,
           background: "rgba(255,0,80,0.08)", border: "1px solid rgba(255,0,80,0.25)",
@@ -94,7 +173,7 @@ Encontrei no BestPriceToday — compara preços em ${provider}, Amazon, Shopee e
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}
       >
-        ♪ Criar legenda TikTok
+        ♪ Compartilhar no TikTok
       </button>
     )
   }
@@ -103,13 +182,13 @@ Encontrei no BestPriceToday — compara preços em ${provider}, Amazon, Shopee e
   return (
     <div style={{
       position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.85)",
+      background: "rgba(0,0,0,0.88)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 1000, padding: 16,
     }}>
       <div style={{
         background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 20,
-        width: "100%", maxWidth: 500, padding: 24, position: "relative",
+        width: "100%", maxWidth: 480, padding: 24, position: "relative",
         maxHeight: "92vh", overflowY: "auto",
       }}>
         {/* Fechar */}
@@ -121,100 +200,247 @@ Encontrei no BestPriceToday — compara preços em ${provider}, Amazon, Shopee e
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: "linear-gradient(135deg,#ff0050,#ff3060)",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+            width: 38, height: 38, borderRadius: 10,
+            background: "linear-gradient(135deg,#ff0050,#010101,#69c9d0)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
           }}>♪</div>
           <div>
-            <h2 style={{ color: "#fff", fontSize: 17, margin: 0, fontWeight: 800 }}>Legenda para TikTok</h2>
-            <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>Cole no seu vídeo e ganhe comissão</p>
+            <h2 style={{ color: "#fff", fontSize: 17, margin: 0, fontWeight: 800 }}>Compartilhar no TikTok</h2>
+            <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>
+              Compartilhe e ganhe comissão pelo link rastreado
+            </p>
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#94a3b8" }}>
-            Gerando conteúdo...
+        {/* ── Produto selecionado ── */}
+        <div style={{
+          background: "rgba(255,255,255,0.03)", border: "1px solid #1e293b",
+          borderRadius: 10, padding: "10px 14px", marginBottom: 20,
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          {offer.image && (
+            <img src={offer.image} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: "#e2e8f0", fontSize: 12, fontWeight: 600,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {offer.title?.slice(0, 55)}
+            </div>
+            <div style={{ color: "#00e5a0", fontSize: 13, fontWeight: 800, marginTop: 2 }}>
+              R$ {fmt(offer.final_price ?? 0)}
+              {offer.original_price > offer.final_price && (
+                <span style={{ color: "#475569", fontSize: 11, fontWeight: 400,
+                  textDecoration: "line-through", marginLeft: 6 }}>
+                  R$ {fmt(offer.original_price)}
+                </span>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
-            {/* Como usar */}
+          <div style={{
+            background: "rgba(255,0,80,0.1)", border: "1px solid rgba(255,0,80,0.2)",
+            borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#ff3060", fontWeight: 700,
+          }}>
+            {(offer.provider || "loja").toUpperCase()}
+          </div>
+        </div>
+
+        {/* ── Steps ── */}
+        <Steps current={step} />
+
+        {/* ── Erro ── */}
+        {error && (
+          <div style={{
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+            fontSize: 12, color: "#f87171",
+          }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        {/* ── PASSO 1: Conectar conta TikTok ── */}
+        {(step === "connect" || step === "idle") && (
+          <div>
             <div style={{
-              background: "rgba(124,106,255,0.08)", border: "1px solid rgba(124,106,255,0.2)",
-              borderRadius: 10, padding: "10px 14px", marginBottom: 20,
-              fontSize: 12, color: "#a78bfa", lineHeight: 1.6,
+              background: "rgba(124,106,255,0.06)", border: "1px solid rgba(124,106,255,0.15)",
+              borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+              fontSize: 12, color: "#a78bfa", lineHeight: 1.7,
             }}>
-              <strong>Como usar:</strong> Filme você mostrando o produto →
-              cole a legenda abaixo no TikTok → quando alguém comprar pelo link, você ganha comissão 💰
+              <strong>Por que conectar?</strong><br />
+              Ao conectar sua conta TikTok, você pode compartilhar produtos com um link rastreado.
+              Cada compra feita pelo seu link gera comissão para você via BestPriceToday. 💰
+            </div>
+            <button onClick={connectTikTok} style={{
+              width: "100%", padding: "13px", borderRadius: 12,
+              background: "linear-gradient(135deg,#ff0050,#ff3060)",
+              border: "none", color: "#fff", cursor: "pointer",
+              fontSize: 14, fontWeight: 800, letterSpacing: 0.3,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              ♪ Conectar conta TikTok
+            </button>
+            <p style={{ textAlign: "center", fontSize: 10, color: "#334155", marginTop: 10 }}>
+              Usamos apenas Login Kit — não publicamos nada em seu nome
+            </p>
+          </div>
+        )}
+
+        {/* ── PASSO 2: Conta conectada → gerar link ── */}
+        {step === "connected" && account && (
+          <div>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
+              background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.15)",
+              borderRadius: 10, padding: "10px 14px",
+            }}>
+              {account.avatar_url && (
+                <img src={account.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: "50%" }} />
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ color: "#00e5a0", fontSize: 13, fontWeight: 700 }}>
+                  ✓ Conectado como @{account.display_name}
+                  {account.is_verified && <span style={{ color: "#60a5fa", marginLeft: 4 }}>✓</span>}
+                </div>
+                <div style={{ color: "#334155", fontSize: 10 }}>Conta TikTok pessoal</div>
+              </div>
+              <button onClick={disconnect} style={{
+                background: "none", border: "1px solid #1e293b", borderRadius: 6,
+                color: "#475569", cursor: "pointer", fontSize: 10, padding: "4px 8px",
+              }}>
+                Trocar
+              </button>
             </div>
 
+            <button onClick={generateShareLink} style={{
+              width: "100%", padding: "13px", borderRadius: 12,
+              background: "linear-gradient(135deg,#7c3aed,#a855f7)",
+              border: "none", color: "#fff", cursor: "pointer",
+              fontSize: 14, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              🔗 Gerar link rastreado + legenda
+            </button>
+          </div>
+        )}
+
+        {/* ── Gerando... ── */}
+        {step === "generating" && (
+          <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13 }}>
+            <div style={{ marginBottom: 10, fontSize: 24 }}>⚙️</div>
+            Gerando seu link rastreado...
+          </div>
+        )}
+
+        {/* ── PASSO 3: Link gerado → compartilhar ── */}
+        {step === "ready" && shareResult && (
+          <div>
             {/* Link rastreado */}
-            <Section label="🔗 Link de afiliado rastreado">
+            <Section label="🔗 Seu link de afiliado rastreado">
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input readOnly value={content.link}
+                <input readOnly value={shareResult.short_link}
                   style={{
                     flex: 1, background: "#1c1c2e", border: "1px solid #2a2a3a",
                     padding: "9px 12px", borderRadius: 8, color: "#00e5a0",
                     fontSize: 12, fontFamily: "monospace",
                   }} />
-                <CopyBtn text={content.link} id="link" copied={copied} onCopy={copyToClipboard} />
+                <CopyBtn text={shareResult.short_link} id="link" copied={copied} onCopy={copyToClipboard} />
               </div>
+              <p style={{ fontSize: 10, color: "#334155", margin: "6px 0 0" }}>
+                💡 Cada clique neste link é registrado. Quando alguém comprar, você recebe comissão.
+              </p>
             </Section>
 
-            {/* Legenda completa */}
-            <Section label="📝 Legenda completa (copie tudo)">
-              <textarea readOnly value={content.caption} rows={7}
+            {/* Legenda */}
+            <Section label="📝 Legenda pronta para o TikTok">
+              <textarea readOnly value={shareResult.caption} rows={6}
                 style={{
                   width: "100%", background: "#1c1c2e", border: "1px solid #2a2a3a",
                   padding: "10px 12px", borderRadius: 8, color: "#e2e8f0",
                   fontSize: 12, resize: "none", lineHeight: 1.6, boxSizing: "border-box",
                 }} />
-              <CopyBtn text={content.caption} id="caption" copied={copied} onCopy={copyToClipboard} full />
+              <CopyBtn text={shareResult.caption} id="caption" copied={copied} onCopy={copyToClipboard} full />
             </Section>
 
             {/* Hashtags */}
             <Section label="# Hashtags">
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <input readOnly value={content.hashtags}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input readOnly value={shareResult.hashtags}
                   style={{
                     flex: 1, background: "#1c1c2e", border: "1px solid #2a2a3a",
                     padding: "9px 12px", borderRadius: 8, color: "#94a3b8", fontSize: 12,
                   }} />
-                <CopyBtn text={content.hashtags} id="tags" copied={copied} onCopy={copyToClipboard} />
+                <CopyBtn text={shareResult.hashtags} id="tags" copied={copied} onCopy={copyToClipboard} />
               </div>
             </Section>
 
-            {/* Dica */}
+            {/* CTA: Share Kit */}
+            <button onClick={openShareKit} style={{
+              width: "100%", padding: "14px", borderRadius: 12, marginTop: 8,
+              background: "linear-gradient(135deg,#ff0050,#ff3060)",
+              border: "none", color: "#fff", cursor: "pointer",
+              fontSize: 14, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              ♪ Abrir TikTok para compartilhar
+            </button>
+
             <div style={{
-              marginTop: 16, padding: "10px 14px", borderRadius: 10,
-              background: "rgba(0,229,160,0.06)", border: "1px solid rgba(0,229,160,0.15)",
+              marginTop: 10, padding: "10px 14px", borderRadius: 8,
+              background: "rgba(0,229,160,0.05)", border: "1px solid rgba(0,229,160,0.12)",
               fontSize: 11, color: "#00e5a0", lineHeight: 1.6,
             }}>
-              💡 O link rastreado registra cliques e comissões automaticamente.
-              Cada venda pelo seu link conta para o seu histórico no BestPriceToday.
+              ✅ Você decide o que publicar no seu TikTok.<br />
+              O link rastreado garante que a comissão seja registrada automaticamente.
             </div>
 
-            {/* Regenerar */}
-            <button onClick={generate} style={{
-              marginTop: 16, width: "100%", padding: "10px", borderRadius: 10,
-              background: "rgba(255,255,255,0.04)", border: "1px solid #2a2a3a",
-              color: "#475569", cursor: "pointer", fontSize: 12,
+            <button onClick={() => setStep("connected")} style={{
+              marginTop: 10, width: "100%", padding: "9px", borderRadius: 8,
+              background: "rgba(255,255,255,0.03)", border: "1px solid #1e293b",
+              color: "#475569", cursor: "pointer", fontSize: 11,
             }}>
-              ↺ Regenerar conteúdo
+              ↺ Gerar novo link
             </button>
-          </>
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-// ── Sub-componentes ────────────────────────────────────────────────────────
+// ── Sub-componentes ────────────────────────────────────────────────────────────
+
+function Steps({ current }: { current: Step }) {
+  const steps = [
+    { key: "connect",    label: "1. Conectar TikTok" },
+    { key: "connected",  label: "2. Gerar link" },
+    { key: "ready",      label: "3. Compartilhar" },
+  ]
+  const activeIdx = current === "connect" || current === "idle" ? 0
+    : current === "connected" || current === "generating" ? 1
+    : current === "ready" ? 2 : -1
+
+  return (
+    <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+      {steps.map((s, i) => (
+        <div key={s.key} style={{
+          flex: 1, textAlign: "center", padding: "6px 4px", borderRadius: 8, fontSize: 10,
+          fontWeight: i === activeIdx ? 700 : 400,
+          background: i === activeIdx ? "rgba(124,106,255,0.15)" : "rgba(255,255,255,0.02)",
+          border: `1px solid ${i === activeIdx ? "rgba(124,106,255,0.3)" : "#1e293b"}`,
+          color: i < activeIdx ? "#00e5a0" : i === activeIdx ? "#a78bfa" : "#334155",
+        }}>
+          {i < activeIdx ? "✓ " : ""}{s.label}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{
-        color: "#475569", fontSize: 11, fontWeight: 700,
+        color: "#475569", fontSize: 10, fontWeight: 700,
         display: "block", marginBottom: 6,
         textTransform: "uppercase", letterSpacing: ".05em",
       }}>{label}</label>
@@ -235,8 +461,8 @@ function CopyBtn({ text, id, copied, onCopy, full }: {
         ...(full ? { width: "100%", marginTop: 8 } : { flexShrink: 0 }),
         padding: full ? "9px" : "9px 14px",
         borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
-        background: done ? "rgba(0,229,160,0.15)" : "rgba(124,106,255,0.15)",
-        border: `1px solid ${done ? "rgba(0,229,160,0.3)" : "rgba(124,106,255,0.3)"}`,
+        background: done ? "rgba(0,229,160,0.12)" : "rgba(124,106,255,0.12)",
+        border: `1px solid ${done ? "rgba(0,229,160,0.25)" : "rgba(124,106,255,0.25)"}`,
         color: done ? "#00e5a0" : "#a78bfa",
         transition: "all .2s",
       }}

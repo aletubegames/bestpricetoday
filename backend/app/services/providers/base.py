@@ -11,8 +11,10 @@ def add_utm(url: str, provider: str, source: str = "web") -> str:
     """Add UTM params to affiliate link if not already present."""
     if not url or "utm_source" in url:
         return url
+    # Garantir que provider é string pura, não ProviderEnum.shopee
+    provider_str = str(provider).replace("ProviderEnum.", "").split(".")[-1]
     sep = "&" if "?" in url else "?"
-    return f"{url}{sep}utm_source=bestpricetoday&utm_medium=affiliate&utm_campaign=search&utm_content={provider}"
+    return f"{url}{sep}utm_source=bestpricetoday&utm_medium=affiliate&utm_campaign=search&utm_content={provider_str}"
 
 
 class BaseProvider(ABC):

@@ -517,6 +517,7 @@ export default function AdminPage() {
   const [recentClicks, setRecentClicks] = useState<any[]>([]);
   const [recentConversions, setRecentConversions] = useState<any[]>([]);
   const [integrationStatus, setIntegrationStatus] = useState<any>({});
+  const [tiktokAdminAccount, setTiktokAdminAccount] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [clickPage, setClickPage] = useState(1);
@@ -552,7 +553,7 @@ export default function AdminPage() {
     setLoading(true);
     const provParam = activePlatform !== "all" ? `&provider=${activePlatform}` : "";
     try {
-      const [ov, an, mk, tr, tp, cl, cv, intStatus] = await Promise.all([
+      const [ov, an, mk, tr, tp, cl, cv, intStatus, ttAdmin] = await Promise.all([
         adminFetch(`/api/v1/admin/overview?days=${activePeriod}${provParam}`, k),
         adminFetch(`/api/v1/admin/analytics?days=${activePeriod}`, k),
         adminFetch(`/api/v1/admin/marketplaces`, k),
@@ -561,11 +562,12 @@ export default function AdminPage() {
         adminFetch(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
         adminFetch(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
         fetch(`${API}/api/v1/admin/integrations/status`, { headers: { "X-Admin-Key": k } }).then(r => r.json()).catch(() => ({})),
+        fetch(`${API}/api/v1/tiktok/admin/account`, { headers: { "X-Admin-Key": k } }).then(r => r.json()).catch(() => null),
       ]);
       setOverview(ov); setAnalytics(an.data || {}); setMarketplaces(Array.isArray(mk) ? mk : []);
       setTraffic(Array.isArray(tr) ? tr : []); setTopProducts(Array.isArray(tp) ? tp : []);
       setRecentClicks(cl.items || []); setRecentConversions(cv.items || []);
-      setIntegrationStatus(intStatus || {}); setLastUpdated(new Date());
+      setIntegrationStatus(intStatus || {}); setTiktokAdminAccount(ttAdmin); setLastUpdated(new Date());
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [activePlatform, activePeriod, clickPage, convPage]);
@@ -580,6 +582,24 @@ export default function AdminPage() {
       localStorage.setItem("admin_key", inputKey);
       setKey(inputKey);
     } catch { setLoginError("Erro ao conectar com a API"); }
+  };
+
+  const connectTikTokAdmin = async () => {
+    try {
+      const res  = await fetch(`${API}/api/v1/tiktok/auth/admin`, { headers: { "X-Admin-Key": key } });
+      const data = await res.json();
+      if (data.auth_url) {
+        const popup = window.open(data.auth_url, "TikTok Admin Auth", "width=480,height=700,scrollbars=yes");
+        const interval = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(interval);
+            fetchAll(key); // recarrega status
+          }
+        }, 1000);
+      }
+    } catch (e: any) {
+      alert(`Erro ao iniciar auth TikTok admin: ${e.message}`);
+    }
   };
 
   const handleLogout = () => {
@@ -908,12 +928,45 @@ export default function AdminPage() {
                   </div>
                 );
               })()}
-              {getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre").map(int => (
+              {getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
                 <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#0d0d1a", borderRadius: 8 }}>
                   <span style={{ fontSize: 12 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 12, color: int.color }}>{int.status} {int.statusText}</span>
                 </div>
               ))}
+              {/* TikTok Admin — card especial com botão de conexão */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "7px 10px", background: "#0d0d1a", borderRadius: 8, flexWrap: "wrap", gap: 6,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {tiktokAdminAccount?.connected && tiktokAdminAccount?.avatar_url && (
+                    <img src={tiktokAdminAccount.avatar_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />
+                  )}
+                  <span style={{ fontSize: 12 }}>♪ TikTok Admin</span>
+                </div>
+                {tiktokAdminAccount?.connected ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: "#00e5a0" }}>
+                      ✅ @{tiktokAdminAccount.display_name}
+                      {tiktokAdminAccount.is_verified && <span style={{ color: "#60a5fa", marginLeft: 4 }}>✓</span>}
+                    </span>
+                    <button onClick={connectTikTokAdmin}
+                      style={{ fontSize: 10, padding: "2px 7px", background: "#1a1a2e", border: "1px solid #333", borderRadius: 5, color: "#a78bfa", cursor: "pointer" }}>
+                      Reconectar
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={connectTikTokAdmin}
+                    style={{
+                      fontSize: 11, padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                      background: "rgba(255,0,80,0.1)", border: "1px solid rgba(255,0,80,0.3)",
+                      color: "#ff3060", fontWeight: 700,
+                    }}>
+                    ♪ Conectar conta TikTok
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

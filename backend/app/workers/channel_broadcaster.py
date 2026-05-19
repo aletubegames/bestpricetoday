@@ -9,8 +9,8 @@ Fluxo a cada hora:
   5. Registra clique como source="telegram_channel"
 
 Setup:
-  - Criar canal @BestPriceTodayBR e adicionar bot como admin
-  - TELEGRAM_CHANNEL_ID no .env (ex: @BestPriceTodayBR ou -100123456)
+  - Criar canal @BestPriceTodaye adicionar bot como admin
+  - TELEGRAM_CHANNEL_ID no .env (ex: @BestPriceTodayou -100123456)
 """
 
 import asyncio
@@ -177,7 +177,7 @@ def _build_caption(offer: dict) -> str:
         lines.append(f"⭐ Score: {score:.0f}/100")
 
     lines.append(f"\n👉 [Ver oferta e comprar]({affiliate_url})")
-    lines.append(f"\n🛍️ @BestPriceTodayBR | bestpricetoday.vercel.app")
+    lines.append(f"\n🛍️ @BestPriceToday| bestpricetoday.vercel.app")
 
     return "\n".join(lines)
 
