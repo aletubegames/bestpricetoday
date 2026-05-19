@@ -1272,3 +1272,45 @@ async def ml_test_products(
         "product_detail": details,
         "sites_search_status": r3.status_code,
     }
+
+
+@router.get("/ml/test-buybox")
+async def ml_test_buybox(
+    q: str = "iphone",
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Testa produtos com buy_box_winner via /products/search."""
+    import httpx
+    from app.services.ml_token_service import get_token
+    token = await get_token(db)
+    if not token:
+        return {"error": "sem token"}
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            "https://api.mercadolibre.com/products/search",
+            params={"site_id": "MLB", "q": q, "limit": 5},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        results = r.json().get("results", []) if r.status_code == 200 else []
+        details = []
+        for item in results[:5]:
+            pid = item.get("id") or item.get("catalog_product_id")
+            if not pid:
+                continue
+            r2 = await client.get(
+                f"https://api.mercadolibre.com/products/{pid}",
+                params={"includes": "buy_box_winner"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if r2.status_code == 200:
+                data = r2.json()
+                bb = data.get("buy_box_winner") or {}
+                details.append({
+                    "id": pid,
+                    "name": data.get("name", "")[:60],
+                    "buy_box_price": bb.get("price"),
+                    "buy_box_item_id": bb.get("item_id"),
+                    "permalink": data.get("permalink"),
+                })
+    return {"count": len(details), "items": details}
