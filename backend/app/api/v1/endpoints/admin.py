@@ -1226,3 +1226,49 @@ async def ml_test_endpoints(
             except Exception as e:
                 results[name] = {"error": str(e)}
     return results
+
+
+@router.get("/ml/test-products")
+async def ml_test_products(
+    q: str = "smartphone",
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Testa /products/search e pega detalhes de 1 produto via token."""
+    import httpx
+    from app.services.ml_token_service import get_token
+    token = await get_token(db)
+    if not token:
+        return {"error": "sem token"}
+    async with httpx.AsyncClient(timeout=15) as client:
+        # Busca catálogo
+        r1 = await client.get(
+            "https://api.mercadolibre.com/products/search",
+            params={"site_id": "MLB", "q": q, "limit": 3},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        data = r1.json() if r1.status_code == 200 else {}
+        results = data.get("results", [])
+        # Pega detalhes do primeiro
+        details = {}
+        if results:
+            pid = results[0].get("id") or results[0].get("catalog_product_id")
+            if pid:
+                r2 = await client.get(
+                    f"https://api.mercadolibre.com/products/{pid}",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                details = {"status": r2.status_code, "body": r2.json() if r2.status_code == 200 else r2.text[:300]}
+        # Testa /sites/MLB/search com status atual
+        r3 = await client.get(
+            "https://api.mercadolibre.com/sites/MLB/search",
+            params={"q": q, "limit": 3},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    return {
+        "products_search_status": r1.status_code,
+        "products_count": len(results),
+        "first_product": results[0] if results else None,
+        "product_detail": details,
+        "sites_search_status": r3.status_code,
+    }
