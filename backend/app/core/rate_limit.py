@@ -5,20 +5,49 @@ Fallback para in-memory se Redis não estiver disponível,
 garantindo que a app nunca quebre por ausência do Redis.
 
 Uso:
-    from app.core.rate_limit import check_rate_limit
+    from app.core.rate_limit import check_rate_limit, get_client_ip
 
-    allowed = await check_rate_limit(ip="1.2.3.4", key="links_create", max_calls=20, window_seconds=60)
+    ip = get_client_ip(request)
+    allowed = await check_rate_limit(ip=ip, key="links_create", max_calls=20, window_seconds=60)
     if not allowed:
         raise HTTPException(429, "Rate limit exceeded")
 """
 from __future__ import annotations
 import time
 from collections import defaultdict
-from typing import Optional
+from fastapi import Request
 from app.core.logging import logger
 
 # Fallback in-memory (usado quando Redis falha)
 _fallback: dict[str, list[float]] = defaultdict(list)
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Retorna o IP real do cliente respeitando proxies reversos (HF Space, Vercel, Cloudflare).
+    Ordem de preferência:
+      1. CF-Connecting-IP (Cloudflare)
+      2. X-Forwarded-For (primeiro da lista = cliente original)
+      3. X-Real-IP
+      4. request.client.host (fallback direto)
+    """
+    # Cloudflare
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+
+    # X-Forwarded-For: pode ser "ip1, ip2, ip3" — pegar o primeiro
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+
+    # X-Real-IP
+    xri = request.headers.get("x-real-ip")
+    if xri:
+        return xri.strip()
+
+    # Fallback
+    return request.client.host if request.client else "unknown"
 
 
 async def check_rate_limit(
@@ -40,7 +69,6 @@ async def check_rate_limit(
         window_start = now - window_seconds
 
         pipe = r.pipeline()
-        # Remove entradas fora da janela + adiciona a atual + define TTL
         pipe.zremrangebyscore(redis_key, 0, window_start)
         pipe.zadd(redis_key, {str(now): now})
         pipe.zcard(redis_key)
@@ -51,7 +79,6 @@ async def check_rate_limit(
 
     except Exception as e:
         logger.warning(f"Redis rate limit fallback (in-memory): {e}")
-        # Fallback in-memory
         now = time.time()
         fb_key = f"{key}:{ip}"
         _fallback[fb_key] = [t for t in _fallback[fb_key] if now - t < window_seconds]

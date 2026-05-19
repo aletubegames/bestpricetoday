@@ -42,8 +42,8 @@ async def create_short_link(
     """
     Creates a tracked short link. Rate limited: 20 req/min por IP.
     """
-    from app.core.rate_limit import check_rate_limit
-    ip = request.client.host if request.client else "unknown"
+    from app.core.rate_limit import check_rate_limit, get_client_ip
+    ip = get_client_ip(request)
     if not await check_rate_limit(ip, key="links_create", max_calls=20, window_seconds=60):
         return JSONResponse(status_code=429, content={"error": "Rate limit exceeded. Max 20 links/min per IP."})
     try:

@@ -30,8 +30,8 @@ async def search_get(
     q: str = Query(..., min_length=2, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
 ):
-    from app.core.rate_limit import check_rate_limit
-    ip = req.client.host if req.client else "unknown"
+    from app.core.rate_limit import check_rate_limit, get_client_ip
+    ip = get_client_ip(req)
     if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
         raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")
     try:
