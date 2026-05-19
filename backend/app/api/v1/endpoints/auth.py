@@ -207,13 +207,12 @@ async def get_valid_ml_token() -> str | None:
 
 @router.get("/auth/ml/authorize")
 async def ml_authorize():
-    """Gera a URL de autorização ML com scopes corretos. Acesse no browser."""
+    """Gera a URL de autorização ML. Acesse no browser."""
     from urllib.parse import urlencode
     params = urlencode({
         "response_type": "code",
         "client_id": settings.MERCADOLIVRE_APP_ID,
         "redirect_uri": REDIRECT_URI,
-        "scope": ML_SCOPES,
     })
     url = f"https://auth.mercadolivre.com.br/authorization?{params}"
     return HTMLResponse(f"""
@@ -225,7 +224,6 @@ async def ml_authorize():
     </style></head><body>
     <div class="box">
       <h2>🔐 Autorizar Mercado Livre</h2>
-      <p>Scopes: <code>{ML_SCOPES}</code></p>
       <p>Redirect URI: <code>{REDIRECT_URI}</code></p>
       <p><a href="{url}" target="_blank">👉 Clique aqui para autorizar</a></p>
       <p style="font-size:0.8rem;color:#64748b">Após autorizar, você será redirecionado de volta e o token será salvo automaticamente.</p>
