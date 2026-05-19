@@ -31,11 +31,77 @@ async def _sign_top(method: str, params: dict, app_key: str, app_secret: str) ->
 
 async def _find_matching_click(db: AsyncSession, provider: str, product_title: str = None) -> Optional[str]:
     """
-    Find best matching click for this conversion.
-    Strategy: most recent click from same provider within 30 days.
-    Future: fuzzy match product_title.
+    Vincula uma conversão ao melhor clique correspondente.
+
+    Estratégia em camadas (da mais para a menos precisa):
+    1. Clique com affiliate_url contendo short_link_code que já foi redirecionado
+       (via ShortLink.source = 'web'/'tiktok_user'/etc)
+    2. Clique mais recente do mesmo provider + título similar (fuzzy)
+    3. Clique mais recente do mesmo provider nos últimos 30 dias (fallback)
     """
+    from app.models.models import ShortLink
     since = datetime.now(timezone.utc) - timedelta(days=30)
+
+    # Camada 1: via ShortLink rastreado — o mais confiável
+    # Busca short links do provider com cliques recentes
+    if product_title:
+        try:
+            sl_q = select(ShortLink).where(
+                and_(
+                    ShortLink.provider == provider,
+                    ShortLink.clicks > 0,
+                    ShortLink.last_clicked_at >= since,
+                )
+            ).order_by(ShortLink.last_clicked_at.desc()).limit(5)
+            sl_r = await db.execute(sl_q)
+            short_links = sl_r.scalars().all()
+
+            # Tentar match por título
+            if short_links and product_title:
+                title_lower = product_title.lower()
+                for sl in short_links:
+                    if sl.product_title and any(
+                        word in title_lower
+                        for word in (sl.product_title.lower().split()[:4])
+                        if len(word) > 4
+                    ):
+                        # Buscar o ClickEvent que usou este short link
+                        click_q = select(ClickEvent.id).where(
+                            and_(
+                                ClickEvent.provider == provider,
+                                ClickEvent.clicked_at >= since,
+                                ClickEvent.affiliate_url.contains(f"/r/{sl.code}"),
+                            )
+                        ).order_by(ClickEvent.clicked_at.desc()).limit(1)
+                        cr = await db.execute(click_q)
+                        click_id = cr.scalar()
+                        if click_id:
+                            logger.debug(f"Conversion matched via short_link code={sl.code}")
+                            return str(click_id)
+        except Exception as e:
+            logger.warning(f"_find_matching_click layer1 error: {e}")
+
+    # Camada 2: título similar no ClickEvent direto
+    if product_title:
+        try:
+            words = [w for w in product_title.lower().split() if len(w) > 4][:3]
+            for word in words:
+                q = select(ClickEvent.id).where(
+                    and_(
+                        ClickEvent.provider == provider,
+                        ClickEvent.clicked_at >= since,
+                        ClickEvent.product_title.ilike(f"%{word}%"),
+                    )
+                ).order_by(ClickEvent.clicked_at.desc()).limit(1)
+                r = await db.execute(q)
+                row = r.scalar()
+                if row:
+                    logger.debug(f"Conversion matched via title fuzzy word='{word}'")
+                    return str(row)
+        except Exception as e:
+            logger.warning(f"_find_matching_click layer2 error: {e}")
+
+    # Camada 3: fallback — clique mais recente do provider
     q = select(ClickEvent.id).where(
         and_(
             ClickEvent.provider == provider,
@@ -44,6 +110,8 @@ async def _find_matching_click(db: AsyncSession, provider: str, product_title: s
     ).order_by(ClickEvent.clicked_at.desc()).limit(1)
     r = await db.execute(q)
     row = r.scalar()
+    if row:
+        logger.debug(f"Conversion matched via provider fallback provider={provider}")
     return str(row) if row else None
 
 

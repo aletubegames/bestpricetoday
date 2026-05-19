@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from app.schemas.schemas import SearchRequest, SearchResponse, TrendingSearchResponse, TrendingSearchItem
 from app.services.search import get_trending_searches, search_all
 from app.core.logging import logger
@@ -7,7 +7,12 @@ router = APIRouter()
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest):
+async def search(request: SearchRequest, req: Request):
+    from app.core.rate_limit import check_rate_limit
+    from fastapi.responses import JSONResponse
+    ip = req.client.host if req.client else "unknown"
+    if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")
     try:
         return await search_all(
             query=request.query,
@@ -21,9 +26,14 @@ async def search(request: SearchRequest):
 
 @router.get("/search", response_model=SearchResponse)
 async def search_get(
+    req: Request,
     q: str = Query(..., min_length=2, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
 ):
+    from app.core.rate_limit import check_rate_limit
+    ip = req.client.host if req.client else "unknown"
+    if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")
     try:
         return await search_all(query=q, limit=limit)
     except Exception as e:
