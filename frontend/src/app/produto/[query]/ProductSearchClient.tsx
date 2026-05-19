@@ -25,13 +25,13 @@ export default function ProductSearchClient({ query }: { query: string }) {
   }, [query])
 
   if (loading) return (
-    <div style={{ color: "#94a3b8", padding: 40, textAlign: "center" }}>
+    <div style={{ color: "#4a4a6a", padding: 40, textAlign: "center" }}>
       🔍 Buscando melhores preços...
     </div>
   )
 
   if (!offers.length) return (
-    <div style={{ color: "#94a3b8", padding: 40, textAlign: "center" }}>
+    <div style={{ color: "#4a4a6a", padding: 40, textAlign: "center" }}>
       <p style={{ fontSize: 40 }}>😕</p>
       <p>Nenhum resultado encontrado para &quot;{query}&quot;.</p>
       <a href="/" style={{ color: "#7c6aff" }}>← Voltar para busca</a>
@@ -40,8 +40,8 @@ export default function ProductSearchClient({ query }: { query: string }) {
 
   return (
     <div>
-      <p style={{ color: "#94a3b8", marginBottom: 20 }}>
-        <strong style={{ color: "#fff" }}>{total}</strong> oferta{total !== 1 ? "s" : ""} encontrada{total !== 1 ? "s" : ""}
+      <p style={{ color: "#4a4a6a", marginBottom: 20 }}>
+        <strong style={{ color: "#1a1a2e" }}>{total}</strong> oferta{total !== 1 ? "s" : ""} encontrada{total !== 1 ? "s" : ""}
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 16 }} className="offer-grid">
         {offers.map((offer, i) => {
@@ -49,7 +49,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
           const logo = PROVIDER_LOGOS[offer.provider] || "🏪"
           return (
             <div key={i} style={{
-              background: "#0d0d1a",
+              background: "#ffffff",
               border: `1px solid ${isFirst ? "rgba(0,229,160,0.4)" : "rgba(124,106,255,0.15)"}`,
               borderRadius: 14, overflow: "hidden",
             }}>
@@ -76,11 +76,11 @@ export default function ProductSearchClient({ query }: { query: string }) {
                 {offer.image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={offer.image_url} alt={offer.title}
-                    style={{ width: "100%", height: 160, objectFit: "contain", borderRadius: 8, background: "#1c1c2e", marginBottom: 12 }}
+                    style={{ width: "100%", height: 160, objectFit: "contain", borderRadius: 8, background: "#eef0ff", marginBottom: 12 }}
                     onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
                   />
                 )}
-                <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 12, minHeight: 40 }}>
+                <p style={{ fontSize: 13, color: "#4a4a6a", lineHeight: 1.5, marginBottom: 12, minHeight: 40 }}>
                   {offer.title?.slice(0, 80)}...
                 </p>
                 {offer.original_price > offer.final_price && (
@@ -88,7 +88,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
                     R$ {offer.original_price?.toFixed(2)}
                   </div>
                 )}
-                <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", marginBottom: 4 }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color: "#1a1a2e", marginBottom: 4 }}>
                   R$ {offer.final_price?.toFixed(2)}
                 </div>
                 {offer.shipping_free && (
@@ -118,7 +118,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {[`${query} barato`, `${query} oferta`, `${query} desconto`, `melhor ${query}`].map(s => (
             <a key={s} href={`/produto/${encodeURIComponent(s)}`}
-              style={{ padding: "6px 14px", borderRadius: 99, background: "#111120", border: "1px solid #2a2a3a", color: "#94a3b8", textDecoration: "none", fontSize: 13 }}>
+              style={{ padding: "6px 14px", borderRadius: 99, background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)", color: "#4a4a6a", textDecoration: "none", fontSize: 13 }}>
               {s}
             </a>
           ))}

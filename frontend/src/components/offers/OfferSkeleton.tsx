@@ -12,7 +12,7 @@ function SkeletonBlock({ w = "100%", h = 16, radius = 6 }: { w?: string | number
   return (
     <div style={{
       width: w, height: h, borderRadius: radius,
-      background: "linear-gradient(90deg, #111120 25%, #1a1a2e 50%, #111120 75%)",
+      background: "linear-gradient(90deg, #f5f7ff 25%, #1a1a2e 50%, #f5f7ff 75%)",
       backgroundSize: "1000px 100%",
       animation: "shimmer 2s infinite linear",
     }} />
@@ -33,7 +33,7 @@ export default function OfferSkeleton() {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             transition={{ delay: i * 0.05 }}
             style={{
-              background: "#0d0d1a", border: "1px solid rgba(124,106,255,0.1)",
+              background: "#ffffff", border: "1px solid rgba(124,106,255,0.1)",
               borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 14,
             }}
           >

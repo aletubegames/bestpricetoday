@@ -223,7 +223,7 @@ export default function HomePage() {
       <header style={{
         position: "sticky", top: 0, zIndex: 50,
         borderBottom: "1px solid var(--bd)",
-        background: "rgba(7,7,15,0.85)",
+        background: "rgba(255,255,255,0.92)",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
       }}>
@@ -427,7 +427,7 @@ export default function HomePage() {
       {compareList.length > 0 && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-          background: "rgba(7,7,15,0.95)", backdropFilter: "blur(20px)",
+          background: "rgba(255,255,255,0.97)", backdropFilter: "blur(20px)",
           borderTop: "1px solid rgba(124,106,255,0.3)",
           padding: "12px 24px",
           display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
@@ -437,12 +437,12 @@ export default function HomePage() {
           </span>
           {compareList.map(o => (
             <span key={o.affiliate_url} style={{
-              background: "#111120", border: "1px solid #2a2a3a",
-              borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#fff",
+              background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)",
+              borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1a1a2e",
               display: "flex", alignItems: "center", gap: 6,
             }}>
               {o.provider} — R${o.final_price?.toFixed(2)}
-              <button onClick={() => handleCompare(o)} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}>×</button>
+              <button onClick={() => handleCompare(o)} style={{ background: "none", border: "none", color: "#6b6b8a", cursor: "pointer", fontSize: 14 }}>×</button>
             </span>
           ))}
           {compareList.length >= 2 && (
@@ -451,13 +451,13 @@ export default function HomePage() {
               style={{
                 marginLeft: "auto", padding: "8px 20px", borderRadius: 10,
                 background: "linear-gradient(135deg,#7c6aff,#a78bfa)",
-                color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                color: "#1a1a2e", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer",
               }}
             >
               Comparar →
             </button>
           )}
-          <button onClick={() => setCompareList([])} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}>Limpar</button>
+          <button onClick={() => setCompareList([])} style={{ background: "none", border: "none", color: "#6b6b8a", cursor: "pointer", fontSize: 14 }}>Limpar</button>
         </div>
       )}
 
@@ -472,33 +472,33 @@ export default function HomePage() {
           onClick={() => setShowCompare(false)}
         >
           <div onClick={e => e.stopPropagation()} style={{
-            background: "#07070f", border: "1px solid rgba(124,106,255,0.3)",
+            background: "#f0f4ff", border: "1px solid rgba(124,106,255,0.3)",
             borderRadius: 20, padding: 32, maxWidth: 900, width: "100%",
             maxHeight: "90vh", overflow: "auto",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 800 }}>Comparação de Ofertas</h2>
-              <button onClick={() => setShowCompare(false)} style={{ background: "none", border: "none", color: "#64748b", fontSize: 24, cursor: "pointer" }}>×</button>
+              <h2 style={{ color: "#1a1a2e", fontSize: 20, fontWeight: 800 }}>Comparação de Ofertas</h2>
+              <button onClick={() => setShowCompare(false)} style={{ background: "none", border: "none", color: "#6b6b8a", fontSize: 24, cursor: "pointer" }}>×</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${compareList.length}, 1fr)`, gap: 16 }}>
               {compareList.map((offer, i) => {
                 const isWinner = offer.final_price === Math.min(...compareList.map(o => o.final_price || 999999));
                 return (
                   <div key={i} style={{
-                    background: "#0d0d1a",
+                    background: "#ffffff",
                     border: `1px solid ${isWinner ? "rgba(0,229,160,0.4)" : "rgba(124,106,255,0.15)"}`,
                     borderRadius: 14, padding: 20,
                   }}>
                     {isWinner && <div style={{ color: "#00e5a0", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>✓ MENOR PREÇO</div>}
                     <div style={{ fontSize: 12, fontWeight: 700, color: "#a78bfa", marginBottom: 8, textTransform: "capitalize" }}>{offer.provider}</div>
-                    <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 12 }}>{offer.title?.slice(0, 80)}...</p>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", marginBottom: 4 }}>R$ {offer.final_price?.toFixed(2)}</div>
+                    <p style={{ fontSize: 13, color: "#4a4a6a", lineHeight: 1.5, marginBottom: 12 }}>{offer.title?.slice(0, 80)}...</p>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: "#1a1a2e", marginBottom: 4 }}>R$ {offer.final_price?.toFixed(2)}</div>
                     {offer.original_price && offer.original_price > (offer.final_price || 0) && (
-                      <div style={{ fontSize: 12, textDecoration: "line-through", color: "#64748b", marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, textDecoration: "line-through", color: "#6b6b8a", marginBottom: 8 }}>
                         R$ {offer.original_price.toFixed(2)}
                       </div>
                     )}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#4a4a6a", marginBottom: 16 }}>
                       <span>📦 Frete: {offer.shipping_free ? "Grátis" : offer.shipping_price ? `R$${offer.shipping_price}` : "A consultar"}</span>
                       <span>⭐ Score: {Math.round(offer.score)}/100</span>
                       <span>💸 Desconto: {offer.discount_percent ? `${Math.round(offer.discount_percent)}%` : "—"}</span>
@@ -508,9 +508,9 @@ export default function HomePage() {
                     <a href={offer.affiliate_url} target="_blank" rel="noopener noreferrer"
                       style={{
                         display: "block", textAlign: "center", padding: "10px", borderRadius: 10,
-                        background: isWinner ? "linear-gradient(135deg,#00e5a0,#0ea5e9)" : "#111120",
+                        background: isWinner ? "linear-gradient(135deg,#00e5a0,#0ea5e9)" : "#f5f7ff",
                         color: isWinner ? "#000" : "#fff",
-                        border: isWinner ? "none" : "1px solid #2a2a3a",
+                        border: isWinner ? "none" : "1px solid rgba(108,92,231,0.2)",
                         fontWeight: 700, fontSize: 14, textDecoration: "none",
                       }}
                     >
@@ -527,7 +527,7 @@ export default function HomePage() {
       {/* ── FOOTER ── */}
       <footer style={{
         borderTop: "1px solid var(--bd)",
-        background: "rgba(7,7,15,0.85)",
+        background: "rgba(255,255,255,0.92)",
         padding: "20px",
         textAlign: "center",
       }}>

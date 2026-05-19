@@ -103,7 +103,7 @@ export default function DashboardPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#07070f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "#475569", fontSize: 14 }}>Carregando...</div>
     </div>
   )
@@ -113,17 +113,17 @@ export default function DashboardPage() {
   const topLinks        = [...links].sort((a, b) => b.clicks - a.clicks).slice(0, 5)
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07070f", color: "#fff", fontFamily: "system-ui" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
       {/* Header */}
-      <header style={{ borderBottom: "1px solid #1e293b", padding: "14px 24px", background: "rgba(7,7,15,0.95)", position: "sticky", top: 0, zIndex: 50 }}>
+      <header style={{ borderBottom: "1px solid #1e293b", padding: "14px 24px", background: "rgba(255,255,255,0.97)", position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 20 }}>🛍️</span>
             <span style={{ fontWeight: 800, fontSize: 15, color: "#7c6aff" }}>BestPriceToday</span>
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: "#64748b", fontSize: 12 }}>Olá, {user?.name?.split(" ")[0]} 👋</span>
-            <button onClick={logout} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid #2a2a3a", color: "#94a3b8", cursor: "pointer", fontSize: 12 }}>
+            <span style={{ color: "#6b6b8a", fontSize: 12 }}>Olá, {user?.name?.split(" ")[0]} 👋</span>
+            <button onClick={logout} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(108,92,231,0.2)", color: "#4a4a6a", cursor: "pointer", fontSize: 12 }}>
               Sair
             </button>
           </div>
@@ -143,7 +143,7 @@ export default function DashboardPage() {
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "9px 18px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600,
               background: tab === t ? "#7c6aff" : "rgba(255,255,255,0.04)",
-              border: `1px solid ${tab === t ? "#7c6aff" : "#2a2a3a"}`,
+              border: `1px solid ${tab === t ? "#7c6aff" : "rgba(108,92,231,0.2)"}`,
               color: tab === t ? "#fff" : "#475569",
             }}>
               {label}
@@ -162,7 +162,7 @@ export default function DashboardPage() {
                 { label: "Links gerados",      value: links.length,           icon: "🔗", color: "#7c6aff" },
                 { label: "Cliques totais",     value: totalClicks,            icon: "👆", color: "#fbbf24" },
               ].map(s => (
-                <div key={s.label} style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 14, padding: "18px 20px" }}>
+                <div key={s.label} style={{ background: "#ffffff", border: "1px solid #1e293b", borderRadius: 14, padding: "18px 20px" }}>
                   <div style={{ fontSize: 24, marginBottom: 8 }}>{s.icon}</div>
                   <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.value}</div>
                   <div style={{ fontSize: 11, color: "#475569", marginTop: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>{s.label}</div>
@@ -172,8 +172,8 @@ export default function DashboardPage() {
 
             {/* Top links */}
             {topLinks.length > 0 && (
-              <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-                <h2 style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 16 }}>
+              <div style={{ background: "#ffffff", border: "1px solid #1e293b", borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
+                <h2 style={{ fontSize: 13, fontWeight: 700, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 16 }}>
                   🏆 Links mais clicados
                 </h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -183,7 +183,7 @@ export default function DashboardPage() {
                         {i + 1}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontSize: 12, color: "#1a1a2e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {l.product || `Link /${l.code}`}
                         </div>
                         <div style={{ fontSize: 10, color: "#334155", marginTop: 2 }}>
@@ -204,7 +204,7 @@ export default function DashboardPage() {
 
             {/* CTAs */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link href="/" style={{ padding: "11px 22px", borderRadius: 10, background: "#7c6aff", color: "#fff", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
+              <Link href="/" style={{ padding: "11px 22px", borderRadius: 10, background: "#7c6aff", color: "#1a1a2e", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
                 🔍 Buscar produtos
               </Link>
               <button onClick={() => setTab("alerts")} style={{ padding: "11px 22px", borderRadius: 10, background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.25)", color: "#a78bfa", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
@@ -220,9 +220,9 @@ export default function DashboardPage() {
             {activeAlerts.length === 0 && triggeredAlerts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0", color: "#475569" }}>
                 <p style={{ fontSize: 40, marginBottom: 12 }}>🔔</p>
-                <p style={{ fontSize: 15, marginBottom: 8, color: "#94a3b8" }}>Nenhum alerta criado ainda.</p>
+                <p style={{ fontSize: 15, marginBottom: 8, color: "#4a4a6a" }}>Nenhum alerta criado ainda.</p>
                 <p style={{ fontSize: 13, marginBottom: 24 }}>Busque um produto e clique em "Criar alerta de preço".</p>
-                <Link href="/" style={{ padding: "11px 24px", borderRadius: 10, background: "#7c6aff", color: "#fff", textDecoration: "none", fontWeight: 700 }}>
+                <Link href="/" style={{ padding: "11px 24px", borderRadius: 10, background: "#7c6aff", color: "#1a1a2e", textDecoration: "none", fontWeight: 700 }}>
                   Buscar produtos →
                 </Link>
               </div>
@@ -255,9 +255,9 @@ export default function DashboardPage() {
             {links.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0", color: "#475569" }}>
                 <p style={{ fontSize: 40, marginBottom: 12 }}>🔗</p>
-                <p style={{ fontSize: 15, marginBottom: 8, color: "#94a3b8" }}>Nenhum link gerado ainda.</p>
+                <p style={{ fontSize: 15, marginBottom: 8, color: "#4a4a6a" }}>Nenhum link gerado ainda.</p>
                 <p style={{ fontSize: 13, marginBottom: 24 }}>Compartilhe produtos no TikTok para gerar links rastreados.</p>
-                <Link href="/" style={{ padding: "11px 24px", borderRadius: 10, background: "#7c6aff", color: "#fff", textDecoration: "none", fontWeight: 700 }}>
+                <Link href="/" style={{ padding: "11px 24px", borderRadius: 10, background: "#7c6aff", color: "#1a1a2e", textDecoration: "none", fontWeight: 700 }}>
                   Buscar produtos →
                 </Link>
               </div>
@@ -270,11 +270,11 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {links.map(l => (
                     <div key={l.code} style={{
-                      background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 12,
+                      background: "#ffffff", border: "1px solid #1e293b", borderRadius: 12,
                       padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 600, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontSize: 13, color: "#1a1a2e", fontWeight: 600, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {l.product || `bestpricetoday.vercel.app/r/${l.code}`}
                         </div>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -310,7 +310,7 @@ export default function DashboardPage() {
 
         {/* ── CONTA ── */}
         {tab === "account" && (
-          <div style={{ background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 16, padding: 28, maxWidth: 440 }}>
+          <div style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 16, padding: 28, maxWidth: 440 }}>
             {[
               { label: "Nome",          value: user?.name },
               { label: "E-mail",        value: user?.email },
@@ -338,13 +338,13 @@ export default function DashboardPage() {
 function AlertCard({ alert, onDelete, triggered }: { alert: Alert; onDelete: (id: string) => void; triggered?: boolean }) {
   return (
     <div style={{
-      background: "#0d0d1a",
+      background: "#ffffff",
       border: `1px solid ${triggered ? "rgba(0,229,160,0.2)" : "rgba(124,106,255,0.15)"}`,
       borderRadius: 12, padding: "14px 18px",
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
     }}>
       <div style={{ flex: 1 }}>
-        <p style={{ color: "#e2e8f0", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{alert.query}</p>
+        <p style={{ color: "#1a1a2e", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{alert.query}</p>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <p style={{ color: triggered ? "#00e5a0" : "#a78bfa", fontSize: 12 }}>
             Alvo: R$ {fmt(alert.target_price)}{triggered && " — ✅ Disparado!"}
@@ -368,7 +368,7 @@ function AlertCard({ alert, onDelete, triggered }: { alert: Alert; onDelete: (id
 }
 
 const sectionLabel: React.CSSProperties = {
-  color: "#64748b", fontSize: 11, fontWeight: 700,
+  color: "#6b6b8a", fontSize: 11, fontWeight: 700,
   textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 12,
 }
 

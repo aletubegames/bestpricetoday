@@ -90,7 +90,7 @@ function TikTokCallbackInner() {
       background: "#060610", padding: 24,
     }}>
       <div style={{
-        background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 20,
+        background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 20,
         padding: 32, maxWidth: 380, width: "100%", textAlign: "center",
       }}>
         {/* Logo TikTok */}
@@ -103,8 +103,8 @@ function TikTokCallbackInner() {
 
         {status === "loading" && (
           <>
-            <h2 style={{ color: "#fff", fontSize: 18, marginBottom: 8 }}>Conectando...</h2>
-            <p style={{ color: "#64748b", fontSize: 13 }}>Autorizando com o TikTok</p>
+            <h2 style={{ color: "#1a1a2e", fontSize: 18, marginBottom: 8 }}>Conectando...</h2>
+            <p style={{ color: "#6b6b8a", fontSize: 13 }}>Autorizando com o TikTok</p>
             <div style={{ marginTop: 20 }}>
               <div style={{
                 width: 36, height: 36, border: "3px solid #ff0050",
@@ -127,11 +127,11 @@ function TikTokCallbackInner() {
                 style={{ width: 56, height: 56, borderRadius: "50%", margin: "12px auto", display: "block" }}
               />
             )}
-            <p style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 700 }}>
+            <p style={{ color: "#1a1a2e", fontSize: 14, fontWeight: 700 }}>
               @{account?.display_name}
               {account?.is_verified && <span style={{ color: "#60a5fa", marginLeft: 4 }}>✓</span>}
             </p>
-            <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
+            <p style={{ color: "#6b6b8a", fontSize: 12, marginTop: 8 }}>
               {window.opener ? "Esta janela fechará automaticamente..." : "Você pode fechar esta aba."}
             </p>
           </>
@@ -141,13 +141,13 @@ function TikTokCallbackInner() {
           <>
             <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
             <h2 style={{ color: "#f87171", fontSize: 18, marginBottom: 8 }}>Erro na conexão</h2>
-            <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>{message}</p>
+            <p style={{ color: "#4a4a6a", fontSize: 13, marginBottom: 20 }}>{message}</p>
             <button
               onClick={() => window.close()}
               style={{
                 padding: "10px 24px", borderRadius: 10,
-                background: "rgba(255,255,255,0.05)", border: "1px solid #2a2a3a",
-                color: "#94a3b8", cursor: "pointer", fontSize: 13,
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(108,92,231,0.2)",
+                color: "#4a4a6a", cursor: "pointer", fontSize: 13,
               }}
             >
               Fechar
@@ -164,7 +164,7 @@ export default function TikTokCallbackPage() {
     <Suspense fallback={
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#060610", color: "#64748b", fontSize: 14,
+        background: "#060610", color: "#6b6b8a", fontSize: 14,
       }}>
         Carregando...
       </div>

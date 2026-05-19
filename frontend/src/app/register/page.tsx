@@ -36,7 +36,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07070f", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <Link href="/" style={{ textDecoration: "none" }}>
@@ -45,8 +45,8 @@ export default function RegisterPage() {
           </Link>
         </div>
 
-        <div style={{ background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 20, padding: 32 }}>
-          <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Criar conta</h1>
+        <div style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 20, padding: 32 }}>
+          <h1 style={{ color: "#1a1a2e", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Criar conta</h1>
           <p style={{ color: "#475569", fontSize: 13, marginBottom: 28 }}>Gratuito. Sem cartão de crédito.</p>
 
           <form onSubmit={submit}>
@@ -94,12 +94,12 @@ const labelStyle: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6,
 }
 const inputStyle: React.CSSProperties = {
-  width: "100%", background: "#111120", border: "1px solid #2a2a3a",
-  padding: "11px 14px", borderRadius: 10, color: "#fff", fontSize: 14,
+  width: "100%", background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)",
+  padding: "11px 14px", borderRadius: 10, color: "#1a1a2e", fontSize: 14,
   boxSizing: "border-box", outline: "none",
 }
 const btnStyle = (loading: boolean): React.CSSProperties => ({
   width: "100%", padding: "13px", borderRadius: 12, border: "none",
-  background: loading ? "#2a2a3a" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
-  color: "#fff", fontWeight: 700, fontSize: 15, cursor: loading ? "default" : "pointer",
+  background: loading ? "rgba(108,92,231,0.2)" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
+  color: "#1a1a2e", fontWeight: 700, fontSize: 15, cursor: loading ? "default" : "pointer",
 })

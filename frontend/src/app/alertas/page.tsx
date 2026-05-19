@@ -120,7 +120,7 @@ export default function AlertasPage() {
     <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "0 0 40px" }}>
 
       {/* Header de navegação */}
-      <header style={{ borderBottom: "1px solid var(--bd)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(7,7,15,0.95)", position: "sticky", top: 0, zIndex: 50 }}>
+      <header style={{ borderBottom: "1px solid var(--bd)", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.97)", position: "sticky", top: 0, zIndex: 50 }}>
         <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 22 }}>🛍️</span>
           <span style={{ fontWeight: 800, fontSize: 16, color: "#7c6aff" }}>BestPriceToday</span>

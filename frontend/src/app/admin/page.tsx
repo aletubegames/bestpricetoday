@@ -6,17 +6,17 @@ const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", 
 const PROVIDER_COLORS: Record<string, string> = {
   aliexpress: "#f43f5e", shopee: "#f87171", mercadolivre: "#facc15",
   amazon: "#fb923c", lomadee: "#c084fc", awin: "#60a5fa", tiktok: "#ff0050",
-  unknown: "#64748b", web: "#7c6aff", telegram: "#29b6f6", direct: "#4ade80",
+  unknown: "#6b6b8a", web: "#7c6aff", telegram: "#29b6f6", direct: "#4ade80",
 };
 const PROVIDER_EMOJI: Record<string, string> = {
   aliexpress: "🔴", shopee: "🟠", mercadolivre: "🟡", amazon: "📦", lomadee: "🟣", awin: "🔵"
 };
 
 const S = {
-  card: { background: "#111120", border: "1px solid #2a2a3a", borderRadius: 14, padding: "20px 24px" } as React.CSSProperties,
-  label: { color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 6 } as React.CSSProperties,
-  bigValue: { color: "#fff", fontSize: 32, fontWeight: 800, lineHeight: 1 } as React.CSSProperties,
-  th: { padding: "10px 12px", textAlign: "left" as const, color: "#64748b", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #2a2a3a", cursor: "pointer", userSelect: "none" as const } as React.CSSProperties,
+  card: { background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 14, padding: "20px 24px" } as React.CSSProperties,
+  label: { color: "#6b6b8a", fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 6 } as React.CSSProperties,
+  bigValue: { color: "#1a1a2e", fontSize: 32, fontWeight: 800, lineHeight: 1 } as React.CSSProperties,
+  th: { padding: "10px 12px", textAlign: "left" as const, color: "#6b6b8a", fontSize: 12, fontWeight: 600, borderBottom: "1px solid rgba(108,92,231,0.2)", cursor: "pointer", userSelect: "none" as const } as React.CSSProperties,
   td: { padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #1a1a2e" } as React.CSSProperties,
 };
 
@@ -276,13 +276,13 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
   return (
     <div style={{ marginTop: 20, borderTop: "1px solid #1e293b", paddingTop: 20 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a2e", marginBottom: 16 }}>
         🎥 Gerar Vídeo com IA
       </div>
 
       {/* STEP 1 — Produto */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
           1. Produto
         </div>
 
@@ -292,8 +292,8 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
             value={productSource}
             onChange={e => { setProductSource(e.target.value); loadSource(e.target.value); }}
             style={{
-              background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 8,
-              padding: "8px 12px", color: "#e2e8f0", fontSize: 12, cursor: "pointer",
+              background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8,
+              padding: "8px 12px", color: "#1a1a2e", fontSize: 12, cursor: "pointer",
               minWidth: 220, outline: "none",
             }}>
             {PRODUCT_SOURCES.map(s => (
@@ -303,7 +303,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
           <button
             onClick={() => loadSource(productSource)}
             title="Recarregar"
-            style={{ background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 8,
+            style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8,
               padding: "7px 12px", color: "#7c6aff", cursor: "pointer", fontSize: 13 }}>
             {loadingSource ? "⏳" : "↻"}
           </button>
@@ -318,15 +318,15 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
             onClick={() => setSelectedProduct(null)}
             style={{
               padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-              background: !selectedProduct ? "rgba(124,106,255,0.2)" : "#0d0d1a",
-              border: `1px solid ${!selectedProduct ? "#7c6aff" : "#2a2a3a"}`,
-              color: !selectedProduct ? "#a78bfa" : "#64748b",
+              background: !selectedProduct ? "rgba(124,106,255,0.2)" : "#ffffff",
+              border: `1px solid ${!selectedProduct ? "#7c6aff" : "rgba(108,92,231,0.2)"}`,
+              color: !selectedProduct ? "#a78bfa" : "#6b6b8a",
             }}>
             🌟 Auto
           </button>
 
           {loadingSource ? (
-            <span style={{ fontSize: 11, color: "#64748b", padding: "6px 0" }}>⏳ Carregando...</span>
+            <span style={{ fontSize: 11, color: "#6b6b8a", padding: "6px 0" }}>⏳ Carregando...</span>
           ) : sourceProducts.length === 0 ? (
             <span style={{ fontSize: 11, color: "#475569", padding: "6px 0" }}>Sem dados para esta fonte</span>
           ) : sourceProducts.map((p: any, i: number) => {
@@ -340,9 +340,9 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
                   padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
                   cursor: "pointer", maxWidth: 180, overflow: "hidden",
                   textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" as const,
-                  background: sel ? "rgba(124,106,255,0.2)" : "#0d0d1a",
+                  background: sel ? "rgba(124,106,255,0.2)" : "#ffffff",
                   border: `1px solid ${sel ? "#7c6aff" : "#1e293b"}`,
-                  color: sel ? "#a78bfa" : "#94a3b8",
+                  color: sel ? "#a78bfa" : "#4a4a6a",
                 }}>
                 <span style={{ fontSize: 10, opacity: 0.7 }}>#{i + 1} </span>
                 {p.product_title?.slice(0, 20) || "Produto"}
@@ -378,7 +378,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
       {/* STEP 2 — Formato */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
           2. Formato do vídeo
         </div>
 
@@ -401,12 +401,12 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
                       cursor: "pointer", transition: "all .15s",
                       background: isSel ? "rgba(251,191,36,0.18)" : "rgba(251,191,36,0.06)",
                       border: `2px solid ${isSel ? "#fbbf24" : "rgba(251,191,36,0.3)"}`,
-                      color: isSel ? "#fbbf24" : "#94a3b8",
+                      color: isSel ? "#fbbf24" : "#4a4a6a",
                       position: "relative" as const,
                     }}>
                     {i === 0 && <span style={{ position: "absolute", top: -8, right: -6, fontSize: 9, background: "#fbbf24", color: "#000", borderRadius: 4, padding: "1px 4px", fontWeight: 800 }}>TOP</span>}
                     {fmt.emoji} {fmt.label}
-                    <div style={{ fontSize: 9, color: isSel ? "#fbbf24" : "#64748b", marginTop: 2, maxWidth: 140, lineHeight: 1.3 }}>{s.reason}</div>
+                    <div style={{ fontSize: 9, color: isSel ? "#fbbf24" : "#6b6b8a", marginTop: 2, maxWidth: 140, lineHeight: 1.3 }}>{s.reason}</div>
                   </button>
                 );
               })}
@@ -427,9 +427,9 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
                 title={f.desc}
                 style={{
                   padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                  background: isSel ? "rgba(124,106,255,0.2)" : "#0d0d1a",
-                  border: `1px solid ${isSel ? "#7c6aff" : isSuggested ? "rgba(251,191,36,0.3)" : "#2a2a3a"}`,
-                  color: isSel ? "#a78bfa" : isSuggested ? "#fbbf24" : "#94a3b8",
+                  background: isSel ? "rgba(124,106,255,0.2)" : "#ffffff",
+                  border: `1px solid ${isSel ? "#7c6aff" : isSuggested ? "rgba(251,191,36,0.3)" : "rgba(108,92,231,0.2)"}`,
+                  color: isSel ? "#a78bfa" : isSuggested ? "#fbbf24" : "#4a4a6a",
                   opacity: isSuggested ? 1 : 0.7,
                 }}>
                 {f.emoji} {f.label}
@@ -438,7 +438,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
           })}
         </div>
         {fmt && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "#64748b" }}>
+          <div style={{ marginTop: 6, fontSize: 11, color: "#6b6b8a" }}>
             {fmt.emoji} <em>{fmt.desc}</em>
             {fmt.id === "wan21_cinematic" && (
               <span style={{ color: "#fbbf24", marginLeft: 6 }}>⚠️ Requer GPU local — pode demorar 2-5 min</span>
@@ -449,7 +449,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
       {/* STEP 3 — Plataformas */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
           3. Publicar em
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -459,9 +459,9 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
               <button key={p.id} onClick={() => togglePlat(p.id)}
                 style={{
                   padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  background: on ? `${p.color}20` : "#0d0d1a",
-                  border: `2px solid ${on ? p.color : "#2a2a3a"}`,
-                  color: on ? p.color : "#64748b",
+                  background: on ? `${p.color}20` : "#ffffff",
+                  border: `2px solid ${on ? p.color : "rgba(108,92,231,0.2)"}`,
+                  color: on ? p.color : "#6b6b8a",
                   transition: "all .15s",
                 }}>
                 {p.emoji} {p.label} {on ? "✔" : ""}
@@ -496,7 +496,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         style={{
           padding: "10px 24px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: loading ? "wait" : "pointer",
           background: loading ? "#1a1a2e" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
-          border: "none", color: loading ? "#64748b" : "#fff",
+          border: "none", color: loading ? "#6b6b8a" : "#fff",
           opacity: !selectedPlats.length ? 0.5 : 1,
           marginBottom: 16, transition: "all .2s",
         }}>
@@ -513,11 +513,11 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
             <div style={{ color: "#4ade80", marginBottom: 6 }}>✅ Concluído!</div>
           )}
           {jobLog.map((line, i) => (
-            <div key={i} style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "#f87171" : line.includes("✅") || line.includes("RESULT") ? "#4ade80" : "#94a3b8", lineHeight: 1.6 }}>
+            <div key={i} style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "#f87171" : line.includes("✅") || line.includes("RESULT") ? "#4ade80" : "#4a4a6a", lineHeight: 1.6 }}>
               {line}
             </div>
           ))}
-          {!jobDone && jobId && <div style={{ color: "#64748b", marginTop: 4 }}>...</div>}
+          {!jobDone && jobId && <div style={{ color: "#6b6b8a", marginTop: 4 }}>...</div>}
         </div>
       )}
     </div>
@@ -656,26 +656,26 @@ export default function AdminPage() {
   ];
   const periods = [{ days: 1, label: "Hoje" }, { days: 7, label: "7d" }, { days: 30, label: "30d" }];
 
-  const pillActive: React.CSSProperties = { background: "linear-gradient(135deg,#7c6aff,#a78bfa)", color: "#fff", border: "none", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" };
-  const pillInactive: React.CSSProperties = { background: "#111120", border: "1px solid #2a2a3a", color: "#888", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" };
+  const pillActive: React.CSSProperties = { background: "linear-gradient(135deg,#7c6aff,#a78bfa)", color: "#1a1a2e", border: "none", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" };
+  const pillInactive: React.CSSProperties = { background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)", color: "#888", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" };
 
   // ─── LOGIN ────────────────────────────────────────────────
   if (!key) {
     return (
-      <div style={{ minHeight: "100vh", background: "#07070f", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif", padding: "20px" }}>
+      <div style={{ minHeight: "100vh", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif", padding: "20px" }}>
         <div style={{ ...S.card, width: "100%", maxWidth: 380, textAlign: "center" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
-          <h2 style={{ color: "#fff", margin: "0 0 8px", fontSize: 22, fontWeight: 800 }}>BestPriceToday Admin</h2>
-          <p style={{ color: "#64748b", fontSize: 14, marginBottom: 24 }}>Digite sua chave de administrador</p>
+          <h2 style={{ color: "#1a1a2e", margin: "0 0 8px", fontSize: 22, fontWeight: 800 }}>BestPriceToday Admin</h2>
+          <p style={{ color: "#6b6b8a", fontSize: 14, marginBottom: 24 }}>Digite sua chave de administrador</p>
           <input
             type="password" placeholder="Admin key..." value={inputKey}
             onChange={e => setInputKey(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleLogin()}
-            style={{ width: "100%", boxSizing: "border-box", background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 8, padding: "12px 16px", color: "#fff", fontSize: 14, marginBottom: 12, outline: "none" }}
+            style={{ width: "100%", boxSizing: "border-box", background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "12px 16px", color: "#1a1a2e", fontSize: 14, marginBottom: 12, outline: "none" }}
           />
           {loginError && <p style={{ color: "#f43f5e", fontSize: 13, marginBottom: 12 }}>{loginError}</p>}
           <button onClick={handleLogin}
-            style={{ width: "100%", background: "linear-gradient(135deg,#7c6aff,#a78bfa)", border: "none", borderRadius: 8, padding: "12px", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+            style={{ width: "100%", background: "linear-gradient(135deg,#7c6aff,#a78bfa)", border: "none", borderRadius: 8, padding: "12px", color: "#1a1a2e", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
             Entrar
           </button>
         </div>
@@ -685,21 +685,21 @@ export default function AdminPage() {
 
   // ─── DASHBOARD ───────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100vh", background: "#07070f", fontFamily: "system-ui, sans-serif", color: "#e2e8f0" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f4ff", fontFamily: "system-ui, sans-serif", color: "#1a1a2e" }}>
 
       {/* HEADER — responsivo: empilha no mobile */}
-      <div style={{ background: "#0d0d1a", borderBottom: "1px solid #2a2a3a", padding: "12px 16px" }}>
+      <div style={{ background: "#ffffff", borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "12px 16px" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 22 }}>💹</span>
-            <span style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>BestPriceToday</span>
-            <span style={{ color: "#64748b", fontSize: 12, display: "none" }} className="admin-subtitle">Admin</span>
+            <span style={{ fontWeight: 800, fontSize: 16, color: "#1a1a2e" }}>BestPriceToday</span>
+            <span style={{ color: "#6b6b8a", fontSize: 12, display: "none" }} className="admin-subtitle">Admin</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
-            {lastUpdated && !loading && <span style={{ color: "#64748b", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
-            <button onClick={() => fetchAll(key)} style={{ background: "#1a1a2e", border: "1px solid #2a2a3a", borderRadius: 8, padding: "5px 12px", color: "#a78bfa", cursor: "pointer", fontSize: 12 }}>↻</button>
-            <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid #2a2a3a", borderRadius: 8, padding: "5px 12px", color: "#64748b", cursor: "pointer", fontSize: 12 }}>Sair</button>
+            {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
+            <button onClick={() => fetchAll(key)} style={{ background: "#1a1a2e", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#a78bfa", cursor: "pointer", fontSize: 12 }}>↻</button>
+            <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>Sair</button>
           </div>
         </div>
       </div>
@@ -756,15 +756,15 @@ export default function AdminPage() {
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>📈 Cliques por Dia</div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 120, overflowX: "auto" }}>
-              {analyticsKeys.length === 0 && <span style={{ color: "#64748b", fontSize: 12 }}>Sem dados</span>}
+              {analyticsKeys.length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
               {analyticsKeys.map((day, i) => {
                 const total = analyticsTotals[i];
                 const h = Math.max(4, (total / maxBar) * 110);
                 return (
                   <div key={day} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, minWidth: 24 }}>
-                    <div style={{ fontSize: 9, color: "#64748b", marginBottom: 1 }}>{total}</div>
+                    <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 1 }}>{total}</div>
                     <div style={{ width: "100%", background: "linear-gradient(180deg,#7c6aff,#a78bfa)", borderRadius: "3px 3px 0 0", height: h }} />
-                    <div style={{ fontSize: 9, color: "#64748b", marginTop: 2, writingMode: "vertical-rl", transform: "rotate(180deg)", height: 28 }}>{day.slice(5)}</div>
+                    <div style={{ fontSize: 9, color: "#6b6b8a", marginTop: 2, writingMode: "vertical-rl", transform: "rotate(180deg)", height: 28 }}>{day.slice(5)}</div>
                   </div>
                 );
               })}
@@ -775,10 +775,10 @@ export default function AdminPage() {
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>💰 Receita por Plataforma</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {Object.entries(revByProvider).length === 0 && <span style={{ color: "#64748b", fontSize: 12 }}>Sem dados</span>}
+              {Object.entries(revByProvider).length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
               {Object.entries(revByProvider).sort(([, a], [, b]) => Number(b) - Number(a)).map(([prov, val]) => {
                 const w = (Number(val) / maxRev) * 100;
-                const color = PROVIDER_COLORS[prov] || "#64748b";
+                const color = PROVIDER_COLORS[prov] || "#6b6b8a";
                 return (
                   <div key={prov} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ minWidth: 80, fontSize: 11, color: "#ccc" }}>{PROVIDER_EMOJI[prov] || "•"} {prov}</div>
@@ -801,7 +801,7 @@ export default function AdminPage() {
             {/* Canal Telegram */}
             <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📱 Canal Telegram</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>Posta ofertas de texto/imagem direto no canal</div>
+              <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 12 }}>Posta ofertas de texto/imagem direto no canal</div>
               <button onClick={async () => {
                 const res = await fetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, { method: "POST", headers: { "X-Admin-Key": key } });
                 const d = await res.json();
@@ -814,8 +814,8 @@ export default function AdminPage() {
             {/* SEO */}
             <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🔍 SEO / Páginas</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Sitemap publicado para páginas públicas</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>Sitemap em /sitemap.xml</div>
+              <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 4 }}>Sitemap publicado para páginas públicas</div>
+              <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 12 }}>Sitemap em /sitemap.xml</div>
               <a href="/sitemap.xml" target="_blank"
                 style={{ display: "block", textAlign: "center", padding: "9px", borderRadius: 8, background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.3)", color: "#a78bfa", fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
                 Ver sitemap →
@@ -832,7 +832,7 @@ export default function AdminPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
             <div>
               <div style={S.label}>Loop de Conversão</div>
-              <div style={{ color: "#fff", fontSize: 15, fontWeight: 700 }}>Clique → Venda → Comissão</div>
+              <div style={{ color: "#1a1a2e", fontSize: 15, fontWeight: 700 }}>Clique → Venda → Comissão</div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={async () => {
@@ -858,11 +858,11 @@ export default function AdminPage() {
                 { label: "Comissão", value: `R$${(overview?.total_commission ?? 0).toFixed(0)}`, color: "#f43f5e", pct: "—", isStr: true },
               ].map((item, i) =>
                 item === null ? (
-                  <div key={i} style={{ textAlign: "center", color: "#2a2a3a", fontSize: 20 }}>→</div>
+                  <div key={i} style={{ textAlign: "center", color: "rgba(108,92,231,0.2)", fontSize: 20 }}>→</div>
                 ) : (
                   <div key={i} style={{ background: `${item.color}10`, border: `1px solid ${item.color}30`, borderRadius: 10, padding: "12px 10px", textAlign: "center" }}>
                     <div style={{ color: item.color, fontSize: 18, fontWeight: 800 }}>{(item as any).isStr ? item.value : (item.value as number).toLocaleString()}</div>
-                    <div style={{ color: "#64748b", fontSize: 10, fontWeight: 600, marginTop: 3 }}>{item.label}</div>
+                    <div style={{ color: "#6b6b8a", fontSize: 10, fontWeight: 600, marginTop: 3 }}>{item.label}</div>
                     <div style={{ color: item.color, fontSize: 11, marginTop: 2, opacity: 0.8 }}>{item.pct}</div>
                   </div>
                 )
@@ -886,10 +886,10 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedMarketplaces.length === 0 && <tr><td colSpan={7} style={{ ...S.td, textAlign: "center", color: "#64748b" }}>Sem dados</td></tr>}
+                {sortedMarketplaces.length === 0 && <tr><td colSpan={7} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
                 {sortedMarketplaces.map((row, i) => (
                   <tr key={row.provider} style={i === 0 && sortedMarketplaces.length > 1 ? { borderLeft: "3px solid #4ade80" } : {}}>
-                    <td style={S.td}><span style={{ color: PROVIDER_COLORS[row.provider] || "#64748b" }}>{PROVIDER_EMOJI[row.provider] || "•"} {row.provider}</span></td>
+                    <td style={S.td}><span style={{ color: PROVIDER_COLORS[row.provider] || "#6b6b8a" }}>{PROVIDER_EMOJI[row.provider] || "•"} {row.provider}</span></td>
                     <td style={S.td}>{(row.clicks || 0).toLocaleString()}</td>
                     <td style={S.td}>{row.conversions || 0}</td>
                     <td style={S.td}>{(row.conversion_rate || 0).toFixed(2)}%</td>
@@ -908,7 +908,7 @@ export default function AdminPage() {
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🌐 Fontes de Tráfego</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {traffic.length === 0 && <span style={{ color: "#64748b", fontSize: 12 }}>Sem dados</span>}
+              {traffic.length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
               {traffic.map((src: any) => {
                 const color = PROVIDER_COLORS[src.source] || "#7c6aff";
                 return (
@@ -932,7 +932,7 @@ export default function AdminPage() {
                 const mlIcon = ml.status === "active" ? "✅" : ml.status === "expiring_soon" ? "⏰" : "❌";
                 const mlLabel = ml.status === "active" ? `Ativo (${ml.expires_in_minutes}min)` : ml.status === "expiring_soon" ? "Expirando" : "Token expirado";
                 return (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#0d0d1a", borderRadius: 8, gap: 6, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8, gap: 6, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 12 }}>🟡 Mercado Livre</span>
                     <span style={{ fontSize: 12, color: mlColor }}>{mlIcon} {mlLabel}</span>
                     <button onClick={() => fetch(`${API}/api/v1/auth/ml/refresh`, { method: "POST", headers: { "X-Admin-Key": key } }).then(r => r.json()).then(d => { alert(d.ok ? "Token renovado!" : `Erro: ${d.error}`); fetchAll(key); })}
@@ -941,7 +941,7 @@ export default function AdminPage() {
                 );
               })()}
               {getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
-                <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#0d0d1a", borderRadius: 8 }}>
+                <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8 }}>
                   <span style={{ fontSize: 12 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 12, color: int.color }}>{int.status} {int.statusText}</span>
                 </div>
@@ -949,7 +949,7 @@ export default function AdminPage() {
               {/* TikTok Admin — card especial com botão de conexão */}
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "7px 10px", background: "#0d0d1a", borderRadius: 8, flexWrap: "wrap", gap: 6,
+                padding: "7px 10px", background: "#ffffff", borderRadius: 8, flexWrap: "wrap", gap: 6,
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {tiktokAdminAccount?.connected && tiktokAdminAccount?.avatar_url && (
@@ -986,23 +986,23 @@ export default function AdminPage() {
         {/* TOP PRODUCTS */}
         <div style={{ ...S.card, marginBottom: 16 }}>
           <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🏆 Top 10 Produtos</div>
-          {topProducts.length === 0 && <p style={{ color: "#64748b", fontSize: 12 }}>Sem dados</p>}
+          {topProducts.length === 0 && <p style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</p>}
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {topProducts.map((p: any, i: number) => {
               const isExpanded = expandedProduct === p.product_title;
-              const color = PROVIDER_COLORS[p.provider] || "#64748b";
+              const color = PROVIDER_COLORS[p.provider] || "#6b6b8a";
               return (
                 <div key={i}>
                   <div onClick={() => setExpandedProduct(isExpanded ? null : p.product_title)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "#0d0d1a", borderRadius: 8, cursor: "pointer", border: `1px solid ${isExpanded ? color + "44" : "transparent"}`, flexWrap: "wrap" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "#ffffff", borderRadius: 8, cursor: "pointer", border: `1px solid ${isExpanded ? color + "44" : "transparent"}`, flexWrap: "wrap" }}>
                     <span style={{ color: "#7c6aff", fontWeight: 800, minWidth: 22, fontSize: 12 }}>#{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 12, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 100 }}>{p.product_title || "–"}</span>
+                    <span style={{ flex: 1, fontSize: 12, color: "#1a1a2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 100 }}>{p.product_title || "–"}</span>
                     <span style={{ color, fontSize: 11, background: color + "22", padding: "2px 7px", borderRadius: 8 }}>{PROVIDER_EMOJI[p.provider] || ""} {p.provider}</span>
-                    <span style={{ color: "#64748b", fontSize: 11 }}>{p.clicks} cliques</span>
+                    <span style={{ color: "#6b6b8a", fontSize: 11 }}>{p.clicks} cliques</span>
                     {p.price && <span style={{ color: "#facc15", fontSize: 11 }}>{fmtBRL(p.price)}</span>}
                   </div>
                   {isExpanded && (
-                    <div style={{ background: "#0d0d1a", borderRadius: "0 0 8px 8px", padding: "8px 12px", borderTop: "1px solid #1a1a2e", overflowX: "auto" }}>
+                    <div style={{ background: "#ffffff", borderRadius: "0 0 8px 8px", padding: "8px 12px", borderTop: "1px solid #1a1a2e", overflowX: "auto" }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 320 }}>
                         <thead><tr>{["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                         <tbody>
@@ -1028,7 +1028,7 @@ export default function AdminPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 360 }}>
                 <thead><tr>{["Hora", "Plataforma", "Produto", "Preço", "Fonte"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {recentClicks.length === 0 && <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "#64748b" }}>Sem dados</td></tr>}
+                  {recentClicks.length === 0 && <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
                   {recentClicks.map((c: any, i: number) => (
                     <tr key={i}>
                       <td style={S.td}>{fmtTime(c.clicked_at)}</td>
@@ -1055,7 +1055,7 @@ export default function AdminPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 360 }}>
                 <thead><tr>{["Hora", "Plataforma", "Produto", "Venda", "Comissão", "Status"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {recentConversions.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center", color: "#64748b" }}>Sem dados</td></tr>}
+                  {recentConversions.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
                   {recentConversions.map((c: any, i: number) => (
                     <tr key={i}>
                       <td style={S.td}>{fmtTime(c.converted_at || c.created_at)}</td>

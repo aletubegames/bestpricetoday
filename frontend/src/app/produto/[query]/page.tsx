@@ -27,7 +27,7 @@ export default function ProductPage({ params }: Props) {
   const q = decodeURIComponent(params.query)
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07070f", color: "#fff", fontFamily: "system-ui" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
       {/* SEO structured data */}
       <script
         type="application/ld+json"
@@ -43,7 +43,7 @@ export default function ProductPage({ params }: Props) {
       />
 
       {/* Header */}
-      <header style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", background: "rgba(7,7,15,0.95)" }}>
+      <header style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", background: "rgba(255,255,255,0.97)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
           <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 24 }}>🛍️</span>
@@ -56,7 +56,7 @@ export default function ProductPage({ params }: Props) {
         <h1 style={{ fontSize: "clamp(1.5rem,4vw,2.5rem)", fontWeight: 900, marginBottom: 8 }}>
           Menor preço: <span style={{ color: "#7c6aff" }}>{q}</span>
         </h1>
-        <p style={{ color: "#94a3b8", marginBottom: 40 }}>
+        <p style={{ color: "#4a4a6a", marginBottom: 40 }}>
           Comparação em tempo real em AliExpress, Shopee, Mercado Livre e mais lojas.
         </p>
 

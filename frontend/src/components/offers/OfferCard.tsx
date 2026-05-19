@@ -248,7 +248,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             {best && (
               <span style={{
                 fontSize: 10, fontWeight: 700, color: "#fff",
-                background: "linear-gradient(135deg,#7c6aff,#a78bfa)",
+                background: "linear-gradient(135deg,#6c5ce7,#8b7cf8)",
                 padding: "2px 8px", borderRadius: 99,
               }}>
                 ⚡ Melhor
@@ -320,7 +320,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
           <div>
             {offer.original_price && offer.final_price && offer.original_price > (offer.final_price + 0.5) && (
-              <div style={{ fontSize: 12, color: "rgba(240,240,248,0.3)", textDecoration: "line-through", marginBottom: 2 }}>
+              <div style={{ fontSize: 12, color: "rgba(26,26,46,0.30)", textDecoration: "line-through", marginBottom: 2 }}>
                 R$ {fmtPrice(offer.original_price)}
               </div>
             )}
@@ -376,7 +376,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               padding: "13px 20px", borderRadius: 12,
               fontSize: 14, fontWeight: 700, textDecoration: "none",
-              background: best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "#111120",
+              background: best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "#f5f7ff",
               color: best ? "#fff" : "rgba(26,26,46,0.7)",
               border: best ? "none" : "1px solid rgba(108,92,231,0.2)",
               transition: "filter .2s, transform .15s",

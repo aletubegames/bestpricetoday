@@ -187,7 +187,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
       zIndex: 1000, padding: 16,
     }}>
       <div style={{
-        background: "#0d0d1a", border: "1px solid #2a2a3a", borderRadius: 20,
+        background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 20,
         width: "100%", maxWidth: 480, padding: 24, position: "relative",
         maxHeight: "92vh", overflowY: "auto",
       }}>
@@ -205,7 +205,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
           }}>♪</div>
           <div>
-            <h2 style={{ color: "#fff", fontSize: 17, margin: 0, fontWeight: 800 }}>Compartilhar no TikTok</h2>
+            <h2 style={{ color: "#1a1a2e", fontSize: 17, margin: 0, fontWeight: 800 }}>Compartilhar no TikTok</h2>
             <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>
               Compartilhe e ganhe comissão pelo link rastreado
             </p>
@@ -222,7 +222,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             <img src={offer.image} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: "#e2e8f0", fontSize: 12, fontWeight: 600,
+            <div style={{ color: "#1a1a2e", fontSize: 12, fontWeight: 600,
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {offer.title?.slice(0, 55)}
             </div>
@@ -273,7 +273,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             <button onClick={connectTikTok} style={{
               width: "100%", padding: "13px", borderRadius: 12,
               background: "linear-gradient(135deg,#ff0050,#ff3060)",
-              border: "none", color: "#fff", cursor: "pointer",
+              border: "none", color: "#1a1a2e", cursor: "pointer",
               fontSize: 14, fontWeight: 800, letterSpacing: 0.3,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
@@ -314,7 +314,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             <button onClick={generateShareLink} style={{
               width: "100%", padding: "13px", borderRadius: 12,
               background: "linear-gradient(135deg,#7c3aed,#a855f7)",
-              border: "none", color: "#fff", cursor: "pointer",
+              border: "none", color: "#1a1a2e", cursor: "pointer",
               fontSize: 14, fontWeight: 800,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
@@ -325,7 +325,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
 
         {/* ── Gerando... ── */}
         {step === "generating" && (
-          <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13 }}>
+          <div style={{ textAlign: "center", padding: "32px 0", color: "#4a4a6a", fontSize: 13 }}>
             <div style={{ marginBottom: 10, fontSize: 24 }}>⚙️</div>
             Gerando seu link rastreado...
           </div>
@@ -339,7 +339,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input readOnly value={shareResult.short_link}
                   style={{
-                    flex: 1, background: "#1c1c2e", border: "1px solid #2a2a3a",
+                    flex: 1, background: "#eef0ff", border: "1px solid rgba(108,92,231,0.2)",
                     padding: "9px 12px", borderRadius: 8, color: "#00e5a0",
                     fontSize: 12, fontFamily: "monospace",
                   }} />
@@ -354,8 +354,8 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             <Section label="📝 Legenda pronta para o TikTok">
               <textarea readOnly value={shareResult.caption} rows={6}
                 style={{
-                  width: "100%", background: "#1c1c2e", border: "1px solid #2a2a3a",
-                  padding: "10px 12px", borderRadius: 8, color: "#e2e8f0",
+                  width: "100%", background: "#eef0ff", border: "1px solid rgba(108,92,231,0.2)",
+                  padding: "10px 12px", borderRadius: 8, color: "#1a1a2e",
                   fontSize: 12, resize: "none", lineHeight: 1.6, boxSizing: "border-box",
                 }} />
               <CopyBtn text={shareResult.caption} id="caption" copied={copied} onCopy={copyToClipboard} full />
@@ -366,8 +366,8 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
               <div style={{ display: "flex", gap: 8 }}>
                 <input readOnly value={shareResult.hashtags}
                   style={{
-                    flex: 1, background: "#1c1c2e", border: "1px solid #2a2a3a",
-                    padding: "9px 12px", borderRadius: 8, color: "#94a3b8", fontSize: 12,
+                    flex: 1, background: "#eef0ff", border: "1px solid rgba(108,92,231,0.2)",
+                    padding: "9px 12px", borderRadius: 8, color: "#4a4a6a", fontSize: 12,
                   }} />
                 <CopyBtn text={shareResult.hashtags} id="tags" copied={copied} onCopy={copyToClipboard} />
               </div>
@@ -377,7 +377,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             <button onClick={openShareKit} style={{
               width: "100%", padding: "14px", borderRadius: 12, marginTop: 8,
               background: "linear-gradient(135deg,#ff0050,#ff3060)",
-              border: "none", color: "#fff", cursor: "pointer",
+              border: "none", color: "#1a1a2e", cursor: "pointer",
               fontSize: 14, fontWeight: 800,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
