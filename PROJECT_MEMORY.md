@@ -256,7 +256,7 @@ Busca → Ranking → OfferCard → trackClick() → POST /admin/clicks
 |----------------|-------------|----------|
 | **AliExpress** | ✅ Funciona | Retry sem tracking_id quando 402 |
 | **Lomadee**    | ✅ Funciona | Source ID: `6ff2699e-ceaa-4fad-a58a-8b91f885485f` |
-| **Mercado Livre** | ❌ 403  | App não aprovado no Programa de Afiliados. OAuth ✅ no banco. |
+| **Mercado Livre** | ❌ 403  | `/sites/MLB/search` bloqueado por policy do app — não está no programa de afiliados ML. OAuth ✅, token no banco. `top_sales_mercadolivre` usa Lomadee como fallback. |
 | **Shopee**     | ❌ Invalid Signature | Secret errado — precisa do portal affiliate.shopee.com.br |
 | **Amazon**     | ⚠️ sem ACCESS_KEY | Associate tag: `aletubegames-20` configurado |
 | KaBuM / Awin   | ⏸️ pendente | Código pronto, sem credenciais |
