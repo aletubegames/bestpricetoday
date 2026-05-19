@@ -34,7 +34,20 @@ import bcrypt as _bcrypt
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
 REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
-ML_SCOPES = "read_catalog catalog_suggestions item_competition"
+
+
+def _pkce_pair() -> tuple[str, str]:
+    """Gera code_verifier e code_challenge para PKCE."""
+    import secrets, hashlib, base64
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+# Cache simples em memória: challenge -> verifier (TTL implícito pelo fluxo OAuth)
+_pkce_store: dict[str, str] = {}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -207,12 +220,19 @@ async def get_valid_ml_token() -> str | None:
 
 @router.get("/auth/ml/authorize")
 async def ml_authorize():
-    """Gera a URL de autorização ML. Acesse no browser."""
+    """Gera URL de autorização ML com PKCE. Acesse no browser."""
     from urllib.parse import urlencode
+    import secrets
+    verifier, challenge = _pkce_pair()
+    state = secrets.token_urlsafe(16)
+    _pkce_store[state] = verifier
     params = urlencode({
         "response_type": "code",
         "client_id": settings.MERCADOLIVRE_APP_ID,
         "redirect_uri": REDIRECT_URI,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "state": state,
     })
     url = f"https://auth.mercadolivre.com.br/authorization?{params}"
     return HTMLResponse(f"""
@@ -232,20 +252,27 @@ async def ml_authorize():
 
 
 @router.get("/auth/ml/callback")
-async def ml_oauth_callback(code: str = None, error: str = None, db: AsyncSession = Depends(get_db)):
+async def ml_oauth_callback(code: str = None, error: str = None, state: str = None, db: AsyncSession = Depends(get_db)):
     if error or not code:
         return HTMLResponse("<h2>❌ Erro de autenticação</h2>", status_code=400)
+
+    # Recupera code_verifier do PKCE store via state
+    code_verifier = _pkce_store.pop(state, None) if state else None
+
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": settings.MERCADOLIVRE_APP_ID,
+        "client_secret": settings.MERCADOLIVRE_SECRET,
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+    }
+    if code_verifier:
+        payload["code_verifier"] = code_verifier
 
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
             "https://api.mercadolibre.com/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "client_id": settings.MERCADOLIVRE_APP_ID,
-                "client_secret": settings.MERCADOLIVRE_SECRET,
-                "code": code,
-                "redirect_uri": REDIRECT_URI,
-            },
+            data=payload,
         )
 
     if resp.status_code != 200:

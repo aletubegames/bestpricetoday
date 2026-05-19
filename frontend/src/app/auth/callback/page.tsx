@@ -21,7 +21,7 @@ function AuthCallbackInner() {
       return
     }
 
-    window.location.href = `${API}/api/v1/auth/ml/callback?code=${code}`
+    window.location.href = `${API}/api/v1/auth/ml/callback?code=${code}${params.get('state') ? '&state=' + params.get('state') : ''}`
   }, [params])
 
   return (
