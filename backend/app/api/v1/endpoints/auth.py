@@ -222,16 +222,10 @@ async def get_valid_ml_token() -> str | None:
 async def ml_authorize():
     """Gera URL de autorização ML com PKCE. Acesse no browser."""
     from urllib.parse import urlencode
-    import secrets
-    verifier, challenge = _pkce_pair()
-    # state = verifier — viaja pelo redirect sem precisar de storage server-side
     params = urlencode({
         "response_type": "code",
         "client_id": settings.MERCADOLIVRE_APP_ID,
         "redirect_uri": REDIRECT_URI,
-        "code_challenge": challenge,
-        "code_challenge_method": "S256",
-        "state": verifier,
     })
     url = f"https://auth.mercadolivre.com.br/authorization?{params}"
     return HTMLResponse(f"""
@@ -255,23 +249,16 @@ async def ml_oauth_callback(code: str = None, error: str = None, state: str = No
     if error or not code:
         return HTMLResponse("<h2>❌ Erro de autenticação</h2>", status_code=400)
 
-    # state carrega o code_verifier diretamente (stateless PKCE)
-    code_verifier = state if state else None
-
-    payload = {
-        "grant_type": "authorization_code",
-        "client_id": settings.MERCADOLIVRE_APP_ID,
-        "client_secret": settings.MERCADOLIVRE_SECRET,
-        "code": code,
-        "redirect_uri": REDIRECT_URI,
-    }
-    if code_verifier:
-        payload["code_verifier"] = code_verifier
-
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
             "https://api.mercadolibre.com/oauth/token",
-            data=payload,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": settings.MERCADOLIVRE_APP_ID,
+                "client_secret": settings.MERCADOLIVRE_SECRET,
+                "code": code,
+                "redirect_uri": REDIRECT_URI,
+            },
         )
 
     if resp.status_code != 200:
