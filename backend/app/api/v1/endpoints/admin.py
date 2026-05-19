@@ -1183,6 +1183,16 @@ async def ml_test_search(
                 headers={"Authorization": f"Bearer {token}"},
             )
         me_data = me_resp.json() if me_resp.status_code == 200 else me_resp.text[:200]
+        # Pega scopes do token via /authorization/scopes
+        scope_resp = await client.get(
+            "https://api.mercadolibre.com/authorization/scopes",
+            headers={"Authorization": f"Bearer {token}"},
+        ) if False else None  # placeholder
+        # Tenta /users/{id}/applications/{app_id}
+        app_info_resp = await client.get(
+            f"https://api.mercadolibre.com/users/6727655/applications/2661096739949809",
+            headers={"Authorization": f"Bearer {token}"},
+        )
         return {
             "token_found": True,
             "token_prefix": token[:20] + "...",
@@ -1190,6 +1200,8 @@ async def ml_test_search(
             "users_me": {k: me_data.get(k) for k in ["id", "nickname", "email", "site_id"]} if isinstance(me_data, dict) else me_data,
             "search_status": search_resp.status_code,
             "search_response": search_resp.json() if search_resp.status_code == 200 else search_resp.text[:500],
+            "app_info_status": app_info_resp.status_code,
+            "app_info": app_info_resp.json() if app_info_resp.status_code == 200 else app_info_resp.text[:300],
         }
     except Exception as e:
         return {"error": str(e), "token_found": True}
