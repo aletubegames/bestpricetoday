@@ -662,6 +662,24 @@ async def get_product_suggestions(
                 "mercadolivre": "🟡 Top Mercado Livre",
             }.get(provider, f"🏆 Top {provider.title()}")
 
+            # mercadolivre: busca via Lomadee (ML bloqueado por policy do app)
+            if provider == "mercadolivre":
+                ml_queries = ["samsung galaxy", "iphone", "notebook", "smart tv", "airfryer"]
+                results = []
+                for q in ml_queries[:3]:
+                    offers = await _search(q, providers=["lomadee"])
+                    for o in offers:
+                        if o.get("final_price", 0) > 20:
+                            results.append(_offer_to_row(o, BADGE, source))
+                    if len(results) >= limit * 2:
+                        break
+                deduped = _dedup(results)[:limit]
+                if not deduped:
+                    return [{"product_title": "Sem resultados ML via Lomadee no momento",
+                             "provider": "lomadee", "clicks": 0, "price": None,
+                             "badge": BADGE, "source": source}]
+                return deduped
+
             results = []
             for q in queries[:3]:
                 offers = await _search(q, providers=[prov_key])
