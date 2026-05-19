@@ -473,10 +473,10 @@ Photorealistic render quality.
 
 **Parâmetros:**
 ```
-cfg: 5
-steps: 25
-motion_strength: 0.6
-frames: 81  (3s a 24fps)
+cfg: 4.0
+steps: 32
+motion_strength: 0.45
+frames: 97  (720x1280)
 ```
 
 ---
@@ -503,10 +503,10 @@ Ultra detailed. Stable geometry.
 
 **Parâmetros:**
 ```
-cfg: 4
-steps: 20
-motion_strength: 0.4
-frames: 81
+cfg: 3.5
+steps: 32
+motion_strength: 0.38
+frames: 97  (720x1280)
 ```
 
 ---
@@ -532,10 +532,10 @@ Stable product geometry. No background objects.
 
 **Parâmetros:**
 ```
-cfg: 5
-steps: 28
-motion_strength: 0.7
-frames: 81
+cfg: 4.5
+steps: 32
+motion_strength: 0.55
+frames: 97  (720x1280)
 ```
 
 ---
@@ -561,10 +561,10 @@ Stable geometry. Ultra detailed surface.
 
 **Parâmetros:**
 ```
-cfg: 6
-steps: 30
-motion_strength: 0.5
-frames: 81
+cfg: 4.0
+steps: 32
+motion_strength: 0.45
+frames: 97  (720x1280)
 ```
 
 ---
@@ -590,10 +590,10 @@ Ultra detailed product surface. Stable geometry.
 
 **Parâmetros:**
 ```
-cfg: 4
-steps: 25
-motion_strength: 0.3
-frames: 81
+cfg: 3.5
+steps: 32
+motion_strength: 0.35
+frames: 97  (720x1280)
 ```
 
 ---
