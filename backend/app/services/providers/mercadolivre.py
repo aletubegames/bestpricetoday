@@ -126,15 +126,16 @@ class MercadoLivreProvider(BaseProvider):
             return OfferSchema(
                 provider=ProviderEnum.mercadolivre,
                 title=name,
-                price=price if price else 0.0,
-                original_price=price if price else 0.0,
+                price=price if price else 0.01,
+                original_price=price if price else 0.01,
                 discount_percent=0.0,
                 shipping_free=bb.get("free_shipping", False),
                 shipping_price=0.0,
-                final_price=price if price else 0.0,
+                final_price=price if price else 0.01,
                 affiliate_url=affiliate_url,
                 image_url=image,
                 economy=0.0,
+                product_url=f"https://www.mercadolivre.com.br/p/{pid}",
             )
         except Exception as e:
             logger.debug(f"ML _fetch_offer error for {product.get('id')}: {e}")

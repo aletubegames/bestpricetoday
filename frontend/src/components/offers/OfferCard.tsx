@@ -333,7 +333,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
                   </span>
                 </>
               ) : (
-                <span style={{ fontSize: 15, color: "rgba(240,240,248,0.3)" }}>Preço indisponível</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#facc15", letterSpacing: "-0.3px" }}>🔥 Descubra o preço e fique surpreso!!</span>
               )}
             </div>
             {offer.economy > 0.5 && (
