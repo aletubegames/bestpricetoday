@@ -33,7 +33,8 @@ import bcrypt as _bcrypt
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
-REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
+REDIRECT_URI = "https://alessandro2090-bestpricetoday-api.hf.space/api/v1/auth/ml/callback"
+ML_SCOPES = "read_catalog catalog_suggestions item_competition"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -202,6 +203,34 @@ async def get_valid_ml_token() -> str | None:
         logger.info("ML token refreshed successfully [token value redacted]")
         return data.get("access_token")
     return None
+
+
+@router.get("/auth/ml/authorize")
+async def ml_authorize():
+    """Gera a URL de autorização ML com scopes corretos. Acesse no browser."""
+    from urllib.parse import urlencode
+    params = urlencode({
+        "response_type": "code",
+        "client_id": settings.MERCADOLIVRE_APP_ID,
+        "redirect_uri": REDIRECT_URI,
+        "scope": ML_SCOPES,
+    })
+    url = f"https://auth.mercadolivre.com.br/authorization?{params}"
+    return HTMLResponse(f"""
+    <html><head><style>
+      body{{font-family:system-ui;background:#07070f;color:#e2e8f0;padding:2rem}}
+      a{{color:#7c6aff;font-size:1.1rem}}
+      .box{{background:#111;border:1px solid #7c6aff;border-radius:12px;padding:1.5rem;max-width:600px}}
+      code{{background:#1e293b;padding:4px 8px;border-radius:4px;font-size:0.85rem;word-break:break-all}}
+    </style></head><body>
+    <div class="box">
+      <h2>🔐 Autorizar Mercado Livre</h2>
+      <p>Scopes: <code>{ML_SCOPES}</code></p>
+      <p>Redirect URI: <code>{REDIRECT_URI}</code></p>
+      <p><a href="{url}" target="_blank">👉 Clique aqui para autorizar</a></p>
+      <p style="font-size:0.8rem;color:#64748b">Após autorizar, você será redirecionado de volta e o token será salvo automaticamente.</p>
+    </div></body></html>
+    """)
 
 
 @router.get("/auth/ml/callback")
