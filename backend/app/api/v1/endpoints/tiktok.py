@@ -45,7 +45,7 @@ def _generate_code(length: int = 8) -> str:
 
 
 def _verify_admin_key(x_admin_key: Optional[str] = Header(None)) -> bool:
-    if not x_admin_key or x_admin_key != settings.ADMIN_SECRET_KEY:
+    if not x_admin_key or x_admin_key != settings.ADMIN_MANAGER_KEY:
         raise HTTPException(status_code=403, detail="Acesso admin necessário")
     return True
 
