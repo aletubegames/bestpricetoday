@@ -4,6 +4,52 @@
 
 ---
 
+## Atualizações recentes (2026-05-19 22:22)
+
+### AleTubeGames — Admin module para upload, análise e publicação de vídeos
+
+**Objetivo:** Seção admin-only no BestPriceToday para upload de vídeos locais (Linux) → análise IA → publicação automática em TikTok + YouTube com rastreamento de cliques/conversões.
+
+**Implementação completa:**
+
+1. **Database:**
+   - Nova tabela `admin_videos` (criada via Alembic migration `5da6e6d999e9`)
+   - Campos: `id`, `filename`, `file_path`, `duration_seconds`, `title`, `description`, `hashtags`, `thumbnail_url`, `plataformas`, `publish_status`, `tiktok_video_id`, `youtube_video_id`, `tiktok_short_link`, `youtube_short_link`, `tiktok_views`, `youtube_views`, `clicks_total`, `conversions`, `revenue`, `created_at`, `published_at`, `updated_at`
+
+2. **Backend endpoints** (`/backend/app/api/v1/endpoints/aletube.py`):
+   - `POST /api/v1/aletube/upload` — recebe .mp4 local, salva em `/tmp/aletube_videos/`, retorna `video_id`
+   - `POST /api/v1/aletube/analyze` — extrai frames com ffmpeg, gera title/description/hashtags via IA (placeholder), salva metadados
+   - `POST /api/v1/aletube/publish` — publica em TikTok (reutiliza `TikTokClient.admin_publish_video`) + YouTube (via Video API localhost:8765), cria short links rastreados com `source="aletube_admin"`
+   - `GET /api/v1/aletube/videos` — lista todos os vídeos publicados com stats (views, cliques, conversões)
+
+3. **Frontend page** (`/frontend/src/app/aletubegames/page.tsx`):
+   - Fluxo: Upload → Analyze → Preview → Publish → Published
+   - Step 1: Seleciona arquivo .mp4
+   - Step 2: Clica "Analisar Vídeo" → backend extrai metadata
+   - Step 3: Preview com edição de title/description/hashtags/plataformas/URL afiliado
+   - Step 4: "Publicar Agora" → backend publica TikTok + YouTube, retorna video IDs + short links
+   - Step 5: Mostra resultado com links para acompanhar views
+
+4. **Header button** (atualizado em `/frontend/src/app/page.tsx`):
+   - Novo botão "🎥 AleTubeGames" (amarelo, visível apenas se `is_admin === true`)
+   - Posicionado antes do botão de usuário na navbar
+   - Leva para `/app/aletubegames`
+
+5. **Reutilização de código existente:**
+   - `TikTokClient.admin_publish_video()` — publicação TikTok admin
+   - `Video API (localhost:8765)` — publicação YouTube + Telegram
+   - Tabela `ShortLink` — rastreamento de cliques com `source="aletube_admin"`
+   - Autenticação admin via `require_admin` dependency
+
+**Status:** ✅ Implementado, commitado, deployado em Vercel.
+
+**Próximas melhorias:**
+- Integração com Claude Vision para análise IA real (frames → metadata)
+- Webhook para sincronizar views do TikTok + YouTube de volta para `admin_videos.tiktok_views / youtube_views`
+- Dashboard de stats (views, CTR, conversões por vídeo)
+
+---
+
 ## Atualizações recentes (2026-05-19)
 
 ### 1) Busca `/produto/[query]` — grid 4 colunas + tracking ML corrigido
