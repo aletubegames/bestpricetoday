@@ -82,6 +82,8 @@ export default function AfiliadosPage() {
   const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: string } | null>(null)
   const [enrichModal, setEnrichModal] = useState<{ id: string; ml_code: string | null } | null>(null)
   const [enrichUrl, setEnrichUrl] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [enriching, setEnriching] = useState(false)
 
   // Content gen state
@@ -399,18 +401,46 @@ export default function AfiliadosPage() {
                 <div style={{ padding: 32, textAlign: "center", color: muted }}>Carregando produtos...</div>
               ) : products.length === 0 ? (
                 <div style={{ padding: 32, textAlign: "center", color: muted }}>Nenhum produto cadastrado</div>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: "rgba(108,92,231,0.05)" }}>
-                        {["Código ML", "Título", "Preço", "Comissão %", "Ganho/venda", "Est. mensal", "Ações"].map(h => (
-                          <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, color: muted, fontSize: 12, whiteSpace: "nowrap" }}>{h}</th>
+              ) : (() => {
+                const totalPages = Math.ceil(products.length / pageSize)
+                const paginated = products.slice((page - 1) * pageSize, page * pageSize)
+                return (
+                  <>
+                    {/* Controles de paginação topo */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid rgba(108,92,231,0.1)", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ fontSize: 12, color: muted }}>
+                        Mostrando {(page-1)*pageSize+1}–{Math.min(page*pageSize, products.length)} de {products.length} produtos
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 12, color: muted }}>Por pág:</span>
+                        {[20, 40, 60].map(s => (
+                          <button key={s} onClick={() => { setPageSize(s); setPage(1) }}
+                            style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(108,92,231,0.3)", background: pageSize===s ? "#7c6aff" : "transparent", color: pageSize===s ? "#fff" : muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                            {s}
+                          </button>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map(p => (
+                        <button onClick={() => setPage(p => Math.max(1,p-1))} disabled={page===1}
+                          style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(108,92,231,0.3)", background: "transparent", color: page===1 ? "#ccc" : muted, cursor: page===1?"default":"pointer", fontSize: 12 }}>
+                          ←
+                        </button>
+                        <span style={{ fontSize: 12, color: muted }}>{page}/{totalPages}</span>
+                        <button onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={page===totalPages}
+                          style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(108,92,231,0.3)", background: "transparent", color: page===totalPages?"#ccc":muted, cursor: page===totalPages?"default":"pointer", fontSize: 12 }}>
+                          →
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: "rgba(108,92,231,0.05)" }}>
+                            {["Código ML", "Título", "Preço", "Comissão %", "Ganho/venda", "Est. mensal", "Ações"].map(h => (
+                              <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, color: muted, fontSize: 12, whiteSpace: "nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginated.map(p => (
                         <tr key={p.id} style={{ borderBottom: "1px solid rgba(108,92,231,0.08)" }}>
                           <td style={{ padding: "12px 16px", color: muted, fontFamily: "monospace", fontSize: 12 }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -498,10 +528,12 @@ export default function AfiliadosPage() {
                           </td>
                         </tr>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           </div>
         )}
