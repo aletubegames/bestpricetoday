@@ -55,6 +55,11 @@ interface TikTokAdminAccount { connected?: boolean; avatar_url?: string; display
 interface AdminListResponse<T> { items?: T[] }
 interface AnalyticsResponse { data?: AnalyticsData }
 
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.json() as T;
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -584,6 +589,7 @@ export default function AdminPage() {
   const [recentClicks, setRecentClicks] = useState<RecentClick[]>([]);
   const [recentConversions, setRecentConversions] = useState<RecentConversion[]>([]);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({});
+  const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
   const [tiktokAdminAccount, setTiktokAdminAccount] = useState<TikTokAdminAccount | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -603,9 +609,10 @@ export default function AdminPage() {
 
   const adminFetch = <T,>(url: string, k: string, options: RequestInit = {}): Promise<T> =>
     fetch(`${API}${url}`, {
+      cache: "no-store",
       ...options,
       headers: { "Content-Type": "application/json", "X-Admin-Key": k, ...(options.headers || {}) },
-    }).then(async r => await r.json() as T);
+    }).then(parseJsonResponse<T>);
 
   const fetchAll = useCallback(async (k: string) => {
     setLoading(true);
@@ -619,14 +626,23 @@ export default function AdminPage() {
         adminFetch<AdminProduct[]>(`/api/v1/admin/products/top?limit=10`, k),
         adminFetch<AdminListResponse<RecentClick>>(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
         adminFetch<AdminListResponse<RecentConversion>>(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
-        fetch(`${API}/api/v1/admin/integrations/status`, { headers: { "X-Admin-Key": k } }).then(async r => await r.json() as IntegrationStatus).catch(() => ({} as IntegrationStatus)),
-        fetch(`${API}/api/v1/tiktok/admin/account`, { headers: { "X-Admin-Key": k } }).then(async r => await r.json() as TikTokAdminAccount).catch(() => null),
+        fetch(`${API}/api/v1/admin/integrations/status`, { cache: "no-store", headers: { "X-Admin-Key": k } })
+          .then(parseJsonResponse<IntegrationStatus>)
+          .catch((error: unknown) => {
+            setIntegrationStatusError(getErrorMessage(error));
+            return null;
+          }),
+        fetch(`${API}/api/v1/tiktok/admin/account`, { cache: "no-store", headers: { "X-Admin-Key": k } }).then(async r => await r.json() as TikTokAdminAccount).catch(() => null),
       ]);
       setOverview(ov); setAnalytics(an.data || {}); setMarketplaces(Array.isArray(mk) ? mk : []);
       setTraffic(Array.isArray(tr) ? tr : []); setTopProducts(Array.isArray(tp) ? tp : []);
       setRecentClicks(cl.items || []); setRecentConversions(cv.items || []);
-      setIntegrationStatus(intStatus || {}); setTiktokAdminAccount(ttAdmin); setLastUpdated(new Date());
-    } catch (e: unknown) { console.error(e); }
+      if (intStatus) { setIntegrationStatus(intStatus); setIntegrationStatusError(null); }
+      setTiktokAdminAccount(ttAdmin); setLastUpdated(new Date());
+    } catch (e: unknown) {
+      console.error(e);
+      setIntegrationStatusError(getErrorMessage(e));
+    }
     setLoading(false);
   }, [activePlatform, activePeriod, clickPage, convPage]);
 
@@ -635,7 +651,7 @@ export default function AdminPage() {
   const handleLogin = async () => {
     setLoginError("");
     try {
-      const res = await fetch(`${API}/api/v1/admin/overview?days=1`, { headers: { "X-Admin-Key": inputKey } });
+      const res = await fetch(`${API}/api/v1/admin/overview?days=1`, { cache: "no-store", headers: { "X-Admin-Key": inputKey } });
       if (!res.ok) { setLoginError("Chave inválida"); return; }
       localStorage.setItem("admin_key", inputKey);
       setKey(inputKey);
@@ -691,6 +707,7 @@ export default function AdminPage() {
   const maxBar = Math.max(...analyticsTotals, 1);
   const revByProvider = overview?.revenue_by_provider || {};
   const maxRev = Math.max(...Object.values(revByProvider).map(Number), 1);
+  const hasIntegrationStatus = Object.keys(integrationStatus).length > 0;
 
   const platforms = [
     { id: "all", label: "Todos", emoji: "🌐" },
@@ -971,8 +988,18 @@ export default function AdminPage() {
           </div>
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🔌 Status das Integrações</div>
+            {integrationStatusError && (
+              <div style={{ marginBottom: 8, padding: "7px 10px", borderRadius: 8, background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.22)", color: "#f43f5e", fontSize: 11 }}>
+                Falha ao carregar status: {integrationStatusError}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {(() => {
+              {!hasIntegrationStatus && !integrationStatusError && (
+                <div style={{ padding: "7px 10px", background: "#ffffff", borderRadius: 8, color: "#6b6b8a", fontSize: 12 }}>
+                  Carregando status das integrações...
+                </div>
+              )}
+              {hasIntegrationStatus && (() => {
                 const ml = integrationStatus?.mercadolivre || {};
                 const mlColor = ml.status === "active" ? "#00e5a0" : ml.status === "expiring_soon" ? "#fbbf24" : "#ff6b6b";
                 const mlIcon = ml.status === "active" ? "✅" : ml.status === "expiring_soon" ? "⏰" : "❌";
@@ -986,7 +1013,7 @@ export default function AdminPage() {
                   </div>
                 );
               })()}
-              {getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
+              {hasIntegrationStatus && getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
                 <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8 }}>
                   <span style={{ fontSize: 12 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 12, color: int.color }}>{int.status} {int.statusText}</span>
