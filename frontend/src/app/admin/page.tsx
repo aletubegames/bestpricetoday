@@ -627,12 +627,8 @@ export default function AdminPage() {
               }
             })
             .catch((err) => console.error("[Admin Auto-Login] Error:", err.message));
-                setKey(data.admin_key);
-              }
-            })
-            .catch(() => null);
         }
-      } catch { /* ignore */ }
+      } catch (e) { console.error("[Admin Auto-Login] Parse error:", e); }
     }
   }, []);
 
@@ -707,10 +703,6 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     localStorage.removeItem("admin_key");
-    localStorage.removeItem("bpt_token");
-    localStorage.removeItem("bpt_user");
-    setKey("");
-    setOverview(null);
     window.location.href = "/login";
   };
 
