@@ -63,12 +63,6 @@ export default function DashboardPage() {
     const u = JSON.parse(stored) as User
     setUser(u)
 
-    // Se for admin, redireciona pra /admin
-    if (u.is_admin) {
-      router.push("/admin")
-      return
-    }
-
     Promise.all([
       fetch(`${API}/api/v1/alerts?owner_id=${u.id}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : []),
