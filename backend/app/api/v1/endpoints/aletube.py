@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.models import AdminVideo, ShortLink
 from app.core.config import settings
-from app.api.v1.endpoints.auth import require_admin
+from app.api.v1.endpoints.admin import require_admin
 from app.integrations.tiktok import TikTokClient
 
 router = APIRouter(prefix="/aletube", tags=["aletube"])
