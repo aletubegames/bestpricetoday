@@ -354,7 +354,13 @@ export default function AfiliadosPage() {
                     <tbody>
                       {products.map(p => (
                         <tr key={p.id} style={{ borderBottom: "1px solid rgba(108,92,231,0.08)" }}>
-                          <td style={{ padding: "12px 16px", color: muted, fontFamily: "monospace", fontSize: 12 }}>{p.ml_code || "—"}</td>
+                          <td style={{ padding: "12px 16px", color: muted, fontFamily: "monospace", fontSize: 12 }}>
+                            <a href={p.affiliate_url} target="_blank" rel="noopener noreferrer"
+                              style={{ color: "#7c6aff", textDecoration: "none", fontWeight: 600 }}
+                              title="Abrir produto no ML">
+                              {p.ml_code || "link"} ↗
+                            </a>
+                          </td>
                           <td style={{ padding: "12px 16px", minWidth: 160 }}>
                             {editingCell?.id === p.id && editingCell.field === "title" ? (
                               <input
