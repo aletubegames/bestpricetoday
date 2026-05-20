@@ -13,7 +13,9 @@ export const trackClick = (offer: Offer) => {
       affiliate_url: offer.affiliate_url || "",
       source: "web",
     }),
-  }).catch(() => {});
+  }).catch((error: unknown) => {
+    console.warn("Click tracking failed:", error);
+  });
 };
 
 export const getTrackedUrl = async (offer: Offer, campaign = "offer_card"): Promise<string> => {
@@ -34,11 +36,19 @@ export const getTrackedUrl = async (offer: Offer, campaign = "offer_card"): Prom
       }),
     });
 
+    if (res.status === 429) {
+      console.warn("Short link creation rate limited; using original affiliate URL.");
+      return offer.affiliate_url || "#";
+    }
+
     if (res.ok) {
       const data = await res.json();
       return data.url || data.short_url || offer.affiliate_url || "#";
     }
-  } catch {}
+    console.warn("Short link creation failed:", res.status);
+  } catch (error: unknown) {
+    console.warn("Short link creation failed:", error);
+  }
 
   return offer.affiliate_url || "#";
 };

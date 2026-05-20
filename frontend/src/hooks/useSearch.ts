@@ -8,11 +8,17 @@ export function useSearch(query: string) {
   return useQuery<SearchResponse>({
     queryKey: ["search", query],
     queryFn: async () => {
-      const { data } = await axios.get(`${API_URL}/api/v1/search`, {
-        params: { q: query, limit: 20 },
-      });
-      return data;
+      try {
+        const { data } = await axios.get(`${API_URL}/api/v1/search`, {
+          params: { q: query, limit: 20 },
+        });
+        return data;
+      } catch (error: unknown) {
+        console.error("Search failed:", axios.isAxiosError(error) ? error.message : error);
+        throw new Error("Search failed");
+      }
     },
+    retry: 1,
     enabled: query.length >= 3,
     staleTime: 5 * 60 * 1000,
   });

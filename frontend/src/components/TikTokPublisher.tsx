@@ -13,9 +13,18 @@
 
 import { useState, useEffect } from "react"
 import { API_BASE as API } from "@/lib/api"
+import type { Offer } from "@/types"
+
+type TikTokOffer = Partial<Offer> & {
+  affiliate_url?: string
+  image?: string
+  image_url?: string
+  provider: string
+  title?: string
+}
 
 interface TikTokPublisherProps {
-  offer: any
+  offer: TikTokOffer
 }
 
 type Step = "idle" | "connect" | "connected" | "generating" | "ready" | "error"
@@ -33,6 +42,12 @@ interface ShareResult {
   share_kit_url: string
   caption: string
   hashtags: string
+}
+
+interface TikTokAuthResponse { state?: string; auth_url?: string }
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function fmt(n: number) {
@@ -60,14 +75,15 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
     try {
       const res = await fetch(`${API}/api/v1/tiktok/account/me?open_id=${openId}`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json() as TikTokAccount
         setAccount(data)
         setStep("connected")
       } else {
         localStorage.removeItem("tiktok_open_id")
         setStep("connect")
       }
-    } catch {
+    } catch (error: unknown) {
+      console.warn("TikTok account lookup failed:", error)
       setStep("connect")
     }
   }
@@ -78,7 +94,8 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
     setError(null)
     try {
       const res  = await fetch(`${API}/api/v1/tiktok/auth/user`)
-      const data = await res.json()
+      const data = await res.json() as TikTokAuthResponse
+      if (!data.state || !data.auth_url) throw new Error("Resposta inválida do TikTok auth")
 
       // Salvar state para validar no callback
       localStorage.setItem("tiktok_oauth_state", data.state)
@@ -102,7 +119,8 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
           }
         }
       }, 1000)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      console.warn("TikTok login failed:", getErrorMessage(e))
       setError("Erro ao iniciar login TikTok. Tente novamente.")
       setStep("error")
     }
@@ -134,10 +152,11 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
-      const data = await res.json()
+      const data = await res.json() as ShareResult
       setShare(data)
       setStep("ready")
-    } catch (e: any) {
+    } catch (e: unknown) {
+      console.warn("TikTok share link failed:", getErrorMessage(e))
       setError("Erro ao gerar link. Tente novamente.")
       setStep("connected")
     }
@@ -218,8 +237,8 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
           borderRadius: 10, padding: "10px 14px", marginBottom: 20,
           display: "flex", alignItems: "center", gap: 12,
         }}>
-          {offer.image && (
-            <img src={offer.image} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+          {(offer.image || offer.image_url) && (
+            <img src={offer.image || offer.image_url} alt="" loading="lazy" fetchPriority="low" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: "#1a1a2e", fontSize: 12, fontWeight: 600,
@@ -228,10 +247,10 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
             </div>
             <div style={{ color: "#00e5a0", fontSize: 13, fontWeight: 800, marginTop: 2 }}>
               R$ {fmt(offer.final_price ?? 0)}
-              {offer.original_price > offer.final_price && (
+              {(offer.original_price ?? 0) > (offer.final_price ?? 0) && (
                 <span style={{ color: "#475569", fontSize: 11, fontWeight: 400,
                   textDecoration: "line-through", marginLeft: 6 }}>
-                  R$ {fmt(offer.original_price)}
+                  R$ {fmt(offer.original_price ?? 0)}
                 </span>
               )}
             </div>

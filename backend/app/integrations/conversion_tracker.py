@@ -19,6 +19,28 @@ from app.core.logging import logger
 from app.models.models import ConversionEvent, ClickEvent, ConversionRetryQueue
 
 
+def validate_ml_webhook_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
+    """Validate Mercado Livre webhook HMAC using the configured secret."""
+    secret = settings.ML_WEBHOOK_SECRET
+    if not secret or not signature_header:
+        return False
+
+    try:
+        parts = dict(part.split("=", 1) for part in signature_header.split(","))
+        ts = parts.get("ts", "")
+        received = parts.get("v1", "")
+        if not ts or not received:
+            return False
+
+        body_hash = hashlib.sha256(raw_body).hexdigest()
+        message = f"ts:{ts}\nv1:{body_hash}"
+        expected = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(received, expected)
+    except (TypeError, ValueError) as exc:
+        logger.warning(f"ML webhook HMAC parsing failed: {type(exc).__name__}")
+        return False
+
+
 async def _sign_top(method: str, params: dict, app_key: str, app_secret: str) -> dict:
     """Sign AliExpress TOP request."""
     ts = str(int(time.time() * 1000))
@@ -175,8 +197,8 @@ async def _save_conversion_safe(
             )
             db.add(retry)
             await db.commit()
-        except Exception:
-            pass
+        except Exception as retry_exc:
+            logger.debug(f"Failed to enqueue conversion retry: {type(retry_exc).__name__}")
         return False
 
 
@@ -347,11 +369,20 @@ async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[di
     return saved
 
 
-async def handle_ml_webhook(data: dict, db: AsyncSession) -> dict:
+async def handle_ml_webhook(
+    data: dict,
+    db: AsyncSession,
+    raw_body: Optional[bytes] = None,
+    signature_header: Optional[str] = None,
+) -> dict:
     """
     ML sends: { resource: "/orders/123456789", user_id: 123, topic: "orders" }
     Then we call GET /orders/{id} to get the full order.
     """
+    if not raw_body or not validate_ml_webhook_signature(raw_body, signature_header):
+        logger.warning("ML webhook handler rejected unsigned or invalid payload")
+        return {"ok": False, "error": "invalid signature"}
+
     topic = data.get("topic", "")
     resource = data.get("resource", "")
 
@@ -473,7 +504,7 @@ async def poll_shopee_conversions(db: AsyncSession, since_hours: int = 2) -> lis
     }
     """ % (int(since.timestamp()), int(now.timestamp()))
 
-    body = json.dumps({"query": query})
+    body = json.dumps({"query": query}, separators=(",", ":"), ensure_ascii=False)
     ts = int(time.time())
     sig = hashlib.sha256(f"{app_id}{ts}{body}{secret}".encode()).hexdigest()
     headers = {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://alessandro2090-bestpricetoday-api.hf.space'
+import { API_BASE } from '@/lib/api'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)

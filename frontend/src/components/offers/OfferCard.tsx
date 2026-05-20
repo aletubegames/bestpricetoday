@@ -248,7 +248,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             {offer.image_url && offer.image_url.startsWith("http") ? (
-              <img src={offer.image_url} alt={offer.title} loading="lazy"
+              <img src={offer.image_url} alt={offer.title} loading="lazy" fetchPriority="low"
                 style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }}
                 onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
               />

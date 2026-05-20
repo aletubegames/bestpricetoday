@@ -6,12 +6,27 @@ import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
 import { openTrackedOffer } from "@/lib/tracking";
 
+type StoredUser = { name: string; is_admin: boolean };
+
+function readStoredUser(): StoredUser | null {
+  try {
+    const stored = localStorage.getItem("bpt_user");
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as Partial<StoredUser>;
+    if (parsed && typeof parsed === "object" && typeof parsed.name === "string" && typeof parsed.is_admin === "boolean") {
+      return parsed as StoredUser;
+    }
+  } catch (error: unknown) {
+    console.warn("Stored user could not be read:", error);
+  }
+  return null;
+}
+
 // Botão de login/usuário no header
 function AuthButton() {
-  const [user, setUser] = useState<{name: string; is_admin: boolean} | null>(null)
+  const [user, setUser] = useState<StoredUser | null>(null)
   useEffect(() => {
-    const stored = localStorage.getItem("bpt_user")
-    if (stored) setUser(JSON.parse(stored))
+    setUser(readStoredUser())
   }, [])
   if (user) {
     return (
@@ -206,6 +221,7 @@ export default function HomePage() {
   const [compareList, setCompareList] = useState<Offer[]>([]);
   const [showCompare, setShowCompare] = useState(false);
   const [openingCompareKey, setOpeningCompareKey] = useState<string | null>(null);
+  const [compareErrorKey, setCompareErrorKey] = useState<string | null>(null);
 
   const compareOfferKey = (offer: Offer, index: number) => `${offer.provider}-${offer.product_id || offer.affiliate_url || index}`;
 
@@ -215,9 +231,13 @@ export default function HomePage() {
 
     const key = compareOfferKey(offer, index);
     setOpeningCompareKey(key);
+    setCompareErrorKey(null);
 
     try {
       await openTrackedOffer(offer, "compare_modal");
+    } catch (error: unknown) {
+      console.warn("Compare offer opening failed:", error);
+      setCompareErrorKey(key);
     } finally {
       setOpeningCompareKey(null);
     }
@@ -534,7 +554,7 @@ export default function HomePage() {
                         fontWeight: 700, fontSize: 14, textDecoration: "none",
                       }}
                     >
-                      {openingCompareKey === compareKey ? "Abrindo..." : "Ver oferta →"}
+                      {openingCompareKey === compareKey ? "Abrindo..." : compareErrorKey === compareKey ? "Erro" : "Ver oferta →"}
                     </a>
                   </div>
                 );

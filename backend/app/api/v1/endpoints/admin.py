@@ -10,25 +10,20 @@ from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from collections import defaultdict
 import uuid
 import os
-import time
-import hashlib
-import hmac as hmac_mod
 import httpx
 
-_rate_limits: dict = defaultdict(list)
 
-
-def check_rate_limit(key: str, max_calls: int = 10, window_seconds: int = 60) -> bool:
-    """Simple in-memory rate limiter. Returns True if allowed."""
-    now = time.time()
-    _rate_limits[key] = [t for t in _rate_limits[key] if now - t < window_seconds]
-    if len(_rate_limits[key]) >= max_calls:
-        return False
-    _rate_limits[key].append(now)
-    return True
+async def check_rate_limit(key: str, max_calls: int = 10, window_seconds: int = 60) -> bool:
+    """Redis-backed rate limiter kept for admin-local compatibility."""
+    from app.core.rate_limit import check_rate_limit as redis_check_rate_limit
+    return await redis_check_rate_limit(
+        ip=key,
+        key="admin",
+        max_calls=max_calls,
+        window_seconds=window_seconds,
+    )
 
 router = APIRouter()
 
@@ -729,27 +724,17 @@ async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
     body = await request.body()
 
-    # Validate HMAC if ML_WEBHOOK_SECRET is configured
+    # Validate HMAC before accepting the payload.
     ml_secret = getattr(settings, 'ML_WEBHOOK_SECRET', "")
-    if ml_secret:
-        signature_header = request.headers.get("x-signature", "")
-        if signature_header:
-            try:
-                parts = dict(p.split("=", 1) for p in signature_header.split(","))
-                ts = parts.get("ts", "")
-                v1 = parts.get("v1", "")
+    if not ml_secret:
+        logger.error("ML webhook rejected: ML_WEBHOOK_SECRET is not configured")
+        raise HTTPException(status_code=503, detail="Webhook signature secret not configured")
 
-                body_hash = hashlib.sha256(body).hexdigest()
-                to_sign = f"ts:{ts}\nv1:{body_hash}"
-                expected = hmac_mod.new(
-                    ml_secret.encode(), to_sign.encode(), hashlib.sha256
-                ).hexdigest()
-
-                if v1 != expected:
-                    logger.warning("ML webhook: HMAC validation failed [signature mismatch]")
-                    # Don't reject — ML might send without signature in sandbox
-            except Exception as e:
-                logger.warning(f"ML webhook HMAC parsing error: {type(e).__name__}")
+    from app.integrations.conversion_tracker import validate_ml_webhook_signature
+    signature_header = request.headers.get("x-signature", "")
+    if not validate_ml_webhook_signature(body, signature_header):
+        logger.warning("ML webhook rejected: invalid HMAC signature")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     # Process payload
     try:

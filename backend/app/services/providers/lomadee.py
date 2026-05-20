@@ -87,10 +87,11 @@ class LomadeeProvider(BaseProvider):
                         val = float(val_str)
                         if val > current_price * 1.05:  # pelo menos 5% maior
                             return round(val, 2)
-                    except:
+                    except (TypeError, ValueError) as exc:
+                        logger.debug(f"Lomadee suggested price parse skipped: {type(exc).__name__}")
                         continue
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Lomadee suggested price fetch skipped: {type(exc).__name__}")
         return None
 
     def _build_affiliate_url(self, product_url: str) -> str:

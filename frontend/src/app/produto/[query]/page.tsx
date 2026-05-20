@@ -28,19 +28,15 @@ export default function ProductPage({ params }: Props) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
-      {/* SEO structured data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+      <script type="application/ld+json">
+        {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SearchResultsPage",
             "name": `Menor preço ${q}`,
             "description": `Compare preços de ${q} nas melhores lojas do Brasil`,
             "url": `https://bestpricetoday.vercel.app/produto/${params.query}`,
-          })
-        }}
-      />
+          })}
+      </script>
 
       {/* Header */}
       <header style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", background: "rgba(255,255,255,0.97)" }}>

@@ -58,6 +58,7 @@ export default function LoginPage() {
               <label style={labelStyle}>E-mail</label>
               <input
                 type="email" required value={form.email}
+                autoComplete="email"
                 onChange={e => setForm({ ...form, email: e.target.value })}
                 placeholder="seu@email.com"
                 style={inputStyle}
@@ -67,6 +68,7 @@ export default function LoginPage() {
               <label style={labelStyle}>Senha</label>
               <input
                 type="password" required value={form.password}
+                autoComplete="current-password"
                 onChange={e => setForm({ ...form, password: e.target.value })}
                 placeholder="••••••••"
                 style={inputStyle}

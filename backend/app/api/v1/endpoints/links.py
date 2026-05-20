@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
+from app.core.config import settings
 from app.models.models import ShortLink, ClickEvent
 from pydantic import BaseModel
 from typing import Optional
@@ -40,12 +41,13 @@ async def create_short_link(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Creates a tracked short link. Rate limited: 20 req/min por IP.
+    Creates a tracked short link. Rate limited per IP.
     """
     from app.core.rate_limit import check_rate_limit, get_client_ip
     ip = get_client_ip(request)
-    if not await check_rate_limit(ip, key="links_create", max_calls=20, window_seconds=60):
-        return JSONResponse(status_code=429, content={"error": "Rate limit exceeded. Max 20 links/min per IP."})
+    max_calls = settings.RATE_LIMIT_PER_MINUTE
+    if not await check_rate_limit(ip, key="links_create", max_calls=max_calls, window_seconds=60):
+        return JSONResponse(status_code=429, content={"error": f"Rate limit exceeded. Max {max_calls} links/min per IP."})
     try:
         # Generate unique code
         for _ in range(10):

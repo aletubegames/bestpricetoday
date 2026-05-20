@@ -13,25 +13,46 @@ interface Alert {
   triggered_at?: string | null;
 }
 
+interface ApiValidationError { msg?: string }
+
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch (error: unknown) {
+    console.warn(`localStorage read failed for ${key}:`, error);
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error: unknown) {
+    console.warn(`localStorage write failed for ${key}:`, error);
+  }
+}
+
 /** Retorna o owner_id correto: user.id se logado, senão bpt_anon_id */
 function getOwnerId(): string {
   if (typeof window === "undefined") return "";
   // Usuário logado → usa o id da conta
-  const userStr = localStorage.getItem("bpt_user");
+  const userStr = safeLocalStorageGet("bpt_user");
   if (userStr) {
     try {
-      const u = JSON.parse(userStr);
-      if (u.id) return u.id;
-    } catch {}
+      const u = JSON.parse(userStr) as { id?: unknown };
+      if (typeof u.id === "string") return u.id;
+    } catch (error: unknown) {
+      console.warn("Stored user could not be read:", error);
+    }
   }
   // Anônimo → gera/recupera bpt_anon_id
-  let id = localStorage.getItem("bpt_anon_id");
+  let id = safeLocalStorageGet("bpt_anon_id");
   if (!id) {
     const uniquePart = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `${Date.now()}`;
     id = `anon_${uniquePart}`;
-    localStorage.setItem("bpt_anon_id", id);
+    safeLocalStorageSet("bpt_anon_id", id);
   }
   return id;
 }
@@ -60,8 +81,8 @@ export default function AlertasPage() {
         const data = await r.json();
         setAlerts(Array.isArray(data) ? data : []);
       }
-    } catch {
-      // silencia erro de rede; exibe lista vazia
+    } catch (error: unknown) {
+      console.warn("Alert list load failed:", error);
     } finally {
       setLoadingList(false);
     }
@@ -94,7 +115,7 @@ export default function AlertasPage() {
       } else {
         const err = await r.json().catch(() => ({}));
         const detail = typeof err.detail === "string" ? err.detail
-          : Array.isArray(err.detail) ? err.detail.map((e: any) => e.msg).join(", ")
+          : Array.isArray(err.detail) ? err.detail.map((e: ApiValidationError) => e.msg).join(", ")
           : "Erro ao criar alerta.";
         setMsg(`❌ ${detail}`);
       }

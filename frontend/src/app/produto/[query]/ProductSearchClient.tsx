@@ -43,7 +43,10 @@ export default function ProductSearchClient({ query }: { query: string }) {
         setTotal(d.total || 0)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch((error: unknown) => {
+        console.warn("Product search failed:", error)
+        setLoading(false)
+      })
   }, [query])
 
   if (loading) return (
@@ -98,7 +101,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
                 </div>
                 {offer.image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={offer.image_url} alt={offer.title}
+                  <img src={offer.image_url} alt={offer.title} loading="lazy" fetchPriority="low"
                     style={{ width: "100%", height: 160, objectFit: "contain", borderRadius: 8, background: "#eef0ff", marginBottom: 12 }}
                     onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
                   />

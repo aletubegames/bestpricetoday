@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
+from app.core.logging import logger
 from app.models.models import PriceHistory, AffiliateClick, Offer
 from app.schemas.schemas import PriceHistoryPoint, ClickTrack, ClickTrackResponse
 from uuid import UUID
@@ -60,7 +61,8 @@ async def save_price_snapshot(request: Request, db: AsyncSession = Depends(get_d
                 continue
             try:
                 product_id = UUID(product_id_str)
-            except Exception:
+            except (TypeError, ValueError) as exc:
+                logger.debug(f"Invalid product_id in price snapshot: {type(exc).__name__}")
                 continue
             result = await db.execute(select(Offer).where(Offer.id == product_id).limit(1))
             if not result.scalar_one_or_none():
@@ -73,8 +75,8 @@ async def save_price_snapshot(request: Request, db: AsyncSession = Depends(get_d
             )
             db.add(snap)
         await db.flush()
-    except Exception:
-        pass  # fire-and-forget safe
+    except Exception as exc:
+        logger.debug(f"Price snapshot skipped: {type(exc).__name__}")
     return {"ok": True}
 
 

@@ -20,14 +20,58 @@ const S = {
   td: { padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #1a1a2e" } as React.CSSProperties,
 };
 
+type IntegrationStatusEntry = { status?: string; expires_in_minutes?: number };
+type IntegrationStatus = Record<string, IntegrationStatusEntry>;
+type AnalyticsData = Record<string, Record<string, number>>;
+
+interface AdminOverview {
+  total_clicks_today?: number;
+  total_clicks_week?: number;
+  total_clicks_month?: number;
+  total_conversions?: number;
+  total_revenue?: number;
+  total_commission?: number;
+  conversion_rate?: number;
+  revenue_per_click?: number;
+  revenue_by_provider?: Record<string, number>;
+}
+
+interface MarketplaceRow {
+  provider: string;
+  clicks?: number;
+  conversions?: number;
+  conversion_rate?: number;
+  revenue?: number;
+  commission?: number;
+  avg_price?: number;
+  [key: string]: string | number | undefined;
+}
+
+interface TrafficRow { source: string; clicks?: number; percentage?: number }
+interface AdminProduct { product_title?: string; provider?: string; clicks?: number; price?: number; discount?: number; discount_percent?: number; badge?: string }
+interface RecentClick { clicked_at?: string; provider?: string; product_title?: string; price?: number; source?: string; ip_address?: string }
+interface RecentConversion { converted_at?: string; created_at?: string; provider?: string; product_title?: string; sale_value?: number; sale_price?: number; commission?: number; commission_value?: number; status?: string }
+interface TikTokAdminAccount { connected?: boolean; avatar_url?: string; display_name?: string; is_verified?: boolean }
+interface AdminListResponse<T> { items?: T[] }
+interface AnalyticsResponse { data?: AnalyticsData }
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getSortableNumber(row: MarketplaceRow, key: string): number {
+  const value = row[key];
+  return typeof value === "number" ? value : Number(value || 0);
+}
+
 function fmtBRL(v: number) { return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
-function fmtTime(iso: string) {
+function fmtTime(iso?: string) {
   if (!iso) return "-";
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 function fmtPct(n: number, d: number) { return d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "0%"; }
 
-function getIntegrations(integrationStatus: any) {
+function getIntegrations(integrationStatus: IntegrationStatus) {
   const ml = integrationStatus?.mercadolivre || {};
   const ali = integrationStatus?.aliexpress || {};
   const shopee = integrationStatus?.shopee || {};
@@ -64,7 +108,7 @@ const PLATAFORMAS = [
  * Sugere o melhor formato de vídeo com base nas características da oferta.
  * Retorna uma lista ordenada: [{ id, reason }]
  */
-function suggestFormats(p: any): { id: string; reason: string }[] {
+function suggestFormats(p: AdminProduct | null | undefined): { id: string; reason: string }[] {
   const title    = (p?.product_title || "").toLowerCase();
   const discount = p?.discount_percent || 0;
   const price    = p?.price || 0;
@@ -137,12 +181,12 @@ const PRODUCT_SOURCES = [
 function VideoPublisher({ apiBase, adminKey, topProducts }: {
   apiBase: string;
   adminKey: string;
-  topProducts: any[];
+  topProducts: AdminProduct[];
 }) {
   const [productSource, setProductSource]     = React.useState("top_clicks");
-  const [sourceProducts, setSourceProducts]   = React.useState<any[]>([]);
+  const [sourceProducts, setSourceProducts]   = React.useState<AdminProduct[]>([]);
   const [loadingSource, setLoadingSource]     = React.useState(false);
-  const [selectedProduct, setSelectedProduct] = React.useState<any | null>(null);
+  const [selectedProduct, setSelectedProduct] = React.useState<AdminProduct | null>(null);
   const [selectedFormat, setSelectedFormat]   = React.useState("oferta_choque");
   const [selectedPlats, setSelectedPlats]     = React.useState<string[]>(["telegram"]);
   const [jobId, setJobId]   = React.useState<string | null>(null);
@@ -162,7 +206,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
           { headers: { "X-Admin-Key": adminKey } }
         );
         const data = await r.json();
-        setSourceProducts(Array.isArray(data) ? data : []);
+        setSourceProducts(Array.isArray(data) ? data as AdminProduct[] : []);
       }
     } catch { setSourceProducts([]); }
     setLoadingSource(false);
@@ -229,7 +273,9 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
           setJobLog(data.log_tail || []);
           if (data.done) { setJobDone(true); stopPoll(); setLoading(false); }
         }
-      } catch {}
+      } catch (error: unknown) {
+        console.warn("Video job status poll failed:", error);
+      }
     }, 3000);
   }, [apiBase, adminKey, videoApiUrl]);
 
@@ -263,8 +309,8 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         setJobLog([`❌ ${d.error}`]);
         setLoading(false);
       }
-    } catch (e: any) {
-      setJobLog([`❌ Erro: ${e.message}`]);
+    } catch (e: unknown) {
+      setJobLog([`❌ Erro: ${getErrorMessage(e)}`]);
       setLoading(false);
     }
   };
@@ -329,7 +375,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
             <span style={{ fontSize: 11, color: "#6b6b8a", padding: "6px 0" }}>⏳ Carregando...</span>
           ) : sourceProducts.length === 0 ? (
             <span style={{ fontSize: 11, color: "#475569", padding: "6px 0" }}>Sem dados para esta fonte</span>
-          ) : sourceProducts.map((p: any, i: number) => {
+          ) : sourceProducts.map((p, i) => {
             const sel = selectedProduct?.product_title === p.product_title;
             const badge = p.badge || "";
             const discount = p.discount ? ` -${Math.round(p.discount)}%` : "";
@@ -366,10 +412,10 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
                 {selectedProduct.badge}
               </div>
             )}
-            {selectedProduct.discount >= 10 && (
+            {(selectedProduct.discount ?? 0) >= 10 && (
               <div style={{ fontSize: 10, color: "#4ade80", background: "rgba(74,222,128,0.1)",
                 borderRadius: 6, padding: "3px 8px" }}>
-                -{Math.round(selectedProduct.discount)}% OFF
+                -{Math.round(selectedProduct.discount ?? 0)}% OFF
               </div>
             )}
           </div>
@@ -530,15 +576,15 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [activePlatform, setActivePlatform] = useState<string>("all");
   const [activePeriod, setActivePeriod] = useState<number>(7);
-  const [overview, setOverview] = useState<any>(null);
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [analytics, setAnalytics] = useState<Record<string, Record<string, number>>>({});
-  const [marketplaces, setMarketplaces] = useState<any[]>([]);
-  const [traffic, setTraffic] = useState<any[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [recentClicks, setRecentClicks] = useState<any[]>([]);
-  const [recentConversions, setRecentConversions] = useState<any[]>([]);
-  const [integrationStatus, setIntegrationStatus] = useState<any>({});
-  const [tiktokAdminAccount, setTiktokAdminAccount] = useState<any>(null);
+  const [marketplaces, setMarketplaces] = useState<MarketplaceRow[]>([]);
+  const [traffic, setTraffic] = useState<TrafficRow[]>([]);
+  const [topProducts, setTopProducts] = useState<AdminProduct[]>([]);
+  const [recentClicks, setRecentClicks] = useState<RecentClick[]>([]);
+  const [recentConversions, setRecentConversions] = useState<RecentConversion[]>([]);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({});
+  const [tiktokAdminAccount, setTiktokAdminAccount] = useState<TikTokAdminAccount | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [clickPage, setClickPage] = useState(1);
@@ -555,32 +601,32 @@ export default function AdminPage() {
     // A admin_key deve ser digitada manualmente no login form
   }, []);
 
-  const adminFetch = (url: string, k: string, options: RequestInit = {}) =>
+  const adminFetch = <T,>(url: string, k: string, options: RequestInit = {}): Promise<T> =>
     fetch(`${API}${url}`, {
       ...options,
       headers: { "Content-Type": "application/json", "X-Admin-Key": k, ...(options.headers || {}) },
-    }).then(r => r.json());
+    }).then(async r => await r.json() as T);
 
   const fetchAll = useCallback(async (k: string) => {
     setLoading(true);
     const provParam = activePlatform !== "all" ? `&provider=${activePlatform}` : "";
     try {
       const [ov, an, mk, tr, tp, cl, cv, intStatus, ttAdmin] = await Promise.all([
-        adminFetch(`/api/v1/admin/overview?days=${activePeriod}${provParam}`, k),
-        adminFetch(`/api/v1/admin/analytics?days=${activePeriod}`, k),
-        adminFetch(`/api/v1/admin/marketplaces`, k),
-        adminFetch(`/api/v1/admin/traffic`, k),
-        adminFetch(`/api/v1/admin/products/top?limit=10`, k),
-        adminFetch(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
-        adminFetch(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
-        fetch(`${API}/api/v1/admin/integrations/status`, { headers: { "X-Admin-Key": k } }).then(r => r.json()).catch(() => ({})),
-        fetch(`${API}/api/v1/tiktok/admin/account`, { headers: { "X-Admin-Key": k } }).then(r => r.json()).catch(() => null),
+        adminFetch<AdminOverview>(`/api/v1/admin/overview?days=${activePeriod}${provParam}`, k),
+        adminFetch<AnalyticsResponse>(`/api/v1/admin/analytics?days=${activePeriod}`, k),
+        adminFetch<MarketplaceRow[]>(`/api/v1/admin/marketplaces`, k),
+        adminFetch<TrafficRow[]>(`/api/v1/admin/traffic`, k),
+        adminFetch<AdminProduct[]>(`/api/v1/admin/products/top?limit=10`, k),
+        adminFetch<AdminListResponse<RecentClick>>(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
+        adminFetch<AdminListResponse<RecentConversion>>(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
+        fetch(`${API}/api/v1/admin/integrations/status`, { headers: { "X-Admin-Key": k } }).then(async r => await r.json() as IntegrationStatus).catch(() => ({} as IntegrationStatus)),
+        fetch(`${API}/api/v1/tiktok/admin/account`, { headers: { "X-Admin-Key": k } }).then(async r => await r.json() as TikTokAdminAccount).catch(() => null),
       ]);
       setOverview(ov); setAnalytics(an.data || {}); setMarketplaces(Array.isArray(mk) ? mk : []);
       setTraffic(Array.isArray(tr) ? tr : []); setTopProducts(Array.isArray(tp) ? tp : []);
       setRecentClicks(cl.items || []); setRecentConversions(cv.items || []);
       setIntegrationStatus(intStatus || {}); setTiktokAdminAccount(ttAdmin); setLastUpdated(new Date());
-    } catch (e) { console.error(e); }
+    } catch (e: unknown) { console.error(e); }
     setLoading(false);
   }, [activePlatform, activePeriod, clickPage, convPage]);
 
@@ -609,8 +655,8 @@ export default function AdminPage() {
           }
         }, 1000);
       }
-    } catch (e: any) {
-      alert(`Erro ao iniciar auth TikTok admin: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Erro ao iniciar auth TikTok admin: ${getErrorMessage(e)}`);
     }
   };
 
@@ -624,7 +670,7 @@ export default function AdminPage() {
   };
 
   const exportCSV = () => {
-    const rows = [["Hora", "Plataforma", "Produto", "Preço", "Fonte"], ...recentClicks.map((c: any) => [c.clicked_at, c.provider, c.product_title, c.price, c.source])];
+    const rows = [["Hora", "Plataforma", "Produto", "Preço", "Fonte"], ...recentClicks.map(c => [c.clicked_at, c.provider, c.product_title, c.price, c.source])];
     const csv = rows.map(r => r.map(v => `"${v || ""}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
@@ -632,7 +678,7 @@ export default function AdminPage() {
   };
 
   const sortedMarketplaces = [...marketplaces].sort((a, b) => {
-    const va = a[marketSort] || 0, vb = b[marketSort] || 0;
+    const va = getSortableNumber(a, marketSort), vb = getSortableNumber(b, marketSort);
     return marketSortDir === "desc" ? vb - va : va - vb;
   });
   const handleSortMarket = (col: string) => {
@@ -851,7 +897,7 @@ export default function AdminPage() {
               {[
                 { label: "Cliques", value: overview?.total_clicks_month ?? 0, color: "#7c6aff", pct: "100%" },
                 null,
-                { label: "Conversões", value: overview?.total_conversions ?? 0, color: "#00e5a0", pct: overview?.total_clicks_month ? `${((overview.total_conversions / overview.total_clicks_month) * 100).toFixed(1)}%` : "0%" },
+                { label: "Conversões", value: overview?.total_conversions ?? 0, color: "#00e5a0", pct: overview?.total_clicks_month ? `${(((overview.total_conversions ?? 0) / overview.total_clicks_month) * 100).toFixed(1)}%` : "0%" },
                 null,
                 { label: "Receita", value: `R$${(overview?.total_revenue ?? 0).toFixed(0)}`, color: "#fbbf24", pct: "—", isStr: true },
                 null,
@@ -861,7 +907,7 @@ export default function AdminPage() {
                   <div key={i} style={{ textAlign: "center", color: "rgba(108,92,231,0.2)", fontSize: 20 }}>→</div>
                 ) : (
                   <div key={i} style={{ background: `${item.color}10`, border: `1px solid ${item.color}30`, borderRadius: 10, padding: "12px 10px", textAlign: "center" }}>
-                    <div style={{ color: item.color, fontSize: 18, fontWeight: 800 }}>{(item as any).isStr ? item.value : (item.value as number).toLocaleString()}</div>
+                    <div style={{ color: item.color, fontSize: 18, fontWeight: 800 }}>{typeof item.value === "string" ? item.value : item.value.toLocaleString()}</div>
                     <div style={{ color: "#6b6b8a", fontSize: 10, fontWeight: 600, marginTop: 3 }}>{item.label}</div>
                     <div style={{ color: item.color, fontSize: 11, marginTop: 2, opacity: 0.8 }}>{item.pct}</div>
                   </div>
@@ -909,7 +955,7 @@ export default function AdminPage() {
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🌐 Fontes de Tráfego</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {traffic.length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
-              {traffic.map((src: any) => {
+              {traffic.map((src) => {
                 const color = PROVIDER_COLORS[src.source] || "#7c6aff";
                 return (
                   <div key={src.source} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -988,16 +1034,17 @@ export default function AdminPage() {
           <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🏆 Top 10 Produtos</div>
           {topProducts.length === 0 && <p style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</p>}
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {topProducts.map((p: any, i: number) => {
+            {topProducts.map((p, i) => {
               const isExpanded = expandedProduct === p.product_title;
-              const color = PROVIDER_COLORS[p.provider] || "#6b6b8a";
+              const provider = p.provider || "unknown";
+              const color = PROVIDER_COLORS[provider] || "#6b6b8a";
               return (
                 <div key={i}>
-                  <div onClick={() => setExpandedProduct(isExpanded ? null : p.product_title)}
+                  <div onClick={() => setExpandedProduct(isExpanded ? null : p.product_title || null)}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "#ffffff", borderRadius: 8, cursor: "pointer", border: `1px solid ${isExpanded ? color + "44" : "transparent"}`, flexWrap: "wrap" }}>
                     <span style={{ color: "#7c6aff", fontWeight: 800, minWidth: 22, fontSize: 12 }}>#{i + 1}</span>
                     <span style={{ flex: 1, fontSize: 12, color: "#1a1a2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 100 }}>{p.product_title || "–"}</span>
-                    <span style={{ color, fontSize: 11, background: color + "22", padding: "2px 7px", borderRadius: 8 }}>{PROVIDER_EMOJI[p.provider] || ""} {p.provider}</span>
+                    <span style={{ color, fontSize: 11, background: color + "22", padding: "2px 7px", borderRadius: 8 }}>{PROVIDER_EMOJI[provider] || ""} {provider}</span>
                     <span style={{ color: "#6b6b8a", fontSize: 11 }}>{p.clicks} cliques</span>
                     {p.price && <span style={{ color: "#facc15", fontSize: 11 }}>{fmtBRL(p.price)}</span>}
                   </div>
@@ -1006,7 +1053,7 @@ export default function AdminPage() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 320 }}>
                         <thead><tr>{["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                         <tbody>
-                          {recentClicks.filter(c => c.product_title === p.product_title).slice(0, 5).map((c: any, ci: number) => (
+                          {recentClicks.filter(c => c.product_title === p.product_title).slice(0, 5).map((c, ci) => (
                             <tr key={ci}><td style={S.td}>{fmtTime(c.clicked_at)}</td><td style={S.td}>{c.source}</td><td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td><td style={S.td}>{c.ip_address || "–"}</td></tr>
                           ))}
                         </tbody>
@@ -1029,10 +1076,10 @@ export default function AdminPage() {
                 <thead><tr>{["Hora", "Plataforma", "Produto", "Preço", "Fonte"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                 <tbody>
                   {recentClicks.length === 0 && <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
-                  {recentClicks.map((c: any, i: number) => (
+                  {recentClicks.map((c, i) => (
                     <tr key={i}>
                       <td style={S.td}>{fmtTime(c.clicked_at)}</td>
-                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider] || "#ccc" }}>{PROVIDER_EMOJI[c.provider] || ""} {c.provider}</td>
+                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider || "unknown"] || "#ccc" }}>{PROVIDER_EMOJI[c.provider || "unknown"] || ""} {c.provider}</td>
                       <td style={{ ...S.td, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.product_title}>{c.product_title || "–"}</td>
                       <td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td>
                       <td style={S.td}>{c.source || "–"}</td>
@@ -1056,16 +1103,20 @@ export default function AdminPage() {
                 <thead><tr>{["Hora", "Plataforma", "Produto", "Venda", "Comissão", "Status"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                 <tbody>
                   {recentConversions.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
-                  {recentConversions.map((c: any, i: number) => (
+                  {recentConversions.map((c, i) => {
+                    const saleValue = c.sale_value ?? c.sale_price;
+                    const commissionValue = c.commission ?? c.commission_value;
+                    return (
                     <tr key={i}>
                       <td style={S.td}>{fmtTime(c.converted_at || c.created_at)}</td>
-                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider] || "#ccc" }}>{PROVIDER_EMOJI[c.provider] || ""} {c.provider}</td>
+                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider || "unknown"] || "#ccc" }}>{PROVIDER_EMOJI[c.provider || "unknown"] || ""} {c.provider}</td>
                       <td style={{ ...S.td, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.product_title}>{c.product_title || "–"}</td>
-                      <td style={S.td}>{c.sale_value ? fmtBRL(c.sale_value) : "–"}</td>
-                      <td style={{ ...S.td, color: "#4ade80" }}>{c.commission ? fmtBRL(c.commission) : "–"}</td>
+                      <td style={S.td}>{saleValue ? fmtBRL(saleValue) : "–"}</td>
+                      <td style={{ ...S.td, color: "#4ade80" }}>{commissionValue ? fmtBRL(commissionValue) : "–"}</td>
                       <td style={{ ...S.td, color: c.status === "confirmed" ? "#4ade80" : c.status === "pending" ? "#facc15" : "#f43f5e" }}>{c.status || "–"}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

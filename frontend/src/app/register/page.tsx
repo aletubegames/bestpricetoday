@@ -4,9 +4,24 @@ import { useRouter } from "next/navigation"
 import { API_BASE as API } from "@/lib/api"
 import Link from "next/link"
 
+type RegisterForm = { name: string; email: string; password: string; confirm: string }
+
+const fields: Array<{
+  key: keyof RegisterForm;
+  label: string;
+  type: string;
+  placeholder: string;
+  autoComplete: string;
+}> = [
+  { key: "name",     label: "Nome",            type: "text",     placeholder: "Seu nome",             autoComplete: "name" },
+  { key: "email",    label: "E-mail",          type: "email",    placeholder: "seu@email.com",        autoComplete: "email" },
+  { key: "password", label: "Senha",           type: "password", placeholder: "Mínimo 6 caracteres",  autoComplete: "new-password" },
+  { key: "confirm",  label: "Confirmar senha", type: "password", placeholder: "Repita a senha",       autoComplete: "new-password" },
+]
+
 export default function RegisterPage() {
   const router = useRouter()
-  const [form, setForm]       = useState({ name: "", email: "", password: "", confirm: "" })
+  const [form, setForm]       = useState<RegisterForm>({ name: "", email: "", password: "", confirm: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState("")
 
@@ -50,17 +65,13 @@ export default function RegisterPage() {
           <p style={{ color: "#475569", fontSize: 13, marginBottom: 28 }}>Gratuito. Sem cartão de crédito.</p>
 
           <form onSubmit={submit}>
-            {[
-              { key: "name",     label: "Nome",           type: "text",     placeholder: "Seu nome" },
-              { key: "email",    label: "E-mail",         type: "email",    placeholder: "seu@email.com" },
-              { key: "password", label: "Senha",          type: "password", placeholder: "Mínimo 6 caracteres" },
-              { key: "confirm",  label: "Confirmar senha",type: "password", placeholder: "Repita a senha" },
-            ].map(f => (
+            {fields.map(f => (
               <div key={f.key} style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>{f.label}</label>
                 <input
                   type={f.type} required
-                  value={(form as any)[f.key]}
+                  value={form[f.key]}
+                  autoComplete={f.autoComplete}
                   onChange={e => setForm({ ...form, [f.key]: e.target.value })}
                   placeholder={f.placeholder}
                   style={inputStyle}

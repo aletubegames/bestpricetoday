@@ -14,11 +14,23 @@ import { useSearchParams } from "next/navigation"
 import { API_BASE as API } from "@/lib/api"
 import { Suspense } from "react"
 
+interface TikTokCallbackAccount {
+  avatar_url?: string
+  display_name?: string
+  is_verified?: boolean
+  tiktok_open_id?: string
+  open_id?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Erro desconhecido"
+}
+
 function TikTokCallbackInner() {
   const params  = useSearchParams()
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
   const [message, setMessage] = useState("")
-  const [account, setAccount] = useState<any>(null)
+  const [account, setAccount] = useState<TikTokCallbackAccount | null>(null)
 
   useEffect(() => {
     const code  = params.get("code")
@@ -50,33 +62,35 @@ function TikTokCallbackInner() {
         )
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err.detail || "Erro ao trocar o token")
+          const err = await res.json().catch(() => null) as { detail?: string } | null
+          throw new Error(err?.detail || "Erro ao trocar o token")
         }
 
-        const data = await res.json()
+        const data = await res.json() as TikTokCallbackAccount
 
         // Salvar open_id no localStorage para uso posterior
-        if (data.tiktok_open_id || data.open_id) {
-          localStorage.setItem("tiktok_open_id", data.tiktok_open_id || data.open_id)
+        const openId = data.tiktok_open_id || data.open_id
+        if (openId) {
+          localStorage.setItem("tiktok_open_id", openId)
         }
         localStorage.removeItem("tiktok_oauth_state")
         localStorage.removeItem("tiktok_oauth_mode")
 
         setAccount(data)
         setStatus("success")
-        setMessage(`Conta @${data.display_name} conectada com sucesso!`)
+        setMessage(`Conta @${data.display_name || "TikTok"} conectada com sucesso!`)
 
         // Notificar a janela pai (se popup)
         if (window.opener) {
           window.opener.postMessage({ type: "TIKTOK_AUTH_SUCCESS", data }, "*")
           setTimeout(() => window.close(), 2000)
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const errorMessage = getErrorMessage(e)
         setStatus("error")
-        setMessage(e.message || "Erro desconhecido")
+        setMessage(errorMessage)
         if (window.opener) {
-          window.opener.postMessage({ type: "TIKTOK_AUTH_ERROR", error: e.message }, "*")
+          window.opener.postMessage({ type: "TIKTOK_AUTH_ERROR", error: errorMessage }, "*")
         }
       }
     }

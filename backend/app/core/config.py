@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     MERCADOLIVRE_REFRESH_TOKEN: str = ""
     MERCADOLIVRE_TOKEN_EXPIRES_AT: int = 0  # Unix timestamp
     ML_WEBHOOK_SECRET: str = ""  # Optional: HMAC secret from ML Developer Portal
+    ML_TOKEN_ENCRYPTION_KEY: str = ""  # Optional AES-256 key material for DB token encryption
 
     AMAZON_ACCESS_KEY: str = ""
     AMAZON_SECRET_KEY: str = ""
@@ -88,7 +89,7 @@ class Settings(BaseSettings):
     VIDEO_API_KEY: str = ""
 
     # Rate limiting
-    RATE_LIMIT_PER_MINUTE: int = 30
+    RATE_LIMIT_PER_MINUTE: int = 5
 
     class Config:
         env_file = ".env"

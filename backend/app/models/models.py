@@ -201,8 +201,7 @@ class MLToken(Base):
     """
     Stores Mercado Livre OAuth tokens.
     Single row per user_id — upserted on each refresh.
-    Tokens stored as-is (HF Space secrets + DB access are already restricted).
-    In a production multi-tenant setup these should be AES-256 encrypted.
+    Token values are AES-256 encrypted by the token service before storage.
     """
     __tablename__ = "ml_tokens"
 

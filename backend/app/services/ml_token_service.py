@@ -9,15 +9,46 @@ Key behaviors:
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import base64
+import hashlib
+import secrets
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from app.core.config import settings
 from app.core.logging import logger
 from app.models.models import MLToken
 
 
 REFRESH_BUFFER_MINUTES = 10  # refresh 10 min before expiry
+TOKEN_ENCRYPTION_PREFIX = "aesgcm:v1:"
+
+
+def _token_encryption_key() -> bytes:
+    key_material = settings.ML_TOKEN_ENCRYPTION_KEY or settings.secret_key_validated
+    return hashlib.sha256(key_material.encode()).digest()
+
+
+def _encrypt_token(token: str) -> str:
+    if token.startswith(TOKEN_ENCRYPTION_PREFIX):
+        return token
+    nonce = secrets.token_bytes(12)
+    ciphertext = AESGCM(_token_encryption_key()).encrypt(nonce, token.encode(), None)
+    payload = base64.urlsafe_b64encode(nonce + ciphertext).decode()
+    return f"{TOKEN_ENCRYPTION_PREFIX}{payload}"
+
+
+def _decrypt_token(token: str) -> Optional[str]:
+    if not token.startswith(TOKEN_ENCRYPTION_PREFIX):
+        return token
+    try:
+        payload = base64.urlsafe_b64decode(token[len(TOKEN_ENCRYPTION_PREFIX):].encode())
+        nonce, ciphertext = payload[:12], payload[12:]
+        return AESGCM(_token_encryption_key()).decrypt(nonce, ciphertext, None).decode()
+    except Exception as exc:
+        logger.error(f"ML token decrypt failed: {type(exc).__name__} [details redacted]")
+        return None
 
 
 async def get_token(db: AsyncSession) -> Optional[str]:
@@ -31,12 +62,16 @@ async def get_token(db: AsyncSession) -> Optional[str]:
     row = r.scalar()
 
     if row:
+        access_token = _decrypt_token(row.access_token)
+        refresh_token = _decrypt_token(row.refresh_token)
+        if not access_token or not refresh_token:
+            return None
         # Check if still valid (with buffer)
         if row.expires_at > datetime.now(timezone.utc) + timedelta(minutes=REFRESH_BUFFER_MINUTES):
-            return row.access_token
+            return access_token
         # Needs refresh
         logger.info("ML access_token near expiry, refreshing [token redacted]")
-        new_data = await _do_refresh(row.refresh_token)
+        new_data = await _do_refresh(refresh_token)
         if new_data:
             await _save_tokens(db, new_data)
             return new_data["access_token"]
@@ -67,8 +102,8 @@ async def _save_tokens(db: AsyncSession, data: dict) -> None:
 
     row = MLToken(
         user_id=user_id,
-        access_token=data["access_token"],
-        refresh_token=data["refresh_token"],
+        access_token=_encrypt_token(data["access_token"]),
+        refresh_token=_encrypt_token(data["refresh_token"]),
         expires_at=expires_at,
         scope=data.get("scope"),
     )
@@ -127,5 +162,5 @@ async def get_token_status(db: AsyncSession) -> dict:
         "expires_in_minutes": max(0, expires_in_minutes),
         "user_id": row.user_id,
         "updated_at": row.updated_at.isoformat(),
-        "needs_reauth": is_expired and not row.refresh_token,
+        "needs_reauth": is_expired and not _decrypt_token(row.refresh_token),
     }
