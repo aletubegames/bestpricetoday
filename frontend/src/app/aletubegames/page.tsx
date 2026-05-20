@@ -163,14 +163,25 @@ export default function AleTubeGamesPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", padding: "40px 24px" }}>
       <div style={{ maxWidth: 800, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ marginBottom: 40 }}>
-          <h1 style={{ fontSize: 32, fontWeight: 900, color: "#1a1a2e", marginBottom: 8 }}>
-            🎥 AleTubeGames
-          </h1>
-          <p style={{ fontSize: 16, color: "#6b6b8a" }}>
-            Upload, análise IA e publicação automática em TikTok + YouTube
-          </p>
+        {/* Header com botão de voltar */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 40, gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 32, fontWeight: 900, color: "#1a1a2e", marginBottom: 8 }}>
+              🎥 AleTubeGames
+            </h1>
+            <p style={{ fontSize: 16, color: "#6b6b8a" }}>
+              Upload, análise IA e publicação automática em TikTok + YouTube
+            </p>
+          </div>
+          <a href="/" style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "10px 16px", borderRadius: 8,
+            background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)",
+            color: "#7c6aff", textDecoration: "none", fontWeight: 700, fontSize: 14,
+            whiteSpace: "nowrap"
+          }}>
+            ← Home
+          </a>
         </div>
 
         {/* Upload Step */}
