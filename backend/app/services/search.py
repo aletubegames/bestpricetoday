@@ -252,7 +252,25 @@ async def search_all(
     # Close all clients
     await asyncio.gather(*[i.close() for i in instances], return_exceptions=True)
 
-    ranked = rank_offers(all_offers)[:limit]
+    ranked = rank_offers(all_offers)
+
+    # Garantir que produtos ML afiliados apareçam nos resultados
+    # (podem ter score baixo por preço alto, mas são links afiliados reais)
+    ml_offers  = [o for o in ranked if o.provider.value == "mercadolivre"]
+    other      = [o for o in ranked if o.provider.value != "mercadolivre"]
+    # Intercalar: 1 ML a cada 4 outros, ou colocar no topo se único provider com resultado
+    if ml_offers and other:
+        merged = []
+        ml_idx = 0
+        for i, o in enumerate(other):
+            merged.append(o)
+            if (i + 1) % 4 == 0 and ml_idx < len(ml_offers):
+                merged.append(ml_offers[ml_idx])
+                ml_idx += 1
+        merged.extend(ml_offers[ml_idx:])
+        ranked = merged[:limit]
+    else:
+        ranked = ranked[:limit]
 
     # Add UTM params to all affiliate links
     for offer in ranked:
