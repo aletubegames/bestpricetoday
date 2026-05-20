@@ -4,6 +4,66 @@
 
 ---
 
+## Atualizações recentes (2026-05-20)
+
+### Navegação e proteção de rotas
+- Admin (`is_admin=true`) vai direto para `/admin` pelo AuthButton — sem redirect duplo via `/dashboard`
+- `/dashboard` continua acessível para admin (botão no header do `/admin`)
+- `/admin` importa `useRouter` (estava faltando — causaria crash em runtime)
+- `/aletubegames` protege usuário não logado (redireciona para `/login`)
+- `/admin` protege usuário não admin (redireciona para `/`)
+- Header `/admin` tem botões: `← Home`, `📊 Dashboard`, `🎥 AleTubeGames`
+
+### AleTubeGames v2 — multi-plataforma
+- `backend/app/integrations/youtube.py` — OAuth Google + YouTube Data API v3 (upload resumable)
+- `backend/app/integrations/instagram.py` — OAuth Facebook Login + Graph API (Reels + Facebook video)
+- `backend/app/core/config.py` — vars novas: `YOUTUBE_CLIENT_ID/SECRET`, `INSTAGRAM_APP_ID/SECRET`, `FACEBOOK_REDIRECT_URI`, `ANTHROPIC_API_KEY`
+- `backend/app/models/models.py` — 3 novos models: `YouTubeAccount`, `InstagramAccount`, `FacebookAccount` + campos `instagram_media_id`, `facebook_post_id`, `platform_metadata` no `AdminVideo`
+- `backend/app/api/v1/endpoints/aletube.py` — refatorado completo:
+  - Análise real: `ffprobe` para metadados + Claude Haiku para gerar título/descrição/hashtags por plataforma
+  - Endpoints OAuth: `/auth/youtube`, `/auth/facebook`, `/callback/youtube`, `/callback/facebook`
+  - `GET /accounts/status` — status de conexão de todas as plataformas com token health
+  - `DELETE /accounts/{platform}` — desconectar conta
+  - Publicação independente por plataforma (falha no TikTok não bloqueia YouTube)
+- `frontend/src/app/aletubegames/page.tsx` — reescrita completa:
+  - **Aba Contas**: 4 cards (TikTok/YouTube/Instagram/Facebook) com status, avatar, token health, conectar/desconectar
+  - **Aba Publicar**: 4 steps com abas internas por plataforma (campos específicos de cada rede)
+  - **Aba Histórico**: lista de vídeos com status, views, cliques
+- `backend/alembic/versions/add_platform_accounts.py` — migration das novas tabelas
+
+### Afiliados ML — `/afiliados` (admin only)
+- `backend/app/models/models.py` — novo model `AffiliateProduct` (id, ml_code, affiliate_url, title, price, commission_pct, category, image_url, notes, is_active)
+- `backend/alembic/versions/add_affiliate_products.py` — migration
+- `backend/app/api/v1/endpoints/affiliate.py` — endpoints completos:
+  - CRUD: `GET/POST /affiliate/products`, `PATCH/DELETE /affiliate/products/{id}`
+  - `POST /affiliate/products/seed` — importa lista em lote, ignora duplicatas por `affiliate_url`
+  - `POST /affiliate/products/enrich` — preenche título/preço/imagem via API oficial ML (OAuth token do banco) por `ml_code`
+  - `POST /affiliate/generate/marketplace` — gera anúncio Facebook Marketplace via Claude
+  - `POST /affiliate/generate/tiktok` — gera script TikTok (Gancho/Problema/Solução/Prova/CTA)
+  - `POST /affiliate/generate/youtube` — gera roteiro YouTube + descrição SEO
+  - `POST /affiliate/shortlink` — cria short link rastreado
+- `backend/app/api/v1/router.py` — registra `affiliate` router
+- `backend/seed_affiliate.py` — script para seed dos 33 links meli.la
+- `frontend/src/app/afiliados/page.tsx` — página nova (admin only):
+  - **Aba Produtos**: stats (total, comissão média, estimativa mensal), tabela com edição inline, botão enrich
+  - **Aba Gerar Conteúdo**: seleciona produto → Marketplace/TikTok/YouTube → resultado com copiar
+  - **Aba Short Links**: gera link rastreado por produto com histórico de sessão
+- `frontend/src/app/page.tsx` AuthButton — botão `💰 Afiliados` (verde) visível para admin
+
+### ML Provider — busca local
+- `backend/app/services/providers/mercadolivre.py` — reescrito:
+  - Não usa mais API ML externa (estava quebrando com 403)
+  - Busca na tabela `affiliate_products` com tokenização, normalização de acentos e score de relevância real
+  - Busca OR por token, ordena por score descendente
+- Produtos aparecem na busca da home após serem preenchidos via enrich
+
+### Políticas e segurança
+- **Removido**: scraping de `meli.la` — violava ToS do ML
+- **Mantido**: enrich via `api.mercadolibre.com/products/search` com OAuth token — uso previsto e documentado
+- TikTok Content Posting API requer aprovação prévia no Developer Portal antes de usar
+
+---
+
 ## Atualizações recentes (2026-05-19 22:22)
 
 ### AleTubeGames — Admin module para upload, análise e publicação de vídeos
