@@ -1372,4 +1372,6 @@ async def get_session_admin_key(
     user=Depends(get_current_admin),
 ):
     """Troca JWT de admin pelo ADMIN_MANAGER_KEY — evita digitar a key manualmente."""
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador.")
     return {"admin_key": settings.ADMIN_MANAGER_KEY}
