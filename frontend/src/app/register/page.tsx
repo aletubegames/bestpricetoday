@@ -42,7 +42,7 @@ export default function RegisterPage() {
 
       localStorage.setItem("bpt_token", data.access_token)
       localStorage.setItem("bpt_user", JSON.stringify(data.user))
-      router.push("/dashboard")
+      router.push("/")
     } catch {
       setError("Erro de conexão.")
     } finally {
