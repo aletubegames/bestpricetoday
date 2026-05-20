@@ -775,14 +775,17 @@ export default function AdminPage() {
       <div style={{ background: "#ffffff", borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "12px 16px" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 22 }}>💹</span>
-            <span style={{ fontWeight: 800, fontSize: 16, color: "#1a1a2e" }}>BestPriceToday</span>
-            <span style={{ color: "#6b6b8a", fontSize: 12, display: "none" }} className="admin-subtitle">Admin</span>
+            <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <span style={{ fontSize: 22 }}>💹</span>
+              <span style={{ fontWeight: 800, fontSize: 16, color: "#1a1a2e" }}>BestPriceToday</span>
+              <span style={{ color: "#6b6b8a", fontSize: 12, display: "none" }} className="admin-subtitle">Admin</span>
+            </a>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
             {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
             <button onClick={() => fetchAll(key)} style={{ background: "#1a1a2e", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#a78bfa", cursor: "pointer", fontSize: 12 }}>↻</button>
+            <a href="/" style={{ textDecoration: "none" }}><button style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>← Home</button></a>
             <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>Sair</button>
           </div>
         </div>
