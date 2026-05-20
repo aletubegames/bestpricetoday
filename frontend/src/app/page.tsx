@@ -41,7 +41,7 @@ function AuthButton() {
             🎥 AleTubeGames
           </a>
         )}
-        <a href="/perfil" style={{
+        <a href="/dashboard" style={{
           display: "flex", alignItems: "center", gap: 5,
           fontSize: 12, fontWeight: 700, color: "#a78bfa",
           background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)",

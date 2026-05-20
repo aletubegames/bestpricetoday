@@ -784,6 +784,7 @@ export default function AdminPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
             {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
+            <a href="/aletubegames" style={{ textDecoration: "none" }}><button style={{ background: "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: 8, padding: "5px 12px", color: "#1a1a2e", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>🎥 AleTubeGames</button></a>
             <button onClick={() => fetchAll(key)} style={{ background: "#1a1a2e", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#a78bfa", cursor: "pointer", fontSize: 12 }}>↻</button>
             <a href="/" style={{ textDecoration: "none" }}><button style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>← Home</button></a>
             <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>Sair</button>
