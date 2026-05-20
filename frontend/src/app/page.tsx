@@ -1,8 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
+import type { MouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
+import { openTrackedOffer } from "@/lib/tracking";
 
 // Botão de login/usuário no header
 function AuthButton() {
@@ -203,6 +205,23 @@ export default function HomePage() {
   const trending = trendingData?.items ?? [];
   const [compareList, setCompareList] = useState<Offer[]>([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [openingCompareKey, setOpeningCompareKey] = useState<string | null>(null);
+
+  const compareOfferKey = (offer: Offer, index: number) => `${offer.provider}-${offer.product_id || offer.affiliate_url || index}`;
+
+  const handleCompareOfferClick = async (event: MouseEvent<HTMLAnchorElement>, offer: Offer, index: number) => {
+    event.preventDefault();
+    if (!offer.affiliate_url) return;
+
+    const key = compareOfferKey(offer, index);
+    setOpeningCompareKey(key);
+
+    try {
+      await openTrackedOffer(offer, "compare_modal");
+    } finally {
+      setOpeningCompareKey(null);
+    }
+  };
 
   const handleCompare = (offer: Offer) => {
     setCompareList(prev => {
@@ -483,6 +502,7 @@ export default function HomePage() {
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${compareList.length}, 1fr)`, gap: 16 }}>
               {compareList.map((offer, i) => {
                 const isWinner = offer.final_price === Math.min(...compareList.map(o => o.final_price || 999999));
+                const compareKey = compareOfferKey(offer, i);
                 return (
                   <div key={i} style={{
                     background: "#ffffff",
@@ -505,7 +525,7 @@ export default function HomePage() {
                       {offer.coupon_code && <span>🏷️ Cupom: {offer.coupon_code}</span>}
                       {offer.cashback_percent > 0 && <span>💰 Cashback: {offer.cashback_percent}%</span>}
                     </div>
-                    <a href={offer.affiliate_url} target="_blank" rel="noopener noreferrer"
+                    <a href="#" target="_blank" rel="noopener noreferrer" onClick={event => handleCompareOfferClick(event, offer, i)}
                       style={{
                         display: "block", textAlign: "center", padding: "10px", borderRadius: 10,
                         background: isWinner ? "linear-gradient(135deg,#00e5a0,#0ea5e9)" : "#f5f7ff",
@@ -514,7 +534,7 @@ export default function HomePage() {
                         fontWeight: 700, fontSize: 14, textDecoration: "none",
                       }}
                     >
-                      Ver oferta →
+                      {openingCompareKey === compareKey ? "Abrindo..." : "Ver oferta →"}
                     </a>
                   </div>
                 );

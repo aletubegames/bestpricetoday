@@ -45,15 +45,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Offer grid — 7 colunas no PC, responsivo no mobile */
-.offer-grid {
-  grid-template-columns: repeat(7, 1fr) !important;
-}
-@media (max-width: 1400px) { .offer-grid { grid-template-columns: repeat(5, 1fr) !important; } }
-@media (max-width: 1024px) { .offer-grid { grid-template-columns: repeat(3, 1fr) !important; } }
-@media (max-width: 640px)  { .offer-grid { grid-template-columns: repeat(2, 1fr) !important; } }
-@media (max-width: 400px)  { .offer-grid { grid-template-columns: 1fr !important; } }
-
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #07070f; }

@@ -1,7 +1,10 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import type { MouseEvent } from "react"
 import { API_BASE as API } from "@/lib/api"
+import { openTrackedOffer } from "@/lib/tracking"
 import TikTokPublisher from "@/components/TikTokPublisher"
+import type { Offer } from "@/types"
 
 const PROVIDER_LOGOS: Record<string, string> = {
   aliexpress: "🔴", shopee: "🟠", mercadolivre: "🟡",
@@ -9,9 +12,28 @@ const PROVIDER_LOGOS: Record<string, string> = {
 }
 
 export default function ProductSearchClient({ query }: { query: string }) {
-  const [offers, setOffers] = useState<any[]>([])
+  const [offers, setOffers] = useState<Offer[]>([])
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
+  const [openingOfferKey, setOpeningOfferKey] = useState<string | null>(null)
+
+  const offerKey = useCallback((offer: Offer, index: number) => {
+    return `${offer.provider}-${offer.product_id || offer.affiliate_url || index}`
+  }, [])
+
+  const handleOfferClick = useCallback(async (event: MouseEvent<HTMLAnchorElement>, offer: Offer, index: number) => {
+    event.preventDefault()
+    if (!offer.affiliate_url) return
+
+    const key = offerKey(offer, index)
+    setOpeningOfferKey(key)
+
+    try {
+      await openTrackedOffer(offer, "product_search")
+    } finally {
+      setOpeningOfferKey(null)
+    }
+  }, [offerKey])
 
   useEffect(() => {
     fetch(`${API}/api/v1/search?q=${encodeURIComponent(query)}&limit=10`)
@@ -47,8 +69,9 @@ export default function ProductSearchClient({ query }: { query: string }) {
         {offers.map((offer, i) => {
           const isFirst = i === 0
           const logo = PROVIDER_LOGOS[offer.provider] || "🏪"
+          const key = offerKey(offer, i)
           return (
-            <div key={i} style={{
+            <div key={key} style={{
               background: "#ffffff",
               border: `1px solid ${isFirst ? "rgba(0,229,160,0.4)" : "rgba(124,106,255,0.15)"}`,
               borderRadius: 14, overflow: "hidden",
@@ -83,9 +106,9 @@ export default function ProductSearchClient({ query }: { query: string }) {
                 <p style={{ fontSize: 13, color: "#4a4a6a", lineHeight: 1.5, marginBottom: 12, minHeight: 40 }}>
                   {offer.title?.slice(0, 80)}...
                 </p>
-                {offer.original_price > offer.final_price && (
+                {typeof offer.original_price === "number" && typeof offer.final_price === "number" && offer.original_price > offer.final_price && (
                   <div style={{ fontSize: 12, color: "#475569", textDecoration: "line-through" }}>
-                    R$ {offer.original_price?.toFixed(2)}
+                    R$ {offer.original_price.toFixed(2)}
                   </div>
                 )}
                 <div style={{ fontSize: 28, fontWeight: 900, color: "#1a1a2e", marginBottom: 4 }}>
@@ -94,7 +117,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
                 {offer.shipping_free && (
                   <div style={{ fontSize: 12, color: "#00e5a0", marginBottom: 12 }}>✅ Frete grátis</div>
                 )}
-                <a href={offer.affiliate_url} target="_blank" rel="noopener noreferrer"
+                <a href="#" target="_blank" rel="noopener noreferrer" onClick={event => handleOfferClick(event, offer, i)}
                   style={{
                     display: "block", textAlign: "center",
                     padding: "12px", borderRadius: 10, fontWeight: 700,
@@ -103,7 +126,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
                     textDecoration: "none", fontSize: 14,
                   }}
                 >
-                  Ver oferta →
+                  {openingOfferKey === key ? "Abrindo..." : "Ver oferta →"}
                 </a>
                 <TikTokPublisher offer={offer} />
               </div>

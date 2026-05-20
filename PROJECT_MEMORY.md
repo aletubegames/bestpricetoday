@@ -4,6 +4,23 @@
 
 ---
 
+## Atualizações recentes (2026-05-19)
+
+### 1) Busca `/produto/[query]` — grid 4 colunas + tracking ML corrigido
+
+- `frontend/src/app/produto/[query]/ProductSearchClient.tsx` mantém card próprio compacto com grid inline `repeat(4, minmax(0, 1fr))`.
+- Regra global obsoleta `.offer-grid` removida de `frontend/src/app/globals.css`; não há mais media query global forçando 3 colunas em telas `<=1024px`.
+- Novo helper compartilhado: `frontend/src/lib/tracking.ts`
+  - `trackClick(offer)` registra clique no endpoint público `/api/v1/clicks`
+  - `getTrackedUrl(offer, campaign)` cria/usa short link por `/api/v1/links/create`
+  - `openTrackedOffer(offer, campaign)` abre a oferta passando por `/r/{code}` antes do marketplace
+- CTAs da busca de produto, `OfferCard` e modal de comparação da home deixam de navegar direto para `offer.affiliate_url`.
+- Mercado Livre deixa de escapar direto para `https://www.mercadolivre.com.br/p/{id}?matt_tool=...`; clique web passa pelo backend e incrementa `ShortLink.clicks`/`ClickEvent`.
+
+**Validação:** editor sem erros nos arquivos alterados. `npx tsc --noEmit --incremental false` ainda acusa somente `.next/types/app/auth/callback/page.ts` gerado pelo Next, sem erros em `src/`.
+
+---
+
 ## Atualizações recentes (2026-05-18)
 
 ### 1) Integração TikTok
@@ -229,22 +246,25 @@ Alertas e favoritos usam `owner_id` obrigatório em vez de `telegram_id` opciona
 ## Monetização — fluxo completo
 
 ```
-Busca → Ranking → OfferCard → trackClick() → POST /admin/clicks
-                            ↓
-                     Link afiliado com UTM
-                     (ou /r/{code} para links de vídeo)
-                            ↓
-                    302 → Site do marketplace
-                            ↓
-               Conversão registrada via:
-               • Webhook ML (registrar URL no portal)
-               • Polling horário AliExpress + Lomadee + Shopee
-               → tabela conversion_events
-               → dashboard admin mostra receita/comissão real
+Busca → Ranking/Card → openTrackedOffer()
+          ↓
+      POST /api/v1/clicks (analytics público)
+          ↓
+      POST /api/v1/links/create
+          ↓
+        /r/{code} → ClickEvent + 302
+          ↓
+        Site do marketplace
+          ↓
+         Conversão registrada via:
+         • Webhook ML (registrar URL no portal)
+         • Polling horário AliExpress + Lomadee + Shopee
+         → tabela conversion_events
+         → dashboard admin mostra receita/comissão real
 ```
 
 **Short links** (`/r/{code}`):
-- Criado por `POST /api/v1/links/create` (sem auth — chamado pelo pipeline Wan2.1)
+- Criado por `POST /api/v1/links/create` (sem auth — chamado pelo frontend web e pipeline Wan2.1)
 - Redirect registra ClickEvent antes do 302
 - Estatísticas: `short_links.clicks` + `last_clicked_at`
 
@@ -1055,7 +1075,7 @@ POST https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/me
 
 ## Conversão — loop clique→venda
 
-**Rastreamento de cliques:** ✅ Funciona — `click_events` table via POST /admin/clicks
+**Rastreamento de cliques:** ✅ Funciona — frontend chama `openTrackedOffer()` → `/api/v1/links/create` → `/r/{code}` → `click_events`; analytics simples também dispara `POST /api/v1/clicks`
 **Polling de orders:** ✅ Implementado em `conversion_tracker.py`
 - AliExpress: `aliexpress.affiliate.order.list.by.index` a cada 1h
 - Lomadee: `/report/commission` a cada 1h

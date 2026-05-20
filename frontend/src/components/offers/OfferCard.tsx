@@ -3,8 +3,7 @@ import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
 import TikTokPublisher from "@/components/TikTokPublisher";
-
-import { API_BASE as API_URL } from "@/lib/api";
+import { openTrackedOffer } from "@/lib/tracking";
 
 const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
   aliexpress: (
@@ -122,50 +121,6 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-const trackClick = (offer: Offer) => {
-  // Registra click via endpoint público (não usa /admin/clicks)
-  fetch(`${API_URL}/api/v1/clicks`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      offer_id: offer.product_id || "",
-      provider: offer.provider,
-      product_title: offer.title,
-      price: offer.final_price,
-      affiliate_url: offer.affiliate_url || "",
-      source: "web",
-    }),
-  }).catch(() => {});
-};
-
-/**
- * Gera (ou retorna cached) o short link rastreado para a oferta.
- * O botão Comprar SEMPRE passa pelo /r/{code} para garantir rastreio.
- */
-const getTrackedUrl = async (offer: Offer): Promise<string> => {
-  // Se já é um short link BPT, usa direto
-  if (offer.affiliate_url?.includes("/r/")) return offer.affiliate_url;
-  try {
-    const res = await fetch(`${API_URL}/api/v1/links/create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        affiliate_url: offer.affiliate_url,
-        provider: offer.provider,
-        product_title: offer.title,
-        price: offer.final_price,
-        source: "web",
-        campaign: "offer_card",
-      }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.url || offer.affiliate_url || "#";
-    }
-  } catch {}
-  return offer.affiliate_url || "#";
-};
-
 interface Props {
   offer: Offer;
   rank: number;
@@ -180,18 +135,16 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
   const best = rank === 0;
   const badges = computeBadges(offer);
   const fmtPrice = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  const [buyUrl, setBuyUrl] = useState<string>(offer.affiliate_url || "#");
+  const [buyUrl, setBuyUrl] = useState<string>(offer.affiliate_url?.includes("/r/") ? offer.affiliate_url : "#");
   const [loadingUrl, setLoadingUrl] = useState(false);
 
   const handleBuy = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
-    trackClick(offer);
     if (!loadingUrl) {
       setLoadingUrl(true);
-      const url = await getTrackedUrl(offer);
+      const url = await openTrackedOffer(offer);
       setBuyUrl(url);
       setLoadingUrl(false);
-      window.open(url, "_blank", "noopener,noreferrer");
     }
   }, [offer, loadingUrl]);
 
