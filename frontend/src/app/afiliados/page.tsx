@@ -80,6 +80,9 @@ export default function AfiliadosPage() {
   const [addForm, setAddForm] = useState({ ml_code: "", affiliate_url: "", title: "", price: "", commission_pct: "", category: "" })
   const [savingAdd, setSavingAdd] = useState(false)
   const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: string } | null>(null)
+  const [enrichModal, setEnrichModal] = useState<{ id: string; ml_code: string | null } | null>(null)
+  const [enrichUrl, setEnrichUrl] = useState("")
+  const [enriching, setEnriching] = useState(false)
 
   // Content gen state
   const [selectedProduct, setSelectedProduct] = useState<string>("")
@@ -170,6 +173,28 @@ export default function AfiliadosPage() {
     fetchProducts()
   }
 
+  async function handleEnrichUrl() {
+    if (!enrichModal || !enrichUrl.trim()) return
+    setEnriching(true)
+    try {
+      const r = await fetch(`${API}/api/v1/affiliate/products/enrich-url`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: enrichModal.id, ml_url: enrichUrl.trim() }),
+      })
+      const d = await r.json()
+      if (r.ok) {
+        setEnrichModal(null)
+        setEnrichUrl("")
+        fetchProducts()
+      } else {
+        alert(`❌ ${d.detail || "Erro ao preencher"}`)
+      }
+    } finally {
+      setEnriching(false)
+    }
+  }
+
   async function handleGenerate(type: "marketplace" | "tiktok" | "youtube") {
     if (!selectedProduct) return
     setGeneratingType(type)
@@ -222,6 +247,39 @@ export default function AfiliadosPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", fontFamily: "system-ui, sans-serif", padding: "24px 16px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+
+        {/* Modal Enrich URL */}
+        {enrichModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 520, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <h3 style={{ margin: "0 0 8px", color: "#1a1a2e", fontSize: 18 }}>Preencher dados do produto</h3>
+              <p style={{ margin: "0 0 20px", color: "#6b6b8a", fontSize: 13 }}>
+                1. Clique no link <strong>{enrichModal.ml_code}</strong> que abriu em nova aba<br/>
+                2. Navegue até o produto específico<br/>
+                3. Copie a URL do browser (ex: <code style={{fontSize:11}}>mercadolivre.com.br/MLB-1234567...</code>)<br/>
+                4. Cole aqui:
+              </p>
+              <input
+                type="url"
+                placeholder="https://www.mercadolivre.com.br/MLB-XXXXXXX-nome-produto..."
+                value={enrichUrl}
+                onChange={e => setEnrichUrl(e.target.value)}
+                style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 8, border: "1px solid rgba(108,92,231,0.3)", fontSize: 13, marginBottom: 16, outline: "none" }}
+                onKeyDown={e => e.key === "Enter" && handleEnrichUrl()}
+                autoFocus
+              />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={handleEnrichUrl} disabled={enriching || !enrichUrl.trim()} style={{ ...btnPrimary, opacity: enriching || !enrichUrl.trim() ? 0.6 : 1 }}>
+                  {enriching ? "Preenchendo..." : "✨ Preencher"}
+                </button>
+                <button onClick={() => { setEnrichModal(null); setEnrichUrl("") }} style={btnSecondary}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
           <div>
@@ -355,11 +413,21 @@ export default function AfiliadosPage() {
                       {products.map(p => (
                         <tr key={p.id} style={{ borderBottom: "1px solid rgba(108,92,231,0.08)" }}>
                           <td style={{ padding: "12px 16px", color: muted, fontFamily: "monospace", fontSize: 12 }}>
-                            <a href={p.affiliate_url} target="_blank" rel="noopener noreferrer"
-                              style={{ color: "#7c6aff", textDecoration: "none", fontWeight: 600 }}
-                              title="Abrir produto no ML">
-                              {p.ml_code || "link"} ↗
-                            </a>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <a href={p.affiliate_url} target="_blank" rel="noopener noreferrer"
+                                style={{ color: "#7c6aff", textDecoration: "none", fontWeight: 600 }}
+                                title="Abrir produto no ML">
+                                {p.ml_code || "link"} ↗
+                              </a>
+                              {!p.title && (
+                                <button
+                                  onClick={() => { setEnrichModal({ id: p.id, ml_code: p.ml_code }); setEnrichUrl("") }}
+                                  style={{ background: "rgba(0,229,160,0.15)", border: "1px solid rgba(0,229,160,0.4)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "#00b880", cursor: "pointer", fontWeight: 600 }}
+                                  title="Preencher dados via URL do produto">
+                                  + URL produto
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: "12px 16px", minWidth: 160 }}>
                             {editingCell?.id === p.id && editingCell.field === "title" ? (

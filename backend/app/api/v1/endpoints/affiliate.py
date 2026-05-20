@@ -318,7 +318,110 @@ async def enrich_products(
     return {"enriched": enriched, "failed": failed, "skipped": skipped, "total": len(products)}
 
 
-# ─── Geradores de conteúdo ────────────────────────────────────────────────────
+class EnrichByUrlRequest(BaseModel):
+    product_id: str
+    ml_url: str  # URL completa: https://www.mercadolivre.com.br/MLB-XXXXXXX-...
+
+
+class EnrichBatchRequest(BaseModel):
+    items: dict[str, str]  # {ml_code: url_produto_ml}
+
+
+async def _fetch_ml_item(ml_url: str, token: str) -> dict:
+    import re
+    match = re.search(r"MLB-?(\d+)", ml_url)
+    if not match:
+        return {}
+    mlb_id = f"MLB{match.group(1)}"
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"https://api.mercadolibre.com/items/{mlb_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if r.status_code == 200:
+            d = r.json()
+            pictures = d.get("pictures") or []
+            image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
+            return {"title": d.get("title"), "price": d.get("price"), "image_url": image, "mlb_id": mlb_id}
+        r2 = await client.get(
+            f"https://api.mercadolibre.com/products/{mlb_id}",
+            params={"includes": "buy_box_winner"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if r2.status_code == 200:
+            d2 = r2.json()
+            bb = d2.get("buy_box_winner") or {}
+            pictures = d2.get("pictures") or []
+            image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
+            return {"title": d2.get("name") or d2.get("title"), "price": bb.get("price"), "image_url": image, "mlb_id": mlb_id}
+    return {}
+
+
+@router.post("/products/enrich-url")
+async def enrich_by_url(
+    data: EnrichByUrlRequest,
+    _:   str          = Depends(require_admin),
+    db:  AsyncSession = Depends(get_db),
+):
+    """Preenche 1 produto com título/preço/imagem a partir da URL do produto ML."""
+    from app.services.ml_token_service import get_token as get_ml_token
+    token = await get_ml_token(db)
+    if not token:
+        raise HTTPException(status_code=400, detail="Token ML não configurado.")
+    p = (await db.execute(select(AffiliateProduct).where(AffiliateProduct.id == data.product_id))).scalar()
+    if not p:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    info = await _fetch_ml_item(data.ml_url, token)
+    if not info.get("title"):
+        raise HTTPException(status_code=400, detail=f"Não foi possível extrair dados de: {data.ml_url}")
+    p.title     = info["title"]
+    p.price     = info.get("price") or p.price
+    p.image_url = info.get("image_url") or p.image_url
+    await db.commit()
+    await db.refresh(p)
+    return _calc(p)
+
+
+@router.post("/products/enrich-batch")
+async def enrich_batch(
+    data: EnrichBatchRequest,
+    _:   str          = Depends(require_admin),
+    db:  AsyncSession = Depends(get_db),
+):
+    """
+    Preenche vários produtos de uma vez.
+    Body: {"items": {"S5L99N-Y7WN": "https://www.mercadolivre.com.br/MLB-XXXXXXX-..."}}
+    """
+    from app.services.ml_token_service import get_token as get_ml_token
+    import asyncio
+    token = await get_ml_token(db)
+    if not token:
+        raise HTTPException(status_code=400, detail="Token ML não configurado.")
+    result_q = await db.execute(select(AffiliateProduct).where(AffiliateProduct.is_active == True))
+    products  = {p.ml_code: p for p in result_q.scalars().all() if p.ml_code}
+
+    async def _enrich_one(ml_code: str, ml_url: str):
+        p = products.get(ml_code)
+        if not p:
+            return False
+        try:
+            info = await _fetch_ml_item(ml_url, token)
+            if info.get("title"):
+                p.title     = info["title"]
+                p.price     = info.get("price") or p.price
+                p.image_url = info.get("image_url") or p.image_url
+                return True
+        except Exception:
+            pass
+        return False
+
+    results  = await asyncio.gather(*[_enrich_one(c, u) for c, u in data.items.items()])
+    enriched = sum(1 for r in results if r)
+    failed   = [c for c, r in zip(data.items.keys(), results) if not r]
+    await db.commit()
+    return {"enriched": enriched, "failed": failed, "total": len(data.items)}
+
+
 
 @router.post("/generate/marketplace")
 async def generate_marketplace_ad(
