@@ -284,6 +284,57 @@ class TikTokAccount(Base):
     user = relationship("User", backref="tiktok_accounts")
 
 
+class YouTubeAccount(Base):
+    """Conta YouTube conectada via OAuth Google."""
+    __tablename__ = "youtube_accounts"
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    channel_id       = Column(String, unique=True, index=True, nullable=False)
+    channel_title    = Column(String, nullable=True)
+    channel_url      = Column(String, nullable=True)
+    thumbnail_url    = Column(String, nullable=True)
+    access_token     = Column(String, nullable=False)
+    refresh_token    = Column(String, nullable=True)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    scopes           = Column(String, nullable=True)
+    publishes_count  = Column(Integer, default=0)
+    is_active        = Column(Boolean, default=True)
+    created_at       = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at       = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class InstagramAccount(Base):
+    """Conta Instagram conectada via Facebook Login."""
+    __tablename__ = "instagram_accounts"
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    instagram_id     = Column(String, unique=True, index=True, nullable=False)
+    username         = Column(String, nullable=True)
+    display_name     = Column(String, nullable=True)
+    profile_url      = Column(String, nullable=True)
+    avatar_url       = Column(String, nullable=True)
+    access_token     = Column(String, nullable=False)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    publishes_count  = Column(Integer, default=0)
+    is_active        = Column(Boolean, default=True)
+    created_at       = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at       = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class FacebookAccount(Base):
+    """Página Facebook conectada."""
+    __tablename__ = "facebook_accounts"
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    page_id          = Column(String, unique=True, index=True, nullable=False)
+    page_name        = Column(String, nullable=True)
+    page_url         = Column(String, nullable=True)
+    avatar_url       = Column(String, nullable=True)
+    access_token     = Column(String, nullable=False)  # page access token
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    publishes_count  = Column(Integer, default=0)
+    is_active        = Column(Boolean, default=True)
+    created_at       = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at       = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
 class ShortLink(Base):
     """
     Short link for tracked affiliate redirects.
@@ -336,6 +387,12 @@ class AdminVideo(Base):
     tiktok_short_link = Column(String, nullable=True)
     youtube_video_id = Column(String, nullable=True)
     youtube_short_link = Column(String, nullable=True)
+    instagram_media_id  = Column(String, nullable=True)
+    instagram_short_link = Column(String, nullable=True)
+    facebook_post_id    = Column(String, nullable=True)
+    facebook_short_link = Column(String, nullable=True)
+    # Metadados gerados por plataforma (JSON com title/description/hashtags por plataforma)
+    platform_metadata   = Column(JSON, nullable=True)
 
     # Stats
     tiktok_views = Column(Integer, default=0)

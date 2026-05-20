@@ -84,6 +84,19 @@ class Settings(BaseSettings):
     TIKTOK_CLIENT_SECRET: str = ""
     TIKTOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/tiktok/callback"
 
+    # YouTube
+    YOUTUBE_CLIENT_ID: str = ""
+    YOUTUBE_CLIENT_SECRET: str = ""
+    YOUTUBE_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/youtube"
+
+    # Instagram / Facebook
+    INSTAGRAM_APP_ID: str = ""
+    INSTAGRAM_APP_SECRET: str = ""
+    FACEBOOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/facebook"
+
+    # Claude API (para análise de vídeo)
+    ANTHROPIC_API_KEY: str = ""
+
     # Video API (GPU local via ngrok ou URL fixa)
     VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
     VIDEO_API_KEY: str = ""
