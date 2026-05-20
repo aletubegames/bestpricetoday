@@ -600,11 +600,29 @@ export default function AdminPage() {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
-      const stored = localStorage.getItem("admin_key");
+    const stored = localStorage.getItem("admin_key");
     if (stored) { setKey(stored); return; }
-    // Auto-login via JWT de admin — redireciona para digitar a key manualmente
-    // REMOVIDO: NEXT_PUBLIC_ADMIN_KEY era exposto no bundle JS (risco de segurança)
-    // A admin_key deve ser digitada manualmente no login form
+    // Auto-login: se o user for admin via JWT, busca a key automaticamente
+    const token = localStorage.getItem("bpt_token");
+    const userStr = localStorage.getItem("bpt_user");
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.is_admin) {
+          fetch(`${API}/api/v1/admin/auth/session-key`, {
+            headers: { "Authorization": `Bearer ${token}` },
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (data?.admin_key) {
+                localStorage.setItem("admin_key", data.admin_key);
+                setKey(data.admin_key);
+              }
+            })
+            .catch(() => null);
+        }
+      } catch { /* ignore */ }
+    }
   }, []);
 
   const adminFetch = <T,>(url: string, k: string, options: RequestInit = {}): Promise<T> =>

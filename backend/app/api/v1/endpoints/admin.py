@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import os
 import httpx
+from app.api.v1.endpoints.auth import get_current_admin
 
 
 async def check_rate_limit(key: str, max_calls: int = 10, window_seconds: int = 60) -> bool:
@@ -1362,3 +1363,13 @@ async def ml_test_items(
                 "catalog_search_status": r3.status_code,
             })
     return {"results": items_results}
+
+
+
+
+@router.get("/auth/session-key")
+async def get_session_admin_key(
+    user=Depends(get_current_admin),
+):
+    """Troca JWT de admin pelo ADMIN_MANAGER_KEY — evita digitar a key manualmente."""
+    return {"admin_key": settings.ADMIN_MANAGER_KEY}

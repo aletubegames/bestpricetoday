@@ -35,11 +35,7 @@ export default function LoginPage() {
       localStorage.setItem("bpt_user", JSON.stringify(data.user))
       console.log('Saved to localStorage')
 
-      if (data.user.is_admin) {
-        router.push("/admin")
-      } else {
-        router.push("/dashboard")
-      }
+      router.push("/")
     } catch (err) {
       console.error('Login error:', err)
       setError("Erro de conexão.")
