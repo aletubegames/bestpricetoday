@@ -275,9 +275,29 @@ export default function AfiliadosPage() {
             </div>
 
             {/* Add button */}
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button onClick={() => setShowAddForm(!showAddForm)} style={btnPrimary}>
                 {showAddForm ? "✕ Cancelar" : "+ Adicionar Produto"}
+              </button>
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem("bpt_token")
+                  const r = await fetch(`${API}/api/v1/affiliate/products/enrich`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                  const d = await r.json()
+                  if (r.ok) {
+                    alert(`✅ Preenchidos: ${d.enriched} | Falhas: ${d.failed}`)
+                    fetchProducts()
+                  } else {
+                    alert(`❌ ${d.detail || "Erro"}`)
+                  }
+                }}
+                style={{ ...btnPrimary, background: "linear-gradient(135deg,#00e5a0,#00b880)", color: "#1a1a2e" }}
+                title="Busca título/preço/imagem via API oficial ML para produtos sem título"
+              >
+                ✨ Preencher dados via ML
               </button>
             </div>
 

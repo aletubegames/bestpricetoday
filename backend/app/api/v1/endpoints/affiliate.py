@@ -226,6 +226,98 @@ async def seed_products(
     return {"added": added, "skipped": skipped}
 
 
+@router.post("/products/enrich")
+async def enrich_products(
+    _:  str          = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Para cada produto sem título, busca na API oficial do ML usando o
+    ml_code como query. Usa o OAuth token armazenado no banco.
+    100% dentro dos Termos de Uso do programa de afiliados ML.
+    """
+    from app.services.ml_token_service import get_token as get_ml_token
+
+    token = await get_ml_token(db)
+    if not token:
+        raise HTTPException(
+            status_code=400,
+            detail="Token ML não configurado. Faça OAuth em /auth/ml/authorize primeiro."
+        )
+
+    result_q = await db.execute(
+        select(AffiliateProduct).where(
+            AffiliateProduct.title == None,
+            AffiliateProduct.is_active == True,
+        )
+    )
+    products = result_q.scalars().all()
+
+    enriched = 0
+    failed   = 0
+    skipped  = 0
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for p in products:
+            if not p.ml_code:
+                skipped += 1
+                continue
+            try:
+                r = await client.get(
+                    "https://api.mercadolibre.com/products/search",
+                    params={"site_id": "MLB", "q": p.ml_code, "limit": 1},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                if r.status_code != 200:
+                    failed += 1
+                    continue
+
+                results = r.json().get("results", [])
+                if not results:
+                    failed += 1
+                    continue
+
+                item = results[0]
+                pid  = item.get("id") or item.get("catalog_product_id")
+
+                # Buscar detalhes completos (preço + imagem)
+                if pid:
+                    r2 = await client.get(
+                        f"https://api.mercadolibre.com/products/{pid}",
+                        params={"includes": "buy_box_winner"},
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    if r2.status_code == 200:
+                        detail   = r2.json()
+                        bb       = detail.get("buy_box_winner") or {}
+                        price    = float(bb.get("price") or 0) or None
+                        pictures = detail.get("pictures") or item.get("pictures") or []
+                        image    = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
+                        name     = detail.get("name") or item.get("name") or ""
+                    else:
+                        name  = item.get("name") or ""
+                        price = None
+                        image = None
+                else:
+                    name  = item.get("name") or ""
+                    price = None
+                    image = None
+
+                if name:
+                    p.title     = name
+                    p.price     = price or p.price
+                    p.image_url = image or p.image_url
+                    enriched += 1
+                else:
+                    failed += 1
+
+            except Exception:
+                failed += 1
+
+    await db.commit()
+    return {"enriched": enriched, "failed": failed, "skipped": skipped, "total": len(products)}
+
+
 # ─── Geradores de conteúdo ────────────────────────────────────────────────────
 
 @router.post("/generate/marketplace")
