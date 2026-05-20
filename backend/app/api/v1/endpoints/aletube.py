@@ -9,7 +9,6 @@ AleTubeGames — Admin video upload, analysis, and publishing.
 import os
 import uuid
 import httpx
-import ffmpeg
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -34,54 +33,23 @@ def _generate_code(length: int = 8) -> str:
     return uuid.uuid4().hex[:length].upper()
 
 
-async def _extract_frames(video_path: str, num_frames: int = 3) -> list[str]:
-    """Extrai frames do vídeo para análise IA."""
-    try:
-        probe = ffmpeg.probe(video_path)
-        duration = float(probe["format"]["duration"])
-        
-        frame_paths = []
-        for i, t in enumerate([duration * 0.25, duration * 0.5, duration * 0.75]):
-            frame_path = f"{VIDEOS_DIR}/frame_{uuid.uuid4().hex}.jpg"
-            ffmpeg.input(video_path, ss=t).output(frame_path, vframes=1).run(capture_stdout=True, capture_stderr=True)
-            frame_paths.append(frame_path)
-        
-        return frame_paths
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao extrair frames: {str(e)}")
-
-
 async def _analyze_video(video_path: str, filename: str) -> dict:
     """
     Análise IA rápida do vídeo.
-    Extrai frames, gera title/description/hashtags via IA.
+    Por enquanto, retorna placeholder com metadados básicos.
+    Integração com Claude Vision pode ser feita depois.
     """
     try:
-        # Extrai duração
-        probe = ffmpeg.probe(video_path)
-        duration = int(float(probe["format"]["duration"]))
-        
-        # Extrai frames
-        frames = await _extract_frames(video_path)
-        
-        # TODO: Enviar frames para IA (ex: Claude Vision) gerar metadata
-        # Por enquanto, retorna placeholder
+        # Placeholder: gera metadata básica
         title = f"AleTube Games - {filename.replace('.mp4', '')}"
         description = f"Novo vídeo do AleTube Games. Confira o produto!"
         hashtags = ["#aletubegames", "#tech", "#promo", "#shorts"]
-        
-        # Limpa frames temporários
-        for f in frames:
-            try:
-                os.remove(f)
-            except:
-                pass
         
         return {
             "title": title,
             "description": description,
             "hashtags": hashtags,
-            "duration_seconds": duration,
+            "duration_seconds": 0,
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro na análise: {str(e)}")
