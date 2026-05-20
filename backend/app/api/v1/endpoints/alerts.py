@@ -12,8 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
-from app.schemas.schemas import AlertCreate, AlertResponse
-from app.models.models import PriceAlert
+from app.schemas.schemas import AlertCreate, AlertResponse, AlertListResponse
+from app.models.models import PriceAlert, User
+from app.api.v1.endpoints.auth import get_current_user
 from uuid import UUID
 import uuid
 
@@ -39,20 +40,23 @@ async def create_alert(alert: AlertCreate, db: AsyncSession = Depends(get_db)):
     return obj
 
 
-@router.get("/alerts", response_model=list[AlertResponse])
+@router.get("/alerts", response_model=AlertListResponse)
 async def list_alerts(
-    owner_id: str = Query(..., min_length=1, description="ID do dono do alerta"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Lista alertas ativos do owner.
-    owner_id é obrigatório — nunca retorna alertas de outros usuários.
+    Lista alertas do usuário logado (via JWT).
+    Retorna lista vazia se não houver alertas.
     """
     stmt = (
         select(PriceAlert)
-        .where(PriceAlert.owner_id == owner_id, PriceAlert.is_active == True)
+        .where(PriceAlert.owner_id == str(user.id), PriceAlert.is_active == True)
         .order_by(PriceAlert.created_at.desc())
     )
+    result = await db.execute(stmt)
+    alerts = result.scalars().all()
+    return {"items": [AlertResponse.from_orm(a) for a in alerts]}
     result = await db.execute(stmt)
     return result.scalars().all()
 

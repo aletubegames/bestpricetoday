@@ -111,6 +111,10 @@ class AlertResponse(BaseModel):
         from_attributes = True
 
 
+class AlertListResponse(BaseModel):
+    items: list[AlertResponse]
+
+
 class ClickTrack(BaseModel):
     offer_id: UUID
     provider: ProviderEnum
