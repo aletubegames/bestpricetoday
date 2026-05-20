@@ -29,14 +29,42 @@ async def check_rate_limit(key: str, max_calls: int = 10, window_seconds: int = 
 router = APIRouter()
 
 
-def require_admin(
+async def require_admin(
     x_admin_key: str | None = Header(default=None),
     admin_key: str | None = FQuery(default=None),
-):
+    authorization: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """
+    Aceita duas formas de autenticação admin:
+    1. X-Admin-Key header ou ?admin_key= query param
+    2. Authorization: Bearer <jwt> de usuário com is_admin=True
+    """
+    # 1. Admin key
     key = x_admin_key or admin_key
-    if not settings.ADMIN_MANAGER_KEY or key != settings.ADMIN_MANAGER_KEY:
-        raise HTTPException(status_code=401, detail="Invalid admin key")
-    return key
+    if key and settings.ADMIN_MANAGER_KEY and key == settings.ADMIN_MANAGER_KEY:
+        return key
+
+    # 2. JWT de admin
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:]
+        try:
+            from app.api.v1.endpoints.auth import decode_jwt
+            from app.models.models import User
+            import uuid as _uuid
+            payload = decode_jwt(token)
+            user_id = payload.get("sub")
+            if user_id:
+                result = await db.execute(
+                    select(User).where(User.id == _uuid.UUID(user_id))
+                )
+                user = result.scalar_one_or_none()
+                if user and user.is_active and user.is_admin:
+                    return f"jwt:{user_id}"
+        except Exception:
+            pass
+
+    raise HTTPException(status_code=401, detail="Invalid admin key")
 
 
 class ClickEventIn(BaseModel):
