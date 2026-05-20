@@ -85,6 +85,9 @@ export default function AfiliadosPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [enriching, setEnriching] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importForm, setImportForm] = useState({ query: "", limit: "10", category: "", commission_pct: "" })
+  const [importing, setImporting] = useState(false)
 
   // Content gen state
   const [selectedProduct, setSelectedProduct] = useState<string>("")
@@ -282,6 +285,85 @@ export default function AfiliadosPage() {
           </div>
         )}
 
+        {/* Modal Import Categoria */}
+        {showImportModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 480, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <h3 style={{ margin: "0 0 6px", color: "#1a1a2e", fontSize: 18 }}>🔍 Importar produtos por categoria</h3>
+              <p style={{ margin: "0 0 18px", color: muted, fontSize: 13 }}>Busca no Mercado Livre e importa automaticamente com título, preço e imagem.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: muted, display: "block", marginBottom: 4 }}>Busca / categoria *</label>
+                  <input placeholder="ex: têmis masculino, celular samsung, colchão inflavável..."
+                    value={importForm.query} onChange={e => setImportForm(f => ({...f, query: e.target.value}))}
+                    style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(108,92,231,0.3)", fontSize: 13, outline: "none" }}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: muted, display: "block", marginBottom: 4 }}>Qtd (máx 20)</label>
+                    <input type="number" min="1" max="20" value={importForm.limit}
+                      onChange={e => setImportForm(f => ({...f, limit: e.target.value}))}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(108,92,231,0.3)", fontSize: 13, outline: "none" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: muted, display: "block", marginBottom: 4 }}>Categoria</label>
+                    <input placeholder="ex: Calçados" value={importForm.category}
+                      onChange={e => setImportForm(f => ({...f, category: e.target.value}))}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(108,92,231,0.3)", fontSize: 13, outline: "none" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: muted, display: "block", marginBottom: 4 }}>Comissão %</label>
+                    <input type="number" step="0.1" placeholder="16" value={importForm.commission_pct}
+                      onChange={e => setImportForm(f => ({...f, commission_pct: e.target.value}))}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(108,92,231,0.3)", fontSize: 13, outline: "none" }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={async () => {
+                    if (!importForm.query.trim()) return
+                    setImporting(true)
+                    try {
+                      const tok = localStorage.getItem("bpt_token")
+                      const r = await fetch(`${API}/api/v1/affiliate/products/import-category`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          query: importForm.query.trim(),
+                          limit: parseInt(importForm.limit) || 10,
+                          category: importForm.category.trim(),
+                          commission_pct: parseFloat(importForm.commission_pct) || 0,
+                        }),
+                      })
+                      const d = await r.json()
+                      if (r.ok) {
+                        alert(`✅ Importados: ${d.added} | Já existiam: ${d.skipped}`)
+                        setShowImportModal(false)
+                        setImportForm({ query: "", limit: "10", category: "", commission_pct: "" })
+                        fetchProducts()
+                      } else {
+                        alert(`❌ ${d.detail || "Erro"}`)
+                      }
+                    } finally {
+                      setImporting(false)
+                    }
+                  }}
+                  disabled={importing || !importForm.query.trim()}
+                  style={{ ...btnPrimary, background: "linear-gradient(135deg,#f59e0b,#fbbf24)", color: "#1a1a2e", opacity: importing || !importForm.query.trim() ? 0.6 : 1 }}
+                >
+                  {importing ? "Importando..." : "🔍 Importar"}
+                </button>
+                <button onClick={() => setShowImportModal(false)} style={btnSecondary}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
           <div>
@@ -358,6 +440,13 @@ export default function AfiliadosPage() {
                 title="Busca título/preço/imagem via API oficial ML para produtos sem título"
               >
                 ✨ Preencher dados via ML
+              </button>
+              <button
+                onClick={() => setShowImportModal(true)}
+                style={{ ...btnPrimary, background: "linear-gradient(135deg,#f59e0b,#fbbf24)", color: "#1a1a2e" }}
+                title="Busca produtos por categoria no ML e importa automaticamente"
+              >
+                🔍 Importar por categoria
               </button>
             </div>
 

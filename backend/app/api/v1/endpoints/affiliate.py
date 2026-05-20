@@ -328,32 +328,85 @@ class EnrichBatchRequest(BaseModel):
 
 
 async def _fetch_ml_item(ml_url: str, token: str) -> dict:
+    """
+    Extrai dados do produto ML a partir da URL.
+    Tenta 3 abordagens em sequência:
+    1. /products/{catalog_id} — para URLs /p/MLB...
+    2. /products/search com o slug da URL como query
+    3. /items/{item_id} — para URLs de item direto
+    """
     import re
-    match = re.search(r"MLB-?(\d+)", ml_url)
-    if not match:
-        return {}
-    mlb_id = f"MLB{match.group(1)}"
+
+    # Extrair catalog product id (/p/MLB...) ou item id
+    catalog_match = re.search(r'/p/(MLB\d+)', ml_url)
+    item_match    = re.search(r'MLB-?(\d+)', ml_url)
+
     async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            f"https://api.mercadolibre.com/items/{mlb_id}",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        if r.status_code == 200:
-            d = r.json()
-            pictures = d.get("pictures") or []
-            image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
-            return {"title": d.get("title"), "price": d.get("price"), "image_url": image, "mlb_id": mlb_id}
-        r2 = await client.get(
-            f"https://api.mercadolibre.com/products/{mlb_id}",
-            params={"includes": "buy_box_winner"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        if r2.status_code == 200:
-            d2 = r2.json()
-            bb = d2.get("buy_box_winner") or {}
-            pictures = d2.get("pictures") or []
-            image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
-            return {"title": d2.get("name") or d2.get("title"), "price": bb.get("price"), "image_url": image, "mlb_id": mlb_id}
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Catalog product endpoint
+        if catalog_match:
+            pid = catalog_match.group(1)
+            r = await client.get(
+                f"https://api.mercadolibre.com/products/{pid}",
+                params={"includes": "buy_box_winner"},
+                headers=headers,
+            )
+            if r.status_code == 200:
+                d = r.json()
+                bb = d.get("buy_box_winner") or {}
+                pictures = d.get("pictures") or []
+                image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
+                return {"title": d.get("name") or d.get("title"), "price": bb.get("price"), "image_url": image, "mlb_id": pid}
+
+        # 2. /products/search com slug da URL como query
+        slug_match = re.search(r'com\.br/([^/?#]+)', ml_url)
+        if slug_match:
+            slug  = slug_match.group(1).replace("-", " ")
+            # Remover o MLB id do slug para não confundir a busca
+            query = re.sub(r'MLB\d+', '', slug).strip()
+            if len(query) > 5:
+                r2 = await client.get(
+                    "https://api.mercadolibre.com/products/search",
+                    params={"site_id": "MLB", "q": query, "limit": 1},
+                    headers=headers,
+                )
+                if r2.status_code == 200:
+                    results = r2.json().get("results", [])
+                    if results:
+                        item = results[0]
+                        pid2 = item.get("id") or item.get("catalog_product_id")
+                        pictures = item.get("pictures") or []
+                        image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
+                        # Tentar buscar buy_box_winner
+                        price = None
+                        if pid2:
+                            r3 = await client.get(
+                                f"https://api.mercadolibre.com/products/{pid2}",
+                                params={"includes": "buy_box_winner"},
+                                headers=headers,
+                            )
+                            if r3.status_code == 200:
+                                d3  = r3.json()
+                                bb3 = d3.get("buy_box_winner") or {}
+                                price = bb3.get("price")
+                                pics3 = d3.get("pictures") or []
+                                image = pics3[0].get("url", "").replace("-F.jpg", "-O.jpg") if pics3 else image
+                        return {"title": item.get("name") or item.get("title"), "price": price, "image_url": image, "mlb_id": pid2}
+
+        # 3. Item direto
+        if item_match:
+            mlb_id = f"MLB{item_match.group(1)}"
+            r4 = await client.get(
+                f"https://api.mercadolibre.com/items/{mlb_id}",
+                headers=headers,
+            )
+            if r4.status_code == 200:
+                d4 = r4.json()
+                pictures = d4.get("pictures") or []
+                image = pictures[0].get("url", "").replace("-F.jpg", "-O.jpg") if pictures else None
+                return {"title": d4.get("title"), "price": d4.get("price"), "image_url": image, "mlb_id": mlb_id}
+
     return {}
 
 
@@ -629,6 +682,101 @@ Responda SOMENTE com JSON válido:
 
 
 # ─── Short Link ───────────────────────────────────────────────────────────────
+
+
+# ─── Import por categoria ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+class ImportCategoryRequest(BaseModel):
+    query: str
+    limit: int = 10
+    category: str = ""
+    commission_pct: float = 0.0
+
+
+@router.post("/products/import-category")
+async def import_category(
+    data: ImportCategoryRequest,
+    _:   str          = Depends(require_admin),
+    db:  AsyncSession = Depends(get_db),
+):
+    """
+    Busca produtos no ML por query/categoria usando o token OAuth
+    e importa automaticamente com título, preço e imagem.
+    Links de afiliado são gerados com o APP_ID configurado.
+    Ignora duplicatas.
+    """
+    from app.services.ml_token_service import get_token as get_ml_token
+
+    token = await get_ml_token(db)
+    if not token:
+        raise HTTPException(status_code=400, detail="Token ML não configurado.")
+
+    limit = min(data.limit, 20)
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            "https://api.mercadolibre.com/products/search",
+            params={"site_id": "MLB", "q": data.query, "limit": limit * 2},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if r.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"ML retornou {r.status_code}")
+
+        results = r.json().get("results", [])
+        if not results:
+            raise HTTPException(status_code=404, detail="Nenhum produto encontrado")
+
+        added   = 0
+        skipped = 0
+        imported_products = []
+
+        for item in results[:limit]:
+            pid  = item.get("id") or item.get("catalog_product_id")
+            name = item.get("name") or item.get("title") or ""
+            if not name or not pid:
+                skipped += 1
+                continue
+
+            affiliate_url = f"https://www.mercadolivre.com.br/p/{pid}?matt_tool={settings.MERCADOLIVRE_APP_ID}"
+
+            existing = (await db.execute(
+                select(AffiliateProduct).where(AffiliateProduct.affiliate_url == affiliate_url)
+            )).scalar()
+            if existing:
+                skipped += 1
+                continue
+
+            price = None
+            image = None
+            r2 = await client.get(
+                f"https://api.mercadolibre.com/products/{pid}",
+                params={"includes": "buy_box_winner"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if r2.status_code == 200:
+                d2   = r2.json()
+                bb   = d2.get("buy_box_winner") or {}
+                price = bb.get("price")
+                pics = d2.get("pictures") or item.get("pictures") or []
+                image = pics[0].get("url", "").replace("-F.jpg", "-O.jpg") if pics else None
+
+            p = AffiliateProduct(
+                id            = uuid.uuid4(),
+                ml_code       = pid,
+                affiliate_url = affiliate_url,
+                title         = name,
+                price         = price,
+                commission_pct= data.commission_pct or None,
+                category      = data.category or None,
+                image_url     = image,
+            )
+            db.add(p)
+            added += 1
+            imported_products.append({"id": str(p.id), "title": name, "price": price, "mlb_id": pid})
+
+        await db.commit()
+        return {"added": added, "skipped": skipped, "products": imported_products}
+
 
 @router.post("/shortlink")
 async def create_shortlink(
