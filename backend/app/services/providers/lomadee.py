@@ -95,7 +95,7 @@ class LomadeeProvider(BaseProvider):
         return None
 
     def _build_affiliate_url(self, product_url: str) -> str:
-        """Gera link de afiliado Lomadee com sourceId para rastreamento de comissão."""
+        """Fallback: adiciona sourceId na URL (usado apenas se shortener falhar)."""
         if not product_url:
             return ""
         sep = "&" if "?" in product_url else "?"
@@ -107,7 +107,31 @@ class LomadeeProvider(BaseProvider):
         organization_id: Optional[str],
         campaign_id: Optional[str] = None,
     ) -> Optional[str]:
-        """Retorna link de afiliado com sourceId para rastreamento Lomadee."""
+        """
+        Gera link afiliado rastreado via POST /affiliate/shortener/url.
+        Tipo Custom com a URL exata do produto.
+        Fallback para URL com sourceId se o shortener rejeitar o domínio.
+        """
+        if not product_url or not organization_id:
+            return self._build_affiliate_url(product_url)
+        try:
+            client = await self.get_client()
+            resp = await client.post(
+                f"{self.BASE_URL}/shortener/url",
+                headers={"x-api-key": settings.LOMADEE_API_KEY, "Content-Type": "application/json"},
+                json={"url": product_url, "organizationId": organization_id, "type": "Custom"},
+                timeout=8,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                # Resposta é lista de canais; pegar primeiro shortUrl disponível
+                if isinstance(data, list) and data:
+                    short_urls = data[0].get("shortUrls", [])
+                    if short_urls:
+                        return short_urls[0]
+        except Exception as exc:
+            logger.debug(f"Lomadee shortener failed: {type(exc).__name__}: {exc}")
+        # Fallback
         return self._build_affiliate_url(product_url)
 
     async def _has_catalog_access(self) -> bool:
