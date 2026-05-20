@@ -405,3 +405,24 @@ class AdminVideo(Base):
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     published_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class AffiliateProduct(Base):
+    """
+    Produtos afiliados do Mercado Livre cadastrados manualmente pelo admin.
+    O affiliate_url é único — não permite duplicata.
+    """
+    __tablename__ = "affiliate_products"
+
+    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ml_code           = Column(String, nullable=True)           # ex: S5L99N-Y7WN
+    affiliate_url     = Column(String, unique=True, nullable=False)  # https://meli.la/...
+    title             = Column(String, nullable=True)            # preenchido pelo admin
+    price             = Column(Float, nullable=True)             # R$ manual
+    commission_pct    = Column(Float, nullable=True)             # % ex: 12.0
+    category          = Column(String, nullable=True)            # ex: "Eletrônicos"
+    image_url         = Column(String, nullable=True)
+    notes             = Column(Text, nullable=True)
+    is_active         = Column(Boolean, default=True)
+    created_at        = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at        = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)

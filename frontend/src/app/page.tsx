@@ -32,6 +32,16 @@ function AuthButton() {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {user.is_admin && (
+          <a href="/afiliados" style={{
+            display: "flex", alignItems: "center", gap: 5,
+            fontSize: 12, fontWeight: 700, color: "#00e5a0",
+            background: "rgba(0,229,160,0.1)", border: "1px solid rgba(0,229,160,0.3)",
+            padding: "4px 12px", borderRadius: 99, textDecoration: "none",
+          }}>
+            💰 Afiliados
+          </a>
+        )}
+        {user.is_admin && (
           <a href="/aletubegames" style={{
             display: "flex", alignItems: "center", gap: 5,
             fontSize: 12, fontWeight: 700, color: "#facc15",
