@@ -73,7 +73,7 @@ def _calc(p: AffiliateProduct) -> dict:
         "commission_pct":   pct,
         "commission_value": per_sale,
         "estimate_10d":     round(per_sale * 10, 2),
-        "estimate_month":   round(per_sale * 10 * 30, 2),
+        "estimate_month":   round(per_sale * 30, 2),
         "category":         p.category,
         "image_url":        p.image_url,
         "notes":            p.notes,

@@ -348,7 +348,7 @@ function ProductsTab({ token }: { token: string }) {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid rgba(108,92,231,0.1)" }}>
-                  {["Foto", "Código ML", "Título", "Preço", "Comissão%", "Ganho/venda", "Est. mensal", "Ações"].map(h => (
+                  {["Foto", "Código ML", "Título", "Preço", "Comissão%", "Ganho/venda", "Est. 30 vendas", "Ações"].map(h => (
                     <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
