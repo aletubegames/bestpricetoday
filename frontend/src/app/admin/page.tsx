@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE as API } from "@/lib/api";
 
 const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
@@ -576,6 +577,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 }
 
 export default function AdminPage() {
+  const router = useRouter()
   const [key, setKey] = useState<string>("");
   const [inputKey, setInputKey] = useState("");
   const [loginError, setLoginError] = useState("");

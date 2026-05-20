@@ -28,17 +28,21 @@ export default function AleTubeGamesPage() {
   const [plataformas, setPlataformas] = useState(["tiktok", "youtube"]);
   const [affiliateUrl, setAffiliateUrl] = useState("");
 
-  // Proteção: user normal não pode acessar
+  // Proteção: user normal não pode acessar; não logado → /login
   useEffect(() => {
     const userStr = localStorage.getItem("bpt_user")
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        if (!user.is_admin) {
-          router.push("/")
-          return
-        }
-      } catch { }
+    if (!userStr) {
+      router.push("/login")
+      return
+    }
+    try {
+      const user = JSON.parse(userStr)
+      if (!user.is_admin) {
+        router.push("/")
+        return
+      }
+    } catch {
+      router.push("/login")
     }
   }, [router])
 
