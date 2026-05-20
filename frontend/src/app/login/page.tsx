@@ -19,19 +19,29 @@ export default function LoginPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
+        credentials: "include"
       })
+      
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.detail ?? "Erro ao entrar.")
+        return
+      }
+      
       const data = await res.json()
-      if (!res.ok) { setError(data.detail ?? "Erro ao entrar."); return }
-
+      console.log('Login success:', data)
+      
       localStorage.setItem("bpt_token", data.access_token)
       localStorage.setItem("bpt_user", JSON.stringify(data.user))
+      console.log('Saved to localStorage')
 
       if (data.user.is_admin) {
         router.push("/admin")
       } else {
         router.push("/dashboard")
       }
-    } catch {
+    } catch (err) {
+      console.error('Login error:', err)
       setError("Erro de conexão.")
     } finally {
       setLoading(false)
