@@ -612,10 +612,21 @@ export default function AdminPage() {
           fetch(`${API}/api/v1/admin/auth/session-key`, {
             headers: { "Authorization": `Bearer ${token}` },
           })
-            .then(r => r.ok ? r.json() : null)
+            .then(async (r) => {
+              if (r.ok) return r.json();
+              console.error(`[Admin Auto-Login] Status ${r.status}: ${await r.text()}`);
+              return null;
+            })
             .then(data => {
               if (data?.admin_key) {
+                console.log("[Admin Auto-Login] Success: key fetched");
                 localStorage.setItem("admin_key", data.admin_key);
+                setKey(data.admin_key);
+              } else {
+                console.error("[Admin Auto-Login] Failed: no admin_key in response");
+              }
+            })
+            .catch((err) => console.error("[Admin Auto-Login] Error:", err.message));
                 setKey(data.admin_key);
               }
             })
