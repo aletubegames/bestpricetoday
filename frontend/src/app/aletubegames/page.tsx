@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE as API } from "@/lib/api";
 
 type Step = "upload" | "analyze" | "preview" | "publish" | "published";
@@ -18,6 +19,7 @@ interface VideoData {
 }
 
 export default function AleTubeGamesPage() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("upload");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +27,20 @@ export default function AleTubeGamesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [plataformas, setPlataformas] = useState(["tiktok", "youtube"]);
   const [affiliateUrl, setAffiliateUrl] = useState("");
+
+  // Proteção: user normal não pode acessar
+  useEffect(() => {
+    const userStr = localStorage.getItem("bpt_user")
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (!user.is_admin) {
+          router.push("/")
+          return
+        }
+      } catch { }
+    }
+  }, [router])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

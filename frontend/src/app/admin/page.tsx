@@ -600,11 +600,23 @@ export default function AdminPage() {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
+    const token = localStorage.getItem("bpt_token")
+    const userStr = localStorage.getItem("bpt_user")
+    
+    // Proteção: user normal não pode acessar /admin
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (!user.is_admin) {
+          router.push("/")
+          return
+        }
+      } catch { }
+    }
+    
     const stored = localStorage.getItem("admin_key");
     if (stored) { setKey(stored); return; }
     // Auto-login: se o user for admin via JWT, busca a key automaticamente
-    const token = localStorage.getItem("bpt_token");
-    const userStr = localStorage.getItem("bpt_user");
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
