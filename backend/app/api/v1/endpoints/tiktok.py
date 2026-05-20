@@ -306,22 +306,29 @@ async def tiktok_admin_account(
     db: AsyncSession       = Depends(get_db),
 ):
     """Retorna a conta admin TikTok conectada."""
-    result  = await db.execute(
-        select(TikTokAccount).where(TikTokAccount.account_type == "admin", TikTokAccount.is_active == True)
-    )
-    account = result.scalar()
-    if not account:
-        return {"connected": False, "message": "Nenhuma conta admin TikTok conectada"}
-    return {
-        "connected":       True,
-        "display_name":    account.display_name,
-        "avatar_url":      account.avatar_url,
-        "is_verified":     account.is_verified,
-        "profile_link":    account.profile_link,
-        "scopes":          account.scopes,
-        "publishes_count": account.publishes_count,
-        "token_expires_at": account.token_expires_at.isoformat() if account.token_expires_at else None,
-    }
+    try:
+        result  = await db.execute(
+            select(TikTokAccount).where(
+                TikTokAccount.account_type == "admin",
+                TikTokAccount.is_active == True
+            )
+        )
+        account = result.scalar()
+        if not account:
+            return {"connected": False, "message": "Nenhuma conta admin TikTok conectada"}
+        return {
+            "connected":       True,
+            "display_name":    account.display_name,
+            "avatar_url":      account.avatar_url,
+            "is_verified":     account.is_verified,
+            "profile_link":    account.profile_link,
+            "scopes":          account.scopes,
+            "publishes_count": account.publishes_count,
+            "token_expires_at": account.token_expires_at.isoformat() if account.token_expires_at else None,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching TikTok admin account: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar conta TikTok admin: {str(e)}")
 
 
 class AdminPublishRequest(BaseModel):
