@@ -30,14 +30,26 @@ function AuthButton() {
   }, [])
   if (user) {
     return (
-      <a href={user.is_admin ? "/admin" : "/dashboard"} style={{
-        display: "flex", alignItems: "center", gap: 5,
-        fontSize: 12, fontWeight: 700, color: "#a78bfa",
-        background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)",
-        padding: "4px 12px", borderRadius: 99, textDecoration: "none",
-      }}>
-        {user.is_admin ? "👑" : "👤"} {user.name.split(" ")[0]}
-      </a>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {user.is_admin && (
+          <a href="/aletubegames" style={{
+            display: "flex", alignItems: "center", gap: 5,
+            fontSize: 12, fontWeight: 700, color: "#facc15",
+            background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.3)",
+            padding: "4px 12px", borderRadius: 99, textDecoration: "none",
+          }}>
+            🎥 AleTubeGames
+          </a>
+        )}
+        <a href={user.is_admin ? "/admin" : "/dashboard"} style={{
+          display: "flex", alignItems: "center", gap: 5,
+          fontSize: 12, fontWeight: 700, color: "#a78bfa",
+          background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)",
+          padding: "4px 12px", borderRadius: 99, textDecoration: "none",
+        }}>
+          {user.is_admin ? "👑" : "👤"} {user.name.split(" ")[0]}
+        </a>
+      </div>
     )
   }
   return (

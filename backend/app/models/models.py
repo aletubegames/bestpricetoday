@@ -303,3 +303,48 @@ class ShortLink(Base):
     clicks = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     last_clicked_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AdminVideo(Base):
+    """
+    Vídeos publicados pelo admin via AleTubeGames.
+    Rastreia upload, análise IA, publicação em TikTok + YouTube.
+    """
+    __tablename__ = "admin_videos"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Upload original
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    duration_seconds = Column(Integer, nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+
+    # Análise IA (extração de frames + metadata)
+    title = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    hashtags = Column(JSON, nullable=True)  # ["#tech", "#promo"]
+    thumbnail_url = Column(String, nullable=True)
+
+    # Publicação
+    plataformas = Column(JSON, nullable=False)  # ["tiktok", "youtube"]
+    publish_status = Column(String, default="pending")  # pending, publishing, published, failed
+    publish_error = Column(String, nullable=True)
+
+    # Links rastreados por plataforma
+    tiktok_video_id = Column(String, nullable=True)
+    tiktok_short_link = Column(String, nullable=True)
+    youtube_video_id = Column(String, nullable=True)
+    youtube_short_link = Column(String, nullable=True)
+
+    # Stats
+    tiktok_views = Column(Integer, default=0)
+    youtube_views = Column(Integer, default=0)
+    clicks_total = Column(Integer, default=0)
+    conversions = Column(Integer, default=0)
+    revenue = Column(Float, default=0.0)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
