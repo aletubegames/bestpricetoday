@@ -512,21 +512,20 @@ interface MarketplaceResult {
   texto_x1: string
 }
 
-interface TikTokSegment {
-  gancho?: string
-  problema?: string
-  solucao?: string
-  prova?: string
-  cta?: string
-  [key: string]: string | undefined
-}
-
 interface TikTokResult {
-  segments: TikTokSegment
+  segments: {
+    gancho?: string
+    problema?: string
+    solucao?: string
+    prova?: string
+    cta?: string
+    [key: string]: string | undefined
+  }
   legenda: string
   hashtags: string[]
   musica_sugerida: string
   dica_visual: string
+  variacao_b?: string
 }
 
 interface YouTubeResult {
@@ -536,6 +535,8 @@ interface YouTubeResult {
   tags: string[]
   timestamps: string[]
   thumbnail_texto: string
+  keyword_principal?: string
+  titulo_alternativo?: string
 }
 
 type GeneratedContent = MarketplaceResult | TikTokResult | YouTubeResult
@@ -625,14 +626,18 @@ const segmentColors: Record<string, string> = {
 }
 
 function TikTokResult({ data }: { data: TikTokResult }) {
+  const segLabels: Record<string, string> = {
+    gancho: "🎯 Gancho 0–3s", problema: "😤 Problema 3–8s", solucao: "✅ Solução 8–15s", prova: "⭐ Prova 15–20s", cta: "📲 CTA 20–25s"
+  }
   return (
     <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 14 }}>
       <h3 style={{ margin: 0, color: "#1a1a2e" }}>🎵 TikTok</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {Object.entries(data.segments ?? {}).map(([k, v]) => (
-          <div key={k} style={{ background: `${segmentColors[k] ?? "#7c6aff"}18`, border: `1px solid ${segmentColors[k] ?? accent}44`, borderRadius: 10, padding: "10px 14px" }}>
-            <div style={{ fontWeight: 700, color: segmentColors[k] ?? accent, fontSize: 12, textTransform: "uppercase", marginBottom: 6 }}>{k}</div>
-            <div style={{ fontSize: 13 }}>{v}</div>
+          <div key={k} style={{ background: `${segmentColors[k] ?? "#7c6aff"}14`, border: `1px solid ${segmentColors[k] ?? accent}33`, borderRadius: 10, padding: "10px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span style={{ fontWeight: 700, color: segmentColors[k] ?? accent, fontSize: 12, whiteSpace: "nowrap", minWidth: 110 }}>{segLabels[k] ?? k.toUpperCase()}</span>
+            <span style={{ fontSize: 13, flex: 1 }}>{v}</span>
+            <CopyBtn text={String(v)} />
           </div>
         ))}
       </div>
@@ -641,13 +646,29 @@ function TikTokResult({ data }: { data: TikTokResult }) {
         <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>Hashtags</div>
         <Chips items={data.hashtags ?? []} />
       </div>
-      <Field label="Música Sugerida" value={data.musica_sugerida} />
+      <Field label="🎵 Música Sugerida" value={data.musica_sugerida} />
       {data.dica_visual && (
         <div style={{ background: "#fffbeb", border: "1px solid #f59e0b44", borderRadius: 10, padding: "10px 14px" }}>
-          <span style={{ fontWeight: 700, color: "#d97706" }}>💡 Dica Visual: </span>
+          <div style={{ fontWeight: 700, color: "#d97706", marginBottom: 4, fontSize: 12 }}>💡 STORYBOARD VISUAL</div>
           <span style={{ fontSize: 13 }}>{data.dica_visual}</span>
         </div>
       )}
+      {data.variacao_b && (
+        <div style={{ background: "rgba(46,204,113,0.06)", border: "1px solid #2ecc7144", borderRadius: 10, padding: "10px 14px" }}>
+          <div style={{ fontWeight: 700, color: "#27ae60", marginBottom: 4, fontSize: 12 }}>🔀 VARIAÇÃO B (A/B TEST)</div>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>{data.variacao_b}</div>
+          <CopyBtn text={data.variacao_b} />
+        </div>
+      )}
+      <div style={{ marginTop: 4 }}>
+        <CopyBtn text={[
+          Object.entries(data.segments ?? {}).map(([k,v]) => `[${k.toUpperCase()}] ${v}`).join("\n"),
+          `\nLegenda: ${data.legenda}`,
+          `Hashtags: ${(data.hashtags ?? []).join(" ")}`,
+          `Música: ${data.musica_sugerida}`,
+        ].join("\n")} />
+        <span style={{ marginLeft: 8, fontSize: 12, color: muted }}>Copiar script completo</span>
+      </div>
     </div>
   )
 }
@@ -657,33 +678,80 @@ function YouTubeResult({ data }: { data: YouTubeResult }) {
   return (
     <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 14 }}>
       <h3 style={{ margin: 0, color: "#1a1a2e" }}>📺 YouTube</h3>
-      <Field label="Título do Vídeo" value={data.titulo_video} />
-      {data.thumbnail_texto && (
-        <div style={{ background: "#1a1a2e", color: "#fff", borderRadius: 10, padding: "14px 18px", fontSize: 18, fontWeight: 800, textAlign: "center" }}>
-          {data.thumbnail_texto}
+
+      {/* Títulos */}
+      <Field label="Título Principal" value={data.titulo_video} />
+      {data.titulo_alternativo && (
+        <div style={{ background: "rgba(46,204,113,0.06)", border: "1px solid #2ecc7144", borderRadius: 10, padding: "10px 14px" }}>
+          <div style={{ fontWeight: 700, color: "#27ae60", fontSize: 12, marginBottom: 4 }}>🔀 TÍTULO ALTERNATIVO (A/B TEST)</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 13, flex: 1 }}>{data.titulo_alternativo}</span>
+            <CopyBtn text={data.titulo_alternativo} />
+          </div>
         </div>
       )}
+      {data.keyword_principal && (
+        <div style={{ fontSize: 12, color: muted }}>🔍 Keyword principal: <strong style={{ color: accent }}>{data.keyword_principal}</strong></div>
+      )}
+
+      {/* Thumbnail */}
+      {data.thumbnail_texto && (
+        <div>
+          <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>Thumbnail</div>
+          <div style={{ background: "#1a1a2e", color: "#fff", borderRadius: 10, padding: "16px 20px", fontSize: 22, fontWeight: 800, textAlign: "center", letterSpacing: 1 }}>
+            {data.thumbnail_texto}
+          </div>
+        </div>
+      )}
+
+      {/* Roteiro */}
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <span style={{ fontSize: 12, color: muted }}>Roteiro</span>
-          <button onClick={() => setRotExpanded(v => !v)} style={{ fontSize: 12, color: accent, background: "none", border: "none", cursor: "pointer" }}>
-            {rotExpanded ? "Recolher ▲" : "Expandir ▼"}
-          </button>
+          <span style={{ fontSize: 12, color: muted, fontWeight: 600 }}>📝 Roteiro Completo</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <CopyBtn text={typeof data.roteiro === "string" ? data.roteiro : JSON.stringify(data.roteiro, null, 2)} />
+            <button onClick={() => setRotExpanded(v => !v)} style={{ fontSize: 12, color: accent, background: "none", border: `1px solid ${accent}44`, borderRadius: 6, padding: "2px 10px", cursor: "pointer" }}>
+              {rotExpanded ? "Recolher ▲" : "Expandir ▼"}
+            </button>
+          </div>
         </div>
-        {rotExpanded && <pre style={{ whiteSpace: "pre-wrap", fontSize: 13, background: "#f8f8ff", borderRadius: 8, padding: 12 }}>{data.roteiro}</pre>}
+        {rotExpanded && (
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13, background: "#f8f8ff", borderRadius: 8, padding: 14, margin: 0, lineHeight: 1.7 }}>
+            {typeof data.roteiro === "string" ? data.roteiro : JSON.stringify(data.roteiro, null, 2)}
+          </pre>
+        )}
+        {!rotExpanded && (
+          <div style={{ fontSize: 12, color: muted, fontStyle: "italic", padding: "6px 0" }}>
+            {typeof data.roteiro === "string" ? data.roteiro.slice(0, 120) + "…" : "(clique em Expandir para ver)"}
+          </div>
+        )}
       </div>
-      <Field label="Descrição" value={data.descricao} multiline />
+
+      {/* Descrição */}
+      <Field label="📄 Descrição YouTube (SEO)" value={typeof data.descricao === "string" ? data.descricao : (data as unknown as Record<string, string>)["descricao_youtube"] ?? ""} multiline />
+
+      {/* Timestamps */}
       {(data.timestamps?.length > 0) && (
         <div>
-          <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>Timestamps</div>
-          <ul style={{ margin: 0, paddingLeft: 20 }}>
-            {data.timestamps.map((t, i) => <li key={i} style={{ fontSize: 13 }}>{t}</li>)}
-          </ul>
+          <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>⏱️ Timestamps</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {data.timestamps.map((t, i) => (
+              <div key={i} style={{ fontSize: 13, padding: "4px 10px", background: "#f8f8ff", borderRadius: 6 }}>{t}</div>
+            ))}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <CopyBtn text={data.timestamps.join("\n")} />
+          </div>
         </div>
       )}
+
+      {/* Tags */}
       <div>
-        <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>Tags</div>
+        <div style={{ fontSize: 12, color: muted, marginBottom: 6 }}>🏷️ Tags ({data.tags?.length ?? 0})</div>
         <Chips items={data.tags ?? []} />
+        <div style={{ marginTop: 8 }}>
+          <CopyBtn text={(data.tags ?? []).join(", ")} />
+        </div>
       </div>
     </div>
   )
