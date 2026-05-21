@@ -4,6 +4,81 @@
 
 ---
 
+## Atualizações recentes (2026-05-21)
+
+### Afiliados ML — Ordenação de colunas na tabela de Produtos
+- Colunas clicáveis para sort: **Código ML**, **Título**, **Preço**, **Comissão%**, **Ganho/venda**
+- Sort por clique na coluna (toggle asc/desc); seta ↑↓ indica direção ativa, ⇅ indica sem sort
+- Estado: `sortKey` + `sortDir` no componente `ProductsTab`
+- Arquivo: `frontend/src/app/afiliados/page.tsx`
+
+### tools/ml_extract.js — Como usar
+**Objetivo:** Extrair lista de produtos afiliados da página ML Afiliados e baixar como JSON.
+
+**Pré-requisito:** Estar logado em `https://www.mercadolivre.com.br/afiliados/` com seus produtos visíveis.
+
+**Uso:**
+1. Abrir a página ML Afiliados no Chrome
+2. Abre console (F12 → Console)
+3. Colar o conteúdo de `tools/ml_extract.js` e pressionar Enter
+4. O script rola a página automaticamente, abre o modal de cada produto, captura link curto + código ML
+5. Ao terminar, baixa automaticamente `afiliados_ml_YYYY-MM-DD.json`
+
+**Campos extraídos por produto:**
+```json
+{
+  "nome": "Álbum Copa Do Mundo 2026...",
+  "badge": "MAIS VENDIDO",
+  "preco": "R$ 119 ,",
+  "parcelas": "3x R$ 39,67 sem juros",
+  "desconto": "",
+  "ganhos": "Ganhe R$ 5,95",
+  "avaliacao": "4.6",
+  "vendidos": "100+ vendidos",
+  "link_prod": "https://meli.la/XXXX",
+  "Codigo_ML": "MLB-XXXXXXX"
+}
+```
+
+**Depois de baixar o JSON:**
+- Importar no BestPriceToday via `POST /api/v1/affiliate/products/seed` (batch upsert)
+- Usar `POST /api/v1/affiliate/products/enrich` para preencher título/preço/imagem via API ML
+- Usar com `fb_marketplace_ext` para publicar no Facebook Marketplace
+
+---
+
+### ~/bin/fb_marketplace_ext — Como usar
+**Objetivo:** Extensão Chrome que preenche automaticamente o formulário de anúncio do Facebook Marketplace com dados dos produtos ML afiliados.
+
+**Instalação:**
+1. Chrome → `chrome://extensions/` → Ativar "Modo do desenvolvedor"
+2. "Carregar sem compactação" → selecionar `~/bin/fb_marketplace_ext/`
+
+**Fluxo de uso:**
+1. Abrir `https://www.facebook.com/marketplace/create/item`
+2. Clicar no ícone da extensão na barra do Chrome
+3. **Campo 1 — JSON:** clicar "Escolher arquivo" e selecionar o `afiliados_ml_YYYY-MM-DD.json` (gerado pelo `ml_extract.js`)
+4. **Campo 2 — Pasta de imagens:** clicar "Escolher pasta" e selecionar a pasta com as imagens dos produtos
+   - Cada imagem deve ter o mesmo nome do campo `nome` do produto (ex: `Álbum Copa Do Mundo 2026 Capa Mole + 84 Figurinhas.jpg`)
+5. **Campo 3 — Produto:** selecionar o produto desejado no dropdown
+6. Clicar **"▶ Preencher Formulário"**
+7. O script preenche automaticamente: nome, preço, descrição (com parcelas + link afiliado + avaliação), imagem
+8. Acompanhar progresso no status abaixo do botão
+
+**Campos preenchidos automaticamente:**
+- Nome do produto
+- Preço (extraído do campo `preco`, convertido para número)
+- Descrição: parcelas + avaliação + qtd vendidos + link afiliado (formato clicável)
+- Tags: primeiras 6 palavras do nome com 4+ caracteres
+- Imagem: enviada diretamente ao formulário via base64
+
+**Atenção:**
+- `content.js` está reservado para uso futuro (apenas comentário)
+- O preenchimento real é feito via `scripting.executeScript` → função `preencherFormulario` injetada na aba ativa
+- Se a imagem não for encontrada, exibe erro com o nome esperado do arquivo
+
+---
+
 ## Atualizações recentes (2026-05-20)
 
 ### Navegação e proteção de rotas

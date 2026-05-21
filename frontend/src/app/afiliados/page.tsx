@@ -234,6 +234,16 @@ function ProductsTab({ token }: { token: string }) {
     await load()
   }
 
+  // Sort
+  const [sortKey, setSortKey] = useState<"ml_code" | "title" | "price" | "commission_pct" | "commission_value" | null>(null)
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+
+  function handleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc")
+    else { setSortKey(key); setSortDir("asc") }
+    setPage(1)
+  }
+
   // Search
   const [search, setSearch] = useState("")
 
@@ -242,13 +252,32 @@ function ProductsTab({ token }: { token: string }) {
   const totalMonth = products.reduce((a, p) => a + (p.estimate_month ?? 0), 0)
 
   // Filter + Pagination
-  const filtered = search.trim()
-    ? products.filter(p =>
-        (p.title || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.ml_code || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.category || "").toLowerCase().includes(search.toLowerCase())
-      )
-    : products
+  const filtered = (() => {
+    let arr = search.trim()
+      ? products.filter(p =>
+          (p.title || "").toLowerCase().includes(search.toLowerCase()) ||
+          (p.ml_code || "").toLowerCase().includes(search.toLowerCase()) ||
+          (p.category || "").toLowerCase().includes(search.toLowerCase())
+        )
+      : [...products]
+
+    if (sortKey) {
+      arr.sort((a, b) => {
+        let av: string | number = ""
+        let bv: string | number = ""
+        if (sortKey === "ml_code") { av = a.ml_code ?? ""; bv = b.ml_code ?? "" }
+        else if (sortKey === "title") { av = a.title ?? ""; bv = b.title ?? "" }
+        else if (sortKey === "price") { av = a.price; bv = b.price }
+        else if (sortKey === "commission_pct") { av = a.commission_pct; bv = b.commission_pct }
+        else if (sortKey === "commission_value") { av = a.commission_value; bv = b.commission_value }
+        if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av
+        return sortDir === "asc"
+          ? String(av).localeCompare(String(bv), "pt-BR")
+          : String(bv).localeCompare(String(av), "pt-BR")
+      })
+    }
+    return arr
+  })()
   const totalPages = Math.ceil(filtered.length / perPage)
   const startIdx = (page - 1) * perPage
   const pageProducts = filtered.slice(startIdx, startIdx + perPage)
@@ -373,9 +402,24 @@ function ProductsTab({ token }: { token: string }) {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid rgba(108,92,231,0.1)" }}>
-                  {["Foto", "Código ML", "Título", "Preço", "Comissão%", "Ganho/venda", "Est. 30 vendas", "Ações"].map(h => (
-                    <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>{h}</th>
+                  <th style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>Foto</th>
+                  {([
+                    { label: "Código ML",   key: "ml_code" },
+                    { label: "Título",       key: "title" },
+                    { label: "Preço",        key: "price" },
+                    { label: "Comissão%",    key: "commission_pct" },
+                    { label: "Ganho/venda", key: "commission_value" },
+                  ] as { label: string; key: typeof sortKey }[]).map(({ label, key }) => (
+                    <th
+                      key={label}
+                      onClick={() => handleSort(key)}
+                      style={{ padding: "10px 12px", textAlign: "left", color: sortKey === key ? accent : muted, fontWeight: 600, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                    >
+                      {label} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : <span style={{ opacity: 0.3 }}>↕</span>}
+                    </th>
                   ))}
+                  <th style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>Est. 30 vendas</th>
+                  <th style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
