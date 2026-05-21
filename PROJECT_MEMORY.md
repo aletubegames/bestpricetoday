@@ -66,16 +66,19 @@
 8. Acompanhar progresso no status abaixo do botão
 
 **Campos preenchidos automaticamente:**
-- Nome do produto
-- Preço (extraído do campo `preco`, convertido para número)
-- Descrição: parcelas + avaliação + qtd vendidos + link afiliado (formato clicável)
-- Tags: primeiras 6 palavras do nome com 4+ caracteres
-- Imagem: enviada diretamente ao formulário via base64
+- Título
+- Preço (extração robusta: "R$ 119 ,90" → "119.90")
+- Categoria (dropdown)
+- Condição (dropdown, default "Novo")
+- Descrição: parcelas + avaliação + qtd vendidos + link afiliado
+- **Disponibilidade**: verifica se já está "Em estoque", só muda se necessário
+- **Etiquetas**: cada tag digitada individualmente + Enter (limite 20) — array ou string separada por vírgula
+- Marca (se presente no JSON)
+- **SKU**: usa `Codigo_ML` do JSON extraído pelo `ml_extract.js`
+- Avança para próxima tela automaticamente
 
-**Atenção:**
-- `content.js` está reservado para uso futuro (apenas comentário)
-- O preenchimento real é feito via `scripting.executeScript` → função `preencherFormulario` injetada na aba ativa
-- Se a imagem não for encontrada, exibe erro com o nome esperado do arquivo
+**Campos que requerem preenchimento manual:**
+- Publicar (descomentável no código após validação)
 
 ---
 
