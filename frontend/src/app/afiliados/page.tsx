@@ -234,14 +234,24 @@ function ProductsTab({ token }: { token: string }) {
     await load()
   }
 
+  // Search
+  const [search, setSearch] = useState("")
+
   // Stats
   const avgComm = products.length ? (products.reduce((a, p) => a + p.commission_pct, 0) / products.length) : 0
   const totalMonth = products.reduce((a, p) => a + (p.estimate_month ?? 0), 0)
 
-  // Pagination
-  const totalPages = Math.ceil(products.length / perPage)
+  // Filter + Pagination
+  const filtered = search.trim()
+    ? products.filter(p =>
+        (p.title || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.ml_code || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.category || "").toLowerCase().includes(search.toLowerCase())
+      )
+    : products
+  const totalPages = Math.ceil(filtered.length / perPage)
   const startIdx = (page - 1) * perPage
-  const pageProducts = products.slice(startIdx, startIdx + perPage)
+  const pageProducts = filtered.slice(startIdx, startIdx + perPage)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -322,10 +332,25 @@ function ProductsTab({ token }: { token: string }) {
 
       {/* Table */}
       <div style={cardStyle}>
+        {/* Search */}
+        <div style={{ marginBottom: 14 }}>
+          <input
+            type="text"
+            placeholder="🔍 Buscar por nome, código ML ou categoria..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 9, border: "1px solid #ddd", fontSize: 14, outline: "none" }}
+          />
+          {search && (
+            <div style={{ fontSize: 12, color: muted, marginTop: 6 }}>
+              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} para "{search}"
+            </div>
+          )}
+        </div>
         {/* Pagination controls top */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <span style={{ fontSize: 13, color: muted }}>
-            Mostrando {products.length === 0 ? 0 : startIdx + 1}–{Math.min(startIdx + perPage, products.length)} de {products.length} produtos
+            Mostrando {filtered.length === 0 ? 0 : startIdx + 1}–{Math.min(startIdx + perPage, filtered.length)} de {filtered.length} produtos
           </span>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <span style={{ fontSize: 13, color: muted }}>Por página:</span>
