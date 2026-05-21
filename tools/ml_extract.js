@@ -1,157 +1,91 @@
-/**
- * ML Affiliate Product Extractor
- * ================================
- * Cole no Console do F12 estando na página do produto no Mercado Livre.
- * Extrai título, preço, imagem e envia para o BestPriceToday.
- *
- * USO:
- *   1. Abra o link meli.la do produto (ex: https://meli.la/2PDYyF6)
- *   2. Navegue até o produto específico no ML
- *   3. Abra F12 → Console
- *   4. Cole este script inteiro e pressione Enter
- *   5. Informe o ml_code quando pedido (ex: S5L99N-YHT3)
- */
+async function extrairAfiliados() {
+  const vistos = new Set();
+  const produtos = [];
+  let semNovos = 0;
+  console.log('🚀 Iniciando coleta...');
 
-(async function() {
-  const API    = "https://alessandro2090-bestpricetoday-api.hf.space";
-  const TOKEN  = localStorage.getItem("bpt_token") || prompt("Cole seu bpt_token (pegue em bestpricetoday.vercel.app → F12 → Application → localStorage):");
+  while (semNovos < 8) {
+    const cards = document.querySelectorAll('.poly-card__content');
+    let novosNestaCiclo = 0;
 
-  // ── 1. Extrair dados da página ──────────────────────────────────────────
+    for (const card of cards) {
+      const nome = card.querySelector('a.poly-component__title')?.innerText?.trim() || '';
+      if (!nome || vistos.has(nome)) continue;
+      vistos.add(nome);
+      novosNestaCiclo++;
 
-  // Título
-  const titleEl = document.querySelector("h1.ui-pdp-title") ||
-                  document.querySelector("[class*='title']");
-  const title = titleEl?.textContent?.trim() || document.title.replace(" | Mercado Livre", "").trim();
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await new Promise(r => setTimeout(r, 300));
 
-  // Preço principal
-  let price = null;
-  const fractionEl = document.querySelector(".andes-money-amount__fraction");
-  const centsEl    = document.querySelector(".andes-money-amount__cents");
-  if (fractionEl) {
-    const fraction = fractionEl.textContent.replace(/\./g, "").trim();
-    const cents    = centsEl?.textContent?.trim() || "00";
-    price = parseFloat(`${fraction}.${cents}`);
-  }
+      const badge     = card.querySelector('.poly-component__highlight')?.innerText?.trim() || '';
+      const avaliacao = card.querySelector('.poly-phrase-label.poly-fs-xs.poly-fw-regular')?.innerText?.trim() || '';
+      const vendidos  = (card.querySelector('.poly-phrase-label.poly-fs-xs:not(.poly-fw-regular)')?.innerText?.trim() || '').replace(/^\|\s*\+?/, '').trim();
+      const ganhos    = card.querySelector('.poly-component__label.poly-fw-semibold')?.innerText?.trim() || '';
+      const preco     = card.querySelector('.poly-price__current')?.innerText?.replace(/\s+/g, ' ').trim() || '';
+      const parcelas  = card.querySelector('.poly-price__installments')?.innerText?.replace(/\s+/g, ' ').trim() || '';
+      const desconto  = card.querySelector('[class*="discount__amount"], .poly-price__original')?.innerText?.replace(/\s+/g, ' ').trim() || '';
 
-  // Imagem principal
-  let image = null;
-  const imgEl = document.querySelector(".ui-pdp-image.ui-pdp-gallery__figure__image") ||
-                document.querySelector("figure.ui-pdp-gallery__figure img") ||
-                document.querySelector("[class*='gallery'] img");
-  if (imgEl) {
-    image = imgEl.getAttribute("data-zoom") || imgEl.src || imgEl.getAttribute("src");
-    // Pegar versão maior se disponível
-    if (image) image = image.replace(/\?(.*?)$/, "").replace(/-[A-Z]\.jpg/, "-O.jpg");
-  }
+      let link_prod = '';
+      let Codigo_ML = '';
 
-  // Tentar pegar do __PRELOADED_STATE__ se disponível
-  try {
-    const scripts = [...document.querySelectorAll("script")];
-    for (const s of scripts) {
-      if (s.textContent.includes("__PRELOADED_STATE__")) {
-        const match = s.textContent.match(/__PRELOADED_STATE__\s*=\s*(\{.*?\});?\s*(?:window\.|<\/script>)/s);
-        if (match) {
-          const state = JSON.parse(match[1]);
-          const comp  = state?.initialState?.components?.head?.title;
-          if (comp && !title) title = comp;
-          const pComp = state?.initialState?.components?.price?.value;
-          if (pComp && !price) price = parseFloat(pComp);
-          break;
-        }
-      }
+      const writeTextOriginal = navigator.clipboard.writeText.bind(navigator.clipboard);
+
+      // Abre o modal
+      card.querySelector('.andes-button--quiet')?.click();
+      await new Promise(r => setTimeout(r, 900));
+
+      // --- Captura link curto (button[1]) ---
+      navigator.clipboard.writeText = async (text) => { link_prod = text; return Promise.resolve(); };
+
+      const btnLink = document.evaluate(
+        '/html/body/div[6]/div/div/div/div[2]/div/button[1]/div/div',
+        document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
+      ).singleNodeValue;
+      btnLink?.click();
+      await new Promise(r => setTimeout(r, 700));
+
+      // --- Captura código ML (button[3]) ---
+      navigator.clipboard.writeText = async (text) => { Codigo_ML = text; return Promise.resolve(); };
+
+      const btnCodigo = document.evaluate(
+        '/html/body/div[6]/div/div/div/div[2]/div/button[3]',
+        document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
+      ).singleNodeValue;
+      btnCodigo?.click();
+      await new Promise(r => setTimeout(r, 700));
+
+      // Restaura clipboard original
+      navigator.clipboard.writeText = writeTextOriginal;
+
+      // Limpa o código ML (pega só a parte após ":")
+      Codigo_ML = Codigo_ML.match(/:\s*([A-Z0-9]+-[A-Z0-9]+)/)?.[1] || Codigo_ML;
+
+      // Fecha modal
+      document.querySelector('.andes-modal__close, [aria-label="Fechar"]')?.click();
+      await new Promise(r => setTimeout(r, 300));
+
+      produtos.push({ nome, badge, preco, parcelas, desconto, ganhos, avaliacao, vendidos, link_prod, Codigo_ML });
+      console.log(`[${produtos.length}] ${nome.slice(0, 60)} → link: "${link_prod}" | código: "${Codigo_ML}"`);
     }
-  } catch(e) {}
 
-  console.log("=== DADOS EXTRAÍDOS ===");
-  console.log("Título:", title);
-  console.log("Preço: R$", price);
-  console.log("Imagem:", image?.substring(0, 80));
-  console.log("URL:", location.href);
-
-  if (!title) {
-    alert("❌ Não consegui extrair o título. Tente em outra página do produto.");
-    return;
+    semNovos = novosNestaCiclo === 0 ? semNovos + 1 : 0;
+    window.scrollBy(0, 800);
+    await new Promise(r => setTimeout(r, 1500));
   }
 
-  // ── 2. Identificar qual produto atualizar ───────────────────────────────
+  const json = JSON.stringify(produtos, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `afiliados_ml_${new Date().toISOString().slice(0, 10)}.json`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
 
-  // Buscar lista de produtos sem título
-  let products = [];
-  try {
-    const r = await fetch(`${API}/api/v1/affiliate/products`, {
-      headers: { "Authorization": `Bearer ${TOKEN}` }
-    });
-    const d = await r.json();
-    products = (d.products || []).filter(p => !p.title);
-  } catch(e) {
-    console.error("Erro ao buscar produtos:", e);
-    alert("❌ Erro ao conectar com a API. Verifique o token.");
-    return;
-  }
+  console.log(`\n✅ CONCLUÍDO: ${produtos.length} produtos → arquivo baixado`);
+  return produtos;
+}
 
-  console.log(`\nProdutos sem título: ${products.length}`);
-  products.forEach(p => console.log(`  ${p.ml_code} → ${p.id}`));
-
-  // Pedir o ml_code para identificar qual produto atualizar
-  const mlCode = prompt(
-    `Qual o código ML deste produto?\n\n` +
-    `Produtos sem título:\n${products.map(p => p.ml_code).join("\n")}\n\n` +
-    `(ex: S5L99N-YHT3)`
-  );
-
-  if (!mlCode) { console.log("Cancelado."); return; }
-
-  const product = products.find(p => p.ml_code === mlCode.trim().toUpperCase());
-  if (!product) {
-    // Tentar buscar em todos os produtos (pode já ter título mas querer atualizar)
-    const r2 = await fetch(`${API}/api/v1/affiliate/products`, {
-      headers: { "Authorization": `Bearer ${TOKEN}` }
-    });
-    const d2 = await r2.json();
-    const all = d2.products || [];
-    const found = all.find(p => p.ml_code === mlCode.trim().toUpperCase());
-    if (!found) {
-      alert(`❌ Código ${mlCode} não encontrado na base.`);
-      return;
-    }
-    Object.assign(product || {}, found);
-    // product agora é found
-    const productToUpdate = found;
-
-    // ── 3. Enviar para a API ──────────────────────────────────────────────
-    await sendUpdate(productToUpdate, title, price, image, TOKEN, API);
-    return;
-  }
-
-  await sendUpdate(product, title, price, image, TOKEN, API);
-
-  async function sendUpdate(prod, t, p, img, tok, api) {
-    const payload = {};
-    if (t)   payload.title     = t;
-    if (p)   payload.price     = p;
-    if (img) payload.image_url = img;
-
-    console.log("\n=== ENVIANDO ===");
-    console.log("product_id:", prod.id);
-    console.log("payload:", payload);
-
-    const res = await fetch(`${api}/api/v1/affiliate/products/${prod.id}`, {
-      method: "PATCH",
-      headers: {
-        "Authorization": `Bearer ${tok}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const result = await res.json();
-    if (res.ok) {
-      console.log("✅ Atualizado com sucesso:", result.title, "R$", result.price);
-      alert(`✅ Produto atualizado!\n\nTítulo: ${result.title}\nPreço: R$ ${result.price}\nImagem: ${result.image_url ? "✅" : "❌"}`);
-    } else {
-      console.error("❌ Erro:", result);
-      alert(`❌ Erro: ${JSON.stringify(result)}`);
-    }
-  }
-
-})();
+extrairAfiliados();
