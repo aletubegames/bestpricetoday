@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { API_BASE as API } from "@/lib/api"
+import { logger } from "@/lib/logger"
 import Link from "next/link"
 
 export default function LoginPage() {
@@ -29,15 +30,13 @@ export default function LoginPage() {
       }
       
       const data = await res.json()
-      console.log('Login success:', data)
       
       localStorage.setItem("bpt_token", data.access_token)
       localStorage.setItem("bpt_user", JSON.stringify(data.user))
-      console.log('Saved to localStorage')
 
       router.push("/")
     } catch (err) {
-      console.error('Login error:', err)
+      logger.error('Login error:', err);
       setError("Erro de conexão.")
     } finally {
       setLoading(false)

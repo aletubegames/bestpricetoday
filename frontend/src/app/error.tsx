@@ -1,5 +1,6 @@
 "use client"
 import { useEffect } from "react"
+import { logger } from "@/lib/logger"
 import Link from "next/link"
 
 export default function Error({
@@ -10,7 +11,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(error)
+    logger.error("Page error boundary triggered:", error);
   }, [error])
 
   return (

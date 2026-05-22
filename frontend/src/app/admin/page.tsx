@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE as API } from "@/lib/api";
+import { logger } from "@/lib/logger";
 
 const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
 const PROVIDER_COLORS: Record<string, string> = {
@@ -628,21 +629,20 @@ export default function AdminPage() {
           })
             .then(async (r) => {
               if (r.ok) return r.json();
-              console.error(`[Admin Auto-Login] Status ${r.status}: ${await r.text()}`);
+              logger.error(`[Admin Auto-Login] Status ${r.status}: ${await r.text()}`);
               return null;
             })
             .then(data => {
               if (data?.admin_key) {
-                console.log("[Admin Auto-Login] Success: key fetched");
                 localStorage.setItem("admin_key", data.admin_key);
                 setKey(data.admin_key);
               } else {
-                console.error("[Admin Auto-Login] Failed: no admin_key in response");
+                logger.error("[Admin Auto-Login] Failed: no admin_key in response");
               }
             })
-            .catch((err) => console.error("[Admin Auto-Login] Error:", err.message));
+            .catch((err) => logger.error("[Admin Auto-Login] Error:", err.message));
         }
-      } catch (e) { console.error("[Admin Auto-Login] Parse error:", e); }
+      } catch (e) { logger.error("[Admin Auto-Login] Parse error:", e); }
     }
   }, []);
 
@@ -679,7 +679,7 @@ export default function AdminPage() {
       if (intStatus) { setIntegrationStatus(intStatus); setIntegrationStatusError(null); }
       setTiktokAdminAccount(ttAdmin); setLastUpdated(new Date());
     } catch (e: unknown) {
-      console.error(e);
+      logger.error("Admin data fetch failed:", e);
       setIntegrationStatusError(getErrorMessage(e));
     }
     setLoading(false);

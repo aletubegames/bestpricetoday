@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import type { SearchResponse } from "@/types";
-
+import { logger } from "@/lib/logger";
 import { API_BASE as API_URL } from "@/lib/api";
 
 export function useSearch(query: string) {
@@ -14,7 +14,7 @@ export function useSearch(query: string) {
         });
         return data;
       } catch (error: unknown) {
-        console.error("Search failed:", axios.isAxiosError(error) ? error.message : error);
+        logger.error("Search failed:", axios.isAxiosError(error) ? error.message : error);
         throw new Error("Search failed");
       }
     },
