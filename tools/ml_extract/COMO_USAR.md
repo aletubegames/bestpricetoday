@@ -68,9 +68,46 @@ Um arquivo JSON com nome `afiliados_ml_YYYY-MM-DD.json` é baixado com estrutura
 | Não captura links | Verifique se os botões de cópia do site estão disponíveis |
 | Modal não fecha | Aguarde mais tempo no setTimeout |
 
-## Integração
-Os dados podem ser importados em:
+## Integrar com o Banco de Dados
+
+### Automático (post-commit hook)
+
+Após commitar um novo JSON, o hook `.git/hooks/post-commit` detecta automaticamente e roda o import:
+
+```bash
+git add tools/ml_extract/afiliados_ml_YYYY-MM-DD.json
+git commit -m "dados ml 2026-05-24"
+# output: Rodando import... [NEW/UPD por produto] Import concluído.
+```
+
+### Manual (CLI)
+
+```bash
+# Importar o JSON mais recente
+python tools/ml_extract/import.py
+
+# Importar arquivo específico
+python tools/ml_extract/import.py --file afiliados_ml_2026-05-24.json
+
+# Simular sem escrever no BD
+python tools/ml_extract/import.py --dry-run
+
+# Log detalhado (NEW/UPD/SKIP por produto)
+python tools/ml_extract/import.py --verbose
+```
+
+### Parse de campos
+
+O script extrai automaticamente dos JSON:
+- `nome` → `title`
+- `preco` → `price` (parse "R$ 1.998 9% OFF" → 1998.0)
+- `ganhos` → `commission_pct` (parse "15%" → 15.0)
+- `link_prod` → `affiliate_url` (chave única, upsert)
+- `Codigo_ML` → `ml_code`
+- `badge`, `avaliacao`, `vendidos` → `notes`
+
+### Uso manual alternativo
+Os dados JSON também podem ser importados em:
 - Excel/Google Sheets
-- Banco de dados
 - Sistema de gestão de afiliados
 - Scripts de automação (tiktok_post, por exemplo)
