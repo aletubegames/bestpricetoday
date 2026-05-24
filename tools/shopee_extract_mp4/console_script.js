@@ -6,71 +6,11 @@
 
   // ── COLE SEUS LINKS AQUI ──────────────────────────────────
   const links = `
-https://s.shopee.com.br/gN7WGIjdk
-https://s.shopee.com.br/qgXiZI6In
-https://s.shopee.com.br/10zxusHSxq
-https://s.shopee.com.br/1BJO7BGpct
-https://s.shopee.com.br/1LcoJUGCHw
-https://s.shopee.com.br/1VwEVnFYwz
-https://s.shopee.com.br/1gFei6Evc2
-https://s.shopee.com.br/1qZ4uPEIH5
-https://s.shopee.com.br/20sV6iDew8
-https://s.shopee.com.br/2BBvJ1D1bB
-https://s.shopee.com.br/2LVLVKCOGE
-https://s.shopee.com.br/2VolhdBkvH
-https://s.shopee.com.br/2g8BtwB7aK
-https://s.shopee.com.br/2qRc6FAUFN
-https://s.shopee.com.br/30l2IY9quQ
-https://s.shopee.com.br/3B4SUr9DZT
-https://s.shopee.com.br/3LNshA8aEW
-https://s.shopee.com.br/3VhItT7wtZ
-https://s.shopee.com.br/3g0j5m7JYc
-https://s.shopee.com.br/3qK9I56gDf
-https://s.shopee.com.br/40dZUO62si
-https://s.shopee.com.br/4Awzgh5PXl
-https://s.shopee.com.br/4LGPt04mCo
-https://s.shopee.com.br/4VZq5J48rr
-https://s.shopee.com.br/4ftGHc3VWu
-https://s.shopee.com.br/4qCgTv2sBx
-https://s.shopee.com.br/50W6gE2Er0
-https://s.shopee.com.br/5ApWsX1bW3
-https://s.shopee.com.br/5L8x4q0yB6
-https://s.shopee.com.br/5VSNH90Kq9
-https://s.shopee.com.br/5flnTRzhVC
-https://s.shopee.com.br/5q5Dfkz4AF
-https://s.shopee.com.br/60Ods3yQpI
-https://s.shopee.com.br/6Ai44MxnUL
-https://s.shopee.com.br/6L1UGfxA9O
-https://s.shopee.com.br/6VKuSywWoR
-https://s.shopee.com.br/6feKfHvtTU
-https://s.shopee.com.br/6pxkravG8X
-https://s.shopee.com.br/70HB3tucna
-https://s.shopee.com.br/7AabGCtzSd
-https://s.shopee.com.br/7Ku1SVtM7g
-https://s.shopee.com.br/7VDReosimj
-https://s.shopee.com.br/7fWrr7s5Rm
-https://s.shopee.com.br/7pqI3QrS6p
-https://s.shopee.com.br/809iFjqols
-https://s.shopee.com.br/8AT8S2qBQv
-https://s.shopee.com.br/8KmYeLpY5y
-https://s.shopee.com.br/8V5yqeoul1
-https://s.shopee.com.br/8fPP2xoHQ4
-https://s.shopee.com.br/8pipFGne57
-https://s.shopee.com.br/902FRZn0kA
-https://s.shopee.com.br/9ALfdsmNPD
-https://s.shopee.com.br/9Kf5qBlk4G
-https://s.shopee.com.br/9UyW2Ul6jJ
-https://s.shopee.com.br/9fHwEnkTOM
-https://s.shopee.com.br/9pbMR6jq3P
-https://s.shopee.com.br/9zumdPjCiS
-https://s.shopee.com.br/AAECpiiZNV
-https://s.shopee.com.br/AKXd21hw2Y
-https://s.shopee.com.br/AUr3EKhIhb
-https://s.shopee.com.br/BQqvLKdfc
-https://s.shopee.com.br/17Qj2LH0b
-https://s.shopee.com.br/W3hJxJMzi
-https://s.shopee.com.br/LkH7eK0Kh
-`.trim().split('\n').map(s => s.trim()).filter(Boolean);
+https://s.shopee.com.br/9zupangBmu
+https://s.shopee.com.br/AUr6BieHm3
+https://s.shopee.com.br/809lD7nnqa
+https://s.shopee.com.br/8V61o2ltpj
+https://s.shopee.com.br/9ALibGjMTv`.trim().split('\n').map(s => s.trim()).filter(Boolean);
   // ─────────────────────────────────────────────────────────
 
   let progress = {};
@@ -104,10 +44,10 @@ https://s.shopee.com.br/LkH7eK0Kh
     ).join('\n');
     const blob = new Blob(['\ufeff' + header + '\n' + body], { type: 'text/csv;charset=utf-8' });
     const a = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(blob), download: 'shopee_produtos.csv'
+      href: URL.createObjectURL(blob), download: 'shopee_videos.csv'
     });
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    log(`\n📥 shopee_produtos.csv (${csvRows.length} linhas)`, '#0ff');
+    log(`\n📥 shopee_videos.csv (${csvRows.length} linhas)`, '#0ff');
   };
 
   const pending = links.filter(l => {
@@ -230,11 +170,9 @@ https://s.shopee.com.br/LkH7eK0Kh
       if (!videoUrl) {
         log('  API sem vídeo — tentando via página...', '#f90');
         try {
-          // navega o tab para a página do produto
           tab.location.href = finalUrl;
-          await sleep(5000); // aguarda carregar
+          await sleep(5000);
 
-          // clica no botão de play pelo XPath
           const xp = '//*[@id="sll2-normal-pdp-main"]/div/div/div/div[2]/section/section[1]/div[2]/div[2]/button/svg';
           const btn = document.evaluate(xp, tab.document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
           if (btn) {
@@ -243,11 +181,9 @@ https://s.shopee.com.br/LkH7eK0Kh
             await sleep(3000);
           }
 
-          // pega src do elemento <video>
           const vidEl = tab.document.querySelector('video');
           videoUrl = vidEl?.currentSrc || vidEl?.src || null;
 
-          // volta tab para blank pra não atrapalhar próximo redirect
           tab.location.href = 'about:blank';
         } catch(e) {
           log('  fallback falhou: ' + e.message, '#f90');
