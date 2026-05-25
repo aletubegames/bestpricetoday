@@ -7,604 +7,604 @@
   // ── PRODUTOS (gerado pelo generate_script.py) ────────────
   const PRODUTOS = [
   {
-    "slug": "9zupangBmu",
-    "shopid": "792952722",
-    "itemid": "58260172435",
-    "offer_link": "https://s.shopee.com.br/9zupangBmu"
+    "slug": "4Ax3GKm307",
+    "shopid": "1501144405",
+    "itemid": "23194950027",
+    "offer_link": "https://s.shopee.com.br/4Ax3GKm307"
   },
   {
-    "slug": "AAEFn6fYRx",
-    "shopid": "299222557",
-    "itemid": "58252841983",
-    "offer_link": "https://s.shopee.com.br/AAEFn6fYRx"
+    "slug": "50WAFrisJI",
+    "shopid": "464590540",
+    "itemid": "58209590119",
+    "offer_link": "https://s.shopee.com.br/50WAFrisJI"
   },
   {
-    "slug": "AKXfzPev70",
-    "shopid": "1077144780",
-    "itemid": "58209766469",
-    "offer_link": "https://s.shopee.com.br/AKXfzPev70"
+    "slug": "5ApaSAiEyL",
+    "shopid": "1626133283",
+    "itemid": "58208960692",
+    "offer_link": "https://s.shopee.com.br/5ApaSAiEyL"
   },
   {
-    "slug": "AUr6BieHm3",
-    "shopid": "1579330222",
-    "itemid": "58260056158",
-    "offer_link": "https://s.shopee.com.br/AUr6BieHm3"
+    "slug": "4ftJrFk8zG",
+    "shopid": "1328679905",
+    "itemid": "58255768158",
+    "offer_link": "https://s.shopee.com.br/4ftJrFk8zG"
   },
   {
-    "slug": "809lD7nnqa",
-    "shopid": "368039476",
-    "itemid": "58207970054",
-    "offer_link": "https://s.shopee.com.br/809lD7nnqa"
+    "slug": "4qCk3YjVeJ",
+    "shopid": "299582074",
+    "itemid": "58259333831",
+    "offer_link": "https://s.shopee.com.br/4qCk3YjVeJ"
   },
   {
-    "slug": "8ATBPQnAVd",
-    "shopid": "493828477",
-    "itemid": "58207667280",
-    "offer_link": "https://s.shopee.com.br/8ATBPQnAVd"
+    "slug": "30l5sBqUMy",
+    "shopid": "587578299",
+    "itemid": "23598568886",
+    "offer_link": "https://s.shopee.com.br/30l5sBqUMy"
   },
   {
-    "slug": "8KmbbjmXAg",
-    "shopid": "1077144780",
-    "itemid": "58259736335",
-    "offer_link": "https://s.shopee.com.br/8KmbbjmXAg"
+    "slug": "3B4W4Upr21",
+    "shopid": "1340072116",
+    "itemid": "22898461699",
+    "offer_link": "https://s.shopee.com.br/3B4W4Upr21"
   },
   {
-    "slug": "8V61o2ltpj",
-    "shopid": "1420372901",
-    "itemid": "58202126334",
-    "offer_link": "https://s.shopee.com.br/8V61o2ltpj"
+    "slug": "2g8FTZrl2w",
+    "shopid": "541804501",
+    "itemid": "58207868279",
+    "offer_link": "https://s.shopee.com.br/2g8FTZrl2w"
   },
   {
-    "slug": "8fPS0LlGUm",
-    "shopid": "752743341",
-    "itemid": "18350470458",
-    "offer_link": "https://s.shopee.com.br/8fPS0LlGUm"
+    "slug": "2qRffsr7hz",
+    "shopid": "979558874",
+    "itemid": "42351035536",
+    "offer_link": "https://s.shopee.com.br/2qRffsr7hz"
   },
   {
-    "slug": "8pisCekd9p",
-    "shopid": "1600778769",
-    "itemid": "58259146436",
-    "offer_link": "https://s.shopee.com.br/8pisCekd9p"
+    "slug": "3g0mfPnx1A",
+    "shopid": "1442787125",
+    "itemid": "55259766596",
+    "offer_link": "https://s.shopee.com.br/3g0mfPnx1A"
   },
   {
-    "slug": "902IOxjzos",
-    "shopid": "1077144780",
-    "itemid": "23699442916",
-    "offer_link": "https://s.shopee.com.br/902IOxjzos"
+    "slug": "3qKCrinJgD",
+    "shopid": "1399701658",
+    "itemid": "52609416948",
+    "offer_link": "https://s.shopee.com.br/3qKCrinJgD"
   },
   {
-    "slug": "9ALibGjMTv",
-    "shopid": "287079590",
-    "itemid": "58210354378",
-    "offer_link": "https://s.shopee.com.br/9ALibGjMTv"
+    "slug": "3LNwGnpDh8",
+    "shopid": "594102844",
+    "itemid": "58006470123",
+    "offer_link": "https://s.shopee.com.br/3LNwGnpDh8"
   },
   {
-    "slug": "6feNcfssYS",
-    "shopid": "676684389",
-    "itemid": "22793679889",
-    "offer_link": "https://s.shopee.com.br/6feNcfssYS"
+    "slug": "3VhMT6oaMB",
+    "shopid": "1587733934",
+    "itemid": "45658530663",
+    "offer_link": "https://s.shopee.com.br/3VhMT6oaMB"
   },
   {
-    "slug": "6pxnoysFDV",
-    "shopid": "1485160784",
-    "itemid": "20398143226",
-    "offer_link": "https://s.shopee.com.br/6pxnoysFDV"
+    "slug": "70HEdXbGFs",
+    "shopid": "681967866",
+    "itemid": "41178806100",
+    "offer_link": "https://s.shopee.com.br/70HEdXbGFs"
   },
   {
-    "slug": "70HE1HrbsY",
-    "shopid": "1077144780",
-    "itemid": "58259802662",
-    "offer_link": "https://s.shopee.com.br/70HE1HrbsY"
+    "slug": "7Aaepqacuv",
+    "shopid": "983645094",
+    "itemid": "27951088537",
+    "offer_link": "https://s.shopee.com.br/7Aaepqacuv"
   },
   {
-    "slug": "7AaeDaqyXb",
-    "shopid": "1643565306",
-    "itemid": "22798989144",
-    "offer_link": "https://s.shopee.com.br/7AaeDaqyXb"
+    "slug": "6feOEvcWvq",
+    "shopid": "1551697817",
+    "itemid": "23994269065",
+    "offer_link": "https://s.shopee.com.br/6feOEvcWvq"
   },
   {
-    "slug": "7Ku4PtqLCe",
-    "shopid": "321128579",
-    "itemid": "17422129005",
-    "offer_link": "https://s.shopee.com.br/7Ku4PtqLCe"
+    "slug": "6pxoREbtat",
+    "shopid": "705761751",
+    "itemid": "23198661449",
+    "offer_link": "https://s.shopee.com.br/6pxoREbtat"
   },
   {
-    "slug": "7VDUcCphrh",
-    "shopid": "502700315",
-    "itemid": "22398682323",
-    "offer_link": "https://s.shopee.com.br/7VDUcCphrh"
+    "slug": "7fWvQlYiu4",
+    "shopid": "681967866",
+    "itemid": "52706391547",
+    "offer_link": "https://s.shopee.com.br/7fWvQlYiu4"
   },
   {
-    "slug": "7fWuoVp4Wk",
-    "shopid": "323364785",
-    "itemid": "22494052851",
-    "offer_link": "https://s.shopee.com.br/7fWuoVp4Wk"
+    "slug": "7pqLd4Y5Z7",
+    "shopid": "824474412",
+    "itemid": "23931899885",
+    "offer_link": "https://s.shopee.com.br/7pqLd4Y5Z7"
   },
   {
-    "slug": "7pqL0ooRBn",
-    "shopid": "1671173223",
-    "itemid": "22799419082",
-    "offer_link": "https://s.shopee.com.br/7pqL0ooRBn"
+    "slug": "7Ku529Zza2",
+    "shopid": "1551697817",
+    "itemid": "20698271319",
+    "offer_link": "https://s.shopee.com.br/7Ku529Zza2"
   },
   {
-    "slug": "5L902DxxGK",
-    "shopid": "364843650",
-    "itemid": "19299663655",
-    "offer_link": "https://s.shopee.com.br/5L902DxxGK"
+    "slug": "7VDVESZMF5",
+    "shopid": "542438037",
+    "itemid": "21798141466",
+    "offer_link": "https://s.shopee.com.br/7VDVESZMF5"
   },
   {
-    "slug": "5VSQEWxJvN",
-    "shopid": "383740485",
-    "itemid": "58205413442",
-    "offer_link": "https://s.shopee.com.br/5VSQEWxJvN"
+    "slug": "5flr35gKxk",
+    "shopid": "681967866",
+    "itemid": "54958027125",
+    "offer_link": "https://s.shopee.com.br/5flr35gKxk"
   },
   {
-    "slug": "5flqQpwgaQ",
-    "shopid": "676684389",
-    "itemid": "20899598197",
-    "offer_link": "https://s.shopee.com.br/5flqQpwgaQ"
+    "slug": "5q5HFOfhcn",
+    "shopid": "1124636121",
+    "itemid": "46607981788",
+    "offer_link": "https://s.shopee.com.br/5q5HFOfhcn"
   },
   {
-    "slug": "5q5Gd8w3FT",
-    "shopid": "1013333026",
-    "itemid": "22297378465",
-    "offer_link": "https://s.shopee.com.br/5q5Gd8w3FT"
+    "slug": "5L90eThbdi",
+    "shopid": "369623161",
+    "itemid": "16829247820",
+    "offer_link": "https://s.shopee.com.br/5L90eThbdi"
   },
   {
-    "slug": "60OgpRvPuW",
-    "shopid": "1097148583",
-    "itemid": "23298100712",
-    "offer_link": "https://s.shopee.com.br/60OgpRvPuW"
+    "slug": "5VSQqmgyIl",
+    "shopid": "979558874",
+    "itemid": "24844165608",
+    "offer_link": "https://s.shopee.com.br/5VSQqmgyIl"
   },
   {
-    "slug": "6Ai71kumZZ",
-    "shopid": "1077144780",
-    "itemid": "58209798552",
-    "offer_link": "https://s.shopee.com.br/6Ai71kumZZ"
+    "slug": "6L1XqJdnbw",
+    "shopid": "681967866",
+    "itemid": "57657873051",
+    "offer_link": "https://s.shopee.com.br/6L1XqJdnbw"
   },
   {
-    "slug": "6L1XE3u9Ec",
-    "shopid": "1587235748",
-    "itemid": "22394250261",
-    "offer_link": "https://s.shopee.com.br/6L1XE3u9Ec"
+    "slug": "6VKy2cdAGz",
+    "shopid": "1086519436",
+    "itemid": "23197452801",
+    "offer_link": "https://s.shopee.com.br/6VKy2cdAGz"
   },
   {
-    "slug": "6VKxQMtVtf",
-    "shopid": "437985893",
-    "itemid": "22392924019",
-    "offer_link": "https://s.shopee.com.br/6VKxQMtVtf"
+    "slug": "60OhRhf4Hu",
+    "shopid": "1228604047",
+    "itemid": "23898408578",
+    "offer_link": "https://s.shopee.com.br/60OhRhf4Hu"
   },
   {
-    "slug": "40dcRm31yC",
-    "shopid": "427106553",
-    "itemid": "42727283804",
-    "offer_link": "https://s.shopee.com.br/40dcRm31yC"
+    "slug": "6Ai7e0eQwx",
+    "shopid": "1104180297",
+    "itemid": "26107655539",
+    "offer_link": "https://s.shopee.com.br/6Ai7e0eQwx"
   },
   {
-    "slug": "4Ax2e52OdF",
-    "shopid": "1719334016",
-    "itemid": "58204987358",
-    "offer_link": "https://s.shopee.com.br/4Ax2e52OdF"
+    "slug": "9fHzoRR6qe",
+    "shopid": "603782959",
+    "itemid": "50007702992",
+    "offer_link": "https://s.shopee.com.br/9fHzoRR6qe"
   },
   {
-    "slug": "4LGSqO1lII",
-    "shopid": "1566452692",
-    "itemid": "22594546423",
-    "offer_link": "https://s.shopee.com.br/4LGSqO1lII"
+    "slug": "9pbQ0kQTVh",
+    "shopid": "1025213096",
+    "itemid": "24898131886",
+    "offer_link": "https://s.shopee.com.br/9pbQ0kQTVh"
   },
   {
-    "slug": "4VZt2h17xL",
-    "shopid": "1255854196",
-    "itemid": "18799319252",
-    "offer_link": "https://s.shopee.com.br/4VZt2h17xL"
+    "slug": "9Kf9PpSNWc",
+    "shopid": "1316980618",
+    "itemid": "52758437928",
+    "offer_link": "https://s.shopee.com.br/9Kf9PpSNWc"
   },
   {
-    "slug": "4ftJF00UcO",
-    "shopid": "1553079968",
-    "itemid": "58253492412",
-    "offer_link": "https://s.shopee.com.br/4ftJF00UcO"
+    "slug": "9UyZc8RkBf",
+    "shopid": "905229815",
+    "itemid": "23292853843",
+    "offer_link": "https://s.shopee.com.br/9UyZc8RkBf"
   },
   {
-    "slug": "4qCjRIzrHR",
-    "shopid": "321104773",
-    "itemid": "21999234823",
-    "offer_link": "https://s.shopee.com.br/4qCjRIzrHR"
+    "slug": "AKXgbfOZUq",
+    "shopid": "880951566",
+    "itemid": "22794806088",
+    "offer_link": "https://s.shopee.com.br/AKXgbfOZUq"
   },
   {
-    "slug": "50W9dbzDwU",
-    "shopid": "1567174664",
-    "itemid": "23994206734",
-    "offer_link": "https://s.shopee.com.br/50W9dbzDwU"
+    "slug": "AUr6nyNw9t",
+    "shopid": "1483307846",
+    "itemid": "28888735945",
+    "offer_link": "https://s.shopee.com.br/AUr6nyNw9t"
   },
   {
-    "slug": "5ApZpuyabX",
-    "shopid": "390229041",
-    "itemid": "21298731450",
-    "offer_link": "https://s.shopee.com.br/5ApZpuyabX"
+    "slug": "9zuqD3PqAo",
+    "shopid": "1196446677",
+    "itemid": "23793877414",
+    "offer_link": "https://s.shopee.com.br/9zuqD3PqAo"
   },
   {
-    "slug": "2g8ErK86g4",
-    "shopid": "423397470",
-    "itemid": "20899597332",
-    "offer_link": "https://s.shopee.com.br/2g8ErK86g4"
+    "slug": "AAEGPMPCpr",
+    "shopid": "532620463",
+    "itemid": "22197697652",
+    "offer_link": "https://s.shopee.com.br/AAEGPMPCpr"
   },
   {
-    "slug": "2qRf3d7TL7",
+    "slug": "8KmcDzWBYW",
+    "shopid": "681967866",
+    "itemid": "40007124196",
+    "offer_link": "https://s.shopee.com.br/8KmcDzWBYW"
+  },
+  {
+    "slug": "8V62QIVYDZ",
+    "shopid": "1499606732",
+    "itemid": "23293957278",
+    "offer_link": "https://s.shopee.com.br/8V62QIVYDZ"
+  },
+  {
+    "slug": "809lpNXSEU",
+    "shopid": "975780170",
+    "itemid": "22399429963",
+    "offer_link": "https://s.shopee.com.br/809lpNXSEU"
+  },
+  {
+    "slug": "8ATC1gWotX",
+    "shopid": "1098585909",
+    "itemid": "23992851334",
+    "offer_link": "https://s.shopee.com.br/8ATC1gWotX"
+  },
+  {
+    "slug": "902J1DTeCi",
+    "shopid": "1651851128",
+    "itemid": "58259468957",
+    "offer_link": "https://s.shopee.com.br/902J1DTeCi"
+  },
+  {
+    "slug": "9ALjDWT0rl",
+    "shopid": "897545291",
+    "itemid": "58204266757",
+    "offer_link": "https://s.shopee.com.br/9ALjDWT0rl"
+  },
+  {
+    "slug": "8fPScbUusg",
+    "shopid": "426378412",
+    "itemid": "41528739305",
+    "offer_link": "https://s.shopee.com.br/8fPScbUusg"
+  },
+  {
+    "slug": "8pisouUHXj",
+    "shopid": "386803813",
+    "itemid": "55156312780",
+    "offer_link": "https://s.shopee.com.br/8pisouUHXj"
+  },
+  {
+    "slug": "1qZ8U2uvkO",
+    "shopid": "1027899621",
+    "itemid": "58206430216",
+    "offer_link": "https://s.shopee.com.br/1qZ8U2uvkO"
+  },
+  {
+    "slug": "1gFiHjvZ5N",
+    "shopid": "703205897",
+    "itemid": "29302254546",
+    "offer_link": "https://s.shopee.com.br/1gFiHjvZ5N"
+  },
+  {
+    "slug": "1VwI5QwCQM",
+    "shopid": "759746224",
+    "itemid": "18697662220",
+    "offer_link": "https://s.shopee.com.br/1VwI5QwCQM"
+  },
+  {
+    "slug": "1Lcrt7wplL",
+    "shopid": "1140971409",
+    "itemid": "18099297420",
+    "offer_link": "https://s.shopee.com.br/1Lcrt7wplL"
+  },
+  {
+    "slug": "2VopHGsOOa",
+    "shopid": "681967866",
+    "itemid": "28685749130",
+    "offer_link": "https://s.shopee.com.br/2VopHGsOOa"
+  },
+  {
+    "slug": "2LVP4xt1jZ",
+    "shopid": "1114798043",
+    "itemid": "22498290460",
+    "offer_link": "https://s.shopee.com.br/2LVP4xt1jZ"
+  },
+  {
+    "slug": "2BBysetf4Y",
+    "shopid": "807834195",
+    "itemid": "23596652808",
+    "offer_link": "https://s.shopee.com.br/2BBysetf4Y"
+  },
+  {
+    "slug": "20sYgLuIPX",
+    "shopid": "215743890",
+    "itemid": "17592293854",
+    "offer_link": "https://s.shopee.com.br/20sYgLuIPX"
+  },
+  {
+    "slug": "W3ktb00SG",
+    "shopid": "603314742",
+    "itemid": "26694187942",
+    "offer_link": "https://s.shopee.com.br/W3ktb00SG"
+  },
+  {
+    "slug": "LkKhI0dnF",
+    "shopid": "532620463",
+    "itemid": "23797677332",
+    "offer_link": "https://s.shopee.com.br/LkKhI0dnF"
+  },
+  {
+    "slug": "BQuUz1H8E",
+    "shopid": "393412132",
+    "itemid": "41658528448",
+    "offer_link": "https://s.shopee.com.br/BQuUz1H8E"
+  },
+  {
+    "slug": "17UIg1uTD",
+    "shopid": "934481538",
+    "itemid": "18771976729",
+    "offer_link": "https://s.shopee.com.br/17UIg1uTD"
+  },
+  {
+    "slug": "1BJRgoxT6S",
+    "shopid": "681967866",
+    "itemid": "53653167344",
+    "offer_link": "https://s.shopee.com.br/1BJRgoxT6S"
+  },
+  {
+    "slug": "1101UVy6RR",
+    "shopid": "1571989376",
+    "itemid": "23594254443",
+    "offer_link": "https://s.shopee.com.br/1101UVy6RR"
+  },
+  {
+    "slug": "qgbICyjmQ",
+    "shopid": "638405707",
+    "itemid": "58256198616",
+    "offer_link": "https://s.shopee.com.br/qgbICyjmQ"
+  },
+  {
+    "slug": "gNB5tzN7P",
+    "shopid": "409390748",
+    "itemid": "23493788895",
+    "offer_link": "https://s.shopee.com.br/gNB5tzN7P"
+  },
+  {
+    "slug": "4VZtewkmLA",
+    "shopid": "1219303534",
+    "itemid": "23293839264",
+    "offer_link": "https://s.shopee.com.br/4VZtewkmLA"
+  },
+  {
+    "slug": "4LGTSdlPg9",
+    "shopid": "578296496",
+    "itemid": "20599252009",
+    "offer_link": "https://s.shopee.com.br/4LGTSdlPg9"
+  },
+  {
+    "slug": "4Ax3GKm318",
+    "shopid": "309054905",
+    "itemid": "22194167768",
+    "offer_link": "https://s.shopee.com.br/4Ax3GKm318"
+  },
+  {
+    "slug": "40dd41mgM7",
+    "shopid": "492581216",
+    "itemid": "58256202702",
+    "offer_link": "https://s.shopee.com.br/40dd41mgM7"
+  },
+  {
+    "slug": "5ApaSAiEzM",
+    "shopid": "1594623535",
+    "itemid": "23399388879",
+    "offer_link": "https://s.shopee.com.br/5ApaSAiEzM"
+  },
+  {
+    "slug": "50WAFrisKL",
+    "shopid": "1232477773",
+    "itemid": "25895949709",
+    "offer_link": "https://s.shopee.com.br/50WAFrisKL"
+  },
+  {
+    "slug": "4qCk3YjVfK",
+    "shopid": "233494148",
+    "itemid": "8264636434",
+    "offer_link": "https://s.shopee.com.br/4qCk3YjVfK"
+  },
+  {
+    "slug": "4ftJrFk90J",
+    "shopid": "1463484615",
+    "itemid": "22293819530",
+    "offer_link": "https://s.shopee.com.br/4ftJrFk90J"
+  },
+  {
+    "slug": "3B4W4Upr32",
+    "shopid": "1029350442",
+    "itemid": "55656062557",
+    "offer_link": "https://s.shopee.com.br/3B4W4Upr32"
+  },
+  {
+    "slug": "30l5sBqUO1",
+    "shopid": "1615518944",
+    "itemid": "58008963826",
+    "offer_link": "https://s.shopee.com.br/30l5sBqUO1"
+  },
+  {
+    "slug": "2qRffsr7j0",
+    "shopid": "1491044633",
+    "itemid": "22999005497",
+    "offer_link": "https://s.shopee.com.br/2qRffsr7j0"
+  },
+  {
+    "slug": "2g8FTZrl3z",
+    "shopid": "448112122",
+    "itemid": "25942546248",
+    "offer_link": "https://s.shopee.com.br/2g8FTZrl3z"
+  },
+  {
+    "slug": "3qKCrinJhE",
+    "shopid": "1003127601",
+    "itemid": "57656539787",
+    "offer_link": "https://s.shopee.com.br/3qKCrinJhE"
+  },
+  {
+    "slug": "3g0mfPnx2D",
+    "shopid": "835273654",
+    "itemid": "24647669313",
+    "offer_link": "https://s.shopee.com.br/3g0mfPnx2D"
+  },
+  {
+    "slug": "3VhMT6oaNC",
+    "shopid": "1156488266",
+    "itemid": "49657837082",
+    "offer_link": "https://s.shopee.com.br/3VhMT6oaNC"
+  },
+  {
+    "slug": "3LNwGnpDiB",
+    "shopid": "290234225",
+    "itemid": "22398357106",
+    "offer_link": "https://s.shopee.com.br/3LNwGnpDiB"
+  },
+  {
+    "slug": "7Aaepqacvw",
+    "shopid": "448654639",
+    "itemid": "23498635174",
+    "offer_link": "https://s.shopee.com.br/7Aaepqacvw"
+  },
+  {
+    "slug": "70HEdXbGGv",
+    "shopid": "913580882",
+    "itemid": "22593855144",
+    "offer_link": "https://s.shopee.com.br/70HEdXbGGv"
+  },
+  {
+    "slug": "6pxoREbtbu",
+    "shopid": "1515141336",
+    "itemid": "22094307312",
+    "offer_link": "https://s.shopee.com.br/6pxoREbtbu"
+  },
+  {
+    "slug": "6feOEvcWwt",
+    "shopid": "1613326394",
+    "itemid": "58256053530",
+    "offer_link": "https://s.shopee.com.br/6feOEvcWwt"
+  },
+  {
+    "slug": "7pqLd4Y5a8",
+    "shopid": "426378412",
+    "itemid": "19995489287",
+    "offer_link": "https://s.shopee.com.br/7pqLd4Y5a8"
+  },
+  {
+    "slug": "7fWvQlYiv7",
+    "shopid": "434137487",
+    "itemid": "22719347247",
+    "offer_link": "https://s.shopee.com.br/7fWvQlYiv7"
+  },
+  {
+    "slug": "7VDVESZMG6",
+    "shopid": "979558874",
+    "itemid": "26634367824",
+    "offer_link": "https://s.shopee.com.br/7VDVESZMG6"
+  },
+  {
+    "slug": "7Ku529Zzb5",
+    "shopid": "508073754",
+    "itemid": "23599348819",
+    "offer_link": "https://s.shopee.com.br/7Ku529Zzb5"
+  },
+  {
+    "slug": "5q5HFOfhdo",
+    "shopid": "498322826",
+    "itemid": "58205694476",
+    "offer_link": "https://s.shopee.com.br/5q5HFOfhdo"
+  },
+  {
+    "slug": "5flr35gKyn",
+    "shopid": "399604109",
+    "itemid": "3685599753",
+    "offer_link": "https://s.shopee.com.br/5flr35gKyn"
+  },
+  {
+    "slug": "5VSQqmgyJm",
+    "shopid": "1583529285",
+    "itemid": "22794859890",
+    "offer_link": "https://s.shopee.com.br/5VSQqmgyJm"
+  },
+  {
+    "slug": "5L90eThbel",
+    "shopid": "426378412",
+    "itemid": "48358580737",
+    "offer_link": "https://s.shopee.com.br/5L90eThbel"
+  },
+  {
+    "slug": "6VKy2cdAI0",
+    "shopid": "1058666705",
+    "itemid": "54657379904",
+    "offer_link": "https://s.shopee.com.br/6VKy2cdAI0"
+  },
+  {
+    "slug": "6L1XqJdncz",
+    "shopid": "866139490",
+    "itemid": "22193060864",
+    "offer_link": "https://s.shopee.com.br/6L1XqJdncz"
+  },
+  {
+    "slug": "6Ai7e0eQxy",
+    "shopid": "239927339",
+    "itemid": "58202703589",
+    "offer_link": "https://s.shopee.com.br/6Ai7e0eQxy"
+  },
+  {
+    "slug": "60OhRhf4Ix",
+    "shopid": "1104180297",
+    "itemid": "25370623316",
+    "offer_link": "https://s.shopee.com.br/60OhRhf4Ix"
+  },
+  {
+    "slug": "9pbQ0kQTWi",
+    "shopid": "681967866",
+    "itemid": "41114214520",
+    "offer_link": "https://s.shopee.com.br/9pbQ0kQTWi"
+  },
+  {
+    "slug": "9fHzoRR6rh",
     "shopid": "1006215031",
-    "itemid": "29379017291",
-    "offer_link": "https://s.shopee.com.br/2qRf3d7TL7"
+    "itemid": "52354364262",
+    "offer_link": "https://s.shopee.com.br/9fHzoRR6rh"
   },
   {
-    "slug": "30l5Fw6q0A",
-    "shopid": "332179884",
-    "itemid": "21799578236",
-    "offer_link": "https://s.shopee.com.br/30l5Fw6q0A"
+    "slug": "9UyZc8RkCg",
+    "shopid": "1157950131",
+    "itemid": "54905119793",
+    "offer_link": "https://s.shopee.com.br/9UyZc8RkCg"
   },
   {
-    "slug": "3B4VSF6CfD",
-    "shopid": "1528985481",
-    "itemid": "58252601035",
-    "offer_link": "https://s.shopee.com.br/3B4VSF6CfD"
+    "slug": "9Kf9PpSNXf",
+    "shopid": "243235332",
+    "itemid": "27364817132",
+    "offer_link": "https://s.shopee.com.br/9Kf9PpSNXf"
   },
   {
-    "slug": "3LNveY5ZKG",
-    "shopid": "716194498",
-    "itemid": "23699364867",
-    "offer_link": "https://s.shopee.com.br/3LNveY5ZKG"
+    "slug": "AUr6nyNwAu",
+    "shopid": "290234225",
+    "itemid": "23498379918",
+    "offer_link": "https://s.shopee.com.br/AUr6nyNwAu"
   },
   {
-    "slug": "3VhLqr4vzJ",
-    "shopid": "1147173683",
-    "itemid": "22493168100",
-    "offer_link": "https://s.shopee.com.br/3VhLqr4vzJ"
+    "slug": "AKXgbfOZVt",
+    "shopid": "1206706107",
+    "itemid": "58204626361",
+    "offer_link": "https://s.shopee.com.br/AKXgbfOZVt"
   },
   {
-    "slug": "3g0m3A4IeM",
-    "shopid": "876866734",
-    "itemid": "23594325096",
-    "offer_link": "https://s.shopee.com.br/3g0m3A4IeM"
-  },
-  {
-    "slug": "3qKCFT3fJP",
-    "shopid": "425326129",
-    "itemid": "18299351006",
-    "offer_link": "https://s.shopee.com.br/3qKCFT3fJP"
-  },
-  {
-    "slug": "1LcrGsDBNw",
-    "shopid": "1127030290",
-    "itemid": "23098648575",
-    "offer_link": "https://s.shopee.com.br/1LcrGsDBNw"
-  },
-  {
-    "slug": "1VwHTBCY2z",
-    "shopid": "1414741692",
-    "itemid": "22093703234",
-    "offer_link": "https://s.shopee.com.br/1VwHTBCY2z"
-  },
-  {
-    "slug": "1gFhfUBui2",
-    "shopid": "1092986401",
-    "itemid": "22993896055",
-    "offer_link": "https://s.shopee.com.br/1gFhfUBui2"
-  },
-  {
-    "slug": "1qZ7rnBHN5",
-    "shopid": "1414741692",
-    "itemid": "22798309966",
-    "offer_link": "https://s.shopee.com.br/1qZ7rnBHN5"
-  },
-  {
-    "slug": "20sY46Ae28",
-    "shopid": "314093059",
-    "itemid": "9512144763",
-    "offer_link": "https://s.shopee.com.br/20sY46Ae28"
-  },
-  {
-    "slug": "2BByGPA0hB",
-    "shopid": "1608192482",
-    "itemid": "58204739759",
-    "offer_link": "https://s.shopee.com.br/2BByGPA0hB"
-  },
-  {
-    "slug": "2LVOSi9NME",
-    "shopid": "410693248",
-    "itemid": "8337296913",
-    "offer_link": "https://s.shopee.com.br/2LVOSi9NME"
-  },
-  {
-    "slug": "2Voof18k1H",
-    "shopid": "428624330",
-    "itemid": "22297736513",
-    "offer_link": "https://s.shopee.com.br/2Voof18k1H"
-  },
-  {
-    "slug": "17TgQIG5o",
-    "shopid": "1023760886",
-    "itemid": "22996121313",
-    "offer_link": "https://s.shopee.com.br/17TgQIG5o"
-  },
-  {
-    "slug": "BQtsjHckr",
-    "shopid": "1469144446",
-    "itemid": "19898027204",
-    "offer_link": "https://s.shopee.com.br/BQtsjHckr"
-  },
-  {
-    "slug": "LkK52GzPu",
-    "shopid": "390780728",
-    "itemid": "18906277158",
-    "offer_link": "https://s.shopee.com.br/LkK52GzPu"
-  },
-  {
-    "slug": "W3kHLGM4x",
-    "shopid": "955543641",
-    "itemid": "18099249153",
-    "offer_link": "https://s.shopee.com.br/W3kHLGM4x"
-  },
-  {
-    "slug": "gNATeFik0",
-    "shopid": "1169146045",
-    "itemid": "20799757649",
-    "offer_link": "https://s.shopee.com.br/gNATeFik0"
-  },
-  {
-    "slug": "qgafxF5P3",
-    "shopid": "413762733",
-    "itemid": "22798456969",
-    "offer_link": "https://s.shopee.com.br/qgafxF5P3"
-  },
-  {
-    "slug": "1100sGES46",
-    "shopid": "362458294",
-    "itemid": "43108727838",
-    "offer_link": "https://s.shopee.com.br/1100sGES46"
-  },
-  {
-    "slug": "1BJR4ZDoj9",
-    "shopid": "1012214402",
-    "itemid": "22998326427",
-    "offer_link": "https://s.shopee.com.br/1BJR4ZDoj9"
-  },
-  {
-    "slug": "9UyYzsi5om",
-    "shopid": "1006446880",
-    "itemid": "23393393737",
-    "offer_link": "https://s.shopee.com.br/9UyYzsi5om"
-  },
-  {
-    "slug": "9Kf8nZij9l",
-    "shopid": "515176772",
-    "itemid": "23497427455",
-    "offer_link": "https://s.shopee.com.br/9Kf8nZij9l"
-  },
-  {
-    "slug": "9pbPOUgp8s",
-    "shopid": "523113851",
-    "itemid": "58253658672",
-    "offer_link": "https://s.shopee.com.br/9pbPOUgp8s"
-  },
-  {
-    "slug": "9fHzCBhSTr",
-    "shopid": "1388170403",
-    "itemid": "22697994424",
-    "offer_link": "https://s.shopee.com.br/9fHzCBhSTr"
-  },
-  {
-    "slug": "AAEFn6fYSy",
-    "shopid": "640413729",
-    "itemid": "19424166010",
-    "offer_link": "https://s.shopee.com.br/AAEFn6fYSy"
-  },
-  {
-    "slug": "9zupangBnx",
-    "shopid": "915563136",
-    "itemid": "18699319983",
-    "offer_link": "https://s.shopee.com.br/9zupangBnx"
-  },
-  {
-    "slug": "AUr6BieHn4",
-    "shopid": "1083800536",
-    "itemid": "58256288846",
-    "offer_link": "https://s.shopee.com.br/AUr6BieHn4"
-  },
-  {
-    "slug": "AKXfzPev83",
-    "shopid": "1180920205",
-    "itemid": "22093160276",
-    "offer_link": "https://s.shopee.com.br/AKXfzPev83"
-  },
-  {
-    "slug": "8ATBPQnAWe",
-    "shopid": "375051668",
-    "itemid": "22793684140",
-    "offer_link": "https://s.shopee.com.br/8ATBPQnAWe"
-  },
-  {
-    "slug": "809lD7nnrd",
-    "shopid": "1388170403",
-    "itemid": "22597994429",
-    "offer_link": "https://s.shopee.com.br/809lD7nnrd"
-  },
-  {
-    "slug": "8V61o2ltqk",
-    "shopid": "1229158295",
-    "itemid": "22197745981",
-    "offer_link": "https://s.shopee.com.br/8V61o2ltqk"
-  },
-  {
-    "slug": "8KmbbjmXBj",
-    "shopid": "1041039897",
-    "itemid": "18299329397",
-    "offer_link": "https://s.shopee.com.br/8KmbbjmXBj"
-  },
-  {
-    "slug": "8pisCekdAq",
-    "shopid": "1424278396",
-    "itemid": "58203349918",
-    "offer_link": "https://s.shopee.com.br/8pisCekdAq"
-  },
-  {
-    "slug": "8fPS0LlGVp",
-    "shopid": "752743341",
-    "itemid": "18397679423",
-    "offer_link": "https://s.shopee.com.br/8fPS0LlGVp"
-  },
-  {
-    "slug": "9ALibGjMUw",
-    "shopid": "1653736071",
-    "itemid": "58254354508",
-    "offer_link": "https://s.shopee.com.br/9ALibGjMUw"
-  },
-  {
-    "slug": "902IOxjzpv",
-    "shopid": "1295467768",
-    "itemid": "22894246754",
-    "offer_link": "https://s.shopee.com.br/902IOxjzpv"
-  },
-  {
-    "slug": "6pxnoysFEW",
-    "shopid": "912462405",
-    "itemid": "22492632177",
-    "offer_link": "https://s.shopee.com.br/6pxnoysFEW"
-  },
-  {
-    "slug": "6feNcfssZV",
-    "shopid": "1234355161",
-    "itemid": "22294382057",
-    "offer_link": "https://s.shopee.com.br/6feNcfssZV"
-  },
-  {
-    "slug": "7AaeDaqyYc",
-    "shopid": "1605400328",
-    "itemid": "22694645105",
-    "offer_link": "https://s.shopee.com.br/7AaeDaqyYc"
-  },
-  {
-    "slug": "70HE1Hrbtb",
-    "shopid": "1277805925",
-    "itemid": "23694913081",
-    "offer_link": "https://s.shopee.com.br/70HE1Hrbtb"
-  },
-  {
-    "slug": "7VDUcCphsi",
-    "shopid": "1366709144",
-    "itemid": "47757324104",
-    "offer_link": "https://s.shopee.com.br/7VDUcCphsi"
-  },
-  {
-    "slug": "7Ku4PtqLDh",
-    "shopid": "616222685",
-    "itemid": "23795569799",
-    "offer_link": "https://s.shopee.com.br/7Ku4PtqLDh"
-  },
-  {
-    "slug": "7pqL0ooRCo",
-    "shopid": "986450286",
-    "itemid": "23693118990",
-    "offer_link": "https://s.shopee.com.br/7pqL0ooRCo"
-  },
-  {
-    "slug": "7fWuoVp4Xn",
-    "shopid": "1384675821",
-    "itemid": "22998640234",
-    "offer_link": "https://s.shopee.com.br/7fWuoVp4Xn"
-  },
-  {
-    "slug": "5VSQEWxJwO",
-    "shopid": "1619784139",
-    "itemid": "58209332437",
-    "offer_link": "https://s.shopee.com.br/5VSQEWxJwO"
-  },
-  {
-    "slug": "5L902DxxHN",
-    "shopid": "296363855",
-    "itemid": "23492848273",
-    "offer_link": "https://s.shopee.com.br/5L902DxxHN"
-  },
-  {
-    "slug": "5q5Gd8w3GU",
-    "shopid": "1161906393",
-    "itemid": "22597557781",
-    "offer_link": "https://s.shopee.com.br/5q5Gd8w3GU"
-  },
-  {
-    "slug": "5flqQpwgbT",
-    "shopid": "1224529773",
-    "itemid": "22494928254",
-    "offer_link": "https://s.shopee.com.br/5flqQpwgbT"
-  },
-  {
-    "slug": "6Ai71kumaa",
-    "shopid": "1234356004",
-    "itemid": "23294049109",
-    "offer_link": "https://s.shopee.com.br/6Ai71kumaa"
-  },
-  {
-    "slug": "60OgpRvPvZ",
-    "shopid": "289796446",
-    "itemid": "49859716861",
-    "offer_link": "https://s.shopee.com.br/60OgpRvPvZ"
-  },
-  {
-    "slug": "6VKxQMtVug",
-    "shopid": "1024858829",
-    "itemid": "22998660344",
-    "offer_link": "https://s.shopee.com.br/6VKxQMtVug"
-  },
-  {
-    "slug": "6L1XE3u9Ff",
-    "shopid": "1263364177",
-    "itemid": "20198000747",
-    "offer_link": "https://s.shopee.com.br/6L1XE3u9Ff"
-  },
-  {
-    "slug": "4Ax2e52OeG",
-    "shopid": "1314293823",
-    "itemid": "22094032770",
-    "offer_link": "https://s.shopee.com.br/4Ax2e52OeG"
-  },
-  {
-    "slug": "40dcRm31zF",
-    "shopid": "1455490500",
-    "itemid": "58204730158",
-    "offer_link": "https://s.shopee.com.br/40dcRm31zF"
-  },
-  {
-    "slug": "4VZt2h17yM",
-    "shopid": "761647073",
-    "itemid": "58256439593",
-    "offer_link": "https://s.shopee.com.br/4VZt2h17yM"
-  },
-  {
-    "slug": "4LGSqO1lJL",
-    "shopid": "832702330",
-    "itemid": "22593967188",
-    "offer_link": "https://s.shopee.com.br/4LGSqO1lJL"
-  },
-  {
-    "slug": "4qCjRIzrIS",
-    "shopid": "1713632798",
-    "itemid": "58252935781",
-    "offer_link": "https://s.shopee.com.br/4qCjRIzrIS"
-  },
-  {
-    "slug": "4ftJF00UdR",
-    "shopid": "1580145778",
-    "itemid": "58251846770",
-    "offer_link": "https://s.shopee.com.br/4ftJF00UdR"
-  },
-  {
-    "slug": "5ApZpuyacY",
-    "shopid": "967211054",
-    "itemid": "23299372913",
-    "offer_link": "https://s.shopee.com.br/5ApZpuyacY"
-  },
-  {
-    "slug": "50W9dbzDxX",
-    "shopid": "437061636",
-    "itemid": "19096967339",
-    "offer_link": "https://s.shopee.com.br/50W9dbzDxX"
+    "slug": "AAEGPMPCqs",
+    "shopid": "1178899059",
+    "itemid": "22898051635",
+    "offer_link": "https://s.shopee.com.br/AAEGPMPCqs"
   }
 ];
   // ─────────────────────────────────────────────────────────

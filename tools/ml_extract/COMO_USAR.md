@@ -111,3 +111,4 @@ Os dados JSON também podem ser importados em:
 - Excel/Google Sheets
 - Sistema de gestão de afiliados
 - Scripts de automação (tiktok_post, por exemplo)
+- a plataforma bestprice busca o que esta no afiliados_ml_2026-05-21 portato o que for busca deve ser adicionado ao afiliados_ml_2026-05-21 ja existente

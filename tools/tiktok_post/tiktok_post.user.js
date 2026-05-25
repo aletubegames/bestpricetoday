@@ -17,334 +17,508 @@
     const SK = 'tt_state';
     const LISTA = [
   {
-    "slug": "AAEFn6fYRx",
-    "video": "AAEFn6fYRx.mp4",
-    "offer_link": "https://s.shopee.com.br/AAEFn6fYRx",
-    "caption": "1/2/3 Cola Calçados Cola Pra Conserto De Sapatos Cola Para Conserto De Sapatos R\nOferta Especial: R$11,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "4Ax3GKm307",
+    "video": "4Ax3GKm307.mp4",
+    "offer_link": "https://s.shopee.com.br/4Ax3GKm307",
+    "caption": "Vestido Feminino Brasil Copa 2026 Bandeira Frente Única Torcedora\nDe R$69.90 por R$59.90 (14% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "AKXfzPev70",
-    "video": "AKXfzPev70.mp4",
-    "offer_link": "https://s.shopee.com.br/AKXfzPev70",
-    "caption": "Moletom Canguru Masculino Banda Stray Kids Blusa de Frio Premium Casaco Inverno \nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "50WAFrisJI",
+    "video": "50WAFrisJI.mp4",
+    "offer_link": "https://s.shopee.com.br/50WAFrisJI",
+    "caption": "Camiseta Personalizada do Brasil Blusa Feminina e Masculina 100% Algodão\nDe R$75.90 por R$34.91 (54% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8ATBPQnAVd",
-    "video": "8ATBPQnAVd.mp4",
-    "offer_link": "https://s.shopee.com.br/8ATBPQnAVd",
-    "caption": "3 / 6 / 9 / 12 / 18 / 24 Pares de Meias Femininas Soquete Cano Curto Estampadas \nOferta Especial: R$12,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "5ApaSAiEyL",
+    "video": "5ApaSAiEyL.mp4",
+    "offer_link": "https://s.shopee.com.br/5ApaSAiEyL",
+    "caption": "Cropped Moletom Moda Tendencia Femenina Blusa De Frio Brasil Copa Do Mundo 2026\nDe R$145.90 por R$78.79 (46% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8KmbbjmXAg",
-    "video": "8KmbbjmXAg.mp4",
-    "offer_link": "https://s.shopee.com.br/8KmbbjmXAg",
-    "caption": "Moletom Canguru Masculino Exclusiva Aranha Streetwear Algodão Premium Blusa de F\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "4ftJrFk8zG",
+    "video": "4ftJrFk8zG.mp4",
+    "offer_link": "https://s.shopee.com.br/4ftJrFk8zG",
+    "caption": "Conjunto Body e Saia Brasil Copa – Moletinho com Elastano, Modelagem Ajustada e \nDe R$100.00 por R$55.00 (45% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8fPS0LlGUm",
-    "video": "8fPS0LlGUm.mp4",
-    "offer_link": "https://s.shopee.com.br/8fPS0LlGUm",
-    "caption": "Mochila Bolsa Reforçada Notebook Resistente Trabalho Faculdade Coreana\nOferta Especial: R$31,5\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "4qCk3YjVeJ",
+    "video": "4qCk3YjVeJ.mp4",
+    "offer_link": "https://s.shopee.com.br/4qCk3YjVeJ",
+    "caption": "Jaqueta Feminina Lã Batida Premium Casaco Curto Inverno Chic 2026\nDe R$89.99 por R$69.99 (22% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8pisCekd9p",
-    "video": "8pisCekd9p.mp4",
-    "offer_link": "https://s.shopee.com.br/8pisCekd9p",
-    "caption": "Meia Grossa Térmica de Lã com Sola Antiderrapante Unissex Criança e Adulto Quent\nOferta Especial: R$12,59\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "30l5sBqUMy",
+    "video": "30l5sBqUMy.mp4",
+    "offer_link": "https://s.shopee.com.br/30l5sBqUMy",
+    "caption": "Cropped Top Feminino Personalizado Copa 2026 ESTHER BRAZIL\nDe R$49.90 por R$29.94 (40% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "902IOxjzos",
-    "video": "902IOxjzos.mp4",
-    "offer_link": "https://s.shopee.com.br/902IOxjzos",
-    "caption": "Moletom Canguru Feminino Stray Kids Banda Kpop Skz Skzoo Unissex Premium Blusa d\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "3B4W4Upr21",
+    "video": "3B4W4Upr21.mp4",
+    "offer_link": "https://s.shopee.com.br/3B4W4Upr21",
+    "caption": "Saia Festa Junina São João Arraiá Quadrilha Caipira Curta Juvenil Adulta Rodada \nDe R$229.90 por R$99.90 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "9ALibGjMTv",
-    "video": "9ALibGjMTv.mp4",
-    "offer_link": "https://s.shopee.com.br/9ALibGjMTv",
-    "caption": "Kit 3 Gel Sebo de Carneiro Hidratante Pele Renovada Nati Corporal Pés + Necessai\nOferta Especial: R$14,95\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "2g8FTZrl2w",
+    "video": "2g8FTZrl2w.mp4",
+    "offer_link": "https://s.shopee.com.br/2g8FTZrl2w",
+    "caption": "Kit 2 Camiseta Camisa Casal Brazil Frase Criativa Juntos na Copa Brasil Tendênci\nDe R$54.90 por R$54.90 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6pxnoysFDV",
-    "video": "6pxnoysFDV.mp4",
-    "offer_link": "https://s.shopee.com.br/6pxnoysFDV",
-    "caption": "Base BB Cream Cushion /Corretivo com Esponja co Formato de Cogumelo  Base Clarea\nOferta Especial: R$24,88\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "3g0mfPnx1A",
+    "video": "3g0mfPnx1A.mp4",
+    "offer_link": "https://s.shopee.com.br/3g0mfPnx1A",
+    "caption": "Kit Camiseta Casal Brasil Nome Personalizado 100% Algodão Estampada Copa do Mund\nDe R$99.99 por R$64.99 (35% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "70HE1HrbsY",
-    "video": "70HE1HrbsY.mp4",
-    "offer_link": "https://s.shopee.com.br/70HE1HrbsY",
-    "caption": "Moletom Canguru Masculino Estampado Skyline Gtr R34  Blusa De Frio Premium Carro\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "3qKCrinJgD",
+    "video": "3qKCrinJgD.mp4",
+    "offer_link": "https://s.shopee.com.br/3qKCrinJgD",
+    "caption": "Meias Estilo Primavera Para Pilates E fitness , Absorventes De Suor Respiráveis \nDe R$39.00 por R$15.99 (59% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7AaeDaqyXb",
-    "video": "7AaeDaqyXb.mp4",
-    "offer_link": "https://s.shopee.com.br/7AaeDaqyXb",
-    "caption": "Kit 6 e 12 Pares de Meias Masculino para Recém Nascidos e Bebê Menino c/ Antider\nOferta Especial: R$15,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "3LNwGnpDh8",
+    "video": "3LNwGnpDh8.mp4",
+    "offer_link": "https://s.shopee.com.br/3LNwGnpDh8",
+    "caption": "Conjunto Brasil cropped Canelado e short. Estilo verão,copa do mundo 2026 vibe  \nDe R$79.90 por R$34.90 (56% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7Ku4PtqLCe",
-    "video": "7Ku4PtqLCe.mp4",
-    "offer_link": "https://s.shopee.com.br/7Ku4PtqLCe",
-    "caption": "Kit com 5 - Lenço Umedecido Turminha da Bagunça Toalha Umedecida 48 Unidades\nOferta Especial: R$18,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "3VhMT6oaMB",
+    "video": "3VhMT6oaMB.mp4",
+    "offer_link": "https://s.shopee.com.br/3VhMT6oaMB",
+    "caption": "Conjunto Moletom Feminino Abrigo Blusa e Calça de Frio Flanelado Canguru Capuz I\nDe R$159.00 por R$119.00 (25% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7fWuoVp4Wk",
-    "video": "7fWuoVp4Wk.mp4",
-    "offer_link": "https://s.shopee.com.br/7fWuoVp4Wk",
-    "caption": "Maquiagem junina adesiva, autocolante  kit 1 maquiagem completa contendo, 2 band\nOferta Especial: R$19,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "70HEdXbGFs",
+    "video": "70HEdXbGFs.mp4",
+    "offer_link": "https://s.shopee.com.br/70HEdXbGFs",
+    "caption": "Blusa Feminina Brasil T-shirt Verão Algodão\nDe R$79.90 por R$31.96 (60% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7pqL0ooRBn",
-    "video": "7pqL0ooRBn.mp4",
-    "offer_link": "https://s.shopee.com.br/7pqL0ooRBn",
-    "caption": "Meia-Calça Térmica Feminina Peluciada Translúcida Alta Elasticidade Super Quente\nOferta Especial: R$21,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "7Aaepqacuv",
+    "video": "7Aaepqacuv.mp4",
+    "offer_link": "https://s.shopee.com.br/7Aaepqacuv",
+    "caption": "Adultos e Crianças Pijamas de Inverno de Flanela Quente Confortável, Design Anim\nDe R$110.00 por R$55.00 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "5q5Gd8w3FT",
-    "video": "5q5Gd8w3FT.mp4",
-    "offer_link": "https://s.shopee.com.br/5q5Gd8w3FT",
-    "caption": "Kit 12 Pares de Meia Cano Alto\nOferta Especial: R$10,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "6feOEvcWvq",
+    "video": "6feOEvcWvq.mp4",
+    "offer_link": "https://s.shopee.com.br/6feOEvcWvq",
+    "caption": "Conjunto Zíper Listrado Inverno\nDe R$70.00 por R$70.00 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "60OgpRvPuW",
-    "video": "60OgpRvPuW.mp4",
-    "offer_link": "https://s.shopee.com.br/60OgpRvPuW",
-    "caption": "Protetor De Sapato Impermeável De Silicone Capa de Chuva Para Tênis Colorido e U\nOferta Especial: R$11,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "6pxoREbtat",
+    "video": "6pxoREbtat.mp4",
+    "offer_link": "https://s.shopee.com.br/6pxoREbtat",
+    "caption": "Casaco de Lã Batida Feminino 2026 Sobretudo Elegante Premium de Inverno luxoquen\nDe R$299.00 por R$215.28 (28% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6Ai71kumZZ",
-    "video": "6Ai71kumZZ.mp4",
-    "offer_link": "https://s.shopee.com.br/6Ai71kumZZ",
-    "caption": "Moletom Canguru Masculino Estampa Capivara Milk Fofa Tumblr Com Capuz Casaco Blu\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "7fWvQlYiu4",
+    "video": "7fWvQlYiu4.mp4",
+    "offer_link": "https://s.shopee.com.br/7fWvQlYiu4",
+    "caption": "Camiseta Brasil Feminina Verde Torcida Estilosa Copa 2026 Algodão Premium Confor\nDe R$79.90 por R$31.96 (60% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6L1XE3u9Ec",
-    "video": "6L1XE3u9Ec.mp4",
-    "offer_link": "https://s.shopee.com.br/6L1XE3u9Ec",
-    "caption": "Calça Feminina TACTEL COM ELASTANO PREMIUM jogger / ideal para academia,yoga, ca\nOferta Especial: R$36,49\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "7pqLd4Y5Z7",
+    "video": "7pqLd4Y5Z7.mp4",
+    "offer_link": "https://s.shopee.com.br/7pqLd4Y5Z7",
+    "caption": "Macacao Feminino Decotado Alcinha 2 Fendas Pantalona\nDe R$49.99 por R$49.99 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "4Ax2e52OdF",
-    "video": "4Ax2e52OdF.mp4",
-    "offer_link": "https://s.shopee.com.br/4Ax2e52OdF",
-    "caption": "NOVA Luva motoqueiro inverno Frio Touch Screen  Motociclista Cano longo Adequado\nOferta Especial: R$8,2\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "7Ku529Zza2",
+    "video": "7Ku529Zza2.mp4",
+    "offer_link": "https://s.shopee.com.br/7Ku529Zza2",
+    "caption": "Conjunto Ziper Inverno Pantalona\nDe R$70.00 por R$70.00 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "4LGSqO1lII",
-    "video": "4LGSqO1lII.mp4",
-    "offer_link": "https://s.shopee.com.br/4LGSqO1lII",
-    "caption": "Cola adesiva forte para sapatos - para reparação de calçado, soluções de reparaç\nOferta Especial: R$14,97\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "7VDVESZMF5",
+    "video": "7VDVESZMF5.mp4",
+    "offer_link": "https://s.shopee.com.br/7VDVESZMF5",
+    "caption": "Bady Doll Pijama Personagens Estampado Suede Com Detalhe de Renda Roupa de Dormi\nDe R$34.90 por R$19.90 (43% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "4ftJF00UcO",
-    "video": "4ftJF00UcO.mp4",
-    "offer_link": "https://s.shopee.com.br/4ftJF00UcO",
-    "caption": "Blusa Manga Longa Feminina moda fitness modeladora  yoga casaco academia proteçã\nOferta Especial: R$44,47\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "5flr35gKxk",
+    "video": "5flr35gKxk.mp4",
+    "offer_link": "https://s.shopee.com.br/5flr35gKxk",
+    "caption": "Blusa Feminina T-shirt Brasil com S 100% Algodão Premium Envio Imediato\nDe R$68.99 por R$29.67 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "50W9dbzDwU",
-    "video": "50W9dbzDwU.mp4",
-    "offer_link": "https://s.shopee.com.br/50W9dbzDwU",
-    "caption": "Jaqueta Masculina Casaco Lã Blusa De Frio Inverno Tricô Com Bolsos\nOferta Especial: R$69,23\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "5q5HFOfhcn",
+    "video": "5q5HFOfhcn.mp4",
+    "offer_link": "https://s.shopee.com.br/5q5HFOfhcn",
+    "caption": "Saia Xadrez Feminino Curta De Inverno e Festa Junina Com Costura Reforçada Estil\nDe R$77.89 por R$29.90 (62% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "5ApZpuyabX",
-    "video": "5ApZpuyabX.mp4",
-    "offer_link": "https://s.shopee.com.br/5ApZpuyabX",
-    "caption": "KIT DE MEIA FEMININA BRANCA FOFO COM TEXTURA ALGODAO POLIESTER 35-40 IDEAL PARA \nOferta Especial: R$14,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "5L90eThbdi",
+    "video": "5L90eThbdi.mp4",
+    "offer_link": "https://s.shopee.com.br/5L90eThbdi",
+    "caption": "Conjunto Feminino Inverno Plush. Tamanhos: P ao Plus Size - Com zíper, capuz e b\nDe R$139.99 por R$116.99 (16% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "3B4VSF6CfD",
-    "video": "3B4VSF6CfD.mp4",
-    "offer_link": "https://s.shopee.com.br/3B4VSF6CfD",
-    "caption": "Meia Calça Fina7D ANTICELULITE Fio  70 Plus Size – Veste do 36 ao 54 | Conforto \nOferta Especial: R$27,97\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "5VSQqmgyIl",
+    "video": "5VSQqmgyIl.mp4",
+    "offer_link": "https://s.shopee.com.br/5VSQqmgyIl",
+    "caption": "Joyjoy Conjunto de Pijamas de Seda Alta para Mulheres – Verão e Outono, Manga Lo\nDe R$120.57 por R$28.99 (76% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "3qKCFT3fJP",
-    "video": "3qKCFT3fJP.mp4",
-    "offer_link": "https://s.shopee.com.br/3qKCFT3fJP",
-    "caption": "Kit 1 - 4  Pares Nova Meia Aveludada Térmica Flanelada Inverno  tamanho único e \nOferta Especial: R$11,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "6L1XqJdnbw",
+    "video": "6L1XqJdnbw.mp4",
+    "offer_link": "https://s.shopee.com.br/6L1XqJdnbw",
+    "caption": "Blusa Feminina Brasil South America T-shirt Verão Manga Curta Envio Imediato\nDe R$69.90 por R$38.00 (46% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "1VwHTBCY2z",
-    "video": "1VwHTBCY2z.mp4",
-    "offer_link": "https://s.shopee.com.br/1VwHTBCY2z",
-    "caption": "3d Hydra Lipgloss Kiko Milano\nOferta Especial: R$24\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "6VKy2cdAGz",
+    "video": "6VKy2cdAGz.mp4",
+    "offer_link": "https://s.shopee.com.br/6VKy2cdAGz",
+    "caption": "Casaco Teddy Feminino Pelúcia Tipo Pele de Carneiro Inverno Quentinho Macio Casu\nDe R$89.90 por R$89.90 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "1qZ7rnBHN5",
-    "video": "1qZ7rnBHN5.mp4",
-    "offer_link": "https://s.shopee.com.br/1qZ7rnBHN5",
-    "caption": "Meia-Calça Térmica Feminina Plus Size M-GG Forrada Peluciada Translúcida de Lã  \nOferta Especial: R$25,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "60OhRhf4Hu",
+    "video": "60OhRhf4Hu.mp4",
+    "offer_link": "https://s.shopee.com.br/60OhRhf4Hu",
+    "caption": "Conjunto Feminino Lanzinha Inverno Blusa Cropped e Saia Midi com Fendas Laterais\nDe R$59.90 por R$59.90 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "20sY46Ae28",
-    "video": "20sY46Ae28.mp4",
-    "offer_link": "https://s.shopee.com.br/20sY46Ae28",
-    "caption": "Kit 2 Calças Legging Lisa Fitness Feminina Suplex  Envio Rapido Moda LLevo\nOferta Especial: R$49,54\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "6Ai7e0eQwx",
+    "video": "6Ai7e0eQwx.mp4",
+    "offer_link": "https://s.shopee.com.br/6Ai7e0eQwx",
+    "caption": "Anime Dos Desenhos Animados Charlie Brown Conjunto de Pijamas Snoopy Mulheres No\nDe R$49.71 por R$28.99 (42% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "2BByGPA0hB",
-    "video": "2BByGPA0hB.mp4",
-    "offer_link": "https://s.shopee.com.br/2BByGPA0hB",
-    "caption": "Shampoo Escurecedor Cabelos Brancos Tonalizante Preto, Avelã, Marsala Platinado \nOferta Especial: R$15\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "9fHzoRR6qe",
+    "video": "9fHzoRR6qe.mp4",
+    "offer_link": "https://s.shopee.com.br/9fHzoRR6qe",
+    "caption": "Blusa Feminina Cores Brasil Brasão Copa Do Mundo Gola Redonda Manga Curta Baby L\nDe R$54.90 por R$26.90 (51% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "2Voof18k1H",
-    "video": "2Voof18k1H.mp4",
-    "offer_link": "https://s.shopee.com.br/2Voof18k1H",
-    "caption": "Kit  Pares de Meias Soquete Feminina Adulto Estampada Cores Delicadas\nOferta Especial: R$11,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "9pbQ0kQTVh",
+    "video": "9pbQ0kQTVh.mp4",
+    "offer_link": "https://s.shopee.com.br/9pbQ0kQTVh",
+    "caption": "Calça Legging Termica Flanelada Peluciada Cós Alto Leg Feminina\nDe R$110.00 por R$38.99 (65% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "17TgQIG5o",
-    "video": "17TgQIG5o.mp4",
-    "offer_link": "https://s.shopee.com.br/17TgQIG5o",
-    "caption": "Areia Catbio Biodegradável 4 Kg - Max Clean - Grãos Finos\nOferta Especial: R$46,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "9Kf9PpSNWc",
+    "video": "9Kf9PpSNWc.mp4",
+    "offer_link": "https://s.shopee.com.br/9Kf9PpSNWc",
+    "caption": "Camiseta Brasileira Feminina Infantil e Adulto T-shirt Tal Mãe Tal Filha Brasil \nDe R$59.90 por R$59.90 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "LkK52GzPu",
-    "video": "LkK52GzPu.mp4",
-    "offer_link": "https://s.shopee.com.br/LkK52GzPu",
-    "caption": "Tinta para Tecido Acrilex 37ml - Cores Avulsas e Kits Temáticos - Alta Cobertura\nOferta Especial: R$7,5\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "9UyZc8RkBf",
+    "video": "9UyZc8RkBf.mp4",
+    "offer_link": "https://s.shopee.com.br/9UyZc8RkBf",
+    "caption": "Vestido Longo Feminino Alcinha Fina ,Costa Nua com Bojo ,Canelado Lisa , Fenda L\nDe R$59.90 por R$43.73 (27% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "W3kHLGM4x",
-    "video": "W3kHLGM4x.mp4",
-    "offer_link": "https://s.shopee.com.br/W3kHLGM4x",
-    "caption": "Meia-calça grossa e elástica alta para meninas no inverno\nOferta Especial: R$22,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "AKXgbfOZUq",
+    "video": "AKXgbfOZUq.mp4",
+    "offer_link": "https://s.shopee.com.br/AKXgbfOZUq",
+    "caption": "2 camisa do Brasil casal copa do mundo/ Kit casal 2 blusa do Brasil\nDe R$149.00 por R$149.00 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "qgafxF5P3",
-    "video": "qgafxF5P3.mp4",
-    "offer_link": "https://s.shopee.com.br/qgafxF5P3",
-    "caption": "calça moletom de lã grossa unissex (envio imediato)\nOferta Especial: R$74,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "AUr6nyNw9t",
+    "video": "AUr6nyNw9t.mp4",
+    "offer_link": "https://s.shopee.com.br/AUr6nyNw9t",
+    "caption": "Meia 3D Cano Alto Volta às Aulas - Meia Patty Algodão Premium Personagens Divert\nDe R$39.80 por R$19.90 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "9Kf8nZij9l",
-    "video": "9Kf8nZij9l.mp4",
-    "offer_link": "https://s.shopee.com.br/9Kf8nZij9l",
-    "caption": "Calça Alfaiataria Feminina Cintura Alta Lançamento Com Zíper Social Slim Fino Bl\nOferta Especial: R$32,95\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "9zuqD3PqAo",
+    "video": "9zuqD3PqAo.mp4",
+    "offer_link": "https://s.shopee.com.br/9zuqD3PqAo",
+    "caption": "Conjunto Femenino Lanzinha Ribi canelada 2 Peças Blusa e Pantalona plus size\nDe R$79.99 por R$79.99 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "9fHzCBhSTr",
-    "video": "9fHzCBhSTr.mp4",
-    "offer_link": "https://s.shopee.com.br/9fHzCBhSTr",
-    "caption": "Kit ate 6 pares de meia/meias soquete térmica grossa flanelada fleece inverno fr\nOferta Especial: R$19,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "AAEGPMPCpr",
+    "video": "AAEGPMPCpr.mp4",
+    "offer_link": "https://s.shopee.com.br/AAEGPMPCpr",
+    "caption": "Calça Wide Leg Jeans Feminina Cintura Alta Pantalona\nDe R$99.90 por R$64.99 (35% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "AAEFn6fYSy",
-    "video": "AAEFn6fYSy.mp4",
-    "offer_link": "https://s.shopee.com.br/AAEFn6fYSy",
-    "caption": "Kit 4 Travesseiros de Manta com Fibra Mista Macia Travesseiro tnt\nOferta Especial: R$19\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "8KmcDzWBYW",
+    "video": "8KmcDzWBYW.mp4",
+    "offer_link": "https://s.shopee.com.br/8KmcDzWBYW",
+    "caption": "Camiseta Feminina Preta 100% Algodão Academia Docinho Florzinha Lindinha Look Tr\nDe R$120.90 por R$32.65 (73% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "AKXfzPev83",
-    "video": "AKXfzPev83.mp4",
-    "offer_link": "https://s.shopee.com.br/AKXfzPev83",
-    "caption": "2025 Nova Série 8 Relógio T800 Ultra Smart Watch Esportivo Sem Fio À Prova D'águ\nOferta Especial: R$36,88\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "8V62QIVYDZ",
+    "video": "8V62QIVYDZ.mp4",
+    "offer_link": "https://s.shopee.com.br/8V62QIVYDZ",
+    "caption": "Meia-calça térmica preta com forro peluciado –De Lã  quente para o inverno 2025,\nDe R$56.90 por R$29.60 (48% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8V61o2ltqk",
-    "video": "8V61o2ltqk.mp4",
-    "offer_link": "https://s.shopee.com.br/8V61o2ltqk",
-    "caption": "Escova 3 Em 1 Vassoura Rodo Gap Limpeza Esfregão Mop Limpa\nOferta Especial: R$15,88\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "809lpNXSEU",
+    "video": "809lpNXSEU.mp4",
+    "offer_link": "https://s.shopee.com.br/809lpNXSEU",
+    "caption": "Conjunto Feminino Body e Saia do Brasil Blusa da Seleção Brasileira\nDe R$99.98 por R$49.98 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8KmbbjmXBj",
-    "video": "8KmbbjmXBj.mp4",
-    "offer_link": "https://s.shopee.com.br/8KmbbjmXBj",
-    "caption": "Kit 3 pares Meia Calça Infantil Menina e Menino Diversas Estampas Super Confortá\nOferta Especial: R$26,7\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "8ATC1gWotX",
+    "video": "8ATC1gWotX.mp4",
+    "offer_link": "https://s.shopee.com.br/8ATC1gWotX",
+    "caption": "Shorts Tendencia Alfaiataria Com Cinto De Couro Modelo Social Short\nDe R$50.00 por R$23.50 (53% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "8fPS0LlGVp",
-    "video": "8fPS0LlGVp.mp4",
-    "offer_link": "https://s.shopee.com.br/8fPS0LlGVp",
-    "caption": "Mochila Mala Reforçada Notebook Impermeável Escolar Trabalho Oferta\nOferta Especial: R$29,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "902J1DTeCi",
+    "video": "902J1DTeCi.mp4",
+    "offer_link": "https://s.shopee.com.br/902J1DTeCi",
+    "caption": "Camiseta FemininaT-shirts Brasil Copa Camisa Roupa Blusinha Futebol Blusa Algodã\nDe R$59.90 por R$27.90 (53% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "902IOxjzpv",
-    "video": "902IOxjzpv.mp4",
-    "offer_link": "https://s.shopee.com.br/902IOxjzpv",
-    "caption": "BODY SPLASH MASCULINO BARBARIUS 200ML - PRIMACIAL PERFUME AMADEIRADO\nOferta Especial: R$28,45\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "9ALjDWT0rl",
+    "video": "9ALjDWT0rl.mp4",
+    "offer_link": "https://s.shopee.com.br/9ALjDWT0rl",
+    "caption": "Kit 2 Peças Camisola + Pijama Baby Doll Feminino Sexy Lingerie Estampado Coração\nDe R$74.99 por R$32.99 (56% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6feNcfssZV",
-    "video": "6feNcfssZV.mp4",
-    "offer_link": "https://s.shopee.com.br/6feNcfssZV",
-    "caption": "Camisola Renda Feminina Pijama Sexy Sensual Lingerie Conforto Linha Noite sem Bo\nOferta Especial: R$16,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "8fPScbUusg",
+    "video": "8fPScbUusg.mp4",
+    "offer_link": "https://s.shopee.com.br/8fPScbUusg",
+    "caption": "Lovito Vestido Boho sem costas vestido primavera/verão para mulheres LK3LD389\nDe R$83.00 por R$57.90 (30% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7AaeDaqyYc",
-    "video": "7AaeDaqyYc.mp4",
-    "offer_link": "https://s.shopee.com.br/7AaeDaqyYc",
-    "caption": "TOYADENTEscova Dental TOYADENT Ultra Soft, Kit 3 Unidades, 5500+ Cerdas, Cores V\nOferta Especial: R$17,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "8pisouUHXj",
+    "video": "8pisouUHXj.mp4",
+    "offer_link": "https://s.shopee.com.br/8pisouUHXj",
+    "caption": "Conjunto Brasil cropped e short. Estilo verão,copa do mundo 2026 vibe  looks do \nDe R$29.90 por R$18.90 (37% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "70HE1Hrbtb",
-    "video": "70HE1Hrbtb.mp4",
-    "offer_link": "https://s.shopee.com.br/70HE1Hrbtb",
-    "caption": "Calça Pantalona Feminina Tecido texturado Calça Feminino Cintura Alta Pantalona \nOferta Especial: R$39,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "1qZ8U2uvkO",
+    "video": "1qZ8U2uvkO.mp4",
+    "offer_link": "https://s.shopee.com.br/1qZ8U2uvkO",
+    "caption": "Cropped Brasil Feminino Torcedora Copa Canelado Bordado Manga Curta Verde Amarel\nDe R$59.90 por R$29.95 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7VDUcCphsi",
-    "video": "7VDUcCphsi.mp4",
-    "offer_link": "https://s.shopee.com.br/7VDUcCphsi",
-    "caption": "Meia Calça Feminina Plus Size Térmica Grossa Super Elástica Translucida Super St\nOferta Especial: R$23,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "1gFiHjvZ5N",
+    "video": "1gFiHjvZ5N.mp4",
+    "offer_link": "https://s.shopee.com.br/1gFiHjvZ5N",
+    "caption": "Casaco De Pelúcia Inverno Feminino De Manga Longa Fofa Quente\nDe R$105.57 por R$84.99 (19% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7pqL0ooRCo",
-    "video": "7pqL0ooRCo.mp4",
-    "offer_link": "https://s.shopee.com.br/7pqL0ooRCo",
-    "caption": "Kit 2000 Peças Bolsa Elástico De Cabelo Feminino Descartável Multicolorido\nOferta Especial: R$4,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "1VwI5QwCQM",
+    "video": "1VwI5QwCQM.mp4",
+    "offer_link": "https://s.shopee.com.br/1VwI5QwCQM",
+    "caption": "Poncho Casaco Lã Feminino Trico Blusa De Frio Inverno Bico\nDe R$107.01 por R$78.90 (26% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "7fWuoVp4Xn",
-    "video": "7fWuoVp4Xn.mp4",
-    "offer_link": "https://s.shopee.com.br/7fWuoVp4Xn",
-    "caption": "Luminária Solar Parede 21W LED Controle Remoto De Jardim À Prova D'água Indução \nOferta Especial: R$24,89\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "1Lcrt7wplL",
+    "video": "1Lcrt7wplL.mp4",
+    "offer_link": "https://s.shopee.com.br/1Lcrt7wplL",
+    "caption": "CALÇA MONTARIA FLANELADA FEMENINA COM RECORTE LATERAL NO COURO FAKE   ESTILOSA B\nDe R$59.99 por R$45.99 (23% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "5VSQEWxJwO",
-    "video": "5VSQEWxJwO.mp4",
-    "offer_link": "https://s.shopee.com.br/5VSQEWxJwO",
-    "caption": "Moedor Elétrico Café Grãos Inox 150W Multifuncional 110V 220V Compacto Potente P\nOferta Especial: R$41,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "2VopHGsOOa",
+    "video": "2VopHGsOOa.mp4",
+    "offer_link": "https://s.shopee.com.br/2VopHGsOOa",
+    "caption": "Blusa T-shirt Feminina Cruz Coração Confortável 100% Algodão Presente Dia Das Mã\nDe R$79.90 por R$9.59 (88% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "5L902DxxHN",
-    "video": "5L902DxxHN.mp4",
-    "offer_link": "https://s.shopee.com.br/5L902DxxHN",
-    "caption": "Cobertor Casal 200x180 Antialérgico Estampado e Cor Lisa - Toque Macio - Manta C\nOferta Especial: R$28,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "2LVP4xt1jZ",
+    "video": "2LVP4xt1jZ.mp4",
+    "offer_link": "https://s.shopee.com.br/2LVP4xt1jZ",
+    "caption": "Vestido Femenino Chemise Longo Elegante Plus Size Con Botões, Manga Ajustable,3/\nDe R$85.00 por R$67.15 (21% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "5q5Gd8w3GU",
-    "video": "5q5Gd8w3GU.mp4",
-    "offer_link": "https://s.shopee.com.br/5q5Gd8w3GU",
-    "caption": "Meia-Calça Térmica Forrado Grosso Translúcido Leggings De Lã Quente Das Mulheres\nOferta Especial: R$15,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "2BBysetf4Y",
+    "video": "2BBysetf4Y.mp4",
+    "offer_link": "https://s.shopee.com.br/2BBysetf4Y",
+    "caption": "Kit 2 unidades Cardigan Tricot Aberto Casaquinho Manga Longa\nDe R$59.80 por R$36.90 (38% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6Ai71kumaa",
-    "video": "6Ai71kumaa.mp4",
-    "offer_link": "https://s.shopee.com.br/6Ai71kumaa",
-    "caption": "Sandália Babuche Adulto Feminino  Nuvem com 8 Bottons aleatórios\nOferta Especial: R$32,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "20sYgLuIPX",
+    "video": "20sYgLuIPX.mp4",
+    "offer_link": "https://s.shopee.com.br/20sYgLuIPX",
+    "caption": "Blusa Feminina De Tricot Manga Longa Colmeia Onda Tricô Inverno Suéter Trico\nDe R$56.90 por R$48.90 (14% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6VKxQMtVug",
-    "video": "6VKxQMtVug.mp4",
-    "offer_link": "https://s.shopee.com.br/6VKxQMtVug",
-    "caption": "Película Cerâmica 9D 3D iPhone Gel Hidrogel Flexível película iphone 13 11 12 14\nOferta Especial: R$4,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "W3ktb00SG",
+    "video": "W3ktb00SG.mp4",
+    "offer_link": "https://s.shopee.com.br/W3ktb00SG",
+    "caption": "Regatas do Brasil Feminina Ribana Copa Bandeira BORDADA\nDe R$49.90 por R$49.90 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "6L1XE3u9Ff",
-    "video": "6L1XE3u9Ff.mp4",
-    "offer_link": "https://s.shopee.com.br/6L1XE3u9Ff",
-    "caption": "Kit Feira Cronolola Bemdita Ghee 100g Nutrição Hidratação e Reconstrução\nOferta Especial: R$28,49\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "LkKhI0dnF",
+    "video": "LkKhI0dnF.mp4",
+    "offer_link": "https://s.shopee.com.br/LkKhI0dnF",
+    "caption": "Calça Cargo Jeans Feminina Bolso Lateral Cintura Alta  Wide Leg Pantalona\nDe R$140.00 por R$64.99 (54% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   },
   {
-    "slug": "4Ax2e52OeG",
-    "video": "4Ax2e52OeG.mp4",
-    "offer_link": "https://s.shopee.com.br/4Ax2e52OeG",
-    "caption": "calças fler com bolso tecido grosso 38/40/42/44/46/48/50/52/54\nOferta Especial: R$29,49\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+    "slug": "BQuUz1H8E",
+    "video": "BQuUz1H8E.mp4",
+    "offer_link": "https://s.shopee.com.br/BQuUz1H8E",
+    "caption": "Mulheres Outono Inverno Camisola Grossa Quente Manga Longa Sólida De Malha Velud\nDe R$109.50 por R$78.84 (28% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "17UIg1uTD",
+    "video": "17UIg1uTD.mp4",
+    "offer_link": "https://s.shopee.com.br/17UIg1uTD",
+    "caption": "Conjunto Feminino basico short feminino cropped basico feminino conjunto academi\nDe R$50.00 por R$42.99 (14% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "1BJRgoxT6S",
+    "video": "1BJRgoxT6S.mp4",
+    "offer_link": "https://s.shopee.com.br/1BJRgoxT6S",
+    "caption": "Blusa Cristã Tua Graça me Basta Religiosa Camiseta Manga Curta Várias Cores\nDe R$59.90 por R$29.95 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "1101UVy6RR",
+    "video": "1101UVy6RR.mp4",
+    "offer_link": "https://s.shopee.com.br/1101UVy6RR",
+    "caption": "Blusa de Frio Feminina Estilosa Tricot Corações Roupa Feminina Elegante de Inver\nDe R$79.90 por R$44.90 (44% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "qgbICyjmQ",
+    "video": "qgbICyjmQ.mp4",
+    "offer_link": "https://s.shopee.com.br/qgbICyjmQ",
+    "caption": "Calça Pantalona Feminina Lanzinha Cintura Alta  com Bolso Moda pra Inverno Tende\nDe R$32.98 por R$27.38 (17% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "gNB5tzN7P",
+    "video": "gNB5tzN7P.mp4",
+    "offer_link": "https://s.shopee.com.br/gNB5tzN7P",
+    "caption": "Vestido Lenço Várias Formas de Usar Vestido De bico Vestido De Pontas Verão\nDe R$19.99 por R$19.99 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "4VZtewkmLA",
+    "video": "4VZtewkmLA.mp4",
+    "offer_link": "https://s.shopee.com.br/4VZtewkmLA",
+    "caption": "Body Feminina mula manca  Decote Ombro Só Fivela Bory EleganteTem Bojo\nDe R$34.99 por R$27.29 (22% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "4LGTSdlPg9",
+    "video": "4LGTSdlPg9.mp4",
+    "offer_link": "https://s.shopee.com.br/4LGTSdlPg9",
+    "caption": "Saia Festa Junina São João Arraiá Quadrilha Caipira Curta Juvenil Adulta Rodada \nDe R$229.90 por R$99.90 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "4Ax3GKm318",
+    "video": "4Ax3GKm318.mp4",
+    "offer_link": "https://s.shopee.com.br/4Ax3GKm318",
+    "caption": "Kit 12 Peças (6 Conjuntos) Pijama Feminino Baby Doll Short Doll Roupa Dormir 6 S\nDe R$150.00 por R$64.90 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "40dd41mgM7",
+    "video": "40dd41mgM7.mp4",
+    "offer_link": "https://s.shopee.com.br/40dd41mgM7",
+    "caption": "Conjunto Feminino Brasil Body Cavado e Saia Roupa Copa do Mundo Tam Único Verde \nDe R$129.99 por R$71.99 (45% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "5ApaSAiEzM",
+    "video": "5ApaSAiEzM.mp4",
+    "offer_link": "https://s.shopee.com.br/5ApaSAiEzM",
+    "caption": "Camisa Camiseta Brazil Blusa Brasil Copa Lançamento 100% Algodão\nDe R$44.90 por R$26.49 (41% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "50WAFrisKL",
+    "video": "50WAFrisKL.mp4",
+    "offer_link": "https://s.shopee.com.br/50WAFrisKL",
+    "caption": "Meia Stitch Infantil 3D Cano Alto Cartoon Desenho Animado Meia Maluca Divertida \nDe R$37.80 por R$19.90 (47% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "4qCk3YjVfK",
+    "video": "4qCk3YjVfK.mp4",
+    "offer_link": "https://s.shopee.com.br/4qCk3YjVfK",
+    "caption": "Jaqueta Parka  Bobojaco Casaco Sobretudo Feminino forrada pelúcia Blusa Frio Env\nDe R$129.00 por R$129.00 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "4ftJrFk90J",
+    "video": "4ftJrFk90J.mp4",
+    "offer_link": "https://s.shopee.com.br/4ftJrFk90J",
+    "caption": "Vestido Longo Com FORO e BOJO, Feminino Com manga Variados super confortáveis e \nDe R$74.99 por R$74.99 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "3B4W4Upr32",
+    "video": "3B4W4Upr32.mp4",
+    "offer_link": "https://s.shopee.com.br/3B4W4Upr32",
+    "caption": "Cropped do Brasil Feminino Bicolor Manga Curta Ribana Babylook Copa Do Mundo Ten\nDe R$46.80 por R$29.95 (36% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "30l5sBqUO1",
+    "video": "30l5sBqUO1.mp4",
+    "offer_link": "https://s.shopee.com.br/30l5sBqUO1",
+    "caption": "Saia Festa Junina Xadrez Luxo Feminina Adulto Juvenil Caipira São João Quadrilha\nDe R$89.90 por R$72.89 (19% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "2qRffsr7j0",
+    "video": "2qRffsr7j0.mp4",
+    "offer_link": "https://s.shopee.com.br/2qRffsr7j0",
+    "caption": "Macacão Feminino Pantalona Largo Alcinha Regulável Decote V P M G GG Tecido Duna\nDe R$89.90 por R$49.89 (45% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "2g8FTZrl3z",
+    "video": "2g8FTZrl3z.mp4",
+    "offer_link": "https://s.shopee.com.br/2g8FTZrl3z",
+    "caption": "2 Peças/1 Conjunto Outono Inverno Solto Doce Casual Pijamas Feminino Grosso Lã M\nDe R$166.00 por R$87.98 (47% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "3qKCrinJhE",
+    "video": "3qKCrinJhE.mp4",
+    "offer_link": "https://s.shopee.com.br/3qKCrinJhE",
+    "caption": "Regata Baby look Alcinha Brasil Y2K Moda Gringa Virginia Regatinha Copa\nDe R$34.99 por R$29.90 (15% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "3g0mfPnx2D",
+    "video": "3g0mfPnx2D.mp4",
+    "offer_link": "https://s.shopee.com.br/3g0mfPnx2D",
+    "caption": "Mulheres Lã De Cordeiro Jaqueta Quente Outono Inverno Gola Dupla Espessamento Cu\nDe R$235.00 por R$164.50 (30% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "3VhMT6oaNC",
+    "video": "3VhMT6oaNC.mp4",
+    "offer_link": "https://s.shopee.com.br/3VhMT6oaNC",
+    "caption": "Conjunto Feminino Body Gola Alta Marrom + Saia Couro Plissada\nDe R$89.99 por R$89.99 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "3LNwGnpDiB",
+    "video": "3LNwGnpDiB.mp4",
+    "offer_link": "https://s.shopee.com.br/3LNwGnpDiB",
+    "caption": "Casaco De Frio Luxo Com Detalhes e Botões De Tricot Tendência 2025 Blusa de frio\nDe R$49.99 por R$49.99 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "7Aaepqacvw",
+    "video": "7Aaepqacvw.mp4",
+    "offer_link": "https://s.shopee.com.br/7Aaepqacvw",
+    "caption": "Cropped Top Feminino Alcinha Frente Forrada Personalizado Copa 2026 ESTHER BRASI\nDe R$48.90 por R$28.85 (41% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "70HEdXbGGv",
+    "video": "70HEdXbGGv.mp4",
+    "offer_link": "https://s.shopee.com.br/70HEdXbGGv",
+    "caption": "Calça Alfaiataria Feminina Cintura Alta Com Zíper Na Lateral\nDe R$49.90 por R$39.92 (20% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "6pxoREbtbu",
+    "video": "6pxoREbtbu.mp4",
+    "offer_link": "https://s.shopee.com.br/6pxoREbtbu",
+    "caption": "Jaqueta Jeans Feminina Manga Longa Denim Linha Premium\nDe R$74.80 por R$74.80 (0% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "6feOEvcWwt",
+    "video": "6feOEvcWwt.mp4",
+    "offer_link": "https://s.shopee.com.br/6feOEvcWwt",
+    "caption": "Short Alfaiataria Feminino Social Com Cinto Cintura Alta PROMOÇAO\nDe R$89.90 por R$20.80 (77% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "7pqLd4Y5a8",
+    "video": "7pqLd4Y5a8.mp4",
+    "offer_link": "https://s.shopee.com.br/7pqLd4Y5a8",
+    "caption": "Lovito Regata Casual Com Botão Liso De Metal Redondo Para Mulheres LNL38050 (Bra\nDe R$45.50 por R$31.20 (31% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "7fWvQlYiv7",
+    "video": "7fWvQlYiv7.mp4",
+    "offer_link": "https://s.shopee.com.br/7fWvQlYiv7",
+    "caption": "Conjunto Feminino Livia Cropped e Saia Longa\nDe R$120.00 por R$65.00 (46% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "7VDVESZMG6",
+    "video": "7VDVESZMG6.mp4",
+    "offer_link": "https://s.shopee.com.br/7VDVESZMG6",
+    "caption": "Jaqueta Casual Feminina Estilo Coreano, Novo Design de Alta Qualidade – Azul, Ta\nDe R$47.41 por R$24.99 (47% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+  },
+  {
+    "slug": "7Ku529Zzb5",
+    "video": "7Ku529Zzb5.mp4",
+    "offer_link": "https://s.shopee.com.br/7Ku529Zzb5",
+    "caption": "vestido brasil vestido tubinho tomara Brasil\nDe R$100.00 por R$50.00 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
   }
 ];
     const MAX_RETRIES = 3;
@@ -696,17 +870,18 @@
                 case 'IR_COMENTARIOS': {
                     log('Abrindo comentarios...', 'COMENTARIOS', '#0ff');
 
+                    await sleep(3000);
+
                     const comentariosBtn = await waitAnyXP([
-                        '//span[contains(text(),"Comentarios") or contains(text(),"Comentários")]',
-                        '//button[contains(., "Comentarios") or contains(., "Comentários")]',
-                        '//a[contains(., "Comentarios") or contains(., "Comentários")]',
+                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div/div/div[2]/div/div/div[2]/div[2]/div[1]/div/div[3]/div/div/div[3]/div/div/div',
                     ], 20000);
 
                     if (comentariosBtn) {
+                        log('Clicando no icone de comentarios...', 'COMENTARIOS', '#0ff');
                         comentariosBtn.click();
                         await sleep(4000);
                     } else {
-                        log('Botao comentarios nao encontrado, continuando...', 'AVISO', '#ff0');
+                        log('Botao comentarios nao encontrado', 'AVISO', '#ff0');
                     }
 
                     saveState('ENVIAR_LINK', produtoAtual.slug, true);
@@ -729,12 +904,13 @@
                     }
 
                     await safePaste(campoComentario, produtoAtual.offer_link);
-                    await sleep(2000);
+                    await sleep(600);
 
                     const enviarBtn = await waitAnyXP([
-                        '//button[contains(., "Postar")]',
-                        '//button[contains(., "Enviar")]',
-                        '//button[contains(., "Reply")]',
+                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div[2]/div[1]/div[2]/div[3]/div/div/button',
+                        '//button[contains(@class,"css-")]//svg[contains(@viewBox,"0 0 48 48")]/ancestor::button',
+                        '//button[@type="submit"]',
+                        '//div[@role="button"][contains(., "Postar")]',
                     ], 10000);
 
                     if (enviarBtn) {

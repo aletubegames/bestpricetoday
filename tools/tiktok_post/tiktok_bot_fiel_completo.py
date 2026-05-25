@@ -507,17 +507,18 @@ JS_TEMPLATE = r"""// ==UserScript==
                 case 'IR_COMENTARIOS': {
                     log('Abrindo comentarios...', 'COMENTARIOS', '#0ff');
 
+                    await sleep(3000);
+
                     const comentariosBtn = await waitAnyXP([
-                        '//span[contains(text(),"Comentarios") or contains(text(),"Comentários")]',
-                        '//button[contains(., "Comentarios") or contains(., "Comentários")]',
-                        '//a[contains(., "Comentarios") or contains(., "Comentários")]',
+                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div/div/div[2]/div/div/div[2]/div[2]/div[1]/div/div[3]/div/div/div[3]/div/div/div',
                     ], 20000);
 
                     if (comentariosBtn) {
+                        log('Clicando no icone de comentarios...', 'COMENTARIOS', '#0ff');
                         comentariosBtn.click();
                         await sleep(4000);
                     } else {
-                        log('Botao comentarios nao encontrado, continuando...', 'AVISO', '#ff0');
+                        log('Botao comentarios nao encontrado', 'AVISO', '#ff0');
                     }
 
                     saveState('ENVIAR_LINK', produtoAtual.slug, true);
@@ -540,12 +541,13 @@ JS_TEMPLATE = r"""// ==UserScript==
                     }
 
                     await safePaste(campoComentario, produtoAtual.offer_link);
-                    await sleep(2000);
+                    await sleep(600);
 
                     const enviarBtn = await waitAnyXP([
-                        '//button[contains(., "Postar")]',
-                        '//button[contains(., "Enviar")]',
-                        '//button[contains(., "Reply")]',
+                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div[2]/div[1]/div[2]/div[3]/div/div/button',
+                        '//button[contains(@class,"css-")]//svg[contains(@viewBox,"0 0 48 48")]/ancestor::button',
+                        '//button[@type="submit"]',
+                        '//div[@role="button"][contains(., "Postar")]',
                     ], 10000);
 
                     if (enviarBtn) {
