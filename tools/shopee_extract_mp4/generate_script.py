@@ -1,45 +1,43 @@
 #!/usr/bin/env python3
 """
 generate_script.py — Lê shopee_products.csv e gera:
-  1. console_script.js  com os links populados (pronto para colar no F12)
+  1. console_script.js  com shopid/itemid populados (pronto para colar no F12)
   2. shopee_videos.csv  (template com headers, para o browser preencher)
 
+O script JS NÃO resolve links curtos — usa shopid/itemid direto do CSV
+via fetch('/api/v4/item/get?itemid=...&shopid=...'), evitando redirects.
+
 Uso:
-  python generate_script.py                              # usa shopee_products.csv mais recente
-  python generate_script.py --file produtos.csv          # CSV específico
-  python generate_script.py --output-js custom.js        # nome customizado
-  python generate_script.py --min-commission 5           # filtra comissão mínima %
-  python generate_script.py --only-with-video            # só produtos que têm vídeo (se coluna existir)
-  python generate_script.py --limit 50                   # limita N produtos
+  python3 generate_script.py                              # usa shopee_products.csv mais recente
+  python3 generate_script.py --file produtos.csv          # CSV específico
+  python3 generate_script.py --output-js custom.js        # nome customizado
+  python3 generate_script.py --min-commission 5           # filtra comissão mínima %
+  python3 generate_script.py --limit 50                   # limita N produtos
 """
 
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
 from datetime import datetime
 
 # ── paths ──────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = Path(__file__).resolve().parent              # tools/shopee_extract_mp4/
-PROJECT_ROOT = SCRIPT_DIR.parent.parent                    # repo root
-
+SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CSV = SCRIPT_DIR / "shopee_products.csv"
 DEFAULT_JS  = SCRIPT_DIR / "console_script.js"
 DEFAULT_VIDEOS_CSV = SCRIPT_DIR / "shopee_videos.csv"
 
 # ── template do console_script.js ─────────────────────────────────────────────
-# O template é o console_script.js original com os links substituídos por placeholder
-JS_TEMPLATE_PREFIX = """(async () => {
+# Recebe lista de objetos {slug, shopid, itemid, offer_link} — sem resolver redirects
+JS_TEMPLATE = """(async () => {
   const STORAGE_KEY = 'shopee_dl_progress';
   const CSV_KEY     = 'shopee_csv_data';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const human = () => sleep(3000 + Math.random() * 3000);
 
-  // ── COLE SEUS LINKS AQUI ──────────────────────────────────
-  const links = `
-"""
-
-JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean);
+  // ── PRODUTOS (gerado pelo generate_script.py) ────────────
+  const PRODUTOS = __PRODUTOS_JSON__;
   // ─────────────────────────────────────────────────────────
 
   let progress = {};
@@ -79,71 +77,16 @@ JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean)
     log(`\\n📥 shopee_videos.csv (${csvRows.length} linhas)`, '#0ff');
   };
 
-  const pending = links.filter(l => {
-    const slug = l.split('/').pop();
-    return !progress[slug] || progress[slug] === 'timeout';
-  });
+  const pending = PRODUTOS.filter(p => !progress[p.slug] || progress[p.slug] === 'timeout');
 
-  const feitos = links.length - pending.length;
-  log(`Total: ${links.length} | Feitos: ${feitos} | Pendentes: ${pending.length}`, '#ff0');
+  const feitos = PRODUTOS.length - pending.length;
+  log(`Total: ${PRODUTOS.length} | Feitos: ${feitos} | Pendentes: ${pending.length}`, '#ff0');
 
   if (!pending.length) {
     log('Tudo processado! Gerando CSV...', '#0f0');
     exportCsv();
     return;
   }
-
-  // ── resolve link curto → URL final (sem popup) ────────────
-  // Usa iframe oculto em vez de window.open — mais estável,
-  // não depende de popup permitido, e não perde foco da aba.
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1';
-  document.body.appendChild(iframe);
-
-  const resolveUrl = (link) => new Promise(resolve => {
-    let resolved = false;
-
-    // timeout de 20s — se não resolver, desiste
-    const timer = setTimeout(() => {
-      if (!resolved) { resolved = true; resolve(null); }
-    }, 20000);
-
-    // tenta ler location do iframe após carregar
-    iframe.onload = () => {
-      if (resolved) return;
-      try {
-        const h = iframe.contentWindow.location.href;
-        if (h && !h.includes('about:blank') && !h.includes('s.shopee.com.br')) {
-          resolved = true; clearTimeout(timer); resolve(h);
-        }
-      } catch(e) {
-        // cross-origin: iframe carregou em domínio diferente
-        // isso significa que redirecionou para shopee.com.br
-        // não conseguimos ler a URL, mas sabemos que funcionou
-        resolved = true; clearTimeout(timer);
-        // retorna null — vamos extrair IDs de outra forma
-        resolve(null);
-      }
-    };
-
-    iframe.src = link;
-  });
-
-  // ── fallback: extrai IDs diretamente da API de redirect ───
-  const resolveViaApi = async (link) => {
-    try {
-      // fetch com redirect:manual pega o Location header
-      const r = await fetch(link, { redirect: 'manual', credentials: 'include' });
-      // status 302/301 → Location header tem a URL final
-      const loc = r.headers.get('Location');
-      if (loc) return loc.startsWith('http') ? loc : 'https://shopee.com.br' + loc;
-      // se não teve redirect, tenta seguir
-      const r2 = await fetch(link, { redirect: 'follow', credentials: 'include' });
-      return r2.url;
-    } catch(e) {
-      return null;
-    }
-  };
 
   const downloadBlob = async (url, filename) => {
     const res = await fetch(url);
@@ -155,53 +98,17 @@ JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean)
     setTimeout(() => URL.revokeObjectURL(burl), 15000);
   };
 
-  // ── extrai shopid/itemid da URL ───────────────────────────
-  const extractIds = (url) => {
-    const nums = new URL(url).pathname.split('/').filter(p => /^\\d{6,}$/.test(p));
-    if (nums.length >= 2) return { shopid: nums[nums.length - 2], itemid: nums[nums.length - 1] };
-    return null;
-  };
-
   let ok = 0, sem = 0, erro = 0, timeout = 0;
 
   for (let i = 0; i < pending.length; i++) {
-    const link = pending[i];
-    const slug = link.split('/').pop();
-    log(`\\n[${i+1}/${pending.length}] ${slug}`);
+    const prod = pending[i];
+    const { slug, shopid, itemid } = prod;
+    log(`\\n[${i+1}/${pending.length}] ${slug} (shop=${shopid} item=${itemid})`);
 
     try {
-      // 1) tenta resolver via iframe
-      let finalUrl = await resolveUrl(link);
-
-      // 2) se iframe falhou, tenta via fetch API
-      if (!finalUrl) {
-        log('  iframe não resolveu — tentando via fetch...', '#aaa');
-        finalUrl = await resolveViaApi(link);
-      }
-
-      // 3) se ainda não tem URL, tenta extrair IDs direto do link
-      //    (alguns links curtos já contêm shopid/itemid no path)
-      let ids = finalUrl ? extractIds(finalUrl) : null;
-
-      if (!ids) {
-        // último recurso: navega na mesma aba e espera
-        log('  última tentativa — navegando na aba atual...', '#f90');
-        window.location.href = link;
-        await sleep(8000);
-        ids = extractIds(window.location.href);
-        if (!ids) {
-          log('  ✗ não conseguiu extrair IDs', '#f00');
-          progress[slug] = 'erro'; save(); erro++;
-          await human(); continue;
-        }
-      }
-
-      if (finalUrl) log('  → ' + finalUrl.split('?')[0], '#555');
-      log(`  shopid=${ids.shopid} itemid=${ids.itemid}`, '#aaa');
-
       await sleep(1500 + Math.random() * 1500);
 
-      const res = await fetch(`/api/v4/item/get?itemid=${ids.itemid}&shopid=${ids.shopid}`, { credentials: 'include' });
+      const res = await fetch(`/api/v4/item/get?itemid=${itemid}&shopid=${shopid}`, { credentials: 'include' });
       const j = await res.json().catch(() => null);
 
       if (!j?.data) {
@@ -222,12 +129,12 @@ JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean)
       const vendidos  = d.historical_sold || d.sold || 0;
       const estoque   = d.stock || 0;
       const descricao = (d.description || '').replace(/[\\r\\n\\t]+/g, ' ').slice(0, 500);
-      const urlFinal  = finalUrl ? finalUrl.split('?')[0] : `https://shopee.com.br/product/${ids.shopid}/${ids.itemid}`;
+      const urlFinal  = `https://shopee.com.br/product/${shopid}/${itemid}`;
       const temVideo  = !!(d.video_info_list?.length);
 
       log(`  📦 ${nome.slice(0,45)} | R$${preco} | ⭐${avaliacao} | 🛒${vendidos}`, '#0ff');
 
-      // ── vídeo ─────────────────────────────────────────────
+      // ── vídeo via API ──────────────────────────────────────
       const vlist = d.video_info_list;
       let videoUrl = null;
 
@@ -238,37 +145,8 @@ JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean)
           v?.default_format?.url || null;
       }
 
-      // fallback: navega na aba atual, clica play, pega <video> src
       if (!videoUrl) {
-        log('  API sem vídeo — tentando via página...', '#f90');
-        try {
-          window.location.href = urlFinal;
-          await sleep(6000);
-
-          // tenta encontrar botão de play
-          const xp = '//*[@id="sll2-normal-pdp-main"]/div/div/div/div[2]/section/section[1]/div[2]/div[2]/button/svg';
-          const btn = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-          if (btn) {
-            btn.click();
-            log('  clicou no play — aguardando vídeo...', '#aaa');
-            await sleep(3000);
-          }
-
-          const vidEl = document.querySelector('video');
-          videoUrl = vidEl?.currentSrc || vidEl?.src || null;
-
-          // volta para a página anterior (shopee.com.br)
-          window.location.href = 'https://shopee.com.br';
-          await sleep(2000);
-        } catch(e) {
-          log('  fallback falhou: ' + e.message, '#f90');
-          try { window.location.href = 'https://shopee.com.br'; } catch(e2) {}
-          await sleep(2000);
-        }
-      }
-
-      if (!videoUrl) {
-        log('  — sem vídeo em nenhuma fonte', '#888');
+        log('  — sem vídeo na API', '#888');
         sem++;
       } else {
         log('  baixando vídeo...', '#ff0');
@@ -290,8 +168,6 @@ JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean)
     await human();
   }
 
-  try { iframe.remove(); } catch(e) {}
-
   log(`\\n══════════════════════════════`, '#ff0');
   log(`✓ vídeos baixados : ${ok}`,            '#0f0');
   log(`— sem vídeo       : ${sem}`,            '#888');
@@ -301,44 +177,62 @@ JS_TEMPLATE_SUFFIX = """`.trim().split('\\n').map(s => s.trim()).filter(Boolean)
 
   exportCsv();
 
-  log('\\nPara resetar tudo: localStorage.removeItem("shopee_dl_progress"); localStorage.removeItem("shopee_csv_data")', '#555');
+  log('\\nPara resetar: localStorage.removeItem("shopee_dl_progress"); localStorage.removeItem("shopee_csv_data")', '#555');
 })();"""
 
 
 # ── CSV helpers ────────────────────────────────────────────────────────────────
 def read_products_csv(path: Path) -> list[dict]:
-    """Lê shopee_products.csv e retorna lista de dicts."""
     with open(path, encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        return list(reader)
-
-
-def extract_short_links(products: list[dict]) -> list[str]:
-    """
-    Extrai links curtos (s.shopee.com.br/xxxxx) do CSV de produtos.
-    Tenta colunas na ordem: Offer Link → Product Link (se for curto).
-    """
-    links = []
-    for row in products:
-        # Offer Link é o link curto (s.shopee.com.br/xxxxx)
-        offer = row.get("Offer Link", "").strip()
-        if offer and "s.shopee.com.br" in offer:
-            links.append(offer)
-            continue
-        # Fallback: Product Link pode ter formato curto
-        product = row.get("Product Link", "").strip()
-        if product and "s.shopee.com.br" in product:
-            links.append(product)
-    return links
+        return list(csv.DictReader(f))
 
 
 def parse_commission_pct(raw: str) -> float | None:
-    """Extrai '10%' → 10.0"""
     if not raw:
         return None
     import re
     m = re.search(r"([\d.,]+)", raw.replace(",", "."))
     return float(m.group(1)) if m else None
+
+
+def extract_products(products: list[dict]) -> list[dict]:
+    """
+    Extrai shopid/itemid do CSV de produtos.
+    Usa Product Link (formato: shopee.com.br/product/{shopid}/{itemid})
+    Fallback: Item Id do CSV como itemid, shopid vazio (não funciona sem shopid).
+    """
+    result = []
+    for row in products:
+        offer = row.get("Offer Link", "").strip()
+        slug = offer.split("/").pop() if offer else ""
+
+        product_link = row.get("Product Link", "").strip()
+        shopid = ""
+        itemid = ""
+
+        # extrai shopid/itemid do Product Link
+        if "/product/" in product_link:
+            parts = product_link.split("/product/")[-1].split("/")
+            if len(parts) >= 2:
+                shopid = parts[0]
+                itemid = parts[1].split("?")[0]  # remove query params
+
+        # fallback: Item Id como itemid
+        if not itemid:
+            itemid = row.get("Item Id", "").strip()
+
+        if not shopid or not itemid:
+            print(f"  AVISO: sem shopid/itemid para {slug} — pulando")
+            continue
+
+        result.append({
+            "slug": slug,
+            "shopid": shopid,
+            "itemid": itemid,
+            "offer_link": offer,
+        })
+
+    return result
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -348,21 +242,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Exemplos:
-  python generate_script.py
-  python generate_script.py --file shopee_products.csv
-  python generate_script.py --min-commission 5
-  python generate_script.py --limit 50
-  python generate_script.py --output-js meu_script.js
+  python3 generate_script.py
+  python3 generate_script.py --min-commission 10
+  python3 generate_script.py --limit 50
 """,
     )
     parser.add_argument("--file", type=str, help="Caminho do CSV de produtos")
-    parser.add_argument("--output-js", type=str, default=str(DEFAULT_JS), help="Caminho do JS de saída")
-    parser.add_argument("--output-csv", type=str, default=str(DEFAULT_VIDEOS_CSV), help="Caminho do CSV de vídeos (template)")
-    parser.add_argument("--min-commission", type=float, default=0, help="Comissão mínima %% (filtra)")
-    parser.add_argument("--limit", type=int, default=0, help="Limita N produtos (0=todos)")
+    parser.add_argument("--output-js", type=str, default=str(DEFAULT_JS))
+    parser.add_argument("--output-csv", type=str, default=str(DEFAULT_VIDEOS_CSV))
+    parser.add_argument("--min-commission", type=float, default=0)
+    parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
 
-    # resolve CSV
     csv_path = Path(args.file) if args.file else DEFAULT_CSV
     if not csv_path.is_absolute():
         csv_path = SCRIPT_DIR / csv_path
@@ -372,39 +263,31 @@ Exemplos:
         sys.exit(1)
 
     print(f"Lendo: {csv_path}")
-
-    # read products
     products = read_products_csv(csv_path)
     print(f"  {len(products)} produtos no CSV")
 
-    # filter by commission
     if args.min_commission > 0:
-        filtered = []
-        for row in products:
-            pct = parse_commission_pct(row.get("Commission Rate", ""))
-            if pct is not None and pct >= args.min_commission:
-                filtered.append(row)
-        products = filtered
-        print(f"  Filtro comissao >= {args.min_commission}%: {len(products)} produtos")
+        products = [r for r in products
+                    if (pct := parse_commission_pct(r.get("Commission Rate", "")))
+                    and pct >= args.min_commission]
+        print(f"  Filtro comissao >= {args.min_commission}%: {len(products)}")
 
-    # extract links
-    links = extract_short_links(products)
+    items = extract_products(products)
+    print(f"  {len(items)} produtos com shopid/itemid")
 
-    if not links:
-        print("ERRO: nenhum link curto (s.shopee.com.br) encontrado no CSV")
-        print("  Verifique se a coluna 'Offer Link' existe e tem links curtos")
+    if not items:
+        print("ERRO: nenhum produto valido (verificar coluna Product Link)")
         sys.exit(1)
 
-    # limit
     if args.limit > 0:
-        links = links[:args.limit]
-        print(f"  Limitado a {args.limit} links")
+        items = items[:args.limit]
+        print(f"  Limitado a {args.limit}")
 
-    print(f"  {len(links)} links curtos extraidos")
-
-    # ── generate JS ────────────────────────────────────────────────────────
-    links_block = "\n".join(links)
-    js_content = JS_TEMPLATE_PREFIX + links_block + JS_TEMPLATE_SUFFIX
+    # ── gera JS ──────────────────────────────────────────────────────────────
+    js_content = JS_TEMPLATE.replace(
+        "__PRODUTOS_JSON__",
+        json.dumps(items, ensure_ascii=False, indent=2),
+    )
 
     js_path = Path(args.output_js)
     if not js_path.is_absolute():
@@ -413,39 +296,26 @@ Exemplos:
     with open(js_path, "w", encoding="utf-8") as f:
         f.write(js_content)
 
-    print(f"\n✅ JS gerado: {js_path}")
-    print(f"   {len(links)} links inseridos")
+    print(f"\\n✅ JS gerado: {js_path} ({len(items)} produtos)")
 
-    # ── generate videos CSV template ─────────────────────────────────────────
+    # ── gera videos CSV template ──────────────────────────────────────────────
     csv_path_out = Path(args.output_csv)
     if not csv_path_out.is_absolute():
         csv_path_out = SCRIPT_DIR / csv_path_out
 
-    # Se já existe, faz backup
     if csv_path_out.exists():
         backup = csv_path_out.with_suffix(f".csv.bak.{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         csv_path_out.rename(backup)
         print(f"   Backup: {backup.name}")
 
-    # Cria template vazio com headers
-    video_header = "slug,nome,preco,preco_original,desconto_pct,avaliacao,vendidos,estoque,tem_video,url,descricao\n"
     with open(csv_path_out, "w", encoding="utf-8-sig") as f:
-        f.write(video_header)
+        f.write("slug,nome,preco,preco_original,desconto_pct,avaliacao,vendidos,estoque,tem_video,url,descricao\\n")
 
     print(f"✅ CSV template: {csv_path_out}")
-
-    # ── summary ──────────────────────────────────────────────────────────────
-    print(f"\n{'='*50}")
-    print(f"  Produtos no CSV origem:  {len(products)}")
-    print(f"  Links curtos extraidos:  {len(links)}")
-    print(f"  JS gerado:               {js_path.name}")
-    print(f"  CSV template:            {csv_path_out.name}")
-    print(f"{'='*50}")
-    print(f"\nProximo passo:")
+    print(f"\\nProximo passo:")
     print(f"  1. Abra https://shopee.com.br (logado)")
     print(f"  2. F12 → Console")
     print(f"  3. Cole o conteudo de {js_path.name}")
-    print(f"  4. O script baixa MP4s + gera shopee_videos.csv")
 
 
 if __name__ == "__main__":

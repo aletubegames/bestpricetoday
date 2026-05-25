@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         Bot TikTok Fiel
+// @name         Bot TikTok Fiel v10
 // @namespace    http://tampermonkey.net/
-// @version      9.1
-// @description  Bot orientado ao video escolhido pelo usuario - corrigido perda de estado
+// @version      10.0
+// @description  Bot TikTok com retry, confirmacao de publicacao, XPath flexivel
 // @author       Alessandro
-// @match        https://www.tiktok.com/tiktokstudio*
+// @match        https://www.tiktok.com/*
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
@@ -17,211 +17,350 @@
     const SK = 'tt_state';
     const LISTA = [
   {
-    "slug": "10zxusHSxq",
-    "video": "10zxusHSxq.mp4",
-    "offer_link": "https://s.shopee.com.br/10zxusHSxq",
-    "caption": "Mesa de Cabeceira Retrô Compacta com Nicho para Quarto Sala Casal ou Solteiro Pa\nDe R$49.90 por R$29.90 (40% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "AAEFn6fYRx",
+    "video": "AAEFn6fYRx.mp4",
+    "offer_link": "https://s.shopee.com.br/AAEFn6fYRx",
+    "caption": "1/2/3 Cola Calçados Cola Pra Conserto De Sapatos Cola Para Conserto De Sapatos R\nOferta Especial: R$11,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "1VwEVnFYwz",
-    "video": "1VwEVnFYwz.mp4",
-    "offer_link": "https://s.shopee.com.br/1VwEVnFYwz",
-    "caption": "Percarbonato 100% Puro Tira Manchas Roupas Brancas e Coloridas\nDe R$29.90 por R$19.90 (33% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "AKXfzPev70",
+    "video": "AKXfzPev70.mp4",
+    "offer_link": "https://s.shopee.com.br/AKXfzPev70",
+    "caption": "Moletom Canguru Masculino Banda Stray Kids Blusa de Frio Premium Casaco Inverno \nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "1qZ4uPEIH5",
-    "video": "1qZ4uPEIH5.mp4",
-    "offer_link": "https://s.shopee.com.br/1qZ4uPEIH5",
-    "caption": "Areia Catbio Biodegradável 4 Kg - Max Clean - Grãos Finos\nDe R$48.90 por R$46.90 (4% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "8ATBPQnAVd",
+    "video": "8ATBPQnAVd.mp4",
+    "offer_link": "https://s.shopee.com.br/8ATBPQnAVd",
+    "caption": "3 / 6 / 9 / 12 / 18 / 24 Pares de Meias Femininas Soquete Cano Curto Estampadas \nOferta Especial: R$12,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "20sV6iDew8",
-    "video": "20sV6iDew8.mp4",
-    "offer_link": "https://s.shopee.com.br/20sV6iDew8",
-    "caption": "Jogo de Lençol 400 fios toque Suave e Acetinado Berço Solteiro Casal Queen King \nDe R$160.00 por R$14.60 (91% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "8KmbbjmXAg",
+    "video": "8KmbbjmXAg.mp4",
+    "offer_link": "https://s.shopee.com.br/8KmbbjmXAg",
+    "caption": "Moletom Canguru Masculino Exclusiva Aranha Streetwear Algodão Premium Blusa de F\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "2BBvJ1D1bB",
-    "video": "2BBvJ1D1bB.mp4",
-    "offer_link": "https://s.shopee.com.br/2BBvJ1D1bB",
-    "caption": "Tira manchas alvejante 1kg + Percarbonato de sódio 1kg\nDe R$38.00 por R$17.86 (53% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "8fPS0LlGUm",
+    "video": "8fPS0LlGUm.mp4",
+    "offer_link": "https://s.shopee.com.br/8fPS0LlGUm",
+    "caption": "Mochila Bolsa Reforçada Notebook Resistente Trabalho Faculdade Coreana\nOferta Especial: R$31,5\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "2LVLVKCOGE",
-    "video": "2LVLVKCOGE.mp4",
-    "offer_link": "https://s.shopee.com.br/2LVLVKCOGE",
-    "caption": "40 Peças / 46 Peças Jogo De Chave Catraca Caixa De Ferramentas Completa Reversív\nDe R$51.98 por R$25.97 (50% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "8pisCekd9p",
+    "video": "8pisCekd9p.mp4",
+    "offer_link": "https://s.shopee.com.br/8pisCekd9p",
+    "caption": "Meia Grossa Térmica de Lã com Sola Antiderrapante Unissex Criança e Adulto Quent\nOferta Especial: R$12,59\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "3VhItT7wtZ",
-    "video": "3VhItT7wtZ.mp4",
-    "offer_link": "https://s.shopee.com.br/3VhItT7wtZ",
-    "caption": "Kit 1 ou 2 Unidades de Veda Porta Ajustável Protetor Rolinho Impermeável 80cm 90\nDe R$19.00 por R$12.99 (32% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "902IOxjzos",
+    "video": "902IOxjzos.mp4",
+    "offer_link": "https://s.shopee.com.br/902IOxjzos",
+    "caption": "Moletom Canguru Feminino Stray Kids Banda Kpop Skz Skzoo Unissex Premium Blusa d\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "3qK9I56gDf",
-    "video": "3qK9I56gDf.mp4",
-    "offer_link": "https://s.shopee.com.br/3qK9I56gDf",
-    "caption": "Kit 3 Peneira Coador De Peneiras Aço Inoxidável Para Cozinha Peneira De Cozinha\nDe R$25.98 por R$15.99 (38% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "9ALibGjMTv",
+    "video": "9ALibGjMTv.mp4",
+    "offer_link": "https://s.shopee.com.br/9ALibGjMTv",
+    "caption": "Kit 3 Gel Sebo de Carneiro Hidratante Pele Renovada Nati Corporal Pés + Necessai\nOferta Especial: R$14,95\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "40dZUO62si",
-    "video": "40dZUO62si.mp4",
-    "offer_link": "https://s.shopee.com.br/40dZUO62si",
-    "caption": "Sapateira 4 ou 5 Andares Multiuso Desmontável Organizadora Multiuso Sapatos Livr\nDe R$50.00 por R$17.98 (64% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "6pxnoysFDV",
+    "video": "6pxnoysFDV.mp4",
+    "offer_link": "https://s.shopee.com.br/6pxnoysFDV",
+    "caption": "Base BB Cream Cushion /Corretivo com Esponja co Formato de Cogumelo  Base Clarea\nOferta Especial: R$24,88\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "4LGPt04mCo",
-    "video": "4LGPt04mCo.mp4",
-    "offer_link": "https://s.shopee.com.br/4LGPt04mCo",
-    "caption": "Lencol Queen 400 Fios Micropercal Cama Casal Solteiro Tecido Super Macio\nDe R$45.00 por R$25.89 (42% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "70HE1HrbsY",
+    "video": "70HE1HrbsY.mp4",
+    "offer_link": "https://s.shopee.com.br/70HE1HrbsY",
+    "caption": "Moletom Canguru Masculino Estampado Skyline Gtr R34  Blusa De Frio Premium Carro\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "4VZq5J48rr",
-    "video": "4VZq5J48rr.mp4",
-    "offer_link": "https://s.shopee.com.br/4VZq5J48rr",
-    "caption": "Creatina Suplemento Monohidratada em Pó 100% Pura Importada - Soldiers Nutrition\nDe R$69.90 por R$29.90 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "7AaeDaqyXb",
+    "video": "7AaeDaqyXb.mp4",
+    "offer_link": "https://s.shopee.com.br/7AaeDaqyXb",
+    "caption": "Kit 6 e 12 Pares de Meias Masculino para Recém Nascidos e Bebê Menino c/ Antider\nOferta Especial: R$15,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "4ftGHc3VWu",
-    "video": "4ftGHc3VWu.mp4",
-    "offer_link": "https://s.shopee.com.br/4ftGHc3VWu",
-    "caption": "Trava Óculos Antiderrapante Silicone Kit Não Cai Do Rosto Gancho Orelha Haste Co\nDe R$7.50 por R$5.50 (27% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "7Ku4PtqLCe",
+    "video": "7Ku4PtqLCe.mp4",
+    "offer_link": "https://s.shopee.com.br/7Ku4PtqLCe",
+    "caption": "Kit com 5 - Lenço Umedecido Turminha da Bagunça Toalha Umedecida 48 Unidades\nOferta Especial: R$18,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "4qCgTv2sBx",
-    "video": "4qCgTv2sBx.mp4",
-    "offer_link": "https://s.shopee.com.br/4qCgTv2sBx",
-    "caption": "Kit Limpador Pastilha de máquina de lavar roupa, comprimido efervescente sólido \nDe R$15.00 por R$8.59 (43% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "7fWuoVp4Wk",
+    "video": "7fWuoVp4Wk.mp4",
+    "offer_link": "https://s.shopee.com.br/7fWuoVp4Wk",
+    "caption": "Maquiagem junina adesiva, autocolante  kit 1 maquiagem completa contendo, 2 band\nOferta Especial: R$19,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "50W6gE2Er0",
-    "video": "50W6gE2Er0.mp4",
-    "offer_link": "https://s.shopee.com.br/50W6gE2Er0",
-    "caption": "Tapete de Banheiro Absorvente Antiderrapante Secagem Rápida\nDe R$50.00 por R$11.99 (76% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "7pqL0ooRBn",
+    "video": "7pqL0ooRBn.mp4",
+    "offer_link": "https://s.shopee.com.br/7pqL0ooRBn",
+    "caption": "Meia-Calça Térmica Feminina Peluciada Translúcida Alta Elasticidade Super Quente\nOferta Especial: R$21,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "5VSNH90Kq9",
-    "video": "5VSNH90Kq9.mp4",
-    "offer_link": "https://s.shopee.com.br/5VSNH90Kq9",
-    "caption": "Kit 10 Panos De Limpeza Microfibra alta absorção Multiuso\nDe R$99.99 por R$17.48 (83% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "5q5Gd8w3FT",
+    "video": "5q5Gd8w3FT.mp4",
+    "offer_link": "https://s.shopee.com.br/5q5Gd8w3FT",
+    "caption": "Kit 12 Pares de Meia Cano Alto\nOferta Especial: R$10,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "5flnTRzhVC",
-    "video": "5flnTRzhVC.mp4",
-    "offer_link": "https://s.shopee.com.br/5flnTRzhVC",
-    "caption": "Mulheres com Deus - 365 Dias de Fé - Devocional\nDe R$39.90 por R$20.51 (49% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "60OgpRvPuW",
+    "video": "60OgpRvPuW.mp4",
+    "offer_link": "https://s.shopee.com.br/60OgpRvPuW",
+    "caption": "Protetor De Sapato Impermeável De Silicone Capa de Chuva Para Tênis Colorido e U\nOferta Especial: R$11,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "5q5Dfkz4AF",
-    "video": "5q5Dfkz4AF.mp4",
-    "offer_link": "https://s.shopee.com.br/5q5Dfkz4AF",
-    "caption": "Kit 5/10/20/50/100 Un Saco Saquinho Organza Tule Saquinho 7x9 9x12 10x15 Branco \nDe R$45.90 por R$5.90 (87% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "6Ai71kumZZ",
+    "video": "6Ai71kumZZ.mp4",
+    "offer_link": "https://s.shopee.com.br/6Ai71kumZZ",
+    "caption": "Moletom Canguru Masculino Estampa Capivara Milk Fofa Tumblr Com Capuz Casaco Blu\nOferta Especial: R$99,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "60Ods3yQpI",
-    "video": "60Ods3yQpI.mp4",
-    "offer_link": "https://s.shopee.com.br/60Ods3yQpI",
-    "caption": "Balança Bioimpedância Digital Profissional Suporta Até 140kg via Bluethooth\nDe R$99.00 por R$29.96 (70% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "6L1XE3u9Ec",
+    "video": "6L1XE3u9Ec.mp4",
+    "offer_link": "https://s.shopee.com.br/6L1XE3u9Ec",
+    "caption": "Calça Feminina TACTEL COM ELASTANO PREMIUM jogger / ideal para academia,yoga, ca\nOferta Especial: R$36,49\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "6Ai44MxnUL",
-    "video": "6Ai44MxnUL.mp4",
-    "offer_link": "https://s.shopee.com.br/6Ai44MxnUL",
-    "caption": "Espuma Spray Zip Clean 300ml Limpa a Seco Sofá, Estofado, Banco de Carro Limpeza\nDe R$29.99 por R$15.99 (47% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "4Ax2e52OdF",
+    "video": "4Ax2e52OdF.mp4",
+    "offer_link": "https://s.shopee.com.br/4Ax2e52OdF",
+    "caption": "NOVA Luva motoqueiro inverno Frio Touch Screen  Motociclista Cano longo Adequado\nOferta Especial: R$8,2\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "6VKuSywWoR",
-    "video": "6VKuSywWoR.mp4",
-    "offer_link": "https://s.shopee.com.br/6VKuSywWoR",
-    "caption": "ROMANTIC CROWN Copo Térmico Inox Portátil 1200ml/600ml/1.2L Garrafa Térmica Inox\nDe R$60.00 por R$39.98 (33% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "4LGSqO1lII",
+    "video": "4LGSqO1lII.mp4",
+    "offer_link": "https://s.shopee.com.br/4LGSqO1lII",
+    "caption": "Cola adesiva forte para sapatos - para reparação de calçado, soluções de reparaç\nOferta Especial: R$14,97\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "6feKfHvtTU",
-    "video": "6feKfHvtTU.mp4",
-    "offer_link": "https://s.shopee.com.br/6feKfHvtTU",
-    "caption": "Organizador de Sacolas Dispenser Organizadora De Plástico Para Armazenamento De \nDe R$29.99 por R$10.00 (67% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "4ftJF00UcO",
+    "video": "4ftJF00UcO.mp4",
+    "offer_link": "https://s.shopee.com.br/4ftJF00UcO",
+    "caption": "Blusa Manga Longa Feminina moda fitness modeladora  yoga casaco academia proteçã\nOferta Especial: R$44,47\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "70HB3tucna",
-    "video": "70HB3tucna.mp4",
-    "offer_link": "https://s.shopee.com.br/70HB3tucna",
-    "caption": "Kit Jogo De Lençol Cama Box Solteiro Casal Queen King 02 e 03 Peças\nDe R$60.00 por R$25.80 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "50W9dbzDwU",
+    "video": "50W9dbzDwU.mp4",
+    "offer_link": "https://s.shopee.com.br/50W9dbzDwU",
+    "caption": "Jaqueta Masculina Casaco Lã Blusa De Frio Inverno Tricô Com Bolsos\nOferta Especial: R$69,23\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "7VDReosimj",
-    "video": "7VDReosimj.mp4",
-    "offer_link": "https://s.shopee.com.br/7VDReosimj",
-    "caption": "Kit2/1 Cartão Memória Micro SD Ultra 32GB-256GB Com Adaptador p/Vendas diretas d\nDe R$29.99 por R$12.99 (57% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "5ApZpuyabX",
+    "video": "5ApZpuyabX.mp4",
+    "offer_link": "https://s.shopee.com.br/5ApZpuyabX",
+    "caption": "KIT DE MEIA FEMININA BRANCA FOFO COM TEXTURA ALGODAO POLIESTER 35-40 IDEAL PARA \nOferta Especial: R$14,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "7pqI3QrS6p",
-    "video": "7pqI3QrS6p.mp4",
-    "offer_link": "https://s.shopee.com.br/7pqI3QrS6p",
-    "caption": "Depilador Indolor Caneta Sobrancelha Removedor Instantâneo A Pilha\nDe R$48.00 por R$12.39 (74% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "3B4VSF6CfD",
+    "video": "3B4VSF6CfD.mp4",
+    "offer_link": "https://s.shopee.com.br/3B4VSF6CfD",
+    "caption": "Meia Calça Fina7D ANTICELULITE Fio  70 Plus Size – Veste do 36 ao 54 | Conforto \nOferta Especial: R$27,97\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "809iFjqols",
-    "video": "809iFjqols.mp4",
-    "offer_link": "https://s.shopee.com.br/809iFjqols",
-    "caption": "Protetor Impermeável para Colchão SUPER SILENCIOSO 100% Impermeável Tecido Jacqu\nDe R$119.97 por R$47.97 (60% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "3qKCFT3fJP",
+    "video": "3qKCFT3fJP.mp4",
+    "offer_link": "https://s.shopee.com.br/3qKCFT3fJP",
+    "caption": "Kit 1 - 4  Pares Nova Meia Aveludada Térmica Flanelada Inverno  tamanho único e \nOferta Especial: R$11,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "8AT8S2qBQv",
-    "video": "8AT8S2qBQv.mp4",
-    "offer_link": "https://s.shopee.com.br/8AT8S2qBQv",
-    "caption": "Bermuda Modeladora Anágua Cinta Short Feminino Modelador Alta Compressão Reduz M\nDe R$38.99 por R$20.90 (46% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "1VwHTBCY2z",
+    "video": "1VwHTBCY2z.mp4",
+    "offer_link": "https://s.shopee.com.br/1VwHTBCY2z",
+    "caption": "3d Hydra Lipgloss Kiko Milano\nOferta Especial: R$24\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "8fPP2xoHQ4",
-    "video": "8fPP2xoHQ4.mp4",
-    "offer_link": "https://s.shopee.com.br/8fPP2xoHQ4",
-    "caption": "Lencol Micropercal 400 Fios Jogo De Cama Casal, Queen, King 03 Peças Barato Solt\nDe R$25.90 por R$19.36 (25% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "1qZ7rnBHN5",
+    "video": "1qZ7rnBHN5.mp4",
+    "offer_link": "https://s.shopee.com.br/1qZ7rnBHN5",
+    "caption": "Meia-Calça Térmica Feminina Plus Size M-GG Forrada Peluciada Translúcida de Lã  \nOferta Especial: R$25,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "9ALfdsmNPD",
-    "video": "9ALfdsmNPD.mp4",
-    "offer_link": "https://s.shopee.com.br/9ALfdsmNPD",
-    "caption": "Creme Gel Regenerador Facial Gota de Colágeno Kokeshi 45g\nDe R$46.90 por R$31.90 (32% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "20sY46Ae28",
+    "video": "20sY46Ae28.mp4",
+    "offer_link": "https://s.shopee.com.br/20sY46Ae28",
+    "caption": "Kit 2 Calças Legging Lisa Fitness Feminina Suplex  Envio Rapido Moda LLevo\nOferta Especial: R$49,54\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "9UyW2Ul6jJ",
-    "video": "9UyW2Ul6jJ.mp4",
-    "offer_link": "https://s.shopee.com.br/9UyW2Ul6jJ",
-    "caption": "Chave T  Longa Para máquina de lavar 10mm Agitador Brastemp/Consul/Electrolux Un\nDe R$24.99 por R$12.75 (49% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "2BByGPA0hB",
+    "video": "2BByGPA0hB.mp4",
+    "offer_link": "https://s.shopee.com.br/2BByGPA0hB",
+    "caption": "Shampoo Escurecedor Cabelos Brancos Tonalizante Preto, Avelã, Marsala Platinado \nOferta Especial: R$15\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "9pbMR6jq3P",
-    "video": "9pbMR6jq3P.mp4",
-    "offer_link": "https://s.shopee.com.br/9pbMR6jq3P",
-    "caption": "Aparelho Medidor De Pressão Arterial Digital De Braço\nDe R$59.67 por R$32.99 (45% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "2Voof18k1H",
+    "video": "2Voof18k1H.mp4",
+    "offer_link": "https://s.shopee.com.br/2Voof18k1H",
+    "caption": "Kit  Pares de Meias Soquete Feminina Adulto Estampada Cores Delicadas\nOferta Especial: R$11,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "9zumdPjCiS",
-    "video": "9zumdPjCiS.mp4",
-    "offer_link": "https://s.shopee.com.br/9zumdPjCiS",
-    "caption": "ROMANTIC CROWN Copo Térmico Portátil 1200ml/600ml com Tampa e Canudo Garrafa Tér\nDe R$70.00 por R$39.98 (43% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "17TgQIG5o",
+    "video": "17TgQIG5o.mp4",
+    "offer_link": "https://s.shopee.com.br/17TgQIG5o",
+    "caption": "Areia Catbio Biodegradável 4 Kg - Max Clean - Grãos Finos\nOferta Especial: R$46,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   },
   {
-    "slug": "17Qj2LH0b",
-    "video": "17Qj2LH0b.mp4",
-    "offer_link": "https://s.shopee.com.br/17Qj2LH0b",
-    "caption": "kit Coala Home Chá Branco\nDe R$80.65 por R$72.90 (10% OFF)\nLink nos comentarios 👇\n#shopee #oferta #promocao"
+    "slug": "LkK52GzPu",
+    "video": "LkK52GzPu.mp4",
+    "offer_link": "https://s.shopee.com.br/LkK52GzPu",
+    "caption": "Tinta para Tecido Acrilex 37ml - Cores Avulsas e Kits Temáticos - Alta Cobertura\nOferta Especial: R$7,5\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "W3kHLGM4x",
+    "video": "W3kHLGM4x.mp4",
+    "offer_link": "https://s.shopee.com.br/W3kHLGM4x",
+    "caption": "Meia-calça grossa e elástica alta para meninas no inverno\nOferta Especial: R$22,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "qgafxF5P3",
+    "video": "qgafxF5P3.mp4",
+    "offer_link": "https://s.shopee.com.br/qgafxF5P3",
+    "caption": "calça moletom de lã grossa unissex (envio imediato)\nOferta Especial: R$74,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "9Kf8nZij9l",
+    "video": "9Kf8nZij9l.mp4",
+    "offer_link": "https://s.shopee.com.br/9Kf8nZij9l",
+    "caption": "Calça Alfaiataria Feminina Cintura Alta Lançamento Com Zíper Social Slim Fino Bl\nOferta Especial: R$32,95\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "9fHzCBhSTr",
+    "video": "9fHzCBhSTr.mp4",
+    "offer_link": "https://s.shopee.com.br/9fHzCBhSTr",
+    "caption": "Kit ate 6 pares de meia/meias soquete térmica grossa flanelada fleece inverno fr\nOferta Especial: R$19,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "AAEFn6fYSy",
+    "video": "AAEFn6fYSy.mp4",
+    "offer_link": "https://s.shopee.com.br/AAEFn6fYSy",
+    "caption": "Kit 4 Travesseiros de Manta com Fibra Mista Macia Travesseiro tnt\nOferta Especial: R$19\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "AKXfzPev83",
+    "video": "AKXfzPev83.mp4",
+    "offer_link": "https://s.shopee.com.br/AKXfzPev83",
+    "caption": "2025 Nova Série 8 Relógio T800 Ultra Smart Watch Esportivo Sem Fio À Prova D'águ\nOferta Especial: R$36,88\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "8V61o2ltqk",
+    "video": "8V61o2ltqk.mp4",
+    "offer_link": "https://s.shopee.com.br/8V61o2ltqk",
+    "caption": "Escova 3 Em 1 Vassoura Rodo Gap Limpeza Esfregão Mop Limpa\nOferta Especial: R$15,88\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "8KmbbjmXBj",
+    "video": "8KmbbjmXBj.mp4",
+    "offer_link": "https://s.shopee.com.br/8KmbbjmXBj",
+    "caption": "Kit 3 pares Meia Calça Infantil Menina e Menino Diversas Estampas Super Confortá\nOferta Especial: R$26,7\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "8fPS0LlGVp",
+    "video": "8fPS0LlGVp.mp4",
+    "offer_link": "https://s.shopee.com.br/8fPS0LlGVp",
+    "caption": "Mochila Mala Reforçada Notebook Impermeável Escolar Trabalho Oferta\nOferta Especial: R$29,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "902IOxjzpv",
+    "video": "902IOxjzpv.mp4",
+    "offer_link": "https://s.shopee.com.br/902IOxjzpv",
+    "caption": "BODY SPLASH MASCULINO BARBARIUS 200ML - PRIMACIAL PERFUME AMADEIRADO\nOferta Especial: R$28,45\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "6feNcfssZV",
+    "video": "6feNcfssZV.mp4",
+    "offer_link": "https://s.shopee.com.br/6feNcfssZV",
+    "caption": "Camisola Renda Feminina Pijama Sexy Sensual Lingerie Conforto Linha Noite sem Bo\nOferta Especial: R$16,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "7AaeDaqyYc",
+    "video": "7AaeDaqyYc.mp4",
+    "offer_link": "https://s.shopee.com.br/7AaeDaqyYc",
+    "caption": "TOYADENTEscova Dental TOYADENT Ultra Soft, Kit 3 Unidades, 5500+ Cerdas, Cores V\nOferta Especial: R$17,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "70HE1Hrbtb",
+    "video": "70HE1Hrbtb.mp4",
+    "offer_link": "https://s.shopee.com.br/70HE1Hrbtb",
+    "caption": "Calça Pantalona Feminina Tecido texturado Calça Feminino Cintura Alta Pantalona \nOferta Especial: R$39,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "7VDUcCphsi",
+    "video": "7VDUcCphsi.mp4",
+    "offer_link": "https://s.shopee.com.br/7VDUcCphsi",
+    "caption": "Meia Calça Feminina Plus Size Térmica Grossa Super Elástica Translucida Super St\nOferta Especial: R$23,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "7pqL0ooRCo",
+    "video": "7pqL0ooRCo.mp4",
+    "offer_link": "https://s.shopee.com.br/7pqL0ooRCo",
+    "caption": "Kit 2000 Peças Bolsa Elástico De Cabelo Feminino Descartável Multicolorido\nOferta Especial: R$4,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "7fWuoVp4Xn",
+    "video": "7fWuoVp4Xn.mp4",
+    "offer_link": "https://s.shopee.com.br/7fWuoVp4Xn",
+    "caption": "Luminária Solar Parede 21W LED Controle Remoto De Jardim À Prova D'água Indução \nOferta Especial: R$24,89\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "5VSQEWxJwO",
+    "video": "5VSQEWxJwO.mp4",
+    "offer_link": "https://s.shopee.com.br/5VSQEWxJwO",
+    "caption": "Moedor Elétrico Café Grãos Inox 150W Multifuncional 110V 220V Compacto Potente P\nOferta Especial: R$41,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "5L902DxxHN",
+    "video": "5L902DxxHN.mp4",
+    "offer_link": "https://s.shopee.com.br/5L902DxxHN",
+    "caption": "Cobertor Casal 200x180 Antialérgico Estampado e Cor Lisa - Toque Macio - Manta C\nOferta Especial: R$28,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "5q5Gd8w3GU",
+    "video": "5q5Gd8w3GU.mp4",
+    "offer_link": "https://s.shopee.com.br/5q5Gd8w3GU",
+    "caption": "Meia-Calça Térmica Forrado Grosso Translúcido Leggings De Lã Quente Das Mulheres\nOferta Especial: R$15,99\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "6Ai71kumaa",
+    "video": "6Ai71kumaa.mp4",
+    "offer_link": "https://s.shopee.com.br/6Ai71kumaa",
+    "caption": "Sandália Babuche Adulto Feminino  Nuvem com 8 Bottons aleatórios\nOferta Especial: R$32,9\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "6VKxQMtVug",
+    "video": "6VKxQMtVug.mp4",
+    "offer_link": "https://s.shopee.com.br/6VKxQMtVug",
+    "caption": "Película Cerâmica 9D 3D iPhone Gel Hidrogel Flexível película iphone 13 11 12 14\nOferta Especial: R$4,98\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "6L1XE3u9Ff",
+    "video": "6L1XE3u9Ff.mp4",
+    "offer_link": "https://s.shopee.com.br/6L1XE3u9Ff",
+    "caption": "Kit Feira Cronolola Bemdita Ghee 100g Nutrição Hidratação e Reconstrução\nOferta Especial: R$28,49\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
+  },
+  {
+    "slug": "4Ax2e52OeG",
+    "video": "4Ax2e52OeG.mp4",
+    "offer_link": "https://s.shopee.com.br/4Ax2e52OeG",
+    "caption": "calças fler com bolso tecido grosso 38/40/42/44/46/48/50/52/54\nOferta Especial: R$29,49\nLink nos comentarios 👇\n#shopee #achadinhos #promocao"
   }
 ];
+    const MAX_RETRIES = 3;
 
     const readLocal = (k, fb) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } };
     const readSession = (k, fb) => { try { const r = sessionStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } };
 
     let progress = readLocal(PK, {});
-    let state = readSession(SK, { current: { step: 'START', slug: null }, history: [], future: [] });
+    let state = readSession(SK, { current: { step: 'START', slug: null, retries: 0 }, history: [], future: [] });
 
     const saveState = (step, slug = state.current.slug, pushToHistory = true) => {
         if (pushToHistory && (state.history.length === 0 || state.history[state.history.length - 1].step !== state.current.step)) {
-            state.history.push(state.current);
+            state.history.push({ ...state.current });
             state.future = [];
         }
-        state.current = { step, slug };
+        state.current = { step, slug, retries: 0 };
         sessionStorage.setItem(SK, JSON.stringify(state));
     };
 
@@ -238,31 +377,26 @@
         const s = document.getElementById('bot-status');
         const m = document.getElementById('bot-msg');
         if (s) s.innerText = 'Status: ' + status;
-        if (m) {
-            m.innerText = msg;
-            m.style.color = color;
-        }
+        if (m) { m.innerText = msg; m.style.color = color; }
         console.log('[BOT]', status, '-', msg);
     };
 
-    const waitXP = async (xpPrimary, xpFallback = null, timeout = 15000) => {
+    // ── XPath com múltiplos fallbacks ──────────────────────────
+    const waitAnyXP = async (xpaths, timeout = 15000) => {
         const deadline = Date.now() + timeout;
         while (Date.now() < deadline) {
-            let el = null;
-            try {
-                el = document.evaluate(xpPrimary, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-            } catch (e) {}
-            if (!el && xpFallback) {
+            for (const xp of xpaths) {
                 try {
-                    el = document.evaluate(xpFallback, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                    const el = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                    if (el && el.isConnected) return el;
                 } catch (e) {}
             }
-            if (el && el.isConnected) return el;
             await sleep(1000);
         }
         return null;
     };
 
+    // ── Safe paste em contenteditable ──────────────────────────
     const safePaste = async (el, text) => {
         el.focus();
         el.click();
@@ -270,48 +404,35 @@
         try {
             document.execCommand('selectAll', false, null);
             document.execCommand('delete', false, null);
-
             const ev = new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
+                bubbles: true, cancelable: true,
                 clipboardData: new DataTransfer()
             });
-
             ev.clipboardData.setData('text/plain', text);
             el.dispatchEvent(ev);
             await sleep(1000);
-
             if (!el.textContent.trim()) document.execCommand('insertText', false, text);
         } catch (e) {
             el.textContent = text;
         }
-
         el.dispatchEvent(new InputEvent('input', {
-            bubbles: true,
-            cancelable: true,
-            inputType: 'insertText',
-            data: text
+            bubbles: true, cancelable: true,
+            inputType: 'insertText', data: text
         }));
-
         await sleep(1000);
     };
 
+    // ── Detectar produto na página ─────────────────────────────
     const detectarProduto = () => {
         const pageText = document.body.innerText + document.body.innerHTML;
-
         for (const p of LISTA) {
             if (pageText.includes(p.video) || pageText.includes(p.slug)) return p;
         }
-
         try {
             const desc = document.evaluate(
                 '//div[contains(@class,"public-DraftEditor-content") or @data-contents="true"]',
-                document,
-                null,
-                XPathResult.FIRST_ORDERED_NODE_TYPE,
-                null
+                document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
             ).singleNodeValue;
-
             if (desc) {
                 const txt = desc.textContent.trim();
                 for (const p of LISTA) {
@@ -319,16 +440,16 @@
                 }
             }
         } catch (e) {}
-
         return null;
     };
 
+    // ── Painel UI ──────────────────────────────────────────────
     if (!document.getElementById('bot-panel')) {
         const panel = document.createElement('div');
         panel.id = 'bot-panel';
         panel.style = 'position:fixed;top:10px;right:10px;z-index:999999;background:rgba(0,0,0,0.9);color:#0f0;padding:15px;border:1px solid #ff0050;font-family:monospace;width:340px;border-radius:8px;box-shadow:0 0 10px #ff0050;';
         panel.innerHTML = `
-            <h4 style="color:#ff0050;margin:0">BOT TIKTOK v9</h4>
+            <h4 style="color:#ff0050;margin:0">BOT TIKTOK v10</h4>
             <div id="bot-status" style="margin-top:10px;font-weight:bold;">Iniciando...</div>
             <div id="bot-msg" style="font-size:12px;color:#fff;margin-top:5px;word-wrap:break-word;min-height:40px;"></div>
             <div id="bot-produto" style="font-size:11px;color:#0ff;margin-top:5px;word-wrap:break-word;"></div>
@@ -344,7 +465,6 @@
             sessionStorage.removeItem(SK);
             location.reload();
         });
-
         document.getElementById('btn-back').addEventListener('click', () => {
             if (state.history.length > 0) {
                 state.future.unshift(state.current);
@@ -353,7 +473,6 @@
                 location.reload();
             }
         });
-
         document.getElementById('btn-forward').addEventListener('click', () => {
             if (state.future.length > 0) {
                 state.history.push(state.current);
@@ -362,7 +481,6 @@
                 location.reload();
             }
         });
-
         document.getElementById('btn-clear').addEventListener('click', () => {
             if (confirm('Apagar memoria? O bot vai repostar os mesmos videos.')) {
                 localStorage.removeItem(PK);
@@ -381,8 +499,9 @@
 
     await sleep(1500);
 
+    // ── Loop principal ─────────────────────────────────────────
     while (true) {
-        state = readSession(SK, { current: { step: 'START', slug: null }, history: [], future: [] });
+        state = readSession(SK, { current: { step: 'START', slug: null, retries: 0 }, history: [], future: [] });
 
         const PASSOS_COM_PRODUTO = ['POSTAR', 'IR_COMENTARIOS', 'ENVIAR_LINK'];
         if (PASSOS_COM_PRODUTO.includes(state.current.step) && !state.current.slug) {
@@ -398,46 +517,46 @@
 
         try {
             switch (state.current.step) {
+
+                // ── START ────────────────────────────────────────
                 case 'START': {
                     if (!location.pathname.includes('/upload')) {
                         navigateTo(
                             'https://www.tiktok.com/tiktokstudio/upload?from=creator_center&tab=video',
-                            'AGUARDAR_VIDEO',
-                            null
+                            'AGUARDAR_VIDEO', null
                         );
                         return;
                     }
-
                     saveState('AGUARDAR_VIDEO', null, false);
                     await sleep(2000);
                     break;
                 }
 
+                // ── AGUARDAR_VIDEO ──────────────────────────────
                 case 'AGUARDAR_VIDEO': {
-                    const btnSel = await waitXP(
+                    const btnSel = await waitAnyXP([
                         '//*[@data-e2e="select_video_button"]',
-                        '//button[@aria-label="Selecionar vídeo" or @aria-label="Selecionar video"]',
-                        15000
-                    );
+                        '//button[contains(@aria-label,"elecionar")]',
+                        '//button[contains(@aria-label,"elect")]',
+                        '//span[contains(text(),"Selecionar")]/ancestor::button',
+                    ], 15000);
                     if (!btnSel) throw new Error('Botao Selecionar Video nao encontrado');
 
                     log('Escolha o video na janela do Windows', 'AGUARDANDO USUARIO', '#0ff');
                     btnSel.click();
 
-                    const campoTexto = await waitXP(
+                    const campoTexto = await waitAnyXP([
                         '//div[contains(@class,"public-DraftEditor-content") or @data-contents="true"]',
                         '//div[@contenteditable="true"]',
-                        300000
-                    );
+                    ], 300000);
                     if (!campoTexto) throw new Error('Timeout: nenhum video selecionado');
 
                     log('Video detectado! Aguardando tela estabilizar...', 'AGUARDANDO', '#ff0');
                     await sleep(10000);
 
                     let produto = detectarProduto();
-
                     if (!produto) {
-                        log('Nao identifiquei o video. Clique no produto correto abaixo:', 'ESCOLHA', '#ff0');
+                        log('Nao identifiquei o video. Clique no produto correto:', 'ESCOLHA', '#ff0');
                         produto = await new Promise(resolve => {
                             const wrap = document.createElement('div');
                             wrap.id = 'manual-picker';
@@ -447,10 +566,7 @@
                                 const b = document.createElement('button');
                                 b.textContent = p.slug;
                                 b.style = 'display:block;width:100%;margin:2px 0;background:#111;color:#0ff;border:1px solid #0ff;padding:4px 6px;font-size:10px;cursor:pointer;border-radius:3px;text-align:left;';
-                                b.onclick = () => {
-                                    wrap.remove();
-                                    resolve(p);
-                                };
+                                b.onclick = () => { wrap.remove(); resolve(p); };
                                 wrap.appendChild(b);
                             });
                             document.getElementById('bot-panel').appendChild(wrap);
@@ -458,7 +574,7 @@
                     }
 
                     if (progress[produto.slug] === 'ok') {
-                        log(`Aviso: "${produto.slug}" ja foi postado antes.`, 'AVISO', '#ff0');
+                        log(`Aviso: "${produto.slug}" ja foi postado.`, 'AVISO', '#ff0');
                     }
 
                     log(`Produto: ${produto.slug}`, 'IDENTIFICADO', '#0f0');
@@ -468,92 +584,145 @@
                     break;
                 }
 
+                // ── POSTAR (com retry) ──────────────────────────
                 case 'POSTAR': {
                     if (!produtoAtual) throw new Error('Produto nao identificado. Reinicie.');
 
-                    const descBox = await waitXP(
-                        '//div[contains(@class,"public-DraftEditor-content") or @data-contents="true"]',
-                        '//div[@contenteditable="true"]',
-                        30000
-                    );
-                    if (!descBox) throw new Error('Campo de legenda nao encontrado');
+                    let publicado = false;
 
-                    log('Preenchendo legenda...', 'AGUARDANDO', '#ff0');
-                    await safePaste(descBox, produtoAtual.caption);
-                    await sleep(4000);
+                    for (let tentativa = 1; tentativa <= MAX_RETRIES && !publicado; tentativa++) {
+                        if (tentativa > 1) {
+                            log(`Retry ${tentativa}/${MAX_RETRIES}...`, 'RETRY', '#ff0');
+                            await sleep(3000);
+                        }
 
-                    if ((descBox.textContent || '').trim().length < 5) {
-                        throw new Error('Legenda ficou vazia, tentando novamente...');
+                        try {
+                            const descBox = await waitAnyXP([
+                                '//div[contains(@class,"public-DraftEditor-content") or @data-contents="true"]',
+                                '//div[@contenteditable="true"]',
+                            ], 30000);
+                            if (!descBox) throw new Error('Campo de legenda nao encontrado');
+
+                            log(`Preenchendo legenda (tentativa ${tentativa})...`, 'AGUARDANDO', '#ff0');
+                            await safePaste(descBox, produtoAtual.caption);
+                            await sleep(4000);
+
+                            if ((descBox.textContent || '').trim().length < 5) {
+                                throw new Error('Legenda ficou vazia');
+                            }
+
+                            // fechar dialog se aparecer
+                            try {
+                                for (const xp of [
+                                    '//*[@id=":rbv:"]/div[1]/div/svg',
+                                    '//div[starts-with(@id,":r")]/div[1]/div/svg',
+                                    '//div[@role="dialog"]//svg',
+                                ]) {
+                                    const svg = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                                    if (svg) {
+                                        const btn = svg.closest('button') || svg.closest('div[role="button"]') || svg.parentElement;
+                                        if (btn) { btn.click(); await sleep(2000); }
+                                        break;
+                                    }
+                                }
+                            } catch (e) {}
+
+                            const btnPub = await waitAnyXP([
+                                '//*[@id="root"]/div/div/div[2]/div[2]/div/div/div/div[6]/div/button[1]',
+                                '//button[contains(., "Publicar")]',
+                                '//button[contains(., "Post")]',
+                            ], 10000);
+                            if (!btnPub) throw new Error('Botao Publicar nao encontrado');
+
+                            btnPub.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            await sleep(2000);
+
+                            log('Publicando video...', 'PUBLICANDO', '#0f0');
+                            btnPub.click();
+
+                            // ── Confirmar publicação ────────────
+                            log('Aguardando confirmacao de publicacao...', 'CONFIRMANDO', '#ff0');
+                            const confirmado = await new Promise(resolve => {
+                                const deadline = Date.now() + 60000;
+                                const check = setInterval(async () => {
+                                    const url = location.href;
+                                    const body = document.body.innerText;
+
+                                    // sinais de sucesso
+                                    if (
+                                        url.includes('/creator-center') ||
+                                        url.includes('/content') ||
+                                        body.includes('Seu vídeo foi publicado') ||
+                                        body.includes('Seu video foi publicado') ||
+                                        body.includes('Publicado') ||
+                                        body.includes('Your video has been posted')
+                                    ) {
+                                        clearInterval(check);
+                                        resolve(true);
+                                        return;
+                                    }
+
+                                    if (Date.now() > deadline) {
+                                        clearInterval(check);
+                                        resolve(false);
+                                    }
+                                }, 2000);
+                            });
+
+                            if (confirmado) {
+                                log('Publicacao confirmada!', 'OK', '#0f0');
+                                progress[produtoAtual.slug] = 'ok';
+                                saveProgress();
+                                publicado = true;
+                            } else {
+                                log('Timeout confirmando publicacao', 'TIMEOUT', '#f90');
+                            }
+
+                        } catch (stepErr) {
+                            log(`Erro tentativa ${tentativa}: ${stepErr.message}`, 'ERRO', '#f00');
+                        }
                     }
 
-                    try {
-                        for (const xp of [
-                            '//*[@id=":rbv:"]/div[1]/div/svg',
-                            '//div[starts-with(@id,":r")]/div[1]/div/svg',
-                            '//div[@role="dialog"]//svg'
-                        ]) {
-                            const svg = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                            if (svg) {
-                                const btn = svg.closest('button') || svg.closest('div[role="button"]') || svg.parentElement;
-                                if (btn) {
-                                    btn.click();
-                                    await sleep(2000);
-                                }
-                                break;
-                            }
-                        }
-                    } catch (e) {}
+                    if (!publicado) {
+                        throw new Error(`Falha ao publicar após ${MAX_RETRIES} tentativas`);
+                    }
 
-                    const btnPub = await waitXP(
-                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div/div/div[6]/div/button[1]',
-                        null,
-                        10000
-                    );
-                    if (!btnPub) throw new Error('Botao Publicar nao encontrado');
-
-                    btnPub.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    await sleep(2000);
-
-                    log('Publicando video...', 'PUBLICANDO', '#0f0');
-                    btnPub.click();
-
-                    progress[produtoAtual.slug] = 'ok';
-                    saveProgress();
-
-                    await sleep(15000);
-
+                    await sleep(5000);
                     saveState('IR_COMENTARIOS', produtoAtual.slug, true);
                     break;
                 }
 
+                // ── IR_COMENTARIOS ──────────────────────────────
                 case 'IR_COMENTARIOS': {
                     log('Abrindo comentarios...', 'COMENTARIOS', '#0ff');
 
-                    const comentariosBtn = await waitXP(
-                        '//span[contains(text(),"Comentarios")]',
-                        '//button[contains(.,"Comentarios")]',
-                        20000
-                    );
+                    const comentariosBtn = await waitAnyXP([
+                        '//span[contains(text(),"Comentarios") or contains(text(),"Comentários")]',
+                        '//button[contains(., "Comentarios") or contains(., "Comentários")]',
+                        '//a[contains(., "Comentarios") or contains(., "Comentários")]',
+                    ], 20000);
 
                     if (comentariosBtn) {
                         comentariosBtn.click();
                         await sleep(4000);
+                    } else {
+                        log('Botao comentarios nao encontrado, continuando...', 'AVISO', '#ff0');
                     }
 
                     saveState('ENVIAR_LINK', produtoAtual.slug, true);
                     break;
                 }
 
+                // ── ENVIAR_LINK ─────────────────────────────────
                 case 'ENVIAR_LINK': {
                     if (!produtoAtual) throw new Error('Produto perdido');
 
                     log('Enviando link afiliado...', 'LINK', '#ff0');
 
-                    const campoComentario = await waitXP(
+                    const campoComentario = await waitAnyXP([
                         '//div[@contenteditable="true"]',
                         '//textarea',
-                        20000
-                    );
+                    ], 20000);
 
                     if (!campoComentario) {
                         throw new Error('Campo comentario nao encontrado');
@@ -562,11 +731,11 @@
                     await safePaste(campoComentario, produtoAtual.offer_link);
                     await sleep(2000);
 
-                    const enviarBtn = await waitXP(
-                        '//button[contains(.,"Postar")]',
-                        '//button[contains(.,"Enviar")]',
-                        10000
-                    );
+                    const enviarBtn = await waitAnyXP([
+                        '//button[contains(., "Postar")]',
+                        '//button[contains(., "Enviar")]',
+                        '//button[contains(., "Reply")]',
+                    ], 10000);
 
                     if (enviarBtn) {
                         enviarBtn.click();
@@ -574,14 +743,12 @@
                     }
 
                     log('Postagem finalizada!', 'OK', '#0f0');
-
                     saveState('START', null, true);
                     await sleep(5000);
 
                     navigateTo(
                         'https://www.tiktok.com/tiktokstudio/upload?from=creator_center&tab=video',
-                        'AGUARDAR_VIDEO',
-                        null
+                        'AGUARDAR_VIDEO', null
                     );
                     return;
                 }
