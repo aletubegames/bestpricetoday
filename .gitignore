@@ -17,6 +17,6 @@ node_modules/
 *.log
 backend/.venv312/
 backend/hf_deploy/
-hf_space/
+
 .vercel
 .env*.local
