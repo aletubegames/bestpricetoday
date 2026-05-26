@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE as API } from "@/lib/api";
 import { logger } from "@/lib/logger";
+import { isTokenExpired } from "@/lib/utils";
 
 const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
 const PROVIDER_COLORS: Record<string, string> = {
@@ -219,11 +220,14 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     setLoadingSource(false);
   }, [apiBase, adminKey, topProducts]);
 
-  // Carrega top_clicks ao montar e quando topProducts mudar
-  React.useEffect(() => { loadSource(productSource); }, [topProducts]);
+  // Carrega a fonte quando topProducts mudar OU quando productSource mudar
+  React.useEffect(() => { loadSource(productSource); }, [topProducts, productSource, loadSource]);
   const [jobDone, setJobDone] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = React.useRef<number>(0);
+  const POLL_TIMEOUT = 5 * 60 * 1000; // 5 minutos
+  const POLL_INTERVAL = 3000;
 
   // Sugestões dinâmicas ao selecionar produto
   const suggestions = React.useMemo(
@@ -268,9 +272,17 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
   const pollStatus = React.useCallback((jid: string) => {
     stopPoll();
+    pollStartRef.current = Date.now();
     pollRef.current = setInterval(async () => {
+      // Timeout: 5 minutos
+      if (Date.now() - pollStartRef.current > POLL_TIMEOUT) {
+        stopPoll();
+        setJobLog(prev => [...prev, "⏰ Timeout: job demorou mais de 5 minutos. Verifique o status manualmente."]);
+        setJobDone(true);
+        setLoading(false);
+        return;
+      }
       try {
-        // Status direto da Video API via browser
         const url = videoApiUrl || apiBase;
         const r = videoApiUrl
           ? await fetch(`${videoApiUrl}/video/status/${jid}`, { headers: { "ngrok-skip-browser-warning": "true" } })
@@ -283,7 +295,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       } catch (error: unknown) {
         console.warn("Video job status poll failed:", error);
       }
-    }, 3000);
+    }, POLL_INTERVAL);
   }, [apiBase, adminKey, videoApiUrl]);
 
   const dispatch = async () => {
@@ -617,8 +629,23 @@ export default function AdminPage() {
       } catch { }
     }
     
+    if (isTokenExpired(token)) {
+      localStorage.removeItem("bpt_token")
+      localStorage.removeItem("bpt_user")
+      router.push("/login")
+      return
+    }
+
     const stored = localStorage.getItem("admin_key");
-    if (stored) { setKey(stored); return; }
+    const storedTs = localStorage.getItem("admin_key_ts");
+    if (stored && storedTs && (Date.now() - Number(storedTs)) < ADMIN_KEY_TTL) {
+      setKey(stored);
+      return;
+    }
+    if (stored) {
+      localStorage.removeItem("admin_key");
+      localStorage.removeItem("admin_key_ts");
+    }
     // Auto-login: se o user for admin via JWT, busca a key automaticamente
     if (token && userStr) {
       try {
@@ -687,12 +714,15 @@ export default function AdminPage() {
 
   useEffect(() => { if (key) fetchAll(key); }, [key, fetchAll]);
 
+  const ADMIN_KEY_TTL = 8 * 60 * 60 * 1000; // 8 horas
+
   const handleLogin = async () => {
     setLoginError("");
     try {
       const res = await fetch(`${API}/api/v1/admin/overview?days=1`, { cache: "no-store", headers: { "X-Admin-Key": inputKey } });
       if (!res.ok) { setLoginError("Chave inválida"); return; }
       localStorage.setItem("admin_key", inputKey);
+      localStorage.setItem("admin_key_ts", String(Date.now()));
       setKey(inputKey);
     } catch { setLoginError("Erro ao conectar com a API"); }
   };
@@ -717,6 +747,8 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     localStorage.removeItem("admin_key");
+    localStorage.removeItem("bpt_token");
+    localStorage.removeItem("bpt_user");
     window.location.href = "/login";
   };
 

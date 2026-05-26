@@ -39,7 +39,7 @@ export default function ProductPage({ params }: Props) {
       </script>
 
       {/* Header */}
-      <header style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", background: "rgba(255,255,255,0.97)" }}>
+      <header style={{ borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "16px 24px", background: "rgba(255,255,255,0.97)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
           <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 24 }}>🛍️</span>

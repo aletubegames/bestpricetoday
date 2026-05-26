@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { API_BASE as API } from "@/lib/api"
+import { isTokenExpired } from "@/lib/utils"
 import Link from "next/link"
 
 interface User {
@@ -31,7 +32,11 @@ export default function PerfilPage() {
   useEffect(() => {
     const token = localStorage.getItem("bpt_token")
     const stored = localStorage.getItem("bpt_user")
-    if (!token || !stored) { router.push("/login"); return }
+    if (!token || !stored || isTokenExpired(token)) {
+      localStorage.removeItem("bpt_token")
+      localStorage.removeItem("bpt_user")
+      router.push("/login"); return
+    }
 
     const u = JSON.parse(stored) as User
     setUser(u)
@@ -42,7 +47,8 @@ export default function PerfilPage() {
     })
       .then(r => r.json())
       .then(data => {
-        if (data.items) setAlerts(data.items)
+        if (Array.isArray(data)) setAlerts(data)
+        else if (data?.items && Array.isArray(data.items)) setAlerts(data.items)
       })
       .catch(() => null)
       .finally(() => setLoading(false))

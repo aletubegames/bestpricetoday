@@ -237,8 +237,8 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
           borderRadius: 10, padding: "10px 14px", marginBottom: 20,
           display: "flex", alignItems: "center", gap: 12,
         }}>
-          {(offer.image || offer.image_url) && (
-            <img src={offer.image || offer.image_url} alt="" loading="lazy" fetchPriority="low" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+          {offer.image_url && (
+            <img src={offer.image_url} alt="" loading="lazy" fetchPriority="low" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: "#1a1a2e", fontSize: 12, fontWeight: 600,

@@ -200,7 +200,7 @@ export default function AlertasPage() {
                   display: "flex", alignItems: "center", gap: 6, padding: "0 20px", borderRadius: 12,
                   border: "none", cursor: loading || !query.trim() || !price ? "not-allowed" : "pointer",
                   background: query.trim() && price ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "var(--s4)",
-                  color: query.trim() && price ? "#fff" : "var(--muted2)",
+                  color: query.trim() && price ? "#fff" : "rgba(26,26,46,0.45)",
                   fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", transition: "all .2s",
                   opacity: loading ? 0.7 : 1,
                 }}>

@@ -54,17 +54,15 @@ export const getTrackedUrl = async (offer: Offer, campaign = "offer_card"): Prom
 };
 
 export const openTrackedOffer = async (offer: Offer, campaign = "offer_card"): Promise<string> => {
-  const popup = window.open("about:blank", "_blank");
-  if (popup) popup.opener = null;
-
   trackClick(offer);
   const url = await getTrackedUrl(offer, campaign);
 
-  if (popup) {
-    popup.location.href = url;
-  } else {
-    window.open(url, "_blank", "noopener,noreferrer");
+  if (!url || url === "#" || url === "about:blank") {
+    return url;
   }
+
+  const popup = window.open(url, "_blank", "noopener,noreferrer");
+  if (popup) popup.opener = null;
 
   return url;
 };

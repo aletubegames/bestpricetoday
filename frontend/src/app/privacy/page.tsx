@@ -78,7 +78,7 @@ export default function PrivacyPage() {
                 ["Prevenção de fraude e abuso da API", "Legítimo interesse (art. 7º, IX)"],
                 ["Cumprimento de obrigações legais", "Obrigação legal (art. 7º, II)"],
               ].map(([fin, base], i) => (
-                <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <tr key={i} style={{ borderBottom: "1px solid rgba(108,92,231,0.1)" }}>
                   <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.75)" }}>{fin}</td>
                   <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.55)", fontSize: 13 }}>{base}</td>
                 </tr>

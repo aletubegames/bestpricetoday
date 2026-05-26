@@ -65,14 +65,14 @@ def make_caption(row: pd.Series) -> str:
         return (
             f"{nome}\n"
             f"De R${orig} por R${preco} ({desc} OFF)\n"
-            f"Link nos comentarios 👇\n"
+            f"Link na biografia deste perfil\n"
             f"#shopee #oferta #promocao"
         )
 
     return (
         f"{nome}\n"
         f"Oferta Especial: R${preco}\n"
-        f"Link nos comentarios 👇\n"
+        f"Link na biografia deste perfil\n"
         f"#shopee #achadinhos #promocao"
     )
 
@@ -314,7 +314,7 @@ JS_TEMPLATE = r"""// ==UserScript==
     while (true) {
         state = readSession(SK, { current: { step: 'START', slug: null, retries: 0 }, history: [], future: [] });
 
-        const PASSOS_COM_PRODUTO = ['POSTAR', 'IR_COMENTARIOS', 'ENVIAR_LINK'];
+        const PASSOS_COM_PRODUTO = ['POSTAR'];
         if (PASSOS_COM_PRODUTO.includes(state.current.step) && !state.current.slug) {
             log('Estado invalido (sem slug). Reiniciando...', 'AUTO-RESET', '#ff0');
             saveState('START', null);
@@ -498,72 +498,29 @@ JS_TEMPLATE = r"""// ==UserScript==
                         throw new Error(`Falha ao publicar após ${MAX_RETRIES} tentativas`);
                     }
 
-                    await sleep(5000);
-                    saveState('IR_COMENTARIOS', produtoAtual.slug, true);
-                    break;
-                }
-
-                // ── IR_COMENTARIOS ──────────────────────────────
-                case 'IR_COMENTARIOS': {
-                    log('Abrindo comentarios...', 'COMENTARIOS', '#0ff');
-
-                    await sleep(3000);
-
-                    const comentariosBtn = await waitAnyXP([
-                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div/div/div[2]/div/div/div[2]/div[2]/div[1]/div/div[3]/div/div/div[3]/div/div/div',
-                    ], 20000);
-
-                    if (comentariosBtn) {
-                        log('Clicando no icone de comentarios...', 'COMENTARIOS', '#0ff');
-                        comentariosBtn.click();
-                        await sleep(4000);
-                    } else {
-                        log('Botao comentarios nao encontrado', 'AVISO', '#ff0');
-                    }
-
-                    saveState('ENVIAR_LINK', produtoAtual.slug, true);
-                    break;
-                }
-
-                // ── ENVIAR_LINK ─────────────────────────────────
-                case 'ENVIAR_LINK': {
-                    if (!produtoAtual) throw new Error('Produto perdido');
-
-                    log('Enviando link afiliado...', 'LINK', '#ff0');
-
-                    const campoComentario = await waitAnyXP([
-                        '//div[@contenteditable="true"]',
-                        '//textarea',
-                    ], 20000);
-
-                    if (!campoComentario) {
-                        throw new Error('Campo comentario nao encontrado');
-                    }
-
-                    await safePaste(campoComentario, produtoAtual.offer_link);
-                    await sleep(600);
-
-                    const enviarBtn = await waitAnyXP([
-                        '//*[@id="root"]/div/div/div[2]/div[2]/div/div[2]/div[1]/div[2]/div[3]/div/div/button',
-                        '//button[contains(@class,"css-")]//svg[contains(@viewBox,"0 0 48 48")]/ancestor::button',
-                        '//button[@type="submit"]',
-                        '//div[@role="button"][contains(., "Postar")]',
-                    ], 10000);
-
-                    if (enviarBtn) {
-                        enviarBtn.click();
-                        await sleep(3000);
-                    }
-
-                    log('Postagem finalizada!', 'OK', '#0f0');
+                    log('Postagem finalizada! Iniciando proximo video...', 'OK', '#0f0');
                     saveState('START', null, true);
-                    await sleep(5000);
+                    await sleep(3000);
 
                     navigateTo(
                         'https://www.tiktok.com/tiktokstudio/upload?from=creator_center&tab=video',
                         'AGUARDAR_VIDEO', null
                     );
                     return;
+                }
+
+                // ── IR_COMENTARIOS (removido — link agora na bio) ──
+                case 'IR_COMENTARIOS': {
+                    saveState('START', null, true);
+                    await sleep(1000);
+                    break;
+                }
+
+                // ── ENVIAR_LINK (removido — link agora na bio) ────
+                case 'ENVIAR_LINK': {
+                    saveState('START', null, true);
+                    await sleep(1000);
+                    break;
                 }
 
                 default: {
