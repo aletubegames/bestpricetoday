@@ -789,6 +789,7 @@ function ShortLinksTab({ token }: { token: string }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [history, setHistory] = useState<ShortLinkEntry[]>([])
+  const [search, setSearch] = useState("")
 
   const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
 
@@ -797,6 +798,14 @@ function ShortLinksTab({ token }: { token: string }) {
       .then(r => r.json())
       .then(d => setProducts(d.products ?? []))
   }, [])
+
+  const filteredProducts = search.trim()
+    ? products.filter(p =>
+        (p.title || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.ml_code || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.category || "").toLowerCase().includes(search.toLowerCase())
+      )
+    : products
 
   async function generate() {
     if (!selectedId) return alert("Selecione um produto")
@@ -828,13 +837,25 @@ function ShortLinksTab({ token }: { token: string }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={cardStyle}>
         <h3 style={{ margin: "0 0 16px", color: "#1a1a2e" }}>🔗 Gerar Short Link</h3>
+
+        {/* Search */}
+        <div style={{ marginBottom: 14 }}>
+          <input
+            type="text"
+            placeholder="🔍 Buscar produto por nome, código ML ou categoria..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setSelectedId(""); setResult(null) }}
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 9, border: "1px solid #ddd", fontSize: 14, outline: "none" }}
+          />
+        </div>
+
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 12, color: muted }}>Produto</label>
+            <label style={{ fontSize: 12, color: muted }}>Produto ({filteredProducts.length})</label>
             <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setResult(null) }}
               style={{ ...inputStyle, minWidth: 260 }}>
               <option value="">Selecionar produto…</option>
-              {products.map(p => (
+              {filteredProducts.map(p => (
                 <option key={p.id} value={p.id}>{p.title ?? p.ml_code ?? p.id}</option>
               ))}
             </select>
