@@ -107,7 +107,7 @@ function ScoreRing({ score }: { score: number }) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
       <div style={{ position: "relative", width: 48, height: 48 }}>
         <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-          <circle cx="24" cy="24" r="18" fill="none" stroke="#1e293b" strokeWidth="3" />
+          <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(108,92,231,0.15)" strokeWidth="3" />
           <circle cx="24" cy="24" r="18" fill="none" stroke={color} strokeWidth="3"
             strokeDasharray={`${dash} ${circumference}`}
             strokeLinecap="round" />
@@ -135,15 +135,25 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
   const best = rank === 0;
   const badges = computeBadges(offer);
   const fmtPrice = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  const [buyUrl, setBuyUrl] = useState<string>(offer.affiliate_url?.includes("/r/") ? offer.affiliate_url : "#");
+  const [buyUrl, setBuyUrl] = useState<string>(offer.affiliate_url?.includes("/r/") ? offer.affiliate_url : offer.affiliate_url || "#");
   const [loadingUrl, setLoadingUrl] = useState(false);
+  const [buyError, setBuyError] = useState(false);
 
   const handleBuy = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
-    if (!loadingUrl) {
-      setLoadingUrl(true);
+    if (loadingUrl) return;
+    setLoadingUrl(true);
+    setBuyError(false);
+    try {
       const url = await openTrackedOffer(offer);
+      if (!url || url === "#") {
+        setBuyError(true);
+        setLoadingUrl(false);
+        return;
+      }
       setBuyUrl(url);
+    } catch {
+      setBuyError(true);
       setLoadingUrl(false);
     }
   }, [offer, loadingUrl]);
@@ -329,16 +339,16 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               padding: "13px 20px", borderRadius: 12,
               fontSize: 14, fontWeight: 700, textDecoration: "none",
-              background: best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "#f5f7ff",
-              color: best ? "#fff" : "rgba(26,26,46,0.7)",
-              border: best ? "none" : "1px solid rgba(108,92,231,0.2)",
+              background: buyError ? "rgba(231,76,60,0.1)" : best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "#f5f7ff",
+              color: buyError ? "#e74c3c" : best ? "#fff" : "rgba(26,26,46,0.7)",
+              border: buyError ? "1px solid rgba(231,76,60,0.3)" : best ? "none" : "1px solid rgba(108,92,231,0.2)",
               transition: "filter .2s, transform .15s",
               opacity: loadingUrl ? 0.7 : 1,
             }}
             onMouseEnter={e => Object.assign(e.currentTarget.style, { filter: "brightness(1.12)", transform: "translateY(-1px)" })}
             onMouseLeave={e => Object.assign(e.currentTarget.style, { filter: "brightness(1)", transform: "translateY(0)" })}
           >
-            {loadingUrl ? "Carregando..." : "Ver oferta →"}
+            {buyError ? "⚠️ Tente novamente" : loadingUrl ? "Carregando..." : "Ver oferta →"}
           </a>
         ) : (
           <div style={{

@@ -19,7 +19,7 @@ const S = {
   label: { color: "#6b6b8a", fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 6 } as React.CSSProperties,
   bigValue: { color: "#1a1a2e", fontSize: 32, fontWeight: 800, lineHeight: 1 } as React.CSSProperties,
   th: { padding: "10px 12px", textAlign: "left" as const, color: "#6b6b8a", fontSize: 12, fontWeight: 600, borderBottom: "1px solid rgba(108,92,231,0.2)", cursor: "pointer", userSelect: "none" as const } as React.CSSProperties,
-  td: { padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #1a1a2e" } as React.CSSProperties,
+  td: { padding: "10px 12px", fontSize: 13, borderBottom: "1px solid rgba(108,92,231,0.1)" } as React.CSSProperties,
 };
 
 type IntegrationStatusEntry = { status?: string; expires_in_minutes?: number };

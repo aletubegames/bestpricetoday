@@ -5,6 +5,8 @@ Uso: python seed_affiliate.py
 import asyncio
 import httpx
 
+import os
+
 LINKS = [
     ("S5L99N-Y7WN",  "https://meli.la/2XJkFQV"),
     ("S5L99N-QE4H",  "https://meli.la/1EQUr2w"),
@@ -41,8 +43,10 @@ LINKS = [
     ("S5L99N-YHT3",  "https://meli.la/2PDYyF6"),
 ]
 
-API = "https://aletubegames-bestpricetoday.hf.space"  # ajuste para o URL do seu HF Space
-ADMIN_KEY = "754210!As@"
+API = os.environ.get("BPT_API_URL", "https://alessandro2090-bestpricetoday-api.hf.space")
+ADMIN_KEY = os.environ.get("BPT_ADMIN_KEY", "")
+if not ADMIN_KEY:
+    raise ValueError("BPT_ADMIN_KEY não definida. Exporte a variável de ambiente.")
 
 async def main():
     items = [{"ml_code": code, "affiliate_url": url} for code, url in LINKS]

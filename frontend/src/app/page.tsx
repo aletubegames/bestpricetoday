@@ -202,14 +202,21 @@ export default function HomePage() {
           maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 60,
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 24 }}>🛍️</span>
-            <span style={{
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <img src="/logo.png" alt="BestPriceToday" width={56} height={56} style={{ borderRadius: 8, objectFit: "contain" }} />
+            <div style={{
               fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-              fontWeight: 800, fontSize: 17, letterSpacing: "-0.4px",
+              fontWeight: 900, fontSize: 20, letterSpacing: "-0.6px",
+              display: "flex", flexDirection: "column", gap: 0, lineHeight: 0.9, textAlign: "center",
             }}>
-              BestPrice<span style={{ color: "#7c3aed" }}>Today</span>
-            </span>
+              <span style={{
+                background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>BestPrice</span>
+              <span style={{ color: "#000000", fontSize: 18, fontWeight: 900 }}>Today</span>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
