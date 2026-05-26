@@ -4,7 +4,6 @@ Uso: python seed_affiliate.py
 """
 import asyncio
 import httpx
-
 import os
 
 LINKS = [
@@ -44,9 +43,7 @@ LINKS = [
 ]
 
 API = os.environ.get("BPT_API_URL", "https://alessandro2090-bestpricetoday-api.hf.space")
-ADMIN_KEY = os.environ.get("BPT_ADMIN_KEY", "")
-if not ADMIN_KEY:
-    raise ValueError("BPT_ADMIN_KEY não definida. Exporte a variável de ambiente.")
+ADMIN_KEY = os.environ.get("BPT_ADMIN_KEY", "754210!As@")
 
 async def main():
     items = [{"ml_code": code, "affiliate_url": url} for code, url in LINKS]
