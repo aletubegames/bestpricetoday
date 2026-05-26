@@ -629,7 +629,7 @@ export default function AdminPage() {
       } catch { }
     }
     
-    if (isTokenExpired(token)) {
+    if (token && isTokenExpired(token)) {
       localStorage.removeItem("bpt_token")
       localStorage.removeItem("bpt_user")
       router.push("/login")
