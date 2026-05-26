@@ -12,7 +12,7 @@ function SkeletonBlock({ w = "100%", h = 16, radius = 6 }: { w?: string | number
   return (
     <div style={{
       width: w, height: h, borderRadius: radius,
-      background: "linear-gradient(90deg, #f5f7ff 25%, #1a1a2e 50%, #f5f7ff 75%)",
+      background: "linear-gradient(90deg, #f5f7ff 25%, #e0e0e0 50%, #f5f7ff 75%)",
       backgroundSize: "1000px 100%",
       animation: "shimmer 2s infinite linear",
     }} />

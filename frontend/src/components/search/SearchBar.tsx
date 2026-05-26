@@ -34,7 +34,7 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
         animate={{
           boxShadow: focused
             ? "0 0 0 2px rgba(124,106,255,0.5), 0 8px 40px rgba(124,106,255,0.15)"
-            : "0 0 0 1px rgba(255,255,255,0.07)",
+            : "0 0 0 1px rgba(108,92,231,0.15)",
         }}
         style={{
           display: "flex", alignItems: "center", gap: 12,
@@ -95,7 +95,7 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
               position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0,
               background: "var(--s2)", border: "1px solid var(--bd)",
               borderRadius: 16, overflow: "hidden", zIndex: 100,
-              boxShadow: "0 20px 60px rgba(0,0,0,.6)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
             }}
           >
             <p style={{ padding: "12px 16px 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted2)", borderBottom: "1px solid var(--bd)" }}>

@@ -89,7 +89,7 @@ export default function DashboardPage() {
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ color: "#6b6b8a", fontSize: 12 }}>Olá, {user?.name?.split(" ")[0]} 👋</span>
-            <button onClick={logout} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(108,92,231,0.2)", color: "#4a4a6a", cursor: "pointer", fontSize: 12 }}>
+            <button onClick={logout} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(108,92,231,0.1)", border: "1px solid rgba(108,92,231,0.2)", color: "#4a4a6a", cursor: "pointer", fontSize: 12 }}>
               Sair
             </button>
           </div>
@@ -107,7 +107,7 @@ export default function DashboardPage() {
           ] as const).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "9px 18px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600,
-              background: tab === t ? "#7c6aff" : "rgba(255,255,255,0.04)",
+              background: tab === t ? "#7c6aff" : "rgba(108,92,231,0.1)",
               border: `1px solid ${tab === t ? "#7c6aff" : "rgba(108,92,231,0.2)"}`,
               color: tab === t ? "#fff" : "#475569",
             }}>

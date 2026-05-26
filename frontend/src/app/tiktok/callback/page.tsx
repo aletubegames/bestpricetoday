@@ -101,7 +101,7 @@ function TikTokCallbackInner() {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: "#060610", padding: 24,
+      background: "#f0f4ff", padding: 24,
     }}>
       <div style={{
         background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 20,
@@ -160,7 +160,7 @@ function TikTokCallbackInner() {
               onClick={() => window.close()}
               style={{
                 padding: "10px 24px", borderRadius: 10,
-                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(108,92,231,0.2)",
+                background: "rgba(108,92,231,0.1)", border: "1px solid rgba(108,92,231,0.2)",
                 color: "#4a4a6a", cursor: "pointer", fontSize: 13,
               }}
             >
@@ -178,7 +178,7 @@ export default function TikTokCallbackPage() {
     <Suspense fallback={
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#060610", color: "#6b6b8a", fontSize: 14,
+        background: "#f0f4ff", color: "#6b6b8a", fontSize: 14,
       }}>
         Carregando...
       </div>

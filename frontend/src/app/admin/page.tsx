@@ -406,7 +406,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
                   cursor: "pointer", maxWidth: 180, overflow: "hidden",
                   textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" as const,
                   background: sel ? "rgba(124,106,255,0.2)" : "#ffffff",
-                  border: `1px solid ${sel ? "#7c6aff" : "#1e293b"}`,
+                  border: `1px solid ${sel ? "#7c6aff" : "rgba(108,92,231,0.15)"}`,
                   color: sel ? "#a78bfa" : "#4a4a6a",
                 }}>
                 <span style={{ fontSize: 10, opacity: 0.7 }}>#{i + 1} </span>

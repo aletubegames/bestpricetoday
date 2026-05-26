@@ -32,7 +32,7 @@ export default function NotFound() {
           </Link>
           <Link href="/alertas" style={{
             padding: "12px 24px", borderRadius: 10,
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(108,92,231,0.2)",
+            background: "rgba(108,92,231,0.1)", border: "1px solid rgba(108,92,231,0.2)",
             color: "#4a4a6a", fontWeight: 600, fontSize: 14, textDecoration: "none",
           }}>
             🔔 Criar alerta

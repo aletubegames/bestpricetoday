@@ -233,7 +233,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
 
         {/* ── Produto selecionado ── */}
         <div style={{
-          background: "rgba(255,255,255,0.03)", border: "1px solid #1e293b",
+          background: "#ffffff", border: "1px solid rgba(108,92,231,0.15)",
           borderRadius: 10, padding: "10px 14px", marginBottom: 20,
           display: "flex", alignItems: "center", gap: 12,
         }}>
@@ -323,7 +323,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
                 <div style={{ color: "#334155", fontSize: 10 }}>Conta TikTok pessoal</div>
               </div>
               <button onClick={disconnect} style={{
-                background: "none", border: "1px solid #1e293b", borderRadius: 6,
+                background: "none", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 6,
                 color: "#475569", cursor: "pointer", fontSize: 10, padding: "4px 8px",
               }}>
                 Trocar
@@ -414,7 +414,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
 
             <button onClick={() => setStep("connected")} style={{
               marginTop: 10, width: "100%", padding: "9px", borderRadius: 8,
-              background: "rgba(255,255,255,0.03)", border: "1px solid #1e293b",
+              background: "#ffffff", border: "1px solid rgba(108,92,231,0.15)",
               color: "#475569", cursor: "pointer", fontSize: 11,
             }}>
               ↺ Gerar novo link
@@ -444,8 +444,8 @@ function Steps({ current }: { current: Step }) {
         <div key={s.key} style={{
           flex: 1, textAlign: "center", padding: "6px 4px", borderRadius: 8, fontSize: 10,
           fontWeight: i === activeIdx ? 700 : 400,
-          background: i === activeIdx ? "rgba(124,106,255,0.15)" : "rgba(255,255,255,0.02)",
-          border: `1px solid ${i === activeIdx ? "rgba(124,106,255,0.3)" : "#1e293b"}`,
+          background: i === activeIdx ? "rgba(124,106,255,0.15)" : "rgba(108,92,231,0.05)",
+          border: `1px solid ${i === activeIdx ? "rgba(124,106,255,0.3)" : "rgba(108,92,231,0.1)"}`,
           color: i < activeIdx ? "#00e5a0" : i === activeIdx ? "#a78bfa" : "#334155",
         }}>
           {i < activeIdx ? "✓ " : ""}{s.label}
