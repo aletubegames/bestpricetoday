@@ -206,31 +206,44 @@ export default function AleTubeGamesPage() {
   }
 
   async function handleConnect(platform: PlatformKey) {
+    console.log(`[handleConnect] platform=${platform}, API=${API}`);
     try {
       let url: string;
       if (platform === "tiktok") {
-        const res = await fetch(`${API}/api/v1/tiktok/auth/admin`, {
-          headers: getAuthHeaders(adminKey, true),
-        });
+        const headers = getAuthHeaders(adminKey, true);
+        console.log(`[handleConnect] tiktok headers:`, JSON.stringify(headers));
+        const res = await fetch(`${API}/api/v1/tiktok/auth/admin`, { headers });
+        console.log(`[handleConnect] tiktok res.status=${res.status}`);
         const data = await res.json();
+        console.log(`[handleConnect] tiktok data:`, JSON.stringify(data));
         url = data.auth_url;
       } else if (platform === "youtube") {
-        const res = await fetch(`${API}/api/v1/aletube/auth/youtube`, {
-          headers: getAuthHeaders(),
-        });
-        const data = await res.json();
+        const headers = getAuthHeaders();
+        console.log(`[handleConnect] youtube headers:`, JSON.stringify(headers));
+        const res = await fetch(`${API}/api/v1/aletube/auth/youtube`, { headers });
+        console.log(`[handleConnect] youtube res.status=${res.status}`);
+        const text = await res.text();
+        console.log(`[handleConnect] youtube res.text:`, text);
+        const data = JSON.parse(text);
         url = data.auth_url;
       } else if (platform === "facebook" || platform === "instagram") {
-        const res = await fetch(`${API}/api/v1/aletube/auth/facebook`, {
-          headers: getAuthHeaders(),
-        });
+        const headers = getAuthHeaders();
+        const res = await fetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
+        console.log(`[handleConnect] fb/ig res.status=${res.status}`);
         const data = await res.json();
         url = data.auth_url;
       } else {
         return;
       }
-      if (url) window.open(url, "_blank");
+      if (url) {
+        console.log(`[handleConnect] opening URL: ${url}`);
+        window.open(url, "_blank");
+      } else {
+        console.error(`[handleConnect] NO auth_url in response for ${platform}`);
+        alert(`Erro: auth_url não retornada para ${platform}`);
+      }
     } catch (e: unknown) {
+      console.error(`[handleConnect] error:`, e);
       alert(`Erro ao obter URL de auth: ${e instanceof Error ? e.message : e}`);
     }
   }
