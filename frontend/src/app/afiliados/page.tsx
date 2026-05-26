@@ -289,7 +289,7 @@ function ProductsTab({ token }: { token: string }) {
         {[
           { label: "Total de produtos", value: total },
           { label: "Comissão média", value: `${avgComm.toFixed(1)}%` },
-          { label: "Estimativa mensal", value: fmt(totalMonth) },
+          { label: "1 venda/mês", value: fmt(totalMonth) },
         ].map(s => (
           <div key={s.label} style={cardStyle}>
             <div style={{ fontSize: 13, color: muted }}>{s.label}</div>
@@ -418,7 +418,7 @@ function ProductsTab({ token }: { token: string }) {
                       {label} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : <span style={{ opacity: 0.3 }}>↕</span>}
                     </th>
                   ))}
-                  <th style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>Est. 30 vendas</th>
+                  <th style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>1 venda mensal</th>
                   <th style={{ padding: "10px 12px", textAlign: "left", color: muted, fontWeight: 600 }}>Ações</th>
                 </tr>
               </thead>
