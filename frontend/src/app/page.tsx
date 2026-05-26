@@ -1,10 +1,22 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import type { MouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
 import { openTrackedOffer } from "@/lib/tracking";
+import OfferSkeleton from "@/components/offers/OfferSkeleton";
+import { useSearch } from "@/hooks/useSearch";
+import { useTrendingSearches } from "@/hooks/useTrendingSearches";
+import type { Offer, ProviderStatus } from "@/types";
+
+import StoreChips from "@/components/home/StoreChips";
+import StatsCards from "@/components/home/StatsCards";
+import SearchesChart from "@/components/home/SearchesChart";
+import TrustBadges from "@/components/home/TrustBadges";
+import Testimonials from "@/components/home/Testimonials";
+import FAQ from "@/components/home/FAQ";
 
 type StoredUser = { name: string; is_admin: boolean };
 
@@ -22,12 +34,11 @@ function readStoredUser(): StoredUser | null {
   return null;
 }
 
-// Botão de login/usuário no header
 function AuthButton() {
-  const [user, setUser] = useState<StoredUser | null>(null)
+  const [user, setUser] = useState<StoredUser | null>(null);
   useEffect(() => {
-    setUser(readStoredUser())
-  }, [])
+    setUser(readStoredUser());
+  }, []);
   if (user) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -60,7 +71,7 @@ function AuthButton() {
           {user.is_admin ? "👑" : "👤"} {user.name.split(" ")[0]}
         </a>
       </div>
-    )
+    );
   }
   return (
     <a href="/login" style={{
@@ -71,12 +82,8 @@ function AuthButton() {
     }}>
       Entrar
     </a>
-  )
+  );
 }
-import OfferSkeleton from "@/components/offers/OfferSkeleton";
-import { useSearch } from "@/hooks/useSearch";
-import { useTrendingSearches } from "@/hooks/useTrendingSearches";
-import type { Offer, ProviderStatus } from "@/types";
 
 const PROVIDER_LABELS: Record<string, string> = {
   mercadolivre: "Mercado Livre",
@@ -88,145 +95,37 @@ const PROVIDER_LABELS: Record<string, string> = {
   kabum: "KaBuM",
 };
 
-// Logos SVG inline por marketplace
-const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
-  aliexpress: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FF4747"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="system-ui">AE</text>
-    </svg>
-  ),
-  shopee: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#EE4D2D"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold" fontFamily="system-ui">S</text>
-    </svg>
-  ),
-  mercadolivre: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FFE600"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="#333" fontSize="13" fontWeight="bold" fontFamily="system-ui">ML</text>
-    </svg>
-  ),
-  amazon: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FF9900"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="system-ui">amz</text>
-    </svg>
-  ),
-  lomadee: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#7C3AED"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold" fontFamily="system-ui">L</text>
-    </svg>
-  ),
-  kabum: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FF6B00"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="system-ui">KB</text>
-    </svg>
-  ),
-  awin: (
-    <svg width="22" height="22" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#0066CC"/>
-      <text x="50%" y="66%" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="system-ui">AW</text>
-    </svg>
-  ),
-};
-
 const STATUS_META: Record<ProviderStatus["status"], { label: string; color: string; border: string; background: string }> = {
-  ok: {
-    label: "OK",
-    color: "var(--grn)",
-    border: "1px solid rgba(0,229,160,0.2)",
-    background: "rgba(0,229,160,0.08)",
-  },
-  no_results: {
-    label: "0 resultados",
-    color: "var(--muted)",
-    border: "1px solid var(--bd)",
-    background: "var(--s2)",
-  },
-  not_configured: {
-    label: "Sem credencial",
-    color: "#f59e0b",
-    border: "1px solid rgba(245,158,11,0.25)",
-    background: "rgba(245,158,11,0.08)",
-  },
-  blocked: {
-    label: "Bloqueado",
-    color: "var(--red)",
-    border: "1px solid rgba(255,107,107,0.25)",
-    background: "rgba(255,107,107,0.08)",
-  },
-  low_relevance: {
-    label: "Baixa relevância",
-    color: "#f59e0b",
-    border: "1px solid rgba(245,158,11,0.25)",
-    background: "rgba(245,158,11,0.08)",
-  },
-  error: {
-    label: "Erro",
-    color: "var(--red)",
-    border: "1px solid rgba(255,107,107,0.25)",
-    background: "rgba(255,107,107,0.08)",
-  },
+  ok: { label: "OK", color: "var(--grn)", border: "1px solid rgba(0,229,160,0.2)", background: "rgba(0,229,160,0.08)" },
+  no_results: { label: "0 resultados", color: "var(--muted)", border: "1px solid var(--bd)", background: "var(--s2)" },
+  not_configured: { label: "Sem credencial", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.08)" },
+  blocked: { label: "Bloqueado", color: "var(--red)", border: "1px solid rgba(255,107,107,0.25)", background: "rgba(255,107,107,0.08)" },
+  low_relevance: { label: "Baixa relevância", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.08)" },
+  error: { label: "Erro", color: "var(--red)", border: "1px solid rgba(255,107,107,0.25)", background: "rgba(255,107,107,0.08)" },
 };
 
-function formatProviderNumbers(status: ProviderStatus) {
-  const parts: string[] = [];
-  if (status.returned_count) parts.push(`${status.returned_count} relevantes`);
-  if (status.filtered_count) parts.push(`${status.filtered_count} filtrados`);
-  if (status.raw_count && !status.returned_count) parts.push(`${status.raw_count} brutos`);
-  if (status.http_status) parts.push(`HTTP ${status.http_status}`);
-  return parts.join(" • ");
-}
-
-// Mostra apenas providers que retornaram pelo menos 1 produto
-// (esconde erros internos, sem credencial, 0 resultados — independente do status)
 const HIDDEN_STATUSES = new Set(["blocked", "not_configured", "error"]);
 
 function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
   const visible = statuses.filter(s => (s.returned_count ?? 0) > 0);
   if (!visible.length) return null;
-
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 8,
-        marginBottom: 20,
-      }}
-    >
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
       {visible.map((status) => {
         const meta = STATUS_META[status.status];
         const providerLabel = PROVIDER_LABELS[status.provider] || status.provider;
-        const logo = PROVIDER_LOGOS[status.provider];
         const count = status.returned_count || 0;
-
         return (
-          <div
-            key={status.provider}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              background: meta.background,
-              border: meta.border,
-              borderRadius: 99,
-              padding: "6px 14px 6px 8px",
-            }}
-          >
-            {logo && <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{logo}</span>}
+          <div key={status.provider} style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            background: meta.background, border: meta.border,
+            borderRadius: 99, padding: "6px 14px 6px 8px",
+          }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>{providerLabel}</span>
             {status.status === "ok" && (
               <span style={{ fontSize: 11, fontWeight: 700, color: meta.color, background: `${meta.color}18`, borderRadius: 99, padding: "1px 8px" }}>
                 {count}
               </span>
-            )}
-            {status.status === "no_results" && (
-              <span style={{ fontSize: 11, color: "var(--muted2)" }}>0</span>
             )}
           </div>
         );
@@ -235,6 +134,18 @@ function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
   );
 }
 
+// ── Section wrapper ───────────────────────────────────────────────────────────
+function Section({ children, maxWidth = 960 }: { children: React.ReactNode; maxWidth?: number }) {
+  return (
+    <section style={{ maxWidth, margin: "0 auto", padding: "0 20px" }}>
+      {children}
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOME PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function HomePage() {
   const [query, setQuery] = useState("");
   const { data, isLoading, error } = useSearch(query);
@@ -245,16 +156,15 @@ export default function HomePage() {
   const [openingCompareKey, setOpeningCompareKey] = useState<string | null>(null);
   const [compareErrorKey, setCompareErrorKey] = useState<string | null>(null);
 
-  const compareOfferKey = (offer: Offer, index: number) => `${offer.provider}-${offer.product_id || offer.affiliate_url || index}`;
+  const compareOfferKey = (offer: Offer, index: number) =>
+    `${offer.provider}-${offer.product_id || offer.affiliate_url || index}`;
 
   const handleCompareOfferClick = async (event: MouseEvent<HTMLAnchorElement>, offer: Offer, index: number) => {
     event.preventDefault();
     if (!offer.affiliate_url) return;
-
     const key = compareOfferKey(offer, index);
     setOpeningCompareKey(key);
     setCompareErrorKey(null);
-
     try {
       await openTrackedOffer(offer, "compare_modal");
     } catch (error: unknown) {
@@ -280,7 +190,7 @@ export default function HomePage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
 
-      {/* ── TOPBAR ── */}
+      {/* ── HEADER ── */}
       <header style={{
         position: "sticky", top: 0, zIndex: 50,
         borderBottom: "1px solid var(--bd)",
@@ -288,22 +198,30 @@ export default function HomePage() {
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
       }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{
+          maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 60,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 24 }}>🛍️</span>
-            <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.4px" }}>
-              BestPrice<span style={{ color: "var(--acc2)" }}>Today</span>
+            <span style={{
+              fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
+              fontWeight: 800, fontSize: 17, letterSpacing: "-0.4px",
+            }}>
+              BestPrice<span style={{ color: "#7c3aed" }}>Today</span>
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 6,
-              fontSize: 12, fontWeight: 500, color: "var(--acc2)",
-              background: "rgba(124,106,255,0.1)",
-              border: "1px solid rgba(124,106,255,0.2)",
+              fontSize: 12, fontWeight: 500, color: "#7c3aed",
+              background: "rgba(124,58,237,0.08)",
+              border: "1px solid rgba(124,58,237,0.18)",
               padding: "4px 12px", borderRadius: 99,
             }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--acc2)" }} />
+              <span className="pulse-dot" style={{
+                width: 6, height: 6, borderRadius: "50%", background: "#00b894",
+              }} />
               Busca multi-loja
             </div>
             <a href="/alertas" style={{
@@ -312,9 +230,7 @@ export default function HomePage() {
               background: "var(--s2)", border: "1px solid var(--bd)",
               padding: "4px 12px", borderRadius: 99, textDecoration: "none",
               transition: "color .15s",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--txt)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted)")}>
+            }}>
               🔔 Alertas
             </a>
             <AuthButton />
@@ -325,13 +241,12 @@ export default function HomePage() {
       {/* ── HERO ── */}
       <section style={{ maxWidth: 720, margin: "0 auto", padding: "56px 20px 40px", textAlign: "center" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             fontSize: 12, fontWeight: 600, letterSpacing: ".04em",
-            color: "var(--acc2)",
-            background: "rgba(124,106,255,0.1)",
-            border: "1px solid rgba(124,106,255,0.2)",
+            color: "#7c3aed",
+            background: "rgba(124,58,237,0.08)",
+            border: "1px solid rgba(124,58,237,0.18)",
             padding: "5px 14px", borderRadius: 99,
             marginBottom: 28, textTransform: "uppercase",
           }}>
@@ -339,15 +254,16 @@ export default function HomePage() {
           </div>
 
           <h1 style={{
+            fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
             fontSize: "clamp(2.4rem, 7vw, 4.5rem)",
-            fontWeight: 900,
+            fontWeight: 800,
             lineHeight: 1.05,
             letterSpacing: "-0.03em",
             marginBottom: 18,
           }}>
             <span style={{ color: "var(--txt)" }}>Menor preço</span><br />
             <span style={{
-              background: "linear-gradient(135deg, #7c6aff 0%, #a78bfa 50%, #e879f9 100%)",
+              background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c084fc 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -363,43 +279,25 @@ export default function HomePage() {
 
           {/* Trending pills */}
           {!query && trending.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              style={{ marginTop: 24, textAlign: "left" }}
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} style={{ marginTop: 24 }}>
               <span style={{ fontSize: 12, color: "var(--muted2)", display: "block", marginBottom: 12, textAlign: "center" }}>
                 Em alta:
               </span>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                  gap: 10,
-                  width: "min(100%, 960px)",
-                  margin: "0 auto",
-                }}
-              >
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: 10, width: "min(100%, 960px)", margin: "0 auto",
+              }}>
                 {trending.map((item) => (
                   <button key={item.query} onClick={() => setQuery(item.query)}
                     style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: "10px 14px",
-                      borderRadius: 14,
-                      background: "var(--s2)",
-                      border: "1px solid var(--bd)",
-                      color: "var(--muted)",
-                      cursor: "pointer",
-                      transition: "all .15s",
-                      textAlign: "left",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      minHeight: 42,
+                      fontSize: 12, fontWeight: 600, padding: "10px 14px", borderRadius: 14,
+                      background: "#fff", border: "1px solid #e0e0f0",
+                      color: "var(--muted)", cursor: "pointer", transition: "all .15s",
+                      textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 42,
                     }}
                     title={item.query}
-                    onMouseEnter={e => Object.assign(e.currentTarget.style, { borderColor: "rgba(124,106,255,.4)", color: "var(--acc2)", background: "rgba(124,106,255,.06)", transform: "translateY(-1px)" })}
-                    onMouseLeave={e => Object.assign(e.currentTarget.style, { borderColor: "var(--bd)", color: "var(--muted)", background: "var(--s2)", transform: "translateY(0)" })}
+                    onMouseEnter={e => Object.assign(e.currentTarget.style, { borderColor: "rgba(124,58,237,.35)", color: "#7c3aed", background: "rgba(124,58,237,.04)", transform: "translateY(-1px)" })}
+                    onMouseLeave={e => Object.assign(e.currentTarget.style, { borderColor: "#e0e0f0", color: "var(--muted)", background: "#fff", transform: "translateY(0)" })}
                   >
                     {item.query}
                   </button>
@@ -410,8 +308,18 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* ── STORE CHIPS ── */}
+      <section style={{ padding: "0 20px 32px", maxWidth: 800, margin: "0 auto" }}>
+        <StoreChips />
+      </section>
+
+      {/* ── STATS CARDS ── */}
+      <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 32px" }}>
+        <StatsCards />
+      </section>
+
       {/* ── RESULTS ── */}
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 80px" }}>
+      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 32px" }}>
         <AnimatePresence mode="wait">
           {isLoading && <OfferSkeleton key="sk" />}
 
@@ -425,80 +333,70 @@ export default function HomePage() {
 
           {data && !isLoading && (
             <motion.div key="res" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              {/* Results header */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-                <p style={{ fontWeight: 700, fontSize: 15 }}>
-                  {data.total} {plural(data.total)}
-                </p>
-                <span style={{
-                  fontSize: 11, fontWeight: 600,
-                  padding: "3px 10px", borderRadius: 99,
-                  background: "var(--s2)", border: "1px solid var(--bd)",
-                  color: "var(--muted2)",
-                }}>
+                <p style={{ fontWeight: 700, fontSize: 15 }}>{data.total} {plural(data.total)}</p>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: "var(--s2)", border: "1px solid var(--bd)", color: "var(--muted2)" }}>
                   {data.took_ms}ms
                 </span>
                 {data.cached && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    padding: "3px 10px", borderRadius: 99,
-                    background: "rgba(0,229,160,0.08)",
-                    border: "1px solid rgba(0,229,160,0.2)",
-                    color: "var(--grn)",
-                  }}>⚡ cache</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: "rgba(0,229,160,0.08)", border: "1px solid rgba(0,229,160,0.2)", color: "var(--grn)" }}>⚡ cache</span>
                 )}
               </div>
               <ProviderStatusGrid statuses={data.provider_statuses} />
-              <OfferGrid
-                offers={data.offers}
-                onCompare={handleCompare}
-                compareSelected={compareList.map(o => o.affiliate_url || "")}
-              />
-            </motion.div>
-          )}
-
-          {/* Empty hero stats */}
-          {!query && !isLoading && !data && (
-            <motion.div key="hero-stats" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                gap: 12, marginTop: 8,
-              }}>
-              {[
-                { v: "7+", l: "Lojas" },
-                { v: "<3s", l: "Resultado" },
-                { v: "IA", l: "Anti-falso desc." },
-                { v: "100%", l: "Gratuito" },
-              ].map(s => (
-                <div key={s.l} style={{
-                  background: "var(--s2)", border: "1px solid var(--bd)",
-                  borderRadius: "var(--r)", padding: "20px 16px", textAlign: "center",
-                }}>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: "var(--acc2)", marginBottom: 4 }}>{s.v}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{s.l}</div>
-                </div>
-              ))}
+              <OfferGrid offers={data.offers} onCompare={handleCompare} compareSelected={compareList.map(o => o.affiliate_url || "")} />
             </motion.div>
           )}
         </AnimatePresence>
       </section>
+
+      {/* ── SEARCHES CHART ── */}
+      {!query && !isLoading && !data && (
+        <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 32px" }}>
+          <SearchesChart />
+        </section>
+      )}
+
+      {/* ── TRUST BADGES ── */}
+      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
+        <TrustBadges />
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
+        <Testimonials />
+      </section>
+
+      {/* ── FAQ ── */}
+      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 60px" }}>
+        <FAQ />
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{
+        borderTop: "1px solid #e0e0f0",
+        background: "#fff",
+        padding: "24px 20px",
+        textAlign: "center",
+      }}>
+        <p style={{ fontSize: 12, color: "rgba(26,26,46,0.4)", margin: 0 }}>
+          © {new Date().getFullYear()} BestPriceToday — Todos os direitos reservados
+        </p>
+      </footer>
 
       {/* ── COMPARE BAR ── */}
       {compareList.length > 0 && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
           background: "rgba(255,255,255,0.97)", backdropFilter: "blur(20px)",
-          borderTop: "1px solid rgba(124,106,255,0.3)",
-          padding: "12px 24px",
-          display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+          borderTop: "1px solid rgba(124,58,237,0.3)",
+          padding: "12px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
         }}>
-          <span style={{ color: "#a78bfa", fontWeight: 700, fontSize: 14 }}>
+          <span style={{ color: "#7c3aed", fontWeight: 700, fontSize: 14 }}>
             ⊕ {compareList.length} selecionado{compareList.length > 1 ? "s" : ""}
           </span>
           {compareList.map(o => (
             <span key={o.affiliate_url} style={{
-              background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)",
+              background: "#f5f5ff", border: "1px solid rgba(124,58,237,0.2)",
               borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1a1a2e",
               display: "flex", alignItems: "center", gap: 6,
             }}>
@@ -507,14 +405,11 @@ export default function HomePage() {
             </span>
           ))}
           {compareList.length >= 2 && (
-            <button
-              onClick={() => setShowCompare(true)}
-              style={{
-                marginLeft: "auto", padding: "8px 20px", borderRadius: 10,
-                background: "linear-gradient(135deg,#7c6aff,#a78bfa)",
-                color: "#1a1a2e", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer",
-              }}
-            >
+            <button onClick={() => setShowCompare(true)} style={{
+              marginLeft: "auto", padding: "8px 20px", borderRadius: 10,
+              background: "linear-gradient(135deg,#7c3aed,#a78bfa)",
+              color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer",
+            }}>
               Comparar →
             </button>
           )}
@@ -524,109 +419,68 @@ export default function HomePage() {
 
       {/* ── COMPARE MODAL ── */}
       {showCompare && compareList.length >= 2 && (
-        <div
-          style={{
-            position: "fixed", inset: 0, zIndex: 200,
-            background: "rgba(0,0,0,0.8)", backdropFilter: "blur(10px)",
-            display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
-          }}
-          onClick={() => setShowCompare(false)}
-        >
-          <div onClick={e => e.stopPropagation()} style={{
-            background: "#f0f4ff", border: "1px solid rgba(124,106,255,0.3)",
-            borderRadius: 20, padding: 32, maxWidth: 900, width: "100%",
-            maxHeight: "90vh", overflow: "auto",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ color: "#1a1a2e", fontSize: 20, fontWeight: 800 }}>Comparação de Ofertas</h2>
-              <button onClick={() => setShowCompare(false)} style={{ background: "none", border: "none", color: "#6b6b8a", fontSize: 24, cursor: "pointer" }}>×</button>
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }} onClick={() => setShowCompare(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{
+              background: "#fff", borderRadius: 20, padding: "32px",
+              maxWidth: 900, width: "100%", maxHeight: "80vh", overflowY: "auto",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <h2 style={{ fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif", fontSize: 22, fontWeight: 800, color: "#1a1a2e" }}>
+                Comparar ofertas
+              </h2>
+              <button onClick={() => setShowCompare(false)} style={{
+                background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#6b6b8a",
+              }}>✕</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${compareList.length}, 1fr)`, gap: 16 }}>
-              {compareList.map((offer, i) => {
-                const isWinner = offer.final_price === Math.min(...compareList.map(o => o.final_price || 999999));
-                const compareKey = compareOfferKey(offer, i);
-                return (
-                  <div key={i} style={{
-                    background: "#ffffff",
-                    border: `1px solid ${isWinner ? "rgba(0,229,160,0.4)" : "rgba(124,106,255,0.15)"}`,
-                    borderRadius: 14, padding: 20,
-                  }}>
-                    {isWinner && <div style={{ color: "#00e5a0", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>✓ MENOR PREÇO</div>}
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#a78bfa", marginBottom: 8, textTransform: "capitalize" }}>{offer.provider}</div>
-                    <p style={{ fontSize: 13, color: "#4a4a6a", lineHeight: 1.5, marginBottom: 12 }}>{offer.title?.slice(0, 80)}...</p>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "#1a1a2e", marginBottom: 4 }}>R$ {offer.final_price?.toFixed(2)}</div>
-                    {offer.original_price && offer.original_price > (offer.final_price || 0) && (
-                      <div style={{ fontSize: 12, textDecoration: "line-through", color: "#6b6b8a", marginBottom: 8 }}>
-                        R$ {offer.original_price.toFixed(2)}
-                      </div>
-                    )}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#4a4a6a", marginBottom: 16 }}>
-                      <span>📦 Frete: {offer.shipping_free ? "Grátis" : offer.shipping_price ? `R$${offer.shipping_price}` : "A consultar"}</span>
-                      <span>⭐ Score: {Math.round(offer.score)}/100</span>
-                      <span>💸 Desconto: {offer.discount_percent ? `${Math.round(offer.discount_percent)}%` : "—"}</span>
-                      {offer.coupon_code && <span>🏷️ Cupom: {offer.coupon_code}</span>}
-                      {offer.cashback_percent > 0 && <span>💰 Cashback: {offer.cashback_percent}%</span>}
-                    </div>
-                    <a href="#" target="_blank" rel="noopener noreferrer" onClick={event => handleCompareOfferClick(event, offer, i)}
-                      style={{
-                        display: "block", textAlign: "center", padding: "10px", borderRadius: 10,
-                        background: isWinner ? "linear-gradient(135deg,#00e5a0,#0ea5e9)" : "#f5f7ff",
-                        color: isWinner ? "#000" : "#fff",
-                        border: isWinner ? "none" : "1px solid rgba(108,92,231,0.2)",
-                        fontWeight: 700, fontSize: 14, textDecoration: "none",
-                      }}
-                    >
-                      {openingCompareKey === compareKey ? "Abrindo..." : compareErrorKey === compareKey ? "Erro" : "Ver oferta →"}
-                    </a>
+              {compareList.map((offer, i) => (
+                <div key={offer.affiliate_url} style={{
+                  border: "1px solid #e0e0f0", borderRadius: 14, padding: 16,
+                }}>
+                  {offer.image_url && (
+                    <img src={offer.image_url} alt="" style={{ width: "100%", height: 120, objectFit: "contain", borderRadius: 8, marginBottom: 12 }} />
+                  )}
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", marginBottom: 8, lineHeight: 1.4 }}>
+                    {offer.title}
+                  </p>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#7c3aed", marginBottom: 4 }}>
+                    R$ {offer.final_price?.toFixed(2) ?? "—"}
                   </div>
-                );
-              })}
+                  {offer.economy > 0.5 && (
+                    <div style={{ fontSize: 12, color: "#00b894", fontWeight: 600, marginBottom: 8 }}>
+                      ↓ Economize R$ {offer.economy.toFixed(2)}
+                    </div>
+                  )}
+                  <a
+                    href={offer.affiliate_url ?? "#"}
+                    onClick={(e) => handleCompareOfferClick(e, offer, i)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block", textAlign: "center", padding: "10px",
+                      background: i === 0 ? "linear-gradient(135deg,#7c3aed,#a78bfa)" : "#f5f5ff",
+                      color: i === 0 ? "#fff" : "#7c3aed",
+                      borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: 13,
+                      border: i === 0 ? "none" : "1px solid rgba(124,58,237,0.2)",
+                    }}
+                  >
+                    {openingCompareKey === compareOfferKey(offer, i) ? "Abrindo..." : "Ver oferta →"}
+                  </a>
+                </div>
+              ))}
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-
-      {/* ── FOOTER ── */}
-      <footer style={{
-        borderTop: "1px solid var(--bd)",
-        background: "rgba(255,255,255,0.92)",
-        padding: "20px",
-        textAlign: "center",
-      }}>
-        <div style={{
-          maxWidth: 1200,
-          margin: "0 auto",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 24,
-          flexWrap: "wrap",
-          fontSize: 13,
-          color: "var(--muted2)",
-        }}>
-          <span>© {new Date().getFullYear()} BestPriceToday</span>
-          <span style={{ color: "var(--bd)" }}>|</span>
-          <a href="/terms" style={{ color: "var(--muted2)", textDecoration: "none" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
-          >Termos de Uso</a>
-          <span style={{ color: "var(--bd)" }}>|</span>
-          <a href="/privacy" style={{ color: "var(--muted2)", textDecoration: "none" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
-          >Política de Privacidade</a>
-          <span style={{ color: "var(--bd)" }}>|</span>
-          <a href="mailto:aletubegames@gmail.com" style={{ color: "var(--muted2)", textDecoration: "none" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
-          >Contato</a>
-          <span style={{ color: "var(--bd)" }}>|</span>
-          <a href="/admin" style={{ color: "var(--muted2)", textDecoration: "none" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--acc2)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--muted2)")}
-          >Admin</a>
-        </div>
-      </footer>
     </div>
   );
 }
