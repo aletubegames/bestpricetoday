@@ -378,9 +378,34 @@ export default function HomePage() {
         padding: "24px 20px",
         textAlign: "center",
       }}>
-        <p style={{ fontSize: 12, color: "rgba(26,26,46,0.4)", margin: 0 }}>
-          © {new Date().getFullYear()} BestPriceToday — Todos os direitos reservados
-        </p>
+        <div style={{
+          maxWidth: 1200,
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 24,
+          flexWrap: "wrap",
+          fontSize: 13,
+          color: "rgba(26,26,46,0.45)",
+        }}>
+          <span>© {new Date().getFullYear()} BestPriceToday</span>
+          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
+          <a href="/terms" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
+          >Termos de Uso</a>
+          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
+          <a href="/privacy" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
+          >Política de Privacidade</a>
+          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
+          <a href="mailto:aletubegames@gmail.com" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
+          >Contato</a>
+        </div>
       </footer>
 
       {/* ── COMPARE BAR ── */}

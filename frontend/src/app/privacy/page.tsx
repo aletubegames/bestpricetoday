@@ -79,8 +79,8 @@ export default function PrivacyPage() {
                 ["Cumprimento de obrigações legais", "Obrigação legal (art. 7º, II)"],
               ].map(([fin, base], i) => (
                 <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <td style={{ padding: "10px 12px 10px 0", color: "rgba(240,240,248,0.70)" }}>{fin}</td>
-                  <td style={{ padding: "10px 12px 10px 0", color: "rgba(240,240,248,0.50)", fontSize: 13 }}>{base}</td>
+                  <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.75)" }}>{fin}</td>
+                  <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.55)", fontSize: 13 }}>{base}</td>
                 </tr>
               ))}
             </tbody>
@@ -212,7 +212,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </h2>
       <div style={{
         fontSize: 15, lineHeight: 1.8,
-        color: "rgba(240,240,248,0.70)",
+        color: "rgba(26,26,46,0.75)",
       }}>
         {children}
       </div>

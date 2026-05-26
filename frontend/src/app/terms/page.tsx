@@ -125,7 +125,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </h2>
       <div style={{
         fontSize: 15, lineHeight: 1.8,
-        color: "rgba(240,240,248,0.70)",
+        color: "rgba(26,26,46,0.75)",
       }}>
         {children}
       </div>
