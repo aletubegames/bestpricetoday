@@ -1,0 +1,6 @@
+{
+  "csv": "/home/alessandro/bin/Git_Repo/BestPriceToday/tools/ml_extract/import_candidates_backfill.csv",
+  "rows_read": 1472,
+  "updates_found": 1299,
+  "out_sql": "/home/alessandro/bin/Git_Repo/BestPriceToday/tools/ml_extract/updates_preview.sql"
+}

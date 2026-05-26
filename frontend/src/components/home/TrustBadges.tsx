@@ -16,7 +16,7 @@ const BADGES: Badge[] = [
 
 export default function TrustBadges() {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
       {BADGES.map((badge) => (
         <div key={badge.text} style={{
           display: "flex", alignItems: "center", gap: 10,

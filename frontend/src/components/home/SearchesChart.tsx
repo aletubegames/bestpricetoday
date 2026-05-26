@@ -25,11 +25,11 @@ export default function SearchesChart() {
   }, []);
 
   return (
-    <div ref={ref} style={{ background: "#fff", border: "1px solid #e0e0f0", borderRadius: 16, padding: "28px 24px" }}>
+    <div ref={ref} style={{ background: "#fff", border: "1px solid #e0e0f0", borderRadius: 16, padding: "24px 16px" }}>
       <h3
         style={{
           fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-          fontSize: 20,
+          fontSize: 18,
           fontWeight: 800,
           color: "#1a1a2e",
           marginBottom: 4,
@@ -37,7 +37,7 @@ export default function SearchesChart() {
       >
         Buscas nos últimos 7 dias
       </h3>
-      <p style={{ fontSize: 13, color: "rgba(26,26,46,0.45)", marginBottom: 24 }}>
+      <p style={{ fontSize: 12, color: "rgba(26,26,46,0.45)", marginBottom: 20 }}>
         Quantidade de pesquisas realizadas por dia
       </p>
 
@@ -46,8 +46,8 @@ export default function SearchesChart() {
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "space-between",
-          gap: 8,
-          height: 180,
+          gap: 4,
+          height: 160,
         }}
       >
         {data.map((d, i) => {
@@ -60,7 +60,7 @@ export default function SearchesChart() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 6,
+                gap: 4,
                 height: "100%",
                 justifyContent: "flex-end",
               }}
@@ -68,10 +68,10 @@ export default function SearchesChart() {
               {/* Valor acima */}
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: 600,
                   color: "#7c3aed",
-                  marginBottom: 4,
+                  marginBottom: 2,
                 }}
               >
                 {visible ? d.value : 0}
