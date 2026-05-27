@@ -274,7 +274,7 @@ export default function AleTubeGamesPage() {
       form.append("file", selectedFile);
       const res = await fetch(`${API}/api/v1/aletube/upload`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(adminKey, true),
         body: form,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -356,7 +356,7 @@ export default function AleTubeGamesPage() {
 
       const res = await fetch(`${API}/api/v1/aletube/publish`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(adminKey, true),
         body: form,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
