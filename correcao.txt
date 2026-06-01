@@ -1,22 +1,6 @@
 AUDITORIA COMPLETA — BestPriceToday Frontend
-    ===========================================
-    
-    🔴 CRÍTICO (pode derrubar ou prejudicar agora)
-    ─────────────────────────────────────────────
-    
-    1. SEED_AFFILIATE.PY — Admin key hardcoded
-       backend/seed_affiliate.py:45 → ADMIN_KEY = "754210!As@"
-       A chave admin está em plain text no script. Se esse arquivo for commitado, qualquer um com acesso ao repo tem acesso admin. → Remover o hardcoded, ler de env var.
-    
-    2. NaN nos preços — handleBuy no OfferCard.tsx
-       OfferCard.tsx:138: buyUrl inicia como # se o affiliate_url não tem /r/. Quando handleBuy chama openTrackedOffer, se a API falhar, o usuário clicou e abriu #. O popup abre about:blank e navega pro URL, mas se trackClick falhar silenciosamente e getTrackedUrl retornar "#", o popup fica em branco. → Pelo menos mostrar "Processando..." no botão e dar feedback se falhar.
-    
-    3. Admin page — border: "1px solid #1a1a2e" em tabela escura
-       admin/page.tsx:22: S.td tem borderBottom: "1px solid #1a1a2e" — mesma cor do bg (preto), invisível. As linhas da tabela não aparecem. → Trocar pra rgba(108,92,231,0.1) ou similar.
-    
-    4. ScoreRing SVG stroke bg fill="#1e293b"
-       OfferCard.tsx:110: O círculo base do score ring usa stroke="#1e293b" (quase invisível no card claro #fff). → Trocar pra "rgba(108,92,231,0.15)".
-    
+vc esta proibido de mudar apagar recortar .env do codigo 
+
     🟡 ALTO UX / BUGS VISÍVEIS
     ───────────────────────────
     
