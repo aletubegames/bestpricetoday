@@ -586,7 +586,7 @@ export default function AleTubeGamesPage() {
     } as React.CSSProperties,
     tableRow: (even: boolean): React.CSSProperties => ({
       display: "grid",
-      gridTemplateColumns: "40px 1fr 100px 120px 80px 60px 70px",
+      gridTemplateColumns: "40px 1fr 130px 120px 80px 60px 70px 50px",
       gap: 8,
       padding: "10px 12px",
       background: even ? "#f9fafb" : "#fff",
@@ -596,7 +596,7 @@ export default function AleTubeGamesPage() {
     }),
     tableHeader: {
       display: "grid",
-      gridTemplateColumns: "40px 1fr 100px 120px 80px 60px 70px",
+      gridTemplateColumns: "40px 1fr 130px 120px 80px 60px 70px 50px",
       gap: 8,
       padding: "8px 12px",
       background: "#f3f4f6",
@@ -965,6 +965,7 @@ export default function AleTubeGamesPage() {
                   <span>Status</span>
                   <span>Cliques</span>
                   <span>Conversões</span>
+                  <span>Ações</span>
                 </div>
                 {history.length === 0 ? (
                   <div style={{ padding: "24px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
@@ -988,10 +989,13 @@ export default function AleTubeGamesPage() {
                         {v.title ?? v.id}
                       </div>
                       <div style={{ color: "#6b7280", fontSize: 12 }}>
-                        {v.created_at ? new Date(v.created_at).toLocaleDateString("pt-BR") : "—"}
+                        {(() => {
+                          const d = (v as any).published_at ?? (v as any).created_at;
+                          return d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
+                        })()}
                       </div>
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {(v.platforms ?? []).map(p => {
+                        {(((v as any).plataformas ?? (v as any).platforms) ?? []).map((p: string) => {
                           const pl = PLATFORMS.find(x => x.key === p);
                           return pl ? (
                             <span key={p} style={{
@@ -1016,8 +1020,35 @@ export default function AleTubeGamesPage() {
                           {v.status ?? "—"}
                         </span>
                       </div>
-                      <div style={{ textAlign: "center" }}>{v.clicks ?? 0}</div>
+                      <div style={{ textAlign: "center" }}>{(v as any).clicks_total ?? (v as any).clicks ?? 0}</div>
                       <div style={{ textAlign: "center" }}>{v.conversions ?? 0}</div>
+                      <div style={{ textAlign: "center" }}>
+                        <button
+                          title="Apagar"
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: 16,
+                            padding: "4px 8px",
+                          }}
+                          onClick={async () => {
+                            if (!confirm(`Apagar "${v.title ?? v.id}"?`)) return;
+                            try {
+                              const res = await fetch(`${API}/api/v1/aletube/videos/${v.id}`, {
+                                method: "DELETE",
+                                credentials: "include",
+                              });
+                              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                              fetchHistory();
+                            } catch (e) {
+                              alert("Erro ao apagar: " + (e instanceof Error ? e.message : "?"));
+                            }
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}

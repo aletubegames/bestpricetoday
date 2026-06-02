@@ -891,6 +891,7 @@ async def list_videos(
                 "title":            v.title,
                 "status":           v.publish_status,
                 "plataformas":      v.plataformas,
+                "created_at":       v.created_at.isoformat() if v.created_at else None,
                 "tiktok_video_id":  v.tiktok_video_id,
                 "youtube_video_id": v.youtube_video_id,
                 "instagram_media_id": v.instagram_media_id if hasattr(v, 'instagram_media_id') else None,
