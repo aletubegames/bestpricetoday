@@ -930,7 +930,28 @@ export default function AleTubeGamesPage() {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 18, color: "#1f2937" }}>Histórico de Publicações</h2>
-              <button style={s.btn()} onClick={fetchHistory}>🔄 Atualizar</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  style={s.btn("#dc2626")}
+                  onClick={async () => {
+                    if (!confirm("Remover da DB todos os vídeos cujo ficheiro já não existe no servidor?")) return;
+                    try {
+                      const res = await fetch(`${API}/api/v1/aletube/videos/cleanup-orphans`, {
+                        method:      "POST",
+                        credentials: "include",
+                      });
+                      const data = await res.json();
+                      alert(`Removidos: ${data.removed_count}`);
+                      fetchHistory();
+                    } catch (e) {
+                      alert("Erro ao limpar: " + (e instanceof Error ? e.message : "?"));
+                    }
+                  }}
+                >
+                  🗑️ Limpar órfãos
+                </button>
+                <button style={s.btn()} onClick={fetchHistory}>🔄 Atualizar</button>
+              </div>
             </div>
             {historyLoading && <p style={{ color: "#6b7280" }}>Carregando...</p>}
             {historyError && <div style={s.error}>{historyError}</div>}

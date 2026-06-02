@@ -906,6 +906,45 @@ async def list_videos(
     }
 
 
+@router.delete("/videos/{video_id}")
+async def delete_video(
+    video_id: str,
+    _:  str          = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apaga um vídeo (DB + ficheiro local se existir)."""
+    result = await db.execute(select(AdminVideo).where(AdminVideo.id == video_id))
+    video  = result.scalar()
+    if not video:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+    fp = video.file_path
+    await db.delete(video)
+    await db.commit()
+    if fp and os.path.exists(fp):
+        try:
+            os.remove(fp)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("delete file falhou: %s", exc)
+    return {"ok": True, "id": video_id}
+
+
+@router.post("/videos/cleanup-orphans")
+async def cleanup_orphan_videos(
+    _:  str          = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove da DB todos os vídeos cujo ficheiro local já não existe."""
+    result = await db.execute(select(AdminVideo))
+    videos = result.scalars().all()
+    removed: list[str] = []
+    for v in videos:
+        if not v.file_path or not os.path.exists(v.file_path):
+            removed.append(str(v.id))
+            await db.delete(v)
+    await db.commit()
+    return {"ok": True, "removed_count": len(removed), "removed_ids": removed}
+
+
 @router.get("/serve/{video_id}")
 async def serve_video(
     video_id: str,
