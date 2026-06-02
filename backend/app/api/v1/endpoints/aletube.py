@@ -17,6 +17,8 @@ Fluxo:
 import os
 import uuid
 import json
+import asyncio
+import logging
 import subprocess
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -36,6 +38,8 @@ from app.integrations.youtube import youtube_client
 from app.integrations.instagram import ig_fb_client
 
 router = APIRouter(prefix="/aletube", tags=["aletube"])
+
+log = logging.getLogger("aletube")
 
 VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "/app/videos")  # ✅ Usar /app/videos (persistente no HF Space)
 os.makedirs(VIDEOS_DIR, exist_ok=True)
@@ -729,17 +733,34 @@ async def publish_video(
     # Status geral
     any_ok    = any(v.get("status") == "ok" for v in results_by_platform.values())
     all_error = all(v.get("status") == "error" for v in results_by_platform.values())
+    all_ok    = bool(results_by_platform) and all(v.get("status") == "ok" for v in results_by_platform.values())
     video.publish_status = "failed" if all_error else "published"
     video.published_at   = datetime.now(timezone.utc) if any_ok else None
 
     await db.commit()
     await db.refresh(video)
 
+    # Cleanup: se TODAS as plataformas publicaram OK, apaga ficheiro local em background.
+    # O delay dá tempo a TikTok/Instagram (que buscam por URL pública) descarregarem.
+    if all_ok and video.file_path and not video.file_path.startswith("http"):
+        asyncio.create_task(_cleanup_local_file(str(video.id), video.file_path))
+
     return {
         "video_id":  str(video.id),
         "status":    video.publish_status,
         "platforms": results_by_platform,
     }
+
+
+async def _cleanup_local_file(video_id: str, file_path: str, delay_seconds: int = 180) -> None:
+    """Apaga arquivo local após publish bem-sucedido em todas as plataformas."""
+    try:
+        await asyncio.sleep(delay_seconds)
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+            log.info("aletube cleanup: removido %s (video %s)", file_path, video_id)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("aletube cleanup falhou para %s: %s", video_id, exc)
 
 
 # ─── List Videos ─────────────────────────────────────────────────────────────
