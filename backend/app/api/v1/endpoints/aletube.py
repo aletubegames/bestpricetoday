@@ -865,3 +865,90 @@ async def serve_video(
         media_type="video/mp4",
         filename=video.filename,
     )
+
+
+# ─── Local Publish (CLI) ─────────────────────────────────────────────────────
+# Endpoints usados pelo CLI tools/aletube_youtube_upload.py para publicar
+# vídeos grandes (>100MB) directamente da máquina do admin, sem passar
+# pelo HF Space.
+
+@router.get("/local/youtube-credentials")
+async def local_youtube_credentials(
+    _:  str          = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna credenciais OAuth da conta YouTube ativa para uso pelo CLI local.
+
+    ⚠ Endpoint sensível. Protegido por X-Admin-Key. Usado apenas por
+    tools/aletube_youtube_upload.py em máquina do admin.
+    """
+    yt_acct = (await db.execute(
+        select(YouTubeAccount).where(YouTubeAccount.is_active == True)
+    )).scalar()
+    if not yt_acct:
+        raise HTTPException(status_code=404, detail="Nenhuma conta YouTube ativa")
+    if not yt_acct.refresh_token:
+        raise HTTPException(status_code=400, detail="Conta YouTube sem refresh_token. Reconectar.")
+    if not (settings.YOUTUBE_CLIENT_ID and settings.YOUTUBE_CLIENT_SECRET):
+        raise HTTPException(status_code=500, detail="YOUTUBE_CLIENT_ID/SECRET não configurados")
+    return {
+        "client_id":     settings.YOUTUBE_CLIENT_ID,
+        "client_secret": settings.YOUTUBE_CLIENT_SECRET,
+        "refresh_token": yt_acct.refresh_token,
+        "channel_id":    yt_acct.channel_id,
+        "channel_title": yt_acct.channel_title,
+    }
+
+
+@router.post("/local/register-youtube-result")
+async def local_register_youtube_result(
+    youtube_video_id: str           = Form(...),
+    title:            Optional[str] = Form(default=None),
+    filename:         Optional[str] = Form(default=None),
+    file_size_bytes:  Optional[int] = Form(default=None),
+    duration_seconds: Optional[int] = Form(default=None),
+    video_id:         Optional[str] = Form(default=None),  # se já existir AdminVideo
+    _:  str          = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Regista resultado de upload local no DB (cria ou atualiza AdminVideo)."""
+    video: Optional[AdminVideo] = None
+    if video_id:
+        video = (await db.execute(
+            select(AdminVideo).where(AdminVideo.id == video_id)
+        )).scalar()
+
+    if video is None:
+        video = AdminVideo(
+            id              = uuid.uuid4(),
+            filename        = filename or f"local_{youtube_video_id}.mp4",
+            file_path       = "",  # sem ficheiro no servidor (upload foi local)
+            file_size_bytes = file_size_bytes,
+            duration_seconds = duration_seconds,
+            title           = title,
+            plataformas     = ["youtube"],
+            publish_status  = "pending",
+        )
+        db.add(video)
+
+    video.youtube_video_id = youtube_video_id
+    video.publish_status   = "published"
+    video.published_at     = datetime.now(timezone.utc)
+    if title and not video.title:
+        video.title = title
+
+    yt_acct = (await db.execute(
+        select(YouTubeAccount).where(YouTubeAccount.is_active == True)
+    )).scalar()
+    if yt_acct:
+        yt_acct.publishes_count = (yt_acct.publishes_count or 0) + 1
+
+    await db.commit()
+    await db.refresh(video)
+
+    return {
+        "video_id":         str(video.id),
+        "youtube_video_id": youtube_video_id,
+        "youtube_url":      f"https://youtube.com/watch?v={youtube_video_id}",
+        "status":           video.publish_status,
+    }
