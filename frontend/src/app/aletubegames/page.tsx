@@ -720,6 +720,16 @@ export default function AleTubeGamesPage() {
                     📁 <strong>{selectedFile.name}</strong> — {formatBytes(selectedFile.size)}
                   </div>
                 )}
+                {selectedFile && selectedFile.size > 95 * 1024 * 1024 && (
+                  <div style={{ ...s.error, marginBottom: 12 }}>
+                    ⚠ Ficheiro &gt; 95&nbsp;MB. O ingress do HF Space (free) corta a ~100&nbsp;MB e o upload vai falhar.
+                    <br />Comprime antes:
+                    <pre style={{ background: "#111", padding: 8, borderRadius: 4, marginTop: 6, fontSize: 12, overflowX: "auto" }}>
+{`./tools/aletube_compress.sh "${selectedFile.name}"`}
+                    </pre>
+                    Depois seleciona o <code>{selectedFile.name.replace(/\.[^.]+$/, "_compressed.mp4")}</code>.
+                  </div>
+                )}
                 {uploadError && <div style={s.error}>{uploadError}</div>}
                 <button
                   style={s.btn()}
