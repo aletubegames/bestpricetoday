@@ -21,6 +21,7 @@ import subprocess
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,9 +40,17 @@ router = APIRouter(prefix="/aletube", tags=["aletube"])
 VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "/tmp/aletube_videos")
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
+# Get INTERNAL_API_URL for serving videos publicly
+INTERNAL_API_URL = os.environ.get("INTERNAL_API_URL", "http://localhost:8000")
+
 
 def _generate_code(length: int = 8) -> str:
     return uuid.uuid4().hex[:length].upper()
+
+
+def _get_public_video_url(video_id: str) -> str:
+    """Convert local video path to public URL."""
+    return f"{INTERNAL_API_URL}/aletube/serve/{video_id}"
 
 
 # ─── Análise IA via Claude ────────────────────────────────────────────────────
@@ -606,9 +615,11 @@ async def publish_video(
                 short_link = await _make_short_link("tiktok_admin", f"video_{video.id}")
                 hashtags_str = " ".join(tt_meta.get("hashtags", []))
                 description  = f"{tt_meta.get('description', '')}\n\n{hashtags_str}".strip()
+                # Convert local path to public URL
+                video_url = _get_public_video_url(str(video.id))
                 tt_result = await tiktok_client.admin_publish_video(
                     access_token  = tt_acct.access_token,
-                    video_url     = video.file_path,  # deve ser URL pública para TikTok Pull
+                    video_url     = video_url,
                     title         = tt_meta.get("title", video.title or "")[:150],
                     description   = description[:2200],
                     tracked_link  = short_link,
@@ -674,10 +685,11 @@ async def publish_video(
                 if short_link:
                     caption = f"{caption}\n\n🛒 Link na bio"
                 # Instagram requer URL pública do vídeo
+                video_url = _get_public_video_url(str(video.id))
                 ig_result = await ig_fb_client.publish_reel_instagram(
                     ig_account_id = ig_acct.instagram_id,
                     access_token  = ig_acct.access_token,
-                    video_url     = video.file_path,  # deve ser URL pública
+                    video_url     = video_url,
                     caption       = caption[:2200],
                 )
                 video.instagram_media_id   = ig_result.get("media_id")
@@ -761,3 +773,21 @@ async def list_videos(
             for v in videos
         ],
     }
+
+
+@router.get(\"/serve/{video_id}\")
+async def serve_video(
+    video_id: str,
+    db:       AsyncSession = Depends(get_db),
+):
+    \"\"\"Serve video file for public access (used for TikTok/Instagram/Facebook uploads).\"\"\"
+    result = await db.execute(select(AdminVideo).where(AdminVideo.id == video_id))
+    video = result.scalar()
+    if not video or not os.path.exists(video.file_path):
+        raise HTTPException(status_code=404, detail=\"V\u00eddeo n\u00e3o encontrado\")
+    
+    return FileResponse(
+        path=video.file_path,
+        media_type=\"video/mp4\",
+        filename=video.filename,
+    )
