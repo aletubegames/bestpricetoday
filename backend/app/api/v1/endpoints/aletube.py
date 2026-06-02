@@ -448,6 +448,9 @@ async def disconnect_account(
 
 # ─── Upload ───────────────────────────────────────────────────────────────────
 
+MAX_UPLOAD_BYTES = int(os.environ.get("ALETUBE_MAX_UPLOAD_MB", "500")) * 1024 * 1024
+
+
 @router.post("/upload")
 async def upload_video(
     file: UploadFile = File(...),
@@ -464,13 +467,44 @@ async def upload_video(
     file_id   = uuid.uuid4().hex
     file_path = f"{VIDEOS_DIR}/{file_id}.{file_ext}"
 
+    file_size = 0
+    chunk_size = 1024 * 1024  # 1 MiB
     try:
-        content   = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(content)
-        file_size = len(content)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao salvar: {str(e)}")
+        with open(file_path, "wb") as out:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                file_size += len(chunk)
+                if file_size > MAX_UPLOAD_BYTES:
+                    out.close()
+                    try:
+                        os.remove(file_path)
+                    except OSError:
+                        pass
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Ficheiro excede o limite de {MAX_UPLOAD_BYTES // (1024*1024)} MB.",
+                    )
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except OSError as exc:
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+        # ENOSPC = 28 → disco cheio (filesystem efêmero do HF Space)
+        if getattr(exc, "errno", None) == 28:
+            raise HTTPException(status_code=507, detail="Sem espaço em disco no servidor.")
+        raise HTTPException(status_code=500, detail=f"Erro de I/O: {exc}")
+    except Exception as e:  # noqa: BLE001
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+        log.exception("aletube upload falhou (%s)", file.filename)
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar: {e}")
 
     video = AdminVideo(
         id        = uuid.uuid4(),
