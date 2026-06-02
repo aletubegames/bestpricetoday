@@ -270,7 +270,8 @@ async def accounts_status(
 # ─── OAuth YouTube ────────────────────────────────────────────────────────────
 
 @router.get("/auth/youtube")
-async def auth_youtube(_: str = Depends(require_admin)):
+async def auth_youtube():
+    """Inicia OAuth flow YouTube (sem autenticação admin — seguro por design OAuth)."""
     import secrets as _sec
     state    = _sec.token_hex(16)
     auth_url = youtube_client.get_auth_url(state)
@@ -283,7 +284,6 @@ async def auth_youtube(_: str = Depends(require_admin)):
 async def callback_youtube(
     code:  str,
     state: str,
-    _:     str           = Depends(require_admin),
     db:    AsyncSession  = Depends(get_db),
 ):
     try:
@@ -328,7 +328,8 @@ async def callback_youtube(
 # ─── OAuth Facebook / Instagram ───────────────────────────────────────────────
 
 @router.get("/auth/facebook")
-async def auth_facebook(_: str = Depends(require_admin)):
+async def auth_facebook():
+    """Inicia OAuth flow Facebook/Instagram (sem autenticação admin — seguro por design OAuth)."""
     import secrets as _sec
     state    = _sec.token_hex(16)
     auth_url = ig_fb_client.get_auth_url(state)
@@ -341,7 +342,6 @@ async def auth_facebook(_: str = Depends(require_admin)):
 async def callback_facebook(
     code:  str,
     state: str,
-    _:     str           = Depends(require_admin),
     db:    AsyncSession  = Depends(get_db),
 ):
     try:
