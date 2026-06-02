@@ -19,6 +19,7 @@ import uuid
 import json
 import asyncio
 import logging
+import re
 import subprocess
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -57,7 +58,7 @@ def _get_public_video_url(video_id: str) -> str:
     return f"{INTERNAL_API_URL}/aletube/serve/{video_id}"
 
 
-# ─── Análise IA via Claude ────────────────────────────────────────────────────
+# ─── Análise IA com vision ───────────────────────────────────────────────────
 
 async def _extract_video_metadata(file_path: str) -> dict:
     """Extrai duração, resolução e fps com ffprobe."""
@@ -89,93 +90,146 @@ async def _extract_video_metadata(file_path: str) -> dict:
         return {"duration_seconds": 0, "width": 0, "height": 0, "fps": 0}
 
 
-async def _generate_platform_content(filename: str, duration_seconds: int, width: int, height: int) -> dict:
-    """
-    Usa Claude para gerar título, descrição, hashtags e bio por plataforma.
-    Retorna dict com chaves: tiktok, youtube, instagram, facebook.
-    Fallback para placeholder se ANTHROPIC_API_KEY não configurado.
-    """
-    if not settings.ANTHROPIC_API_KEY:
-        # Fallback sem IA
-        base_title = filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
-        return {
-            "tiktok": {
-                "title":       f"{base_title[:100]}",
-                "description": f"🔥 {base_title}\n\n📲 Siga para mais conteúdo!\n\n",
-                "hashtags":    ["#aletubegames", "#tech", "#promo", "#shorts", "#fyp"],
-                "bio_note":    "Link na bio para ofertas 🛒",
-            },
-            "youtube": {
-                "title":       f"{base_title[:100]} | AleTubeGames",
-                "description": (
-                    f"{base_title}\n\n"
-                    "📌 Inscreva-se no canal para mais vídeos!\n\n"
-                    "🛒 Acesse as melhores ofertas:\n"
-                    "https://bestpricetoday.vercel.app\n\n"
-                    "#AleTubeGames #Tech #Promo"
-                ),
-                "hashtags":    ["AleTubeGames", "Tech", "Promo", "Games", "Oferta", "Desconto"],
-                "end_screen_note": "Adicione end screen com inscrição",
-            },
-            "instagram": {
-                "title":       base_title[:100],
-                "description": (
-                    f"🎮 {base_title}\n\n"
-                    "🔥 Oferta incrível! Link na bio ⬆️\n\n"
-                    "#aletubegames #tech #games #promo #reel"
-                ),
-                "hashtags":    ["aletubegames", "tech", "games", "promo", "reel", "instagram", "viral"],
-                "bio_note":    "Atualize o link na bio antes de postar",
-            },
-            "facebook": {
-                "title":       base_title[:255],
-                "description": (
-                    f"🔥 {base_title}\n\n"
-                    "Confira essa oferta incrível! Acesse o link nos comentários ou na bio.\n\n"
-                    "👉 bestpricetoday.vercel.app"
-                ),
-                "hashtags":    ["AleTubeGames", "Promo", "Tech"],
-                "bio_note":    "Fixe o link nos comentários",
-            },
-        }
+def _extract_keyframes(file_path: str, duration_seconds: int, count: int = 4, max_dim: int = 768) -> list[bytes]:
+    """Extrai N frames JPEG espaçados ao longo do vídeo (para análise visual da IA).
 
-    # Claude via API direta
-    prompt = f"""Você é um especialista em marketing de conteúdo para redes sociais.
+    Reduz dimensão máxima para max_dim para reduzir tokens de imagem.
+    Retorna lista de bytes JPEG (ou lista vazia se falhar).
+    """
+    if duration_seconds <= 0 or count <= 0:
+        return []
+    # Timestamps espaçados — evita início e fim absolutos.
+    step = duration_seconds / (count + 1)
+    timestamps = [round(step * (i + 1), 2) for i in range(count)]
+    frames: list[bytes] = []
+    for ts in timestamps:
+        try:
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-ss", str(ts), "-i", file_path,
+                    "-frames:v", "1",
+                    "-vf", f"scale='min({max_dim},iw)':'-2'",
+                    "-q:v", "5",
+                    "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
+                ],
+                capture_output=True, timeout=20,
+            )
+            if proc.returncode == 0 and proc.stdout:
+                frames.append(proc.stdout)
+        except Exception:
+            continue
+    return frames
+
+
+def _ai_prompt(filename: str, duration_seconds: int, width: int, height: int, has_frames: bool) -> str:
+    visual_hint = (
+        "Analisa as imagens (frames extraídos do vídeo) para identificar o conteúdo real "
+        "(jogo, personagens, género, ação, contexto). Sê específico — evita termos genéricos."
+        if has_frames else
+        "Sem frames visuais disponíveis — usa apenas o nome do ficheiro como pista. "
+        "Mesmo assim, evita hashtags genéricas como #fyp #viral #tech se não houver razão concreta."
+    )
+    return f"""És um especialista em marketing de conteúdo para redes sociais (PT-BR e EN).
 
 Vídeo: "{filename}"
 Duração: {duration_seconds}s
 Resolução: {width}x{height}px
 
-Gere conteúdo otimizado para cada plataforma. Responda SOMENTE com JSON válido, sem markdown, sem explicações.
+{visual_hint}
 
-Formato:
+Gera conteúdo otimizado por plataforma. Regras DURAS:
+- Título e descrição ESPECÍFICOS ao que vês (ex: "Trickson Me parry-perfeito vence New Hex em SF3 3rd Strike"), não vagos.
+- Hashtags relevantes ao conteúdo (jogo, personagem, género, comunidade) — não enche-chouriços.
+- TikTok caption < 200 chars + CTA.
+- YouTube description com 2-3 parágrafos, inclui keywords SEO + link https://bestpricetoday.vercel.app no final.
+- Instagram caption emocional + emojis + 20-30 hashtags.
+- Facebook texto mais conversacional, 3-5 hashtags.
+- NÃO incluas markdown nem comentários. Resposta = JSON válido apenas.
+
+Formato exacto:
 {{
-  "tiktok": {{
-    "title": "título até 150 chars, chamativo, emoji no início",
-    "description": "descrição até 200 chars, call to action, link no final quando possível",
-    "hashtags": ["lista", "de", "3a5", "hashtags", "relevantes"],
-    "bio_note": "instrução curta para o que colocar na bio"
-  }},
-  "youtube": {{
-    "title": "título até 100 chars, keyword no início, sem clickbait excessivo",
-    "description": "descrição até 500 chars, paragrafada, com link bestpricetoday.vercel.app, SEO",
-    "hashtags": ["lista", "de", "10a15", "hashtags", "mix", "broad", "e", "nicho"],
-    "end_screen_note": "sugestão de end screen / cards"
-  }},
-  "instagram": {{
-    "title": "título curto para referência interna",
-    "description": "caption até 300 chars, emojis, call to action, link na bio mencionado",
-    "hashtags": ["lista", "de", "20a30", "hashtags", "agressivos"],
-    "bio_note": "instrução para link na bio"
-  }},
-  "facebook": {{
-    "title": "título até 255 chars",
-    "description": "texto para o post, mais longo, menos hashtags, mais conversacional",
-    "hashtags": ["3a5", "hashtags"],
-    "bio_note": "instrução extra (fixar comentário, etc)"
-  }}
+  "tiktok":    {{"title": "...", "description": "...", "hashtags": ["#tag1","#tag2"], "bio_note": "..."}},
+  "youtube":   {{"title": "...", "description": "...", "hashtags": ["tag1","tag2"], "end_screen_note": "..."}},
+  "instagram": {{"title": "...", "description": "...", "hashtags": ["tag1","tag2"], "bio_note": "..."}},
+  "facebook":  {{"title": "...", "description": "...", "hashtags": ["tag1","tag2"], "bio_note": "..."}}
 }}"""
 
+
+def _smart_fallback(filename: str) -> dict:
+    """Fallback offline: extrai tokens do filename para gerar conteúdo menos genérico."""
+    raw = filename.rsplit(".", 1)[0]
+    tokens = [t for t in re.split(r"[\s_\-\.]+", raw) if t]
+    title = " ".join(t.capitalize() for t in tokens) or raw
+    base_hash = [f"#{t.lower()}" for t in tokens if len(t) > 2 and t.isalnum()][:5]
+    return {
+        "tiktok":    {"title": title[:150], "description": f"🎮 {title}\n\n📲 Segue para mais!", "hashtags": base_hash or ["#aletubegames"], "bio_note": "Link na bio 🛒"},
+        "youtube":   {"title": f"{title} | AleTubeGames"[:100], "description": f"{title}\n\n🛒 https://bestpricetoday.vercel.app", "hashtags": [t.lower() for t in tokens][:12] or ["aletubegames"], "end_screen_note": "Inscrição + vídeos relacionados"},
+        "instagram": {"title": title[:100], "description": f"🎮 {title}\nLink na bio ⬆️", "hashtags": [t.lower() for t in tokens][:25] or ["aletubegames"], "bio_note": "Atualiza link na bio"},
+        "facebook":  {"title": title[:255], "description": f"{title}\n\n👉 bestpricetoday.vercel.app", "hashtags": [t for t in tokens][:5] or ["AleTubeGames"], "bio_note": "Fixa link nos comentários"},
+    }
+
+
+def _parse_ai_json(text: str) -> Optional[dict]:
+    text = text.strip()
+    if text.startswith("```"):
+        # remove fences
+        text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
+        text = re.sub(r"\n?```\s*$", "", text)
+    try:
+        return json.loads(text)
+    except Exception:
+        # tenta extrair primeiro objecto JSON
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                return None
+        return None
+
+
+async def _call_openrouter_vision(prompt: str, frames: list[bytes]) -> Optional[dict]:
+    """Chama OpenRouter (OpenAI-compatible) com vision. Retorna JSON parseado ou None."""
+    if not settings.OPENROUTER_API_KEY:
+        return None
+    import base64
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    for f in frames:
+        b64 = base64.b64encode(f).decode("ascii")
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+        })
+    payload = {
+        "model": settings.OPENROUTER_MODEL or "anthropic/claude-3.5-sonnet",
+        "max_tokens": 1500,
+        "temperature": 0.7,
+        "messages": [{"role": "user", "content": content}],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90) as client:
+            r = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                    "Content-Type":  "application/json",
+                    "HTTP-Referer":  "https://bestpricetoday.vercel.app",
+                    "X-Title":       "AleTubeGames",
+                },
+                json=payload,
+            )
+            r.raise_for_status()
+            text = r.json()["choices"][0]["message"]["content"]
+            return _parse_ai_json(text)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("openrouter falhou: %s", exc)
+        return None
+
+
+async def _call_anthropic_text(prompt: str) -> Optional[dict]:
+    """Fallback para Anthropic direto (sem vision, modelo barato)."""
+    if not settings.ANTHROPIC_API_KEY:
+        return None
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
@@ -186,26 +240,47 @@ Formato:
                     "content-type":      "application/json",
                 },
                 json={
-                    "model":      "claude-3-haiku-20240307",
+                    "model":      "claude-3-5-haiku-20241022",
                     "max_tokens": 1500,
                     "messages":   [{"role": "user", "content": prompt}],
                 },
             )
             r.raise_for_status()
-            text = r.json()["content"][0]["text"].strip()
-            # Remove markdown se vier
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            return json.loads(text)
-    except Exception:
-        return {
-            "tiktok":    {"title": filename, "description": "", "hashtags": [], "bio_note": ""},
-            "youtube":   {"title": filename, "description": "", "hashtags": [], "end_screen_note": ""},
-            "instagram": {"title": filename, "description": "", "hashtags": [], "bio_note": ""},
-            "facebook":  {"title": filename, "description": "", "hashtags": [], "bio_note": ""},
-        }
+            return _parse_ai_json(r.json()["content"][0]["text"])
+    except Exception as exc:  # noqa: BLE001
+        log.warning("anthropic direct falhou: %s", exc)
+        return None
+
+
+async def _generate_platform_content(
+    filename: str,
+    duration_seconds: int,
+    width: int,
+    height: int,
+    file_path: Optional[str] = None,
+) -> dict:
+    """Gera conteúdo por plataforma. Cascata: OpenRouter (vision) → Anthropic → fallback."""
+    frames: list[bytes] = []
+    if file_path and settings.OPENROUTER_API_KEY:
+        try:
+            frames = _extract_keyframes(file_path, duration_seconds, count=4)
+            log.info("aletube analyze: extraídos %d frames de %s", len(frames), filename)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("aletube extract frames falhou: %s", exc)
+
+    prompt = _ai_prompt(filename, duration_seconds, width, height, has_frames=bool(frames))
+
+    if settings.OPENROUTER_API_KEY:
+        result = await _call_openrouter_vision(prompt, frames)
+        if result:
+            return result
+
+    if settings.ANTHROPIC_API_KEY:
+        result = await _call_anthropic_text(prompt)
+        if result:
+            return result
+
+    return _smart_fallback(filename)
 
 
 # ─── Accounts Status ─────────────────────────────────────────────────────────
@@ -550,6 +625,7 @@ async def analyze_video(
         meta["duration_seconds"],
         meta["width"],
         meta["height"],
+        file_path=video.file_path,
     )
 
     # Usa TikTok como "padrão" para campos legados

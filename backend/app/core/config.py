@@ -94,8 +94,12 @@ class Settings(BaseSettings):
     INSTAGRAM_APP_SECRET: str = ""
     FACEBOOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/facebook"
 
-    # Claude API (para análise de vídeo)
+    # Claude API (para análise de vídeo) — direto, opcional
     ANTHROPIC_API_KEY: str = ""
+
+    # OpenRouter (proxy multi-modelo) — preferido para análise IA com vision
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_MODEL:   str = "anthropic/claude-3.5-sonnet"
 
     # Video API (GPU local via ngrok ou URL fixa)
     VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
