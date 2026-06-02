@@ -37,7 +37,7 @@ from app.integrations.instagram import ig_fb_client
 
 router = APIRouter(prefix="/aletube", tags=["aletube"])
 
-VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "/tmp/aletube_videos")
+VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "/app/videos")  # ✅ Usar /app/videos (persistente no HF Space)
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
 # Get INTERNAL_API_URL for serving videos publicly
@@ -783,11 +783,30 @@ async def serve_video(
     """Serve video file for public access (used for TikTok/Instagram/Facebook uploads)."""
     result = await db.execute(select(AdminVideo).where(AdminVideo.id == video_id))
     video = result.scalar()
-    if not video or not os.path.exists(video.file_path):
-        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+    if not video:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado no banco de dados")
+    
+    # Tentar locais possíveis de arquivo
+    possible_paths = [
+        video.file_path,  # Original
+        f"/app/videos/{video_id}.mp4",  # HF Space persistente
+        f"/tmp/aletube_videos/{video_id}.mp4",  # Fallback /tmp
+    ]
+    
+    file_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            file_path = path
+            break
+    
+    if not file_path:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Arquivo de vídeo não encontrado em nenhum local. Tente fazer re-upload do vídeo. (Video ID: {video_id})"
+        )
     
     return FileResponse(
-        path=video.file_path,
+        path=file_path,
         media_type="video/mp4",
         filename=video.filename,
     )
