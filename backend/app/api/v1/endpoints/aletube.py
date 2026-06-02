@@ -775,19 +775,19 @@ async def list_videos(
     }
 
 
-@router.get(\"/serve/{video_id}\")
+@router.get("/serve/{video_id}")
 async def serve_video(
     video_id: str,
     db:       AsyncSession = Depends(get_db),
 ):
-    \"\"\"Serve video file for public access (used for TikTok/Instagram/Facebook uploads).\"\"\"
+    """Serve video file for public access (used for TikTok/Instagram/Facebook uploads)."""
     result = await db.execute(select(AdminVideo).where(AdminVideo.id == video_id))
     video = result.scalar()
     if not video or not os.path.exists(video.file_path):
-        raise HTTPException(status_code=404, detail=\"V\u00eddeo n\u00e3o encontrado\")
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
     
     return FileResponse(
         path=video.file_path,
-        media_type=\"video/mp4\",
+        media_type="video/mp4",
         filename=video.filename,
     )
