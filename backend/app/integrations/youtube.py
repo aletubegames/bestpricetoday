@@ -70,7 +70,10 @@ class YouTubeClient:
             data = r.json()
             items = data.get("items", [])
             if not items:
-                return {}
+                raise ValueError(
+                    "Esta conta Google não tem canal YouTube. "
+                    "Acede a https://www.youtube.com, cria o canal e tenta ligar de novo."
+                )
             ch = items[0]
             return {
                 "channel_id":    ch["id"],
