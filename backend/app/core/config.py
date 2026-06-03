@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     # Instagram / Facebook
     INSTAGRAM_APP_ID: str = ""
     INSTAGRAM_APP_SECRET: str = ""
+    FACEBOOK_APP_SECRET: str = ""  # Para validar signed requests do Data Deletion Callback
     FACEBOOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/facebook"
 
     # Claude API (para análise de vídeo) — direto, opcional

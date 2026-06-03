@@ -28,16 +28,19 @@ class User(Base):
     clerk_id = Column(String, unique=True, index=True, nullable=True)
     telegram_id = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
+    facebook_id = Column(String, unique=True, index=True, nullable=True)  # App-scoped ID from Meta
     name = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)  # None = social/telegram login only
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)  # Soft delete for GDPR compliance
 
     searches = relationship("Search", back_populates="user")
     alerts = relationship("PriceAlert", back_populates="user")
     favorites = relationship("Favorite", back_populates="user")
+    deletion_requests = relationship("DataDeletionRequest", back_populates="user")
 
 
 class Search(Base):
@@ -426,3 +429,29 @@ class AffiliateProduct(Base):
     is_active         = Column(Boolean, default=True)
     created_at        = Column(DateTime(timezone=True), default=_utcnow)
     updated_at        = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class DataDeletionRequest(Base):
+    """
+    Rastreia solicitações de exclusão de dados (GDPR/LGPD/Meta Data Deletion Callback).
+    Mantém registro por 12 meses para auditoria, mesmo após exclusão dos dados.
+    """
+    __tablename__ = "data_deletion_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    facebook_id = Column(String, nullable=True, index=True)  # Fallback se usuário não encontrado
+    confirmation_code = Column(String, unique=True, index=True, nullable=False)  # Código único do cliente
+    source = Column(String, default="facebook")  # facebook, manual_email, gdpr_request
+    status = Column(String, default="processing")  # processing, completed, failed
+    
+    # O que foi excluído
+    deleted_fields = Column(JSON, nullable=True)  # {"email", "telegram_id", "searches", "alerts", ...}
+    deletion_error = Column(String, nullable=True)  # Se algo falhar
+    
+    # Timestamps
+    requested_at = Column(DateTime(timezone=True), default=_utcnow, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # Quando remover este registro (após 12 meses)
+    
+    user = relationship("User", back_populates="deletion_requests")

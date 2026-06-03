@@ -176,7 +176,33 @@ export default function PrivacyPage() {
           Alterações significativas serão comunicadas por aviso na Plataforma.
         </Section>
 
-        <Section title="12. Contato e DPO">
+        <Section title="12. Solicitação de Exclusão de Dados">
+          <strong style={{ color: "var(--txt)" }}>Para aplicativos que acessam dados do Facebook/Meta:</strong><br />
+          Se você usa o BestPriceToday através de Login via Facebook ou se integrou dados do Facebook, pode
+          solicitar a exclusão dos seus dados a qualquer momento.
+          <br /><br />
+          <strong style={{ color: "var(--txt)" }}>Como solicitar exclusão:</strong>
+          <ol style={{ marginTop: 12, paddingLeft: 20, lineHeight: 2 }}>
+            <li>Acesse sua conta do Facebook</li>
+            <li>Vá para <strong>Configurações e privacidade → Configurações</strong></li>
+            <li>Selecione <strong>Aplicativos e sites</strong></li>
+            <li>Procure por <strong>BestPriceToday</strong> e clique em <strong>Remover</strong></li>
+            <li>Na janela que aparecer, clique em <strong>Enviar solicitação</strong></li>
+          </ol>
+          <br />
+          <strong style={{ color: "var(--txt)" }}>Confirmação de exclusão:</strong><br />
+          Após enviar a solicitação, você receberá um
+          {" "}<a href="/deletion-status" style={{ color: "var(--acc2)", textDecoration: "none" }}>
+            link de status de exclusão
+          </a>{" "}
+          e um código de confirmação. Use o código para acompanhar o progresso da exclusão dos seus dados.
+          <br /><br />
+          <strong style={{ color: "var(--txt)" }}>Prazo:</strong> A exclusão é realizada imediatamente após o envio
+          da solicitação. Todos os dados pessoais associados à sua conta serão removidos de nossos servidores
+          conforme exigido pela Política da Meta.
+        </Section>
+
+        <Section title="13. Contato e DPO">
           Para questões de privacidade ou para exercer seus direitos:<br /><br />
           📧 <a href="mailto:aletubegames@gmail.com"
                 style={{ color: "var(--acc2)", textDecoration: "none" }}>
