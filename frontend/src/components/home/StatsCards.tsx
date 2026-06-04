@@ -1,31 +1,72 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getStats } from "@/lib/mockData";
 
+interface Stats {
+  productsMonitored: number;
+  weeklySearches: number;
+  platforms: number;
+}
+
 function formatNumber(n: number): string {
   if (n >= 1000) {
-    return (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1).replace(".", ",") + (n >= 10000 ? "k" : "k");
+    const divided = n / 1000;
+    return (divided >= 10 ? Math.round(divided).toString() : divided.toFixed(1).replace(".", ",")) + "k";
   }
   return n.toString();
 }
 
+async function fetchStats(): Promise<Stats> {
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    const resp = await fetch(`${apiUrl}/api/v1/stats`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return {
+      productsMonitored: data.total_products || 0,
+      weeklySearches: data.weekly_searches || 0,
+      platforms: data.platforms || 0,
+    };
+  } catch {
+    // Fallback to mock
+    return getStats();
+  }
+}
+
 export default function StatsCards() {
-  const stats = getStats();
+  const [stats, setStats] = useState<Stats>({
+    productsMonitored: 0,
+    weeklySearches: 0,
+    platforms: 0,
+  });
+
+  useEffect(() => {
+    fetchStats().then(setStats);
+  }, []);
+
+  // If all zeros, use mock fallback
+  const display =
+    stats.productsMonitored === 0 && stats.weeklySearches === 0
+      ? getStats()
+      : stats;
 
   const cards = [
     {
-      value: `+${formatNumber(stats.productsMonitored)}`,
+      value: `+${formatNumber(display.productsMonitored)}`,
       label: "produtos monitorados",
       color: "#f97316",
     },
     {
-      value: `+${formatNumber(stats.weeklySearches)}`,
+      value: `+${formatNumber(display.weeklySearches)}`,
       label: "buscas essa semana",
       color: "#7c3aed",
     },
     {
-      value: `${stats.platforms}`,
+      value: `${display.platforms}`,
       label: "plataformas comparadas",
       color: "#1a1a2e",
     },

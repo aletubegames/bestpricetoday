@@ -2,11 +2,18 @@
 
 import { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { getChartData } from "@/lib/mockData";
 
-export default function SearchesChart() {
-  const data = getChartData();
-  const maxVal = Math.max(...data.map((d) => d.value));
+export interface ChartDay {
+  day: string;
+  value: number;
+}
+
+interface Props {
+  data: ChartDay[];
+}
+
+export default function SearchesChart({ data }: Props) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -65,7 +72,7 @@ export default function SearchesChart() {
                 justifyContent: "flex-end",
               }}
             >
-              {/* Valor acima */}
+              {/* Valor acima — SEMPRE visível */}
               <span
                 style={{
                   fontSize: 10,
@@ -74,10 +81,10 @@ export default function SearchesChart() {
                   marginBottom: 2,
                 }}
               >
-                {visible ? d.value : 0}
+                {d.value}
               </span>
 
-              {/* Barra */}
+              {/* Barra — animada */}
               <div
                 style={{
                   width: "100%",

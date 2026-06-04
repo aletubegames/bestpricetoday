@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getTestimonials, type Review } from "@/lib/mockData";
 
 function StarRating({ count }: { count: number }) {
@@ -9,10 +10,7 @@ function StarRating({ count }: { count: number }) {
       {Array.from({ length: 5 }).map((_, i) => (
         <span
           key={i}
-          style={{
-            fontSize: 14,
-            color: i < count ? "#f59e0b" : "#ddd",
-          }}
+          style={{ fontSize: 14, color: i < count ? "#f59e0b" : "#ddd" }}
         >
           ★
         </span>
@@ -21,12 +19,9 @@ function StarRating({ count }: { count: number }) {
   );
 }
 
-function ReviewCard({ review, index }: { review: Review; index: number }) {
+function ReviewCard({ review }: { review: Review }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 + index * 0.08, duration: 0.4 }}
+    <div
       style={{
         background: "#fff",
         border: "1px solid #e0e0f0",
@@ -35,9 +30,10 @@ function ReviewCard({ review, index }: { review: Review; index: number }) {
         display: "flex",
         flexDirection: "column",
         gap: 12,
+        height: "100%",
+        boxSizing: "border-box",
       }}
     >
-      {/* Header: avatar + nome + estado */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div
           style={{
@@ -66,10 +62,8 @@ function ReviewCard({ review, index }: { review: Review; index: number }) {
         </div>
       </div>
 
-      {/* Stars */}
       <StarRating count={review.stars} />
 
-      {/* Text */}
       <p
         style={{
           fontSize: 13,
@@ -77,12 +71,12 @@ function ReviewCard({ review, index }: { review: Review; index: number }) {
           color: "#3a3a5c",
           margin: 0,
           fontStyle: "italic",
+          flex: 1,
         }}
       >
         &ldquo;{review.text}&rdquo;
       </p>
 
-      {/* Footer: economia + tag */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span
           style={{
@@ -109,16 +103,37 @@ function ReviewCard({ review, index }: { review: Review; index: number }) {
           {review.productTag}
         </span>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
 export default function Testimonials() {
   const reviews = getTestimonials();
+  const itemsPerPage = 3;
+  const totalPages = Math.ceil(reviews.length / itemsPerPage);
+  const [page, setPage] = useState(0);
+  const [direction, setDirection] = useState(0);
+
+  const paginate = useCallback(
+    (newDirection: number) => {
+      setDirection(newDirection);
+      setPage((prev) => {
+        const next = prev + newDirection;
+        if (next < 0) return totalPages - 1;
+        if (next >= totalPages) return 0;
+        return next;
+      });
+    },
+    [totalPages]
+  );
+
+  const visible = reviews.slice(
+    page * itemsPerPage,
+    page * itemsPerPage + itemsPerPage
+  );
 
   return (
     <div>
-      {/* Header */}
       <div style={{ textAlign: "center", marginBottom: 28 }}>
         <h2
           style={{
@@ -131,16 +146,9 @@ export default function Testimonials() {
         >
           O que dizem nossos usuários
         </h2>
-        <p
-          style={{
-            fontSize: 14,
-            color: "rgba(26,26,46,0.5)",
-            marginBottom: 10,
-          }}
-        >
+        <p style={{ fontSize: 14, color: "rgba(26,26,46,0.5)", marginBottom: 10 }}>
           Pessoas reais economizando de verdade
         </p>
-        {/* Rating */}
         <div
           style={{
             display: "inline-flex",
@@ -159,20 +167,132 @@ export default function Testimonials() {
         </div>
       </div>
 
-      {/* Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 16,
-        }}
-      >
-        {reviews.map((review, i) => (
-          <ReviewCard key={review.name} review={review} index={i} />
-        ))}
+      {/* Carousel */}
+      <div style={{ position: "relative" }}>
+        {/* Nav buttons */}
+        {totalPages > 1 && (
+          <>
+            <button
+              onClick={() => paginate(-1)}
+              style={{
+                position: "absolute",
+                left: -16,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 2,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "1px solid #e0e0f0",
+                background: "#fff",
+                fontSize: 16,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#7c3aed",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                transition: "all .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#7c3aed";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(124,58,237,0.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#e0e0f0";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+              }}
+            >
+              ←
+            </button>
+            <button
+              onClick={() => paginate(1)}
+              style={{
+                position: "absolute",
+                right: -16,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 2,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "1px solid #e0e0f0",
+                background: "#fff",
+                fontSize: 16,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#7c3aed",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                transition: "all .15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#7c3aed";
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(124,58,237,0.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#e0e0f0";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+              }}
+            >
+              →
+            </button>
+          </>
+        )}
+
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
+          <motion.div
+            key={page}
+            custom={direction}
+            initial={{ opacity: 0, x: direction > 0 ? 60 : -60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: direction > 0 ? -60 : 60 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${Math.min(itemsPerPage, visible.length)}, 1fr)`,
+              gap: 16,
+            }}
+          >
+            {visible.map((review) => (
+              <ReviewCard key={review.name} review={review} />
+            ))}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Dots */}
+        {totalPages > 1 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 16,
+            }}
+          >
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setDirection(i > page ? 1 : -1);
+                  setPage(i);
+                }}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: i === page ? "#7c3aed" : "#e0e0f0",
+                  cursor: "pointer",
+                  transition: "background .2s",
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Disclaimer */}
       <p
         style={{
           textAlign: "center",

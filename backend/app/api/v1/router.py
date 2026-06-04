@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import search, alerts, favorites, products, auth, admin, links, tiktok, aletube, affiliate, facebook
+from app.api.v1.endpoints import search, alerts, favorites, products, auth, admin, links, tiktok, aletube, affiliate, facebook, stats
 
 api_router = APIRouter()
 api_router.include_router(search.router, tags=["search"])
@@ -13,3 +13,4 @@ api_router.include_router(tiktok.router, prefix="/tiktok", tags=["tiktok"])
 api_router.include_router(aletube.router, tags=["aletube"])
 api_router.include_router(affiliate.router, tags=["affiliate"])
 api_router.include_router(facebook.router, prefix="/facebook", tags=["facebook"])
+api_router.include_router(stats.router, tags=["stats"])

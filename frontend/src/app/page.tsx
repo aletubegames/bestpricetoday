@@ -17,6 +17,10 @@ import SearchesChart from "@/components/home/SearchesChart";
 import TrustBadges from "@/components/home/TrustBadges";
 import Testimonials from "@/components/home/Testimonials";
 import FAQ from "@/components/home/FAQ";
+import HowItWorks from "@/components/home/HowItWorks";
+import FeaturedOffers from "@/components/home/FeaturedOffers";
+import { getChartData } from "@/lib/mockData";
+import type { ChartDay } from "@/components/home/SearchesChart";
 
 type StoredUser = { name: string; is_admin: boolean };
 
@@ -146,6 +150,24 @@ function Section({ children, maxWidth = 960 }: { children: React.ReactNode; maxW
 // ═══════════════════════════════════════════════════════════════════════════════
 // HOME PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
+
+async function fetchChartData(): Promise<ChartDay[]> {
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    const resp = await fetch(`${apiUrl}/api/v1/stats`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (data.daily_searches && data.daily_searches.length > 0) {
+      return data.daily_searches;
+    }
+  } catch {
+    // fallback to mock
+  }
+  return getChartData();
+}
+
 export default function HomePage() {
   const [query, setQuery] = useState("");
   const { data, isLoading, error } = useSearch(query);
@@ -155,6 +177,11 @@ export default function HomePage() {
   const [showCompare, setShowCompare] = useState(false);
   const [openingCompareKey, setOpeningCompareKey] = useState<string | null>(null);
   const [compareErrorKey, setCompareErrorKey] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<ChartDay[]>(getChartData());
+
+  useEffect(() => {
+    fetchChartData().then(setChartData);
+  }, []);
 
   const compareOfferKey = (offer: Offer, index: number) =>
     `${offer.provider}-${offer.product_id || offer.affiliate_url || index}`;
@@ -186,6 +213,7 @@ export default function HomePage() {
   };
 
   const plural = (n: number) => n === 1 ? "oferta encontrada" : "ofertas encontradas";
+  const showLanding = !query && !isLoading && !data;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
@@ -218,11 +246,11 @@ export default function HomePage() {
               <img
                 src="/favicon-192.png"
                 alt="BestPriceToday"
-                width={44}
-                height={44}
+                width={64}
+                height={64}
                 style={{
-                  width: 44,
-                  height: 44,
+                  width: 64,
+                  height: 64,
                   objectFit: "cover",
                   transform: "translateX(6px) perspective(500px) rotateY(-16deg)",
                   filter: "drop-shadow(0 6px 10px rgba(124,58,237,0.22))",
@@ -366,7 +394,7 @@ export default function HomePage() {
           <SearchBar onSearch={setQuery} isLoading={isLoading} />
 
           {/* Trending pills */}
-          {!query && trending.length > 0 && (
+          {showLanding && trending.length > 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} style={{ marginTop: 24 }}>
               <span style={{ fontSize: 12, color: "var(--muted2)", display: "block", marginBottom: 12, textAlign: "center" }}>
                 Em alta:
@@ -395,6 +423,21 @@ export default function HomePage() {
           )}
         </motion.div>
       </section>
+
+      {/* ── LANDING SECTIONS (only when no search active) ── */}
+      {showLanding && (
+        <>
+          {/* ── FEATURED OFFERS + CATEGORIES ── */}
+          <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 40px" }}>
+            <FeaturedOffers onSearch={setQuery} />
+          </section>
+
+          {/* ── HOW IT WORKS ── */}
+          <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 48px" }}>
+            <HowItWorks />
+          </section>
+        </>
+      )}
 
       {/* ── STORE CHIPS ── */}
       <section style={{ padding: "0 20px 32px", maxWidth: 800, margin: "0 auto" }}>
@@ -438,9 +481,9 @@ export default function HomePage() {
       </section>
 
       {/* ── SEARCHES CHART ── */}
-      {!query && !isLoading && !data && (
+      {showLanding && (
         <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 32px" }}>
-          <SearchesChart />
+          <SearchesChart data={chartData} />
         </section>
       )}
 

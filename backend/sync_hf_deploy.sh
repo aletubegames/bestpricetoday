@@ -33,7 +33,7 @@ echo "🔄 Sincronizando hf_deploy com backend canonical..."
 echo ""
 
 echo "── API endpoints ──────────────────────────────────────────────"
-for f in alerts.py favorites.py auth.py products.py search.py; do
+for f in alerts.py favorites.py auth.py products.py search.py stats.py; do
   sync_file "$APP/api/v1/endpoints/$f" "$HF/api/v1/endpoints/$f"
 done
 
