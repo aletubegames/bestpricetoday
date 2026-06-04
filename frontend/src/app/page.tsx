@@ -151,7 +151,6 @@ function Section({ children, maxWidth = 960 }: { children: React.ReactNode; maxW
 // ═══════════════════════════════════════════════════════════════════════════════
 // HOME PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
-
 async function fetchChartData(): Promise<ChartDay[]> {
   try {
     const resp = await fetch(`${API_BASE}/api/v1/stats`, {
@@ -159,8 +158,9 @@ async function fetchChartData(): Promise<ChartDay[]> {
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    if (data.daily_searches && data.daily_searches.length > 0) {
-      return data.daily_searches;
+    const daily = data.daily_searches;
+    if (daily && daily.length > 0 && daily.some((d: ChartDay) => d.value > 0)) {
+      return daily;
     }
   } catch {
     // fallback to mock
