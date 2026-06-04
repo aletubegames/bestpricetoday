@@ -189,6 +189,17 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      {/* Animações do logo */}
+      <style>{`
+        @keyframes logoFloat {
+          0%, 100% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(0px); }
+          50% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(-10px); }
+        }
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.08); }
+        }
+      `}</style>
 
       {/* ── HEADER ── */}
       <header style={{
@@ -284,22 +295,48 @@ export default function HomePage() {
             columnGap: 24,
             rowGap: 18,
           }}>
-            <img
-              src="/logo.png"
-              alt="BestPriceToday"
-              width={157}
-              height={157}
-              style={{
-                width: "clamp(118px, 22vw, 176px)",
-                height: "clamp(118px, 22vw, 176px)",
-                objectFit: "contain",
-                transform: "perspective(900px) rotateY(-18deg) rotateX(10deg)",
-                transformStyle: "preserve-3d",
-                filter: "drop-shadow(0 18px 30px rgba(124,58,237,0.28))",
-                borderRadius: 20,
-                justifySelf: "center",
-              }}
-            />
+            {/* Logo com glow ring + animação */}
+            <div style={{
+              position: "relative",
+              width: "clamp(118px, 22vw, 176px)",
+              height: "clamp(118px, 22vw, 176px)",
+              justifySelf: "center",
+            }}>
+              {/* Glow ring pulsante */}
+              <div style={{
+                position: "absolute",
+                inset: "-12px",
+                borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(124,58,237,0.25) 0%, rgba(167,139,250,0.08) 45%, transparent 70%)",
+                animation: "pulseGlow 3s ease-in-out infinite",
+              }} />
+              {/* Outer ring */}
+              <div style={{
+                position: "absolute",
+                inset: "-24px",
+                borderRadius: "50%",
+                border: "2px solid rgba(124,58,237,0.15)",
+                animation: "pulseGlow 3s ease-in-out 0.6s infinite",
+              }} />
+              {/* Logo image */}
+              <img
+                src="/logo.png"
+                alt="BestPriceToday"
+                width={157}
+                height={157}
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  transform: "perspective(900px) rotateY(-18deg) rotateX(10deg)",
+                  filter: "drop-shadow(0 18px 30px rgba(124,58,237,0.35))",
+                  borderRadius: 20,
+                  animation: "logoFloat 4s ease-in-out infinite",
+                }}
+              />
+            </div>
 
             <div style={{ maxWidth: 520, textAlign: "left" }}>
               <h1 style={{
