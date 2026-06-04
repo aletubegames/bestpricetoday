@@ -35,16 +35,12 @@ function fmt(v: number) {
 }
 
 function buildAdminHeaders(token?: string | null): Record<string, string> {
-  // 1️⃣ Bearer JWT tem prioridade (usuário logado como admin)
-  if (token) {
-    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
-  }
-  // 2️⃣ X-Admin-Key do localStorage como fallback
   const storedAdminKey = typeof window !== "undefined" ? localStorage.getItem("admin_key") : null
-  if (storedAdminKey) {
-    return { "X-Admin-Key": storedAdminKey, "Content-Type": "application/json" }
-  }
-  return { "Content-Type": "application/json" }
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  // Envia ambos — backend checa X-Admin-Key primeiro, depois JWT
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  if (storedAdminKey) headers["X-Admin-Key"] = storedAdminKey
+  return headers
 }
 
 // ─── Inline Edit Cell ─────────────────────────────────────────────────────────
@@ -199,7 +195,7 @@ function ProductsTab({ token }: { token: string }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch(`${API}/api/v1/affiliate/products`, { headers: { "Authorization": `Bearer ${token}` } })
+      const r = await fetch(`${API}/api/v1/affiliate/products`, { headers: buildAdminHeaders(token) })
       const d = await r.json()
       setProducts(d.products ?? [])
       setTotal(d.total ?? 0)

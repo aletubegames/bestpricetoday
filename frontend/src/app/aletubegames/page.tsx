@@ -96,17 +96,11 @@ function getAuthHeaders(adminKey?: string | null, useAdminKey?: boolean): Record
   const storedAdminKey = typeof window !== "undefined" ? localStorage.getItem("admin_key") : null;
   const resolvedAdminKey = adminKey ?? storedAdminKey;
 
-  // 1️⃣ Bearer JWT tem prioridade (usuário logado como admin)
-  if (token) {
-    return { Authorization: `Bearer ${token}` };
-  }
-
-  // 2️⃣ X-Admin-Key como fallback (acesso direto por chave)
-  if (resolvedAdminKey) {
-    return { "X-Admin-Key": resolvedAdminKey };
-  }
-
-  return {};
+  // Envia ambos — backend checa X-Admin-Key primeiro, depois JWT
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (resolvedAdminKey) headers["X-Admin-Key"] = resolvedAdminKey;
+  return headers;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
