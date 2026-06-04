@@ -216,7 +216,7 @@ export default function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <img
-                src="/favicon.png"
+                src="/favicon-192.png"
                 alt="BestPriceToday"
                 width={44}
                 height={44}
