@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getStats } from "@/lib/mockData";
+import { API_BASE } from "@/lib/api";
 
 interface Stats {
   productsMonitored: number;
@@ -20,8 +21,7 @@ function formatNumber(n: number): string {
 
 async function fetchStats(): Promise<Stats> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-    const resp = await fetch(`${apiUrl}/api/v1/stats`, {
+    const resp = await fetch(`${API_BASE}/api/v1/stats`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

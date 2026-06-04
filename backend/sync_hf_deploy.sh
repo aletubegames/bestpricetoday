@@ -65,6 +65,17 @@ sync_file "$APP/models/models.py"   "$HF/models/models.py"
 sync_file "$APP/db/session.py"      "$HF/db/session.py"
 
 echo ""
+echo "── Alembic migrations ────────────────────────────────────────"
+cp "$ROOT/alembic.ini" "$HF/../alembic.ini" 2>/dev/null && echo "  ✅ alembic.ini" || echo "  ⚠️  alembic.ini — pulando"
+if [ -d "$ROOT/alembic" ]; then
+  rm -rf "$HF/../alembic" 2>/dev/null
+  cp -r "$ROOT/alembic" "$HF/../alembic"
+  echo "  ✅ alembic/"
+else
+  echo "  ⚠️  alembic/ não encontrado — pulando"
+fi
+
+echo ""
 echo "✅ hf_deploy sincronizado."
 echo ""
 echo "Próximos passos:"
