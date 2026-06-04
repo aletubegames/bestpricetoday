@@ -207,12 +207,15 @@ export default function HomePage() {
               <img
                 src="/favicon.png"
                 alt="BestPriceToday"
-                width={31}
-                height={31}
+                width={44}
+                height={44}
                 style={{
-                  objectFit: "contain",
-                  transform: "translateX(4px) perspective(500px) rotateY(-16deg)",
+                  width: 44,
+                  height: 44,
+                  objectFit: "cover",
+                  transform: "translateX(6px) perspective(500px) rotateY(-16deg)",
                   filter: "drop-shadow(0 6px 10px rgba(124,58,237,0.22))",
+                  borderRadius: 10,
                 }}
               />
               <div style={{
@@ -258,7 +261,7 @@ export default function HomePage() {
       </header>
 
       {/* ── HERO ── */}
-      <section style={{ maxWidth: 720, margin: "0 auto", padding: "56px 20px 40px", textAlign: "center" }}>
+      <section style={{ maxWidth: 980, margin: "0 auto", padding: "56px 20px 40px", textAlign: "center" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -273,12 +276,13 @@ export default function HomePage() {
           </div>
 
           <div style={{
-            display: "flex",
+            width: "min(100%, 940px)",
+            margin: "0 auto 40px",
+            display: "grid",
+            gridTemplateColumns: "clamp(132px, 20vw, 190px) minmax(0, 1fr)",
             alignItems: "center",
-            justifyContent: "center",
-            gap: 22,
-            flexWrap: "wrap",
-            marginBottom: 40,
+            columnGap: 24,
+            rowGap: 18,
           }}>
             <img
               src="/logo.png"
@@ -293,6 +297,7 @@ export default function HomePage() {
                 transformStyle: "preserve-3d",
                 filter: "drop-shadow(0 18px 30px rgba(124,58,237,0.28))",
                 borderRadius: 20,
+                justifySelf: "center",
               }}
             />
 
