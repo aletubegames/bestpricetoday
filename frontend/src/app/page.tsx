@@ -207,8 +207,8 @@ export default function HomePage() {
               <img
                 src="/favicon.png"
                 alt="BestPriceToday"
-                width={22}
-                height={22}
+                width={31}
+                height={31}
                 style={{
                   objectFit: "contain",
                   transform: "translateX(4px) perspective(500px) rotateY(-16deg)",
@@ -283,11 +283,11 @@ export default function HomePage() {
             <img
               src="/logo.png"
               alt="BestPriceToday"
-              width={112}
-              height={112}
+              width={157}
+              height={157}
               style={{
-                width: "clamp(84px, 16vw, 126px)",
-                height: "clamp(84px, 16vw, 126px)",
+                width: "clamp(118px, 22vw, 176px)",
+                height: "clamp(118px, 22vw, 176px)",
                 objectFit: "contain",
                 transform: "perspective(900px) rotateY(-18deg) rotateX(10deg)",
                 transformStyle: "preserve-3d",
