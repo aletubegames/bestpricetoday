@@ -41,17 +41,33 @@ async def get_db() -> AsyncSession:
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Safety net: add columns that may be missing from old DB
-        # (SQLAlchemy create_all() only creates new tables, never alters existing ones)
-        try:
-            await conn.execute(text(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS facebook_id VARCHAR UNIQUE"
-            ))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text(
-                "CREATE INDEX IF NOT EXISTS ix_users_facebook_id ON users (facebook_id)"
-            ))
-        except Exception:
-            pass
+
+        # Safety net: columns added after initial migration that may not exist yet
+        # SQLAlchemy create_all() only creates new tables, never alters existing ones.
+        # These ALTER TABLE statements bridge the gap until alembic migrations are run.
+        missing_columns = [
+            ("users", "facebook_id", "VARCHAR UNIQUE"),
+            ("users", "updated_at", "TIMESTAMP WITH TIME ZONE"),
+            ("users", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
+            ("users", "clerk_id", "VARCHAR UNIQUE"),
+        ]
+        for table, col, col_type in missing_columns:
+            try:
+                await conn.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type}"
+                ))
+            except Exception:
+                pass
+
+        # Missing indexes
+        missing_indexes = [
+            ("users", "ix_users_facebook_id", "facebook_id"),
+            ("users", "ix_users_clerk_id", "clerk_id"),
+        ]
+        for table, idx_name, col in missing_indexes:
+            try:
+                await conn.execute(text(
+                    f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({col})"
+                ))
+            except Exception:
+                pass
