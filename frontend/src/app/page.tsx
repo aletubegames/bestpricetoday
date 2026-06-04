@@ -408,6 +408,11 @@ export default function HomePage() {
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
           >Política de Privacidade</a>
           <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
+          <a href="/deletion-status" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
+          >Solicitação de Exclusão</a>
+          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
           <a href="mailto:aletubegames@gmail.com" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
             onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
