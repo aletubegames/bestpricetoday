@@ -25,8 +25,9 @@ FB_SCOPES = ",".join([
 
 class InstagramFacebookClient:
     def __init__(self):
-        self.app_id       = settings.INSTAGRAM_APP_ID
-        self.app_secret   = settings.INSTAGRAM_APP_SECRET
+        # Use new variable names from .env, fallback to legacy names
+        self.app_id       = settings.ID_APLICATIVO_INSTAGRAM or settings.INSTAGRAM_APP_ID
+        self.app_secret   = settings.SECRET_KEY_INSTAGRAM_APP or settings.INSTAGRAM_APP_SECRET
         self.redirect_uri = settings.FACEBOOK_REDIRECT_URI
 
     def get_auth_url(self, state: str) -> str:

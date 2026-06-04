@@ -140,11 +140,14 @@ class OAuthConnectionTester:
         """Testa conexão com Facebook OAuth."""
         print("\n👤 Testando Facebook/Instagram OAuth...")
         
-        if not settings.INSTAGRAM_APP_ID or not settings.INSTAGRAM_APP_SECRET:
+        app_id = settings.ID_APLICATIVO_INSTAGRAM or settings.INSTAGRAM_APP_ID
+        app_secret = settings.SECRET_KEY_INSTAGRAM_APP or settings.INSTAGRAM_APP_SECRET
+        
+        if not app_id or not app_secret:
             return {
                 "platform": "Facebook/Instagram",
                 "status": "⚠️ INCOMPLETO",
-                "message": "INSTAGRAM_APP_ID ou INSTAGRAM_APP_SECRET não configurados",
+                "message": "ID_APLICATIVO_INSTAGRAM ou SECRET_KEY_INSTAGRAM_APP não configurados",
                 "redirect_uri": settings.FACEBOOK_REDIRECT_URI
             }
         
@@ -152,7 +155,7 @@ class OAuthConnectionTester:
             # Testar conectividade com Facebook Login
             response = await self.http_client.get(
                 "https://www.facebook.com/v18.0/dialog/oauth",
-                params={"client_id": settings.INSTAGRAM_APP_ID},
+                params={"client_id": app_id},
                 follow_redirects=False
             )
             
@@ -162,8 +165,8 @@ class OAuthConnectionTester:
                     "status": "✅ CONECTÁVEL",
                     "message": f"Facebook OAuth respondendo (HTTP {response.status_code})",
                     "redirect_uri": settings.FACEBOOK_REDIRECT_URI,
-                    "app_id_set": bool(settings.INSTAGRAM_APP_ID),
-                    "app_secret_set": bool(settings.INSTAGRAM_APP_SECRET)
+                    "app_id_set": bool(app_id),
+                    "app_secret_set": bool(app_secret)
                 }
             else:
                 return {

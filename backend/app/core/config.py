@@ -90,9 +90,13 @@ class Settings(BaseSettings):
     YOUTUBE_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/youtube"
 
     # Instagram / Facebook
-    INSTAGRAM_APP_ID: str = ""
-    INSTAGRAM_APP_SECRET: str = ""
+    INSTAGRAM_APP_ID: str = ""  # Legacy - use ID_APLICATIVO_INSTAGRAM
+    INSTAGRAM_APP_SECRET: str = ""  # Legacy - use SECRET_KEY_INSTAGRAM_APP
+    ID_APLICATIVO_INSTAGRAM: str = ""
+    SECRET_KEY_INSTAGRAM_APP: str = ""
+    ID_APLICATIVO_FACEBOOK: str = ""
     FACEBOOK_APP_SECRET: str = ""  # Para validar signed requests do Data Deletion Callback
+    FACEBOOK_PAGE_ACCESS_TOKEN: str = ""
     FACEBOOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/facebook"
 
     # Claude API (para análise de vídeo) — direto, opcional
