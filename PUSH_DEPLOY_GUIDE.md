@@ -4,15 +4,17 @@
 
 ## Índice
 1. [Mapa dos Repos e Deploys](#mapa-dos-repos-e-deploys)
-2. [Fluxo de Push (caso comum)](#fluxo-de-push-caso-comum)
-3. [Fluxo de Vídeos — AleTubeGames](#fluxo-de-vídeos--aletubegames)
-4. [Deploy: Vercel (Frontend)](#deploy-vercel-frontend)
-5. [Deploy: Hugging Face Spaces (Backend)](#deploy-hugging-face-spaces-backend)
-6. [Limitações de Storage no HF Free](#limitações-de-storage-no-hf-free)
-7. [Segurança](#segurança)
-8. [Erros Comuns (e como resolvi cada um)](#erros-comuns-e-como-resolvi-cada-um)
-9. [Checklist Pre-Deploy](#checklist-pre-deploy)
-10. [Rollback](#rollback)
+2. [Playbook 5 Min (copiar e colar)](#playbook-5-min-copiar-e-colar)
+3. [Diagnóstico: "não chegou no deploy"](#diagnóstico-não-chegou-no-deploy)
+4. [Fluxo de Push (caso comum)](#fluxo-de-push-caso-comum)
+5. [Fluxo de Vídeos — AleTubeGames](#fluxo-de-vídeos--aletubegames)
+6. [Deploy: Vercel (Frontend)](#deploy-vercel-frontend)
+7. [Deploy: Hugging Face Spaces (Backend)](#deploy-hugging-face-spaces-backend)
+8. [Limitações de Storage no HF Free](#limitações-de-storage-no-hf-free)
+9. [Segurança](#segurança)
+10. [Erros Comuns (e como resolvi cada um)](#erros-comuns-e-como-resolvi-cada-um)
+11. [Checklist Pre-Deploy](#checklist-pre-deploy)
+12. [Rollback](#rollback)
 
 ---
 
@@ -35,6 +37,112 @@
 - `origin` → `https://huggingface.co/spaces/alessandro2090/bestpricetoday-api`
 
 > **Implicação chave:** mudanças em `backend/` precisam de push manual para `hf` (e o GH Action propaga até `hf_space/`). Mudanças feitas diretamente em `hf_space/` ficam **fora-de-sync** com `backend/` e podem ser sobrescritas pelo auto-sync. **Edita sempre `backend/`**, nunca `hf_space/` à mão.
+
+---
+
+## Playbook 5 Min (copiar e colar)
+
+Quando estiver tudo confuso, usa este fluxo exatamente nessa ordem:
+
+```bash
+cd /home/alessandro/bin/Git_Repo/BestPriceToday
+
+# 0) Estado local e remoto
+git status -sb
+git remote -v
+git branch --show-current
+
+# 1) Confirmar commit no GitHub
+git rev-parse HEAD
+git ls-remote github -h refs/heads/master
+
+# 2) Deploy Vercel manual (independe do webhook do GitHub)
+vercel whoami
+vercel --prod --yes
+
+# 3) Verificar se deploy Vercel ficou Ready
+vercel ls bestpricetoday --yes | head -n 20
+
+# 4) Push para HF (backend)
+git push hf master
+```
+
+Se o passo 4 travar/pedir credencial, vai para a seção de diagnóstico abaixo.
+
+---
+
+## Diagnóstico: "não chegou no deploy"
+
+### A) Vercel não atualiza
+
+**1. Conta errada no CLI**
+```bash
+vercel whoami
+cat .vercel/project.json
+```
+- `whoami` e `orgId` precisam apontar para o mesmo projeto.
+
+**2. Push no GitHub não era o problema**
+```bash
+git rev-parse HEAD
+git ls-remote github -h refs/heads/master
+```
+- Se hashes iguais, o GitHub recebeu.
+
+**3. Forçar produção manual**
+```bash
+vercel --prod --yes
+vercel inspect <url-do-deploy>
+```
+
+### B) HF não atualiza
+
+**1. Remote incorreto**
+```bash
+git remote -v | grep '^hf'
+git remote set-url hf https://aletubegames@huggingface.co/spaces/aletubegames/bestpricetoday-api
+```
+
+**2. Sem credencial salva para huggingface.co**
+```bash
+git config --global credential.helper store
+# depois execute push e informe:
+# Username: aletubegames
+# Password: hf_xxx (token write)
+git push hf master
+```
+
+**3. `git push hf master` trava sem erro claro**
+```bash
+timeout 25 git ls-remote hf -h refs/heads/master; echo EXIT:$?
+```
+- `EXIT:124` indica timeout (rede/proxy/firewall/VPN/canal TLS) ou prompt oculto de credencial.
+
+**4. Teste HTTP do Space retorna 401**
+```bash
+curl -I -m 15 https://huggingface.co/spaces/aletubegames/bestpricetoday-api
+```
+- `401 Invalid username or password` confirma problema de autenticação para o Space.
+
+### C) Mudanças de `.env` "não sobem"
+
+Isso é esperado: `.env` é ignorado pelo git.
+
+```bash
+git check-ignore -v backend/.env .env.local
+```
+
+Se precisa dessas variáveis em produção:
+- Vercel: configurar no painel de Environment Variables.
+- Hugging Face Space: configurar em Settings > Variables and secrets.
+
+### D) Regra de ouro para não perder tempo
+
+1. Primeiro confirme hash local vs GitHub.
+2. Depois force Vercel manualmente.
+3. Depois faça push HF.
+4. Se HF falhar: corrigir remote + credencial antes de qualquer outra coisa.
+5. Nunca debuggar código antes de validar conta/token/remotes.
 
 ---
 

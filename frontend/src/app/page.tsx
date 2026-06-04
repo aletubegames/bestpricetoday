@@ -203,7 +203,6 @@ export default function HomePage() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <img src="/logo.png" alt="BestPriceToday" width={56} height={56} style={{ borderRadius: 8, objectFit: "contain" }} />
             <div style={{
               fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
               fontWeight: 900, fontSize: 20, letterSpacing: "-0.6px",
@@ -260,27 +259,54 @@ export default function HomePage() {
             ⚡ Comparação em tempo real
           </div>
 
-          <h1 style={{
-            fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-            fontSize: "clamp(2.4rem, 7vw, 4.5rem)",
-            fontWeight: 800,
-            lineHeight: 1.05,
-            letterSpacing: "-0.03em",
-            marginBottom: 18,
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 22,
+            flexWrap: "wrap",
+            marginBottom: 40,
           }}>
-            <span style={{ color: "var(--txt)" }}>Menor preço</span><br />
-            <span style={{
-              background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c084fc 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}>do Brasil.</span>
-          </h1>
+            <img
+              src="/favicon.png"
+              alt="BestPriceToday"
+              width={112}
+              height={112}
+              style={{
+                width: "clamp(84px, 16vw, 126px)",
+                height: "clamp(84px, 16vw, 126px)",
+                objectFit: "contain",
+                transform: "perspective(900px) rotateY(-18deg) rotateX(10deg)",
+                transformStyle: "preserve-3d",
+                filter: "drop-shadow(0 18px 30px rgba(124,58,237,0.28))",
+                borderRadius: 20,
+              }}
+            />
 
-          <p style={{ fontSize: 16, color: "var(--muted)", lineHeight: 1.7, marginBottom: 40, maxWidth: 480, margin: "0 auto 40px" }}>
-            Busca automática em Mercado Livre, Amazon, Shopee e mais.
-            Cupons aplicados na hora. Score de oferta real.
-          </p>
+            <div style={{ maxWidth: 520, textAlign: "left" }}>
+              <h1 style={{
+                fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
+                fontSize: "clamp(2.4rem, 7vw, 4.5rem)",
+                fontWeight: 800,
+                lineHeight: 1.05,
+                letterSpacing: "-0.03em",
+                marginBottom: 18,
+              }}>
+                <span style={{ color: "var(--txt)" }}>Menor preço</span><br />
+                <span style={{
+                  background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c084fc 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}>do Brasil.</span>
+              </h1>
+
+              <p style={{ fontSize: 16, color: "var(--muted)", lineHeight: 1.7, margin: 0 }}>
+                Busca automática em Mercado Livre, Amazon, Shopee e mais.
+                Cupons aplicados na hora. Score de oferta real.
+              </p>
+            </div>
+          </div>
 
           <SearchBar onSearch={setQuery} isLoading={isLoading} />
 
