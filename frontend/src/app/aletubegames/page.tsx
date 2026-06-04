@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE as API } from "@/lib/api";
+import { isTokenExpired } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,7 @@ export default function AleTubeGamesPage() {
   // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const user = typeof window !== "undefined" ? localStorage.getItem("bpt_user") : null;
+    const tk = typeof window !== "undefined" ? localStorage.getItem("bpt_token") : null;
     if (!user) { router.push("/login"); return; }
     try {
       const parsed = JSON.parse(user);
@@ -157,8 +159,32 @@ export default function AleTubeGamesPage() {
       router.push("/login");
       return;
     }
+
+    // Token expirado
+    if (tk && isTokenExpired(tk)) {
+      localStorage.removeItem("bpt_token");
+      localStorage.removeItem("bpt_user");
+      router.push("/login");
+      return;
+    }
+
     const key = localStorage.getItem("admin_key");
     setAdminKey(key);
+
+    // Auto-fetch admin_key se não tiver no localStorage
+    if (!key && tk) {
+      fetch(`${API}/api/v1/admin/auth/session-key`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.admin_key) {
+            localStorage.setItem("admin_key", data.admin_key);
+            setAdminKey(data.admin_key);
+          }
+        })
+        .catch(() => {});
+    }
   }, [router]);
 
   // ── Initial load ────────────────────────────────────────────────────────────

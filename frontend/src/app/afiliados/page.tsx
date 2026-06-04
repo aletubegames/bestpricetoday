@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { API_BASE as API } from "@/lib/api"
+import { isTokenExpired } from "@/lib/utils"
 
 interface Product {
   id: string
@@ -128,7 +129,31 @@ export default function AfiliadosPage() {
       const u = JSON.parse(user)
       if (!u?.is_admin) { router.push("/"); return }
     } catch { router.push("/login"); return }
+
+    // Token expirado
+    if (tk && isTokenExpired(tk)) {
+      localStorage.removeItem("bpt_token")
+      localStorage.removeItem("bpt_user")
+      router.push("/login")
+      return
+    }
+
     setToken(tk)
+
+    // Auto-fetch admin_key se não tiver no localStorage
+    const storedKey = localStorage.getItem("admin_key")
+    if (!storedKey && tk) {
+      fetch(`${API}/api/v1/admin/auth/session-key`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.admin_key) {
+            localStorage.setItem("admin_key", data.admin_key)
+          }
+        })
+        .catch(() => {})
+    }
   }, [router])
 
   if (!token) return null
