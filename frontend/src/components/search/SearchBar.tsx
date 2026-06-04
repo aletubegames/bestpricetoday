@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, Loader2, ArrowRight } from "lucide-react";
+import { Search, X, Loader2 } from "lucide-react";
 import { useTrendingSearches } from "@/hooks/useTrendingSearches";
 
 interface Props {
@@ -67,20 +67,6 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
             <X size={16} />
           </button>
         )}
-        <button type="submit"
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "0 20px", height: 40, borderRadius: 12,
-            border: "none", cursor: "pointer",
-            fontSize: 14, fontWeight: 700,
-            background: value ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "var(--s4)",
-            color: value ? "#fff" : "var(--muted2)",
-            flexShrink: 0,
-            transition: "background .2s",
-            whiteSpace: "nowrap",
-          }}>
-          Buscar <ArrowRight size={14} />
-        </button>
       </motion.form>
 
       {/* Suggestions */}
