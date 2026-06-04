@@ -20,3 +20,8 @@ backend/hf_deploy/
 
 .vercel
 .env*.local
+
+# Large/tracked files to exclude
+Videos_Uploads/
+tools/shopee_extract_mp4/videos/
+.vscode/
