@@ -238,21 +238,25 @@ export default function HomePage() {
         WebkitBackdropFilter: "blur(20px)",
       }}>
         <div style={{
-          maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 60,
+          maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 74,
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
               <img
                 src="/favicon-192.png"
                 alt="BestPriceToday"
-                width={64}
-                height={64}
+                width={83}
+                height={83}
                 style={{
-                  width: 64,
-                  height: 64,
+                  width: 83,
+                  height: 83,
                   objectFit: "cover",
-                  transform: "translateX(6px) perspective(500px) rotateY(-16deg)",
+                  position: "absolute",
+                  left: -20,
+                  top: -12,
+                  zIndex: 0,
+                  transform: "perspective(500px) rotateY(-16deg)",
                   filter: "drop-shadow(0 6px 10px rgba(124,58,237,0.22))",
                   borderRadius: 10,
                 }}
@@ -261,6 +265,9 @@ export default function HomePage() {
                 fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
                 fontWeight: 900, fontSize: 20, letterSpacing: "-0.6px",
                 display: "flex", flexDirection: "column", gap: 0, lineHeight: 0.9, textAlign: "center",
+                position: "relative",
+                zIndex: 1,
+                paddingLeft: 34,
               }}>
                 <span style={{
                   background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
