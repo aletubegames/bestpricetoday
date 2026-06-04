@@ -203,18 +203,31 @@ export default function HomePage() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-              fontWeight: 900, fontSize: 20, letterSpacing: "-0.6px",
-              display: "flex", flexDirection: "column", gap: 0, lineHeight: 0.9, textAlign: "center",
-            }}>
-              <span style={{
-                background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}>BestPrice</span>
-              <span style={{ color: "#000000", fontSize: 18, fontWeight: 900 }}>Today</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <img
+                src="/favicon.png"
+                alt="BestPriceToday"
+                width={22}
+                height={22}
+                style={{
+                  objectFit: "contain",
+                  transform: "translateX(4px) perspective(500px) rotateY(-16deg)",
+                  filter: "drop-shadow(0 6px 10px rgba(124,58,237,0.22))",
+                }}
+              />
+              <div style={{
+                fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
+                fontWeight: 900, fontSize: 20, letterSpacing: "-0.6px",
+                display: "flex", flexDirection: "column", gap: 0, lineHeight: 0.9, textAlign: "center",
+              }}>
+                <span style={{
+                  background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}>BestPrice</span>
+                <span style={{ color: "#000000", fontSize: 18, fontWeight: 900 }}>Today</span>
+              </div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -268,7 +281,7 @@ export default function HomePage() {
             marginBottom: 40,
           }}>
             <img
-              src="/favicon.png"
+              src="/logo.png"
               alt="BestPriceToday"
               width={112}
               height={112}
