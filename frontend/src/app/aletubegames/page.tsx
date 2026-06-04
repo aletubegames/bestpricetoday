@@ -93,10 +93,22 @@ function formatBytes(bytes: number): string {
 
 function getAuthHeaders(adminKey?: string | null, useAdminKey?: boolean): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("bpt_token") : null;
-  if (useAdminKey && adminKey) {
-    return { "X-Admin-Key": adminKey };
+  const storedAdminKey = typeof window !== "undefined" ? localStorage.getItem("admin_key") : null;
+  const resolvedAdminKey = adminKey ?? storedAdminKey;
+
+  if (useAdminKey && resolvedAdminKey) {
+    return { "X-Admin-Key": resolvedAdminKey };
   }
-  return token ? { Authorization: `Bearer ${token}` } : {};
+
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  if (resolvedAdminKey) {
+    return { "X-Admin-Key": resolvedAdminKey };
+  }
+
+  return {};
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -169,7 +181,7 @@ export default function AleTubeGamesPage() {
     setAccountsError(null);
     try {
       const res = await fetch(`${API}/api/v1/aletube/accounts/status`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(undefined, true),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: AccountsStatus = await res.json();
@@ -193,7 +205,7 @@ export default function AleTubeGamesPage() {
     setHistoryError(null);
     try {
       const res = await fetch(`${API}/api/v1/aletube/videos`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(undefined, true),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

@@ -5,16 +5,18 @@
 ## Índice
 1. [Mapa dos Repos e Deploys](#mapa-dos-repos-e-deploys)
 2. [Playbook 5 Min (copiar e colar)](#playbook-5-min-copiar-e-colar)
-3. [Diagnóstico: "não chegou no deploy"](#diagnóstico-não-chegou-no-deploy)
-4. [Fluxo de Push (caso comum)](#fluxo-de-push-caso-comum)
-5. [Fluxo de Vídeos — AleTubeGames](#fluxo-de-vídeos--aletubegames)
-6. [Deploy: Vercel (Frontend)](#deploy-vercel-frontend)
-7. [Deploy: Hugging Face Spaces (Backend)](#deploy-hugging-face-spaces-backend)
-8. [Limitações de Storage no HF Free](#limitações-de-storage-no-hf-free)
-9. [Segurança](#segurança)
-10. [Erros Comuns (e como resolvi cada um)](#erros-comuns-e-como-resolvi-cada-um)
-11. [Checklist Pre-Deploy](#checklist-pre-deploy)
-12. [Rollback](#rollback)
+3. [Auto-Deploy: o que é automático e o que não é](#auto-deploy-o-que-é-automático-e-o-que-não-é)
+4. [Fluxo Padrão Sem Repetição](#fluxo-padrão-sem-repetição)
+5. [Diagnóstico: "não chegou no deploy"](#diagnóstico-não-chegou-no-deploy)
+6. [Fluxo de Push (caso comum)](#fluxo-de-push-caso-comum)
+7. [Fluxo de Vídeos — AleTubeGames](#fluxo-de-vídeos--aletubegames)
+8. [Deploy: Vercel (Frontend)](#deploy-vercel-frontend)
+9. [Deploy: Hugging Face Spaces (Backend)](#deploy-hugging-face-spaces-backend)
+10. [Limitações de Storage no HF Free](#limitações-de-storage-no-hf-free)
+11. [Segurança](#segurança)
+12. [Erros Comuns (e como resolvi cada um)](#erros-comuns-e-como-resolvi-cada-um)
+13. [Checklist Pre-Deploy](#checklist-pre-deploy)
+14. [Rollback](#rollback)
 
 ---
 
@@ -68,6 +70,48 @@ git push hf master
 ```
 
 Se o passo 4 travar/pedir credencial, vai para a seção de diagnóstico abaixo.
+
+---
+
+## Auto-Deploy: o que é automático e o que não é
+
+- `git push github master`:
+  - Vercel do frontend costuma atualizar automaticamente.
+  - GH Action pode sincronizar `backend/` para o repo `hf_space/` (espelho `alessandro2090`).
+- `git push hf master`:
+  - Continua necessário para atualizar diretamente o Space `aletubegames/bestpricetoday-api`.
+
+Resumo prático:
+- Para frontend, evita repetir `vercel --prod --yes` em todo push.
+- Usa deploy manual da Vercel apenas quando o webhook falhar, conta estiver errada, ou precisares forçar um rebuild imediato.
+
+---
+
+## Fluxo Padrão Sem Repetição
+
+Usa este fluxo para evitar loops e comandos duplicados:
+
+```bash
+cd /home/alessandro/bin/Git_Repo/BestPriceToday
+
+# 1) Commit + push no GitHub
+git add -A
+git commit -m "fix: ..."
+git push github master
+
+# 2) Verifica auto-deploy do frontend (sem forçar manual)
+vercel inspect bestpricetoday-aaswilel-9706s-projects.vercel.app
+
+# 3) Só se NÃO ficar Ready após alguns minutos, forçar manual
+vercel --prod --yes
+
+# 4) Backend no Space principal (obrigatório)
+git push hf master
+```
+
+Regra anti-loop:
+- Não executar `vercel --prod --yes` repetidamente enquanto já existe build em andamento.
+- Esperar status passar de `Building` para `Ready` antes de novo trigger.
 
 ---
 
@@ -326,6 +370,15 @@ Mesma verificação em `.git/config` do repo principal (remote `hf`).
 **Causa:** `hf_space/` parece submódulo mas não tem entrada `.gitmodules`. É repo independente colocalizado.
 **Fix:** entrar com `cd hf_space` e tratar como repo separado.
 
+### `telegram.error.Conflict: terminated by other getUpdates request`
+**Causa:** mais de uma instância com polling Telegram ativo usando o mesmo token.
+**Sinais:** logs alternam entre `HTTP/1.1 200 OK` e `HTTP/1.1 409 Conflict` em `getUpdates`.
+**Fix operacional:**
+1. Escolher apenas uma instância para polling (ex.: apenas `aletubegames` ou apenas `alessandro2090`).
+2. Desligar polling nas outras instâncias via variável de ambiente e restart.
+3. Garantir que só uma instância rode broadcaster/polling por token.
+4. Confirmar em logs que `getUpdates` parou de retornar 409 repetidamente.
+
 ### `vercel.json - should NOT have additional property`
 **Causa:** propriedade não suportada (`startCommand`).
 **Fix:** remover. Propriedades válidas: `buildCommand`, `installCommand`, `outputDirectory`, `root`, `env`.
@@ -345,7 +398,9 @@ Mesma verificação em `.git/config` do repo principal (remote `hf`).
 - [ ] `git diff --cached` revisado
 - [ ] `requirements.txt` / `package.json` actualizados se houver dep nova
 - [ ] Mensagem de commit descritiva (`feat:`, `fix:`, `docs:`, `refactor:`)
-- [ ] **Push duplo:** `git push` **e** `git push hf master`
+- [ ] Push GitHub: `git push github master`
+- [ ] Push HF principal: `git push hf master`
+- [ ] Se Vercel auto-deploy já estiver `Ready`, **não** disparar deploy manual
 - [ ] Verificar logs do HF Space após ~3 min
 - [ ] Smoke test: abrir frontend e fazer 1 acção real
 

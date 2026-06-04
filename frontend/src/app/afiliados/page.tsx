@@ -34,6 +34,14 @@ function fmt(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
+function buildAdminHeaders(token?: string | null): Record<string, string> {
+  const storedAdminKey = typeof window !== "undefined" ? localStorage.getItem("admin_key") : null
+  if (storedAdminKey) {
+    return { "X-Admin-Key": storedAdminKey, "Content-Type": "application/json" }
+  }
+  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" }
+}
+
 // ─── Inline Edit Cell ─────────────────────────────────────────────────────────
 function InlineEdit({
   value,
@@ -181,7 +189,7 @@ function ProductsTab({ token }: { token: string }) {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
 
-  const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+  const headers = buildAdminHeaders(token)
 
   const load = useCallback(async () => {
     setLoading(true)
