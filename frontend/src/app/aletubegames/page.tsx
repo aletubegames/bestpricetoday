@@ -96,14 +96,12 @@ function getAuthHeaders(adminKey?: string | null, useAdminKey?: boolean): Record
   const storedAdminKey = typeof window !== "undefined" ? localStorage.getItem("admin_key") : null;
   const resolvedAdminKey = adminKey ?? storedAdminKey;
 
-  if (useAdminKey && resolvedAdminKey) {
-    return { "X-Admin-Key": resolvedAdminKey };
-  }
-
+  // 1️⃣ Bearer JWT tem prioridade (usuário logado como admin)
   if (token) {
     return { Authorization: `Bearer ${token}` };
   }
 
+  // 2️⃣ X-Admin-Key como fallback (acesso direto por chave)
   if (resolvedAdminKey) {
     return { "X-Admin-Key": resolvedAdminKey };
   }
@@ -181,7 +179,7 @@ export default function AleTubeGamesPage() {
     setAccountsError(null);
     try {
       const res = await fetch(`${API}/api/v1/aletube/accounts/status`, {
-        headers: getAuthHeaders(undefined, true),
+        headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: AccountsStatus = await res.json();
@@ -205,7 +203,7 @@ export default function AleTubeGamesPage() {
     setHistoryError(null);
     try {
       const res = await fetch(`${API}/api/v1/aletube/videos`, {
-        headers: getAuthHeaders(undefined, true),
+        headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

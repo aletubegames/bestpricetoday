@@ -35,11 +35,16 @@ function fmt(v: number) {
 }
 
 function buildAdminHeaders(token?: string | null): Record<string, string> {
+  // 1️⃣ Bearer JWT tem prioridade (usuário logado como admin)
+  if (token) {
+    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+  }
+  // 2️⃣ X-Admin-Key do localStorage como fallback
   const storedAdminKey = typeof window !== "undefined" ? localStorage.getItem("admin_key") : null
   if (storedAdminKey) {
     return { "X-Admin-Key": storedAdminKey, "Content-Type": "application/json" }
   }
-  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" }
+  return { "Content-Type": "application/json" }
 }
 
 // ─── Inline Edit Cell ─────────────────────────────────────────────────────────
