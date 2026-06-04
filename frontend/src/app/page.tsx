@@ -238,7 +238,7 @@ export default function HomePage() {
         WebkitBackdropFilter: "blur(20px)",
       }}>
         <div style={{
-          maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 74,
+          maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 96,
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -246,15 +246,15 @@ export default function HomePage() {
               <img
                 src="/favicon-192.png"
                 alt="BestPriceToday"
-                width={83}
-                height={83}
+                width={124}
+                height={124}
                 style={{
-                  width: 83,
-                  height: 83,
+                  width: 124,
+                  height: 124,
                   objectFit: "cover",
                   position: "absolute",
-                  left: -20,
-                  top: -12,
+                  left: -36,
+                  top: -24,
                   zIndex: 0,
                   transform: "perspective(500px) rotateY(-16deg)",
                   filter: "drop-shadow(0 6px 10px rgba(124,58,237,0.22))",
@@ -267,7 +267,7 @@ export default function HomePage() {
                 display: "flex", flexDirection: "column", gap: 0, lineHeight: 0.9, textAlign: "center",
                 position: "relative",
                 zIndex: 1,
-                paddingLeft: 34,
+                paddingLeft: 52,
               }}>
                 <span style={{
                   background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
@@ -307,7 +307,7 @@ export default function HomePage() {
       </header>
 
       {/* ── HERO ── */}
-      <section style={{ maxWidth: 980, margin: "0 auto", padding: "56px 20px 40px", textAlign: "center" }}>
+      <section style={{ maxWidth: 980, margin: "0 auto", padding: "40px 20px 32px", textAlign: "center" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -428,6 +428,15 @@ export default function HomePage() {
               </div>
             </motion.div>
           )}
+
+          {/* Store chips inline */}
+          {showLanding && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+              style={{ marginTop: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, color: "var(--muted2)" }}>Buscamos em:</span>
+              <StoreChips compact />
+            </motion.div>
+          )}
         </motion.div>
       </section>
 
@@ -446,17 +455,8 @@ export default function HomePage() {
         </>
       )}
 
-      {/* ── STORE CHIPS ── */}
-      <section style={{ padding: "0 20px 32px", maxWidth: 800, margin: "0 auto" }}>
-        <StoreChips />
-      </section>
-
-      {/* ── STATS CARDS ── */}
-      <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 32px" }}>
-        <StatsCards />
-      </section>
-
       {/* ── RESULTS ── */}
+      {(isLoading || error || data) && (
       <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 32px" }}>
         <AnimatePresence mode="wait">
           {isLoading && <OfferSkeleton key="sk" />}
@@ -486,11 +486,28 @@ export default function HomePage() {
           )}
         </AnimatePresence>
       </section>
+      )}
 
-      {/* ── SEARCHES CHART ── */}
+      {/* ── STATS + CHART ── */}
       {showLanding && (
-        <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 32px" }}>
-          <SearchesChart data={chartData} />
+        <section style={{
+          background: "#f8f9fc",
+          padding: "40px 20px",
+          marginTop: 8,
+        }}>
+          <div style={{ maxWidth: 800, margin: "0 auto" }}>
+            <h2 style={{
+              fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
+              fontSize: 22, fontWeight: 800, color: "#1a1a2e",
+              textAlign: "center", marginBottom: 24,
+            }}>
+              Em <span style={{ color: "#f97316" }}>números</span>
+            </h2>
+            <StatsCards />
+            <div style={{ marginTop: 32 }}>
+              <SearchesChart data={chartData} />
+            </div>
+          </div>
         </section>
       )}
 
@@ -500,12 +517,24 @@ export default function HomePage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 60px" }}>
-        <FAQ />
+      <section style={{
+        background: "#f8f9fc",
+        padding: "40px 20px 60px",
+      }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <FAQ />
+        </div>
       </section>
 
       {/* ── TRUST BADGES ── */}
       <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
+        <h2 style={{
+          fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
+          fontSize: 20, fontWeight: 800, color: "#1a1a2e",
+          textAlign: "center", marginBottom: 20,
+        }}>
+          Segurança e <span style={{ color: "#7c3aed" }}>confiança</span>
+        </h2>
         <TrustBadges />
       </section>
 
