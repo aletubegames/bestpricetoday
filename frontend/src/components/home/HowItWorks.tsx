@@ -19,7 +19,7 @@ const STEPS = [
     emoji: "🛒",
     title: "Compre",
     text: "Clique e vá direto pra loja oficial. Sem cadastro, sem taxas escondidas. Você só economiza.",
-    color: "#00b894",
+    color: "#1a1a2e",
   },
 ];
 

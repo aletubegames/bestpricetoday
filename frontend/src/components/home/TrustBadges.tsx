@@ -10,8 +10,8 @@ interface Badge {
 const BADGES: Badge[] = [
   { icon: <IconLockCheck size={22} stroke={1.5} />, text: "SSL seguro", iconColor: "#00b894" },
   { icon: <IconRefresh size={22} stroke={1.5} />, text: "Preços em tempo real", iconColor: "#f97316" },
-  { icon: <IconShieldCheck size={22} stroke={1.5} />, text: "Compra protegida pela garantia da plataforma oficial", iconColor: "#00b894" },
-  { icon: <IconInfoCircle size={22} stroke={1.5} />, text: "Afiliado — preço não muda", iconColor: "#6b6b8a" },
+  { icon: <IconShieldCheck size={22} stroke={1.5} />, text: "Compra protegida pela garantia da plataforma oficial", iconColor: "#7c3aed" },
+  { icon: <IconInfoCircle size={22} stroke={1.5} />, text: "Afiliado — preço não muda", iconColor: "#1a1a2e" },
 ];
 
 export default function TrustBadges() {

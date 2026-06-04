@@ -282,13 +282,13 @@ export default function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 6,
-              fontSize: 12, fontWeight: 500, color: "#7c3aed",
-              background: "rgba(124,58,237,0.08)",
-              border: "1px solid rgba(124,58,237,0.18)",
+              fontSize: 12, fontWeight: 500, color: "#f97316",
+              background: "rgba(249,115,22,0.08)",
+              border: "1px solid rgba(249,115,22,0.18)",
               padding: "4px 12px", borderRadius: 99,
             }}>
               <span className="pulse-dot" style={{
-                width: 6, height: 6, borderRadius: "50%", background: "#00b894",
+                width: 6, height: 6, borderRadius: "50%", background: "#f97316",
               }} />
               Busca multi-loja
             </div>
@@ -312,9 +312,9 @@ export default function HomePage() {
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             fontSize: 12, fontWeight: 600, letterSpacing: ".04em",
-            color: "#7c3aed",
-            background: "rgba(124,58,237,0.08)",
-            border: "1px solid rgba(124,58,237,0.18)",
+            color: "#f97316",
+            background: "rgba(249,115,22,0.08)",
+            border: "1px solid rgba(249,115,22,0.25)",
             padding: "5px 14px", borderRadius: 99,
             marginBottom: 28, textTransform: "uppercase",
           }}>
@@ -384,7 +384,7 @@ export default function HomePage() {
               }}>
                 <span style={{ color: "var(--txt)" }}>Menor preço</span><br />
                 <span style={{
-                  background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c084fc 100%)",
+                  background: "linear-gradient(135deg, #7c3aed 0%, #f97316 50%, #c084fc 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -494,11 +494,6 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ── TRUST BADGES ── */}
-      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
-        <TrustBadges />
-      </section>
-
       {/* ── TESTIMONIALS ── */}
       <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
         <Testimonials />
@@ -507,6 +502,11 @@ export default function HomePage() {
       {/* ── FAQ ── */}
       <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 60px" }}>
         <FAQ />
+      </section>
+
+      {/* ── TRUST BADGES ── */}
+      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
+        <TrustBadges />
       </section>
 
       {/* ── FOOTER ── */}

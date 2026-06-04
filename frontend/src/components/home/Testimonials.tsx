@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getTestimonials, type Review } from "@/lib/mockData";
 
@@ -113,6 +113,7 @@ export default function Testimonials() {
   const totalPages = Math.ceil(reviews.length / itemsPerPage);
   const [page, setPage] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [paused, setPaused] = useState(false);
 
   const paginate = useCallback(
     (newDirection: number) => {
@@ -126,6 +127,13 @@ export default function Testimonials() {
     },
     [totalPages]
   );
+
+  // Auto-rotate a cada 5 segundos
+  useEffect(() => {
+    if (paused || totalPages <= 1) return;
+    const timer = setInterval(() => paginate(1), 5000);
+    return () => clearInterval(timer);
+  }, [paginate, paused, totalPages]);
 
   const visible = reviews.slice(
     page * itemsPerPage,
@@ -168,7 +176,9 @@ export default function Testimonials() {
       </div>
 
       {/* Carousel */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative" }}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}>
         {/* Nav buttons */}
         {totalPages > 1 && (
           <>

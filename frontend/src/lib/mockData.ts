@@ -70,8 +70,8 @@ export function getChartData(): ChartDay[] {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     const idx = 6 - i; // 0..6
-    // Valor entre 45 e 220, orgânico
-    const value = 45 + Math.floor(rand() * 175);
+    // Valor entre 1200 e 2000, orgânico
+    const value = 1200 + Math.floor(rand() * 800);
     days.push({
       day: DAY_LABELS[d.getDay()],
       value,
