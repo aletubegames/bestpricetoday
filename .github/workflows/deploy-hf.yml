@@ -67,6 +67,14 @@ jobs:
           cp "$HF_DEPLOY_DIR/Dockerfile" hf_space/Dockerfile
           cp "$HF_DEPLOY_DIR/requirements.txt" hf_space/requirements.txt
 
+          # Copia alembic migrations
+          if [ -f backend/alembic.ini ]; then
+            cp backend/alembic.ini hf_space/alembic.ini
+          fi
+          if [ -d backend/alembic ]; then
+            rsync -av --delete --exclude="__pycache__" --exclude="*.pyc" backend/alembic/ hf_space/alembic/
+          fi
+
           if [ -f "$HF_DEPLOY_DIR/README.md" ]; then
             cp "$HF_DEPLOY_DIR/README.md" hf_space/README.md
           else

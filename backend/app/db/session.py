@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from app.core.config import settings
 
 engine_kwargs = {
@@ -40,3 +41,17 @@ async def get_db() -> AsyncSession:
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Safety net: add columns that may be missing from old DB
+        # (SQLAlchemy create_all() only creates new tables, never alters existing ones)
+        try:
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS facebook_id VARCHAR UNIQUE"
+            ))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_users_facebook_id ON users (facebook_id)"
+            ))
+        except Exception:
+            pass
