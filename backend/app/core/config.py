@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     ID_APLICATIVO_FACEBOOK: str = ""
     FACEBOOK_APP_SECRET: str = ""  # Para validar signed requests do Data Deletion Callback
     FACEBOOK_PAGE_ACCESS_TOKEN: str = ""
-    FACEBOOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/facebook"
+    FACEBOOK_REDIRECT_URI: str = "https://aletubegames.github.io/bpverify/callback/facebook"
 
     # Claude API (para análise de vídeo) — direto, opcional
     ANTHROPIC_API_KEY: str = ""

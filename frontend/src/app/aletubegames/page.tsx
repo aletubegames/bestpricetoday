@@ -967,8 +967,8 @@ export default function AleTubeGamesPage() {
                     if (!confirm("Remover da DB todos os vídeos cujo ficheiro já não existe no servidor?")) return;
                     try {
                       const res = await fetch(`${API}/api/v1/aletube/videos/cleanup-orphans`, {
-                        method:      "POST",
-                        credentials: "include",
+                        method:  "POST",
+                        headers: getAuthHeaders(),
                       });
                       const data = await res.json();
                       alert(`Removidos: ${data.removed_count}`);
@@ -1066,8 +1066,8 @@ export default function AleTubeGamesPage() {
                             if (!confirm(`Apagar "${v.title ?? v.id}"?`)) return;
                             try {
                               const res = await fetch(`${API}/api/v1/aletube/videos/${v.id}`, {
-                                method: "DELETE",
-                                credentials: "include",
+                                method:  "DELETE",
+                                headers: getAuthHeaders(),
                               });
                               if (!res.ok) throw new Error(`HTTP ${res.status}`);
                               fetchHistory();
