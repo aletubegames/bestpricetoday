@@ -421,8 +421,8 @@ async def auth_facebook():
     import secrets as _sec
     state    = _sec.token_hex(16)
     auth_url = ig_fb_client.get_auth_url(state)
-    if not (settings.ID_APLICATIVO_INSTAGRAM or settings.INSTAGRAM_APP_ID):
-        raise HTTPException(status_code=400, detail="ID_APLICATIVO_INSTAGRAM ou INSTAGRAM_APP_ID não configurado")
+    if not (settings.ID_APLICATIVO_FACEBOOK or settings.ID_APLICATIVO_INSTAGRAM or settings.INSTAGRAM_APP_ID):
+        raise HTTPException(status_code=400, detail="ID_APLICATIVO_FACEBOOK ou ID_APLICATIVO_INSTAGRAM não configurado")
     return {"auth_url": auth_url, "state": state}
 
 
