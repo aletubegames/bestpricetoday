@@ -23,7 +23,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' https: data: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://alessandro2090-bestpricetoday-api.hf.space https://*.ngrok-free.app wss://*.ngrok-free.app",
+              "connect-src 'self' http://localhost:8765 https://alessandro2090-bestpricetoday-api.hf.space https://*.ngrok-free.app https://*.ngrok-free.dev wss://*.ngrok-free.app wss://*.ngrok-free.dev",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
