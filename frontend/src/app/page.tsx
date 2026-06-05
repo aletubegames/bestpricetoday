@@ -73,7 +73,7 @@ function AuthButton() {
           background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)",
           padding: "4px 12px", borderRadius: 99, textDecoration: "none",
         }}>
-          {user.is_admin ? "👑" : "👤"} {user.name.split(" ")[0]}
+          {user.is_admin ? "📊" : "👤"} {user.is_admin ? "Painel" : user.name.split(" ")[0]}
         </a>
       </div>
     );
