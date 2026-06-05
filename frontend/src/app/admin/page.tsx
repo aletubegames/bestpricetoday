@@ -108,6 +108,7 @@ const VIDEO_FORMATS = [
 
 // ─── Configurações de modelo de vídeo ────────────────────────────────────────
 type VideoModelConfig = {
+  baseModel:   "i2v" | "t2v" | "none";
   refinement: "i2v" | "hunyuan" | "none";
   upscale:    "4K" | "2K" | "none";
   rife:       "4x" | "2x" | "none";
@@ -116,16 +117,16 @@ type VideoModelConfig = {
 
 // Presets de qualidade com ícones e descrições
 const QUALITY_PRESETS: { id: string; label: string; emoji: string; config: VideoModelConfig; desc: string }[] = [
-  { id: "cinema_pro",  label: "Cinema Pro",  emoji: "🔭", config: { refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" },  desc: "T2V + I2V + RIFE 2x + 4K — qualidade cinematográfica" },
-  { id: "cinema_fast", label: "Cinema Fast", emoji: "🎬", config: { refinement: "i2v", upscale: "4K", rife: "none", quality: "high" }, desc: "T2V + I2V + 4K — qualidade alta, mais rápido" },
-  { id: "viral_turbo", label: "Viral Turbo", emoji: "⚡", config: { refinement: "none", upscale: "none", rife: "2x", quality: "fast" }, desc: "T2V + RIFE 2x — ultra rápido, fluido" },
-  { id: "raw_wan",     label: "RAW WAN",     emoji: "🎥", config: { refinement: "none", upscale: "none", rife: "none", quality: "max" }, desc: "Wan T2V puro, sem pós-processamento" },
+  { id: "cinema_pro",  label: "Cinema Pro",  emoji: "🔭", config: { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" },  desc: "I2V + I2V refine + RIFE 2x + 4K — qualidade cinematográfica" },
+  { id: "cinema_fast", label: "Cinema Fast", emoji: "🎬", config: { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "none", quality: "high" }, desc: "I2V + I2V refine + 4K — qualidade alta, mais rápido" },
+  { id: "viral_turbo", label: "Viral Turbo", emoji: "⚡", config: { baseModel: "i2v", refinement: "none", upscale: "none", rife: "2x", quality: "fast" }, desc: "I2V + RIFE 2x — ultra rápido, fluido" },
+  { id: "estatico",    label: "Estático",    emoji: "📸", config: { baseModel: "none", refinement: "none", upscale: "none", rife: "none", quality: "high" }, desc: "Imagem do produto + overlay — sem AI" },
 ];
 
 // Mapeia formato → config de modelo (para hybrid_cinema)
 const FORMAT_MODEL_CONFIG: Record<string, VideoModelConfig> = {
-  hybrid_cinema:   { refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" },
-  wan21_cinematic: { refinement: "none", upscale: "none", rife: "none", quality: "high" },
+  hybrid_cinema:   { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" },
+  wan21_cinematic: { baseModel: "i2v", refinement: "none", upscale: "none", rife: "none", quality: "high" },
 };
 
 const PLATAFORMAS = [
@@ -219,7 +220,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   const [selectedProduct, setSelectedProduct] = React.useState<AdminProduct | null>(null);
   const [selectedFormat, setSelectedFormat]   = React.useState("oferta_choque");
   const [modelConfig, setModelConfig] = React.useState<VideoModelConfig>(
-    FORMAT_MODEL_CONFIG["hybrid_cinema"] || { refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" }
+    { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" }
   );
   const [selectedPlats, setSelectedPlats]     = React.useState<string[]>(["telegram"]);
   const [jobId, setJobId]   = React.useState<string | null>(null);
@@ -608,6 +609,17 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
             {/* Controles finos */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {/* Modelo Base */}
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Modelo Base (S1)</div>
+                <select value={modelConfig.baseModel}
+                  onChange={e => setModelConfig({ ...modelConfig, baseModel: e.target.value as VideoModelConfig["baseModel"] })}
+                  style={{ width: "100%", fontSize: 10, padding: "4px 8px", background: "#111", color: "#e2e8f0", border: "1px solid #333", borderRadius: 6 }}>
+                  <option value="i2v">🎯 I2V (imagem→vídeo, ~12GB, recomendado)</option>
+                  <option value="t2v">🎥 T2V (texto→vídeo, ~20GB, pode OOM)</option>
+                  <option value="none">📸 Estático (sem AI, imagem + overlay)</option>
+                </select>
+              </div>
               {/* Refinamento */}
               <div>
                 <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Refinamento</div>
@@ -656,13 +668,13 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
             {/* Resumo do pipeline */}
             <div style={{ marginTop: 10, fontSize: 9, color: "#475569", fontFamily: "monospace" }}>
-              Pipeline: Wan T2V
+              Pipeline: {modelConfig.baseModel === "i2v" ? "Wan I2V" : modelConfig.baseModel === "t2v" ? "Wan T2V" : "Imagem estática"}
               {modelConfig.refinement !== "none" && ` → ${modelConfig.refinement === "hunyuan" ? "HunyuanVideo" : "Wan I2V"}`}
               {modelConfig.rife !== "none" && ` → RIFE ${modelConfig.rife}`}
               {modelConfig.upscale !== "none" && ` → ${modelConfig.upscale}`}
               {" → Overlay"}
               <span style={{ marginLeft: 8, color: "#fbbf24" }}>
-                ~{modelConfig.quality === "max" ? "8-12" : modelConfig.quality === "high" ? "5-7" : "2-4"}min
+                ~{modelConfig.quality === "max" ? "6-10" : modelConfig.quality === "high" ? "4-6" : "2-4"}min
               </span>
             </div>
           </div>
