@@ -249,10 +249,11 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   React.useEffect(() => { loadSource(productSource); }, [topProducts, productSource, loadSource]);
   const [jobDone, setJobDone] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
-  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartRef = React.useRef<number>(0);
-  const POLL_TIMEOUT = 5 * 60 * 1000; // 5 minutos
-  const POLL_INTERVAL = 3000;
+  const POLL_TIMEOUT = 10 * 60 * 1000; // 10 minutos (pipeline pode levar 8-12min)
+  const POLL_BASE_DELAY = 4000;  // começa em 4s
+  const POLL_MAX_DELAY = 30000;  // máximo 30s entre polls
 
   // Sugestões dinâmicas ao selecionar produto
   const suggestions = React.useMemo(
@@ -269,7 +270,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     setSelectedPlats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const stopPoll = () => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
   };
 
     const [videoApiOnline, setVideoApiOnline] = React.useState<boolean | null>(null);
@@ -295,32 +296,55 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       .catch(() => setVideoApiOnline(false));
   }, [apiBase, adminKey]);
 
-  const pollStatus = React.useCallback((jid: string) => {
-    stopPoll();
+  const pollStatus = React.useCallback((jid: string, attempt: number = 0) => {
     pollStartRef.current = Date.now();
-    pollRef.current = setInterval(async () => {
-      // Timeout: 5 minutos
-      if (Date.now() - pollStartRef.current > POLL_TIMEOUT) {
-        stopPoll();
-        setJobLog(prev => [...prev, "⏰ Timeout: job demorou mais de 5 minutos. Verifique o status manualmente."]);
+
+    const doPoll = async () => {
+      const elapsed = Date.now() - pollStartRef.current;
+      if (elapsed > POLL_TIMEOUT) {
+        setJobLog(prev => [...prev, "⏰ Timeout: job demorou mais de 10 minutos."]);
         setJobDone(true);
         setLoading(false);
         return;
       }
-      try {
-        const url = videoApiUrl || apiBase;
-        const r = videoApiUrl
-          ? await fetch(`${videoApiUrl}/video/status/${jid}`, { headers: { "ngrok-skip-browser-warning": "true" } })
-          : await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } });
-        const data = await r.json();
-        if (data?.ok) {
-          setJobLog(data.log_tail || []);
-          if (data.done) { setJobDone(true); stopPoll(); setLoading(false); }
-        }
-      } catch (error: unknown) {
-        console.warn("Video job status poll failed:", error);
+
+      let data: { ok?: boolean; log_tail?: string[]; done?: boolean; error?: string } | null = null;
+
+      // Tenta ngrok direto primeiro, fallback via HF Space
+      if (videoApiUrl) {
+        try {
+          const r = await fetch(`${videoApiUrl}/video/status/${jid}`, {
+            headers: { "ngrok-skip-browser-warning": "true" },
+          });
+          if (r.ok) data = await r.json();
+        } catch { /* ngrok falhou, tenta HF Space abaixo */ }
       }
-    }, POLL_INTERVAL);
+
+      // Fallback: proxy via HF Space (backend → ngrok interno)
+      if (!data?.ok) {
+        try {
+          const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, {
+            headers: { "X-Admin-Key": adminKey },
+          });
+          if (r.ok) data = await r.json();
+        } catch { /* ambos falharam */ }
+      }
+
+      if (data?.ok) {
+        setJobLog(data.log_tail || []);
+        if (data.done) {
+          setJobDone(true);
+          setLoading(false);
+          return; // para de poll
+        }
+      }
+
+      // Backoff exponencial: 4s → 5.2s → 6.8s → ... → max 30s
+      const delay = Math.min(POLL_BASE_DELAY * Math.pow(1.3, attempt), POLL_MAX_DELAY);
+      pollRef.current = setTimeout(() => pollStatus(jid, attempt + 1), delay);
+    };
+
+    doPoll();
   }, [apiBase, adminKey, videoApiUrl]);
 
   const dispatch = async () => {
@@ -329,6 +353,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
     setJobId(null);
     setJobLog([]);
     setJobDone(false);
+    stopPoll();
     const payload: Record<string, unknown> = {
       query: selectedProduct?.product_title || null,
       plataformas: selectedPlats,
@@ -339,22 +364,37 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       payload.config = modelConfig;
     }
     try {
-      // Publicar direto na Video API via browser (sem passar pelo HF Space)
-      const endpoint = videoApiUrl
-        ? `${videoApiUrl}/video/publish`
-        : `${apiBase}/api/v1/admin/video/publish`;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (videoApiUrl) headers["ngrok-skip-browser-warning"] = "true";
-      else headers["X-Admin-Key"] = adminKey;
+      let d: { ok?: boolean; job_id?: string; pid?: number; error?: string } | null = null;
 
-      const r = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(payload) });
-      const d = await r.json();
-      if (d.ok) {
-        setJobId(d.job_id);
+      // Tenta ngrok direto primeiro
+      if (videoApiUrl) {
+        try {
+          const r = await fetch(`${videoApiUrl}/video/publish`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+            body: JSON.stringify(payload),
+          });
+          if (r.ok) d = await r.json();
+        } catch { /* ngrok falhou */ }
+      }
+
+      // Fallback: HF Space proxy
+      if (!d?.ok) {
+        const r = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+          body: JSON.stringify(payload),
+        });
+        d = await r.json();
+      }
+
+      if (d?.ok) {
+        setJobId(d.job_id!);
         setJobLog([`✅ Job ${d.job_id} iniciado (pid ${d.pid || '?'})`]);
-        pollStatus(d.job_id);
+        setLoading(false); // loading termina — agora é só poll
+        pollStatus(d.job_id!);
       } else {
-        setJobLog([`❌ ${d.error}`]);
+        setJobLog([`❌ ${d?.error || 'Erro desconhecido'}`]);
         setLoading(false);
       }
     } catch (e: unknown) {
