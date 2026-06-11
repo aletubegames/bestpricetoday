@@ -19,7 +19,7 @@ async def run_conversion_poll():
 
 
 async def start_conversion_cron():
-    """Background task that runs every hour."""
+    """Background task that runs every 5 hours."""
     while True:
         await run_conversion_poll()
-        await asyncio.sleep(3600)  # 1 hour
+        await asyncio.sleep(18000)  # 5 horas

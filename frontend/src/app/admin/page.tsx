@@ -96,14 +96,11 @@ function getIntegrations(integrationStatus: IntegrationStatus) {
 
 // ─── Formatos de vídeo disponíveis ───────────────────────────────────────────
 const VIDEO_FORMATS = [
-  { id: "oferta_choque",    label: "Oferta Choque",       emoji: "💥", desc: "Preço + desconto + urgência" },
-  { id: "viral_tiktok",    label: "Viral TikTok",        emoji: "🎙️", desc: "Gancho emocional, ritmo rápido" },
-  { id: "top3",            label: "Top 3",               emoji: "🏆", desc: "Compara 3 opções da mesma categoria" },
-  { id: "vs",              label: "VS Comparativo",      emoji: "⚔️", desc: "Marca cara vs barata" },
-  { id: "alerta",          label: "Alerta de Preço",     emoji: "🔔", desc: "'Preço caiu! Não perca!'" },
-  { id: "ultima_chance",   label: "Última Chance",       emoji: "⏳", desc: "Urgência + escassez" },
-  { id: "wan21_cinematic", label: "WAN2.1 Cinemático",  emoji: "🎥", desc: "Vídeo IA rápido (Wan2.1 apenas)" },
-  { id: "hybrid_cinema",   label: "Cinema Pro 4K ⭐",   emoji: "🔭", desc: "Wan T2V → I2V → RIFE 2x → 4K (~8min, máxima qualidade)" },
+  { id: "oferta_choque",    label: "Oferta Relâmpago",  emoji: "⚡", desc: "Preço + desconto + call-to-action direto" },
+  { id: "vs",              label: "VS Comparativo",     emoji: "⚔️", desc: "Marca conhecida vs importada" },
+  { id: "ultima_chance",   label: "Última Chance",      emoji: "⏳", desc: "Escassez + urgência para fechar venda" },
+  { id: "wan21_cinematic", label: "Cinema Rápido",      emoji: "🎥", desc: "Wan2.2 IA ~2min, vídeo automático" },
+  { id: "hybrid_cinema",   label: "Cinema Pro 4K ⭐",   emoji: "🎬", desc: "Wan2.2 + RIFE 2x + Upscale 4K ~5min" },
 ];
 
 // ─── Configurações de modelo de vídeo ────────────────────────────────────────
@@ -117,16 +114,16 @@ type VideoModelConfig = {
 
 // Presets de qualidade com ícones e descrições
 const QUALITY_PRESETS: { id: string; label: string; emoji: string; config: VideoModelConfig; desc: string }[] = [
-  { id: "cinema_pro",  label: "Cinema Pro",  emoji: "🔭", config: { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" },  desc: "I2V + I2V refine + RIFE 2x + 4K — qualidade cinematográfica" },
-  { id: "cinema_fast", label: "Cinema Fast", emoji: "🎬", config: { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "none", quality: "high" }, desc: "I2V + I2V refine + 4K — qualidade alta, mais rápido" },
-  { id: "viral_turbo", label: "Viral Turbo", emoji: "⚡", config: { baseModel: "i2v", refinement: "none", upscale: "none", rife: "2x", quality: "fast" }, desc: "I2V + RIFE 2x — ultra rápido, fluido" },
+  { id: "cinema_pro",  label: "Cinema Pro",  emoji: "🔭", config: { baseModel: "t2v", refinement: "none", upscale: "4K", rife: "2x", quality: "max" },  desc: "81f / 20 steps / RIFE 2x / 4K — máxima qualidade" },
+  { id: "cinema_fast", label: "Cinema Fast", emoji: "🎬", config: { baseModel: "t2v", refinement: "none", upscale: "4K", rife: "2x", quality: "high" }, desc: "49f / 16 steps / RIFE 2x / 4K — equilíbrio qualidade⧸velocidade" },
+  { id: "viral_turbo", label: "Viral Turbo", emoji: "⚡", config: { baseModel: "t2v", refinement: "none", upscale: "none", rife: "2x", quality: "fast" }, desc: "33f / 12 steps / RIFE 2x — ultra rápido ~2min" },
   { id: "estatico",    label: "Estático",    emoji: "📸", config: { baseModel: "none", refinement: "none", upscale: "none", rife: "none", quality: "high" }, desc: "Imagem do produto + overlay — sem AI" },
 ];
 
 // Mapeia formato → config de modelo (para hybrid_cinema)
 const FORMAT_MODEL_CONFIG: Record<string, VideoModelConfig> = {
-  hybrid_cinema:   { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" },
-  wan21_cinematic: { baseModel: "i2v", refinement: "none", upscale: "none", rife: "none", quality: "high" },
+  hybrid_cinema:   { baseModel: "t2v", refinement: "none", upscale: "4K", rife: "2x", quality: "high" },
+  wan21_cinematic: { baseModel: "t2v", refinement: "none", upscale: "none", rife: "none", quality: "fast" },
 };
 
 const PLATAFORMAS = [
@@ -159,36 +156,36 @@ function suggestFormats(p: AdminProduct | null | undefined): { id: string; reaso
     suggestions.push({ id: "wan21_cinematic", score: 80,
       reason: `R$${price.toFixed(0)} — produto premium, vídeo cinemático agrega percepção de valor` });
 
-  // Muitos cliques → já é viral, usar formato viral TikTok
+  // Muitos cliques → já é viral, sugere Cinema Rápido (IA)
   if (clicks >= 20)
-    suggestions.push({ id: "viral_tiktok", score: 85,
-      reason: `${clicks} cliques — produto já tem tráfego, viral TikTok amplifica` });
+    suggestions.push({ id: "wan21_cinematic", score: 85,
+      reason: `${clicks} cliques — produto já tem tráfego, vídeo IA amplifica` });
   else if (clicks >= 5)
-    suggestions.push({ id: "viral_tiktok", score: 60,
-      reason: `${clicks} cliques — boa tracção para formato viral` });
+    suggestions.push({ id: "wan21_cinematic", score: 60,
+      reason: `${clicks} cliques — boa tracção para vídeo IA` });
 
-  // Categorias que pedem VS ou Top 3
+  // Categorias que pedem VS (marca conhecida) ou Última Chance (categorias populares)
   const vsTerms = ["samsung", "iphone", "apple", "xiaomi", "rtx", "amd", "intel", "dell", "lenovo"];
-  const top3Terms = ["fone", "notebook", "smartphone", "smartwatch", "tablet", "tv", "headset"];
+  const chanceTerms = ["fone", "notebook", "smartphone", "smartwatch", "tablet", "tv", "headset"];
   if (vsTerms.some(t => title.includes(t)))
     suggestions.push({ id: "vs", score: 72,
       reason: "Produto de marca conhecida — VS Comparativo gera debate e engajamento" });
-  if (top3Terms.some(t => title.includes(t)))
-    suggestions.push({ id: "top3", score: 68,
-      reason: "Categoria com várias opções — Top 3 educa e converte" });
+  if (chanceTerms.some(t => title.includes(t)))
+    suggestions.push({ id: "ultima_chance", score: 68,
+      reason: "Categoria popular — urgência fecha a venda" });
 
   // Preço baixo → última chance funciona bem
   if (price < 100 && price > 0)
     suggestions.push({ id: "ultima_chance", score: 70,
       reason: `R$${price.toFixed(0)} — preço acessível, urgência fecha a venda` });
 
-  // Alerta se desconto moderado
+  // Desconto moderado → oferta relâmpago
   if (discount >= 5 && discount < 20)
-    suggestions.push({ id: "alerta", score: 65,
-      reason: `${discount.toFixed(0)}% OFF — alerta de queda de preço cria senso de oportunidade` });
+    suggestions.push({ id: "oferta_choque", score: 65,
+      reason: `${discount.toFixed(0)}% OFF — oferta relâmpago cria senso de oportunidade` });
 
   // Sempre adiciona fallbacks
-  ["oferta_choque", "viral_tiktok", "alerta"].forEach(id => {
+  ["oferta_choque", "ultima_chance", "wan21_cinematic"].forEach(id => {
     if (!suggestions.find(s => s.id === id))
       suggestions.push({ id, score: 40, reason: "Formato genérico sempre funciona" });
   });

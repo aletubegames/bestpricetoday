@@ -300,7 +300,7 @@ async def broadcast_top_offers(n_offers: int = 3) -> dict:
 # ─── Loop automático ──────────────────────────────────────────────────────────
 
 async def run_broadcaster_loop():
-    """Roda para sempre, postando a cada hora."""
+    """Roda para sempre, postando a cada 5 horas."""
     print(f"[Broadcaster] Starting. Channel: {CHANNEL_ID or 'NOT SET'}")
     while True:
         now = datetime.now()
@@ -311,7 +311,7 @@ async def run_broadcaster_loop():
         result = await broadcast_top_offers(n_offers=n)
         print(f"[Broadcaster] Done: {result}")
 
-        await asyncio.sleep(3600)
+        await asyncio.sleep(18000)  # 5 horas
 
 
 if __name__ == "__main__":
