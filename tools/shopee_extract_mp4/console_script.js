@@ -706,19 +706,25 @@
       // ── vídeo via API ──────────────────────────────────────
       const vlist = d.video_info_list;
       let videoUrl = null;
+      let videoWidth = 0;
+      let videoHeight = 0;
 
       if (vlist?.length) {
         const v = vlist[0];
-        videoUrl =
-          v?.formats?.sort((a,b) => (b.width||0) - (a.width||0))?.[0]?.url ||
-          v?.default_format?.url || null;
+        const bestFormat = v?.formats?.sort((a,b) => (b.width||0) - (a.width||0))?.[0];
+        videoUrl = bestFormat?.url || v?.default_format?.url || null;
+        if (bestFormat) {
+          videoWidth = bestFormat.width || 0;
+          videoHeight = bestFormat.height || 0;
+        }
       }
 
       if (!videoUrl) {
         log('  — sem vídeo na API', '#888');
         sem++;
       } else {
-        log('  baixando vídeo...', '#ff0');
+        const resStr = videoWidth && videoHeight ? ` [${videoWidth}x${videoHeight}]` : '';
+        log(`  baixando video${resStr}...`, '#ff0');
         await downloadBlob(videoUrl, slug + '.mp4');
         log('  ✓ ' + slug + '.mp4', '#0f0');
         ok++;

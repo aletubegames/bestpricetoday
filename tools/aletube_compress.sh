@@ -34,6 +34,12 @@ SIZE_BEFORE_MB=$(( SIZE_BEFORE / 1024 / 1024 ))
 echo "→ Input:  $INPUT (${SIZE_BEFORE_MB} MB)"
 echo "→ Output: $OUTPUT"
 echo "→ A comprimir... (pode demorar alguns minutos)"
+echo ""
+echo "⚠ ATENÇÃO: Se este vídeo for subir para o YouTube, NÃO use este script."
+echo "  O YouTube re-encodeia o vídeo, e a compressão dupla (CRF + YouTube)"
+echo "  degrada a qualidade visivelmente. Suba o arquivo ORIGINAL diretamente"
+echo "  com o aletube_youtube_upload.py."
+echo ""
 
 # H.264 CRF 26 = qualidade boa, ~30-40% do tamanho original em vídeos típicos.
 # preset medium = equilíbrio entre velocidade e compressão.

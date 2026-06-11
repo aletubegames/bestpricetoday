@@ -285,6 +285,13 @@ def main() -> None:
             print(f"✓ Registado no backend: video_id={reg.get('video_id')}")
 
     print()
+    print()
+    print("💡 DICA DE QUALIDADE:")
+    print("   Use sempre o vídeo ORIGINAL (sem compressão) para upload no YouTube.")
+    print("   O YouTube re-encodeia o vídeo automaticamente — se ele já chegar")
+    print("   comprimido, a dupla compressão piora a qualidade visivelmente.")
+    print("   NÃO use o aletube_compress.sh antes deste upload.")
+    print()
     print("Concluído. Podes apagar o ficheiro local se quiseres:")
     print(f"  rm {args.video}")
 
