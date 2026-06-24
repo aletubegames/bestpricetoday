@@ -78,38 +78,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(GZipMiddleware, minimum_size=1024)
-
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        return response
-
-
-app.add_middleware(SecurityHeadersMiddleware)
-
-
+# Custom middleware to add CORS headers to all responses
 @app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    request.state.request_id = request_id
+async def add_cors_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
+# app.add_middleware(GZipMiddleware, minimum_size=1024)  # Temporarily disabled for CORS
 
-@app.middleware("http")
-async def add_timing(request: Request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    duration = round((time.time() - start) * 1000)
-    response.headers["X-Response-Time"] = f"{duration}ms"
-    return response
+
+# class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request, call_next):
+#         response = await call_next(request)
+#         response.headers["X-Content-Type-Options"] = "nosniff"
+#         response.headers["X-Frame-Options"] = "DENY"
+#         response.headers["X-XSS-Protection"] = "1; mode=block"
+#         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+#         return response
+
+
+# app.add_middleware(SecurityHeadersMiddleware)  # Temporarily disabled for CORS
+
+
+# @app.middleware("http")
+# async def add_request_id(request: Request, call_next):
+#     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+#     request.state.request_id = request_id
+#     response = await call_next(request)
+#     response.headers["X-Request-ID"] = request_id
+#     return response
+
+
+# @app.middleware("http")
+# async def add_timing(request: Request, call_next):
+#     start = time.time()
+#     response = await call_next(request)
+#     duration = round((time.time() - start) * 1000)
+#     response.headers["X-Response-Time"] = f"{duration}ms"
+#     return response
 
 
 @app.get("/health")

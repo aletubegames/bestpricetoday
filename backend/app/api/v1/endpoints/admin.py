@@ -1395,7 +1395,7 @@ async def ml_test_items(
 
 
 
-@router.get("/auth/session-key")
+@router.post("/auth/session-key")
 async def get_session_admin_key(
     user=Depends(get_current_admin),
 ):

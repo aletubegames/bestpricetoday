@@ -174,6 +174,7 @@ export default function AleTubeGamesPage() {
     // Auto-fetch admin_key se não tiver no localStorage
     if (!key && tk) {
       fetch(`${API}/api/v1/admin/auth/session-key`, {
+        method: "POST",
         headers: { Authorization: `Bearer ${tk}` },
       })
         .then(r => r.ok ? r.json() : null)
