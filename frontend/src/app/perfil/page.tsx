@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
 import Link from "next/link"
 
@@ -42,7 +42,7 @@ export default function PerfilPage() {
     setUser(u)
 
     // Carrega alertas do usuário
-    fetch(`${API}/api/v1/alerts`, {
+    apiFetch(`${API}/api/v1/alerts`, {
       headers: { "Authorization": `Bearer ${token}` },
     })
       .then(r => r.json())

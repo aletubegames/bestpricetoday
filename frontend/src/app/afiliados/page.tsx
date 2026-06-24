@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
 
 interface Product {
@@ -143,7 +143,7 @@ export default function AfiliadosPage() {
     // Auto-fetch admin_key se não tiver no localStorage
     const storedKey = localStorage.getItem("admin_key")
     if (!storedKey && tk) {
-      fetch(`${API}/api/v1/admin/auth/session-key`, {
+      apiFetch(`${API}/api/v1/admin/auth/session-key`, {
         method: "POST",
         headers: { Authorization: `Bearer ${tk}` },
       })
@@ -221,7 +221,7 @@ function ProductsTab({ token }: { token: string }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch(`${API}/api/v1/affiliate/products`, { headers: buildAdminHeaders(token) })
+      const r = await apiFetch(`${API}/api/v1/affiliate/products`, { headers: buildAdminHeaders(token) })
       const d = await r.json()
       setProducts(d.products ?? [])
       setTotal(d.total ?? 0)
@@ -246,7 +246,7 @@ function ProductsTab({ token }: { token: string }) {
         image_url: form.image_url || null,
         notes: form.notes || null,
       }
-      const r = await fetch(`${API}/api/v1/affiliate/products`, { method: "POST", headers, body: JSON.stringify(body) })
+      const r = await apiFetch(`${API}/api/v1/affiliate/products`, { method: "POST", headers, body: JSON.stringify(body) })
       if (!r.ok) throw new Error(await r.text())
       setForm(emptyForm)
       setShowForm(false)
@@ -259,13 +259,13 @@ function ProductsTab({ token }: { token: string }) {
   }
 
   async function patchProduct(id: string, data: Record<string, unknown>) {
-    await fetch(`${API}/api/v1/affiliate/products/${id}`, { method: "PATCH", headers, body: JSON.stringify(data) })
+    await apiFetch(`${API}/api/v1/affiliate/products/${id}`, { method: "PATCH", headers, body: JSON.stringify(data) })
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p))
   }
 
   async function deleteProduct(id: string) {
     if (!confirm("Remover produto?")) return
-    await fetch(`${API}/api/v1/affiliate/products/${id}`, { method: "DELETE", headers })
+    await apiFetch(`${API}/api/v1/affiliate/products/${id}`, { method: "DELETE", headers })
     await load()
   }
 
@@ -587,7 +587,7 @@ function ContentTab({ token }: { token: string }) {
   const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
 
   useEffect(() => {
-    fetch(`${API}/api/v1/affiliate/products`, { headers })
+    apiFetch(`${API}/api/v1/affiliate/products`, { headers })
       .then(r => r.json())
       .then(d => setProducts(d.products ?? []))
   }, [])
@@ -598,7 +598,7 @@ function ContentTab({ token }: { token: string }) {
     setLoading(true)
     setResult(null)
     try {
-      const r = await fetch(`${API}/api/v1/affiliate/generate/${t}`, {
+      const r = await apiFetch(`${API}/api/v1/affiliate/generate/${t}`, {
         method: "POST",
         headers,
         body: JSON.stringify({ product_id: selectedId }),
@@ -830,7 +830,7 @@ function ShortLinksTab({ token }: { token: string }) {
   const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
 
   useEffect(() => {
-    fetch(`${API}/api/v1/affiliate/products`, { headers })
+    apiFetch(`${API}/api/v1/affiliate/products`, { headers })
       .then(r => r.json())
       .then(d => setProducts(d.products ?? []))
   }, [])
@@ -848,7 +848,7 @@ function ShortLinksTab({ token }: { token: string }) {
     setLoading(true)
     setResult(null)
     try {
-      const r = await fetch(`${API}/api/v1/affiliate/shortlink`, {
+      const r = await apiFetch(`${API}/api/v1/affiliate/shortlink`, {
         method: "POST",
         headers,
         body: JSON.stringify({ product_id: selectedId, source: "afiliados", campaign: campaign || undefined }),

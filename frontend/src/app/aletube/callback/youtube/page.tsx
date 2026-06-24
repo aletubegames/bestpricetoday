@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { API_BASE as API } from '@/lib/api';
+import { API_BASE as API, apiFetch } from '@/lib/api';
 
 function YouTubeCallbackContent() {
   const router = useRouter();
@@ -27,7 +27,7 @@ function YouTubeCallbackContent() {
       return;
     }
 
-    fetch(`${API}/api/v1/aletube/callback/youtube?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
+    apiFetch(`${API}/api/v1/aletube/callback/youtube?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
       .then(async res => {
         if (!res.ok) {
           const err = await res.json().catch(() => null) as { detail?: string } | null;

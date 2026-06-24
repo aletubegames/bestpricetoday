@@ -1,7 +1,7 @@
 "use client"
 import { useCallback, useEffect, useState } from "react"
 import type { MouseEvent } from "react"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import { openTrackedOffer } from "@/lib/tracking"
 import TikTokPublisher from "@/components/TikTokPublisher"
 import type { Offer } from "@/types"
@@ -36,7 +36,7 @@ export default function ProductSearchClient({ query }: { query: string }) {
   }, [offerKey])
 
   useEffect(() => {
-    fetch(`${API}/api/v1/search?q=${encodeURIComponent(query)}&limit=10`)
+    apiFetch(`${API}/api/v1/search?q=${encodeURIComponent(query)}&limit=10`)
       .then(r => r.json())
       .then(d => {
         setOffers(d.offers || [])

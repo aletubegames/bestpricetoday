@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE as API } from "@/lib/api";
+import { API_BASE as API, apiFetch } from "@/lib/api";
 import { isTokenExpired } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ export default function AleTubeGamesPage() {
 
     // Auto-fetch admin_key se não tiver no localStorage
     if (!key && tk) {
-      fetch(`${API}/api/v1/admin/auth/session-key`, {
+      apiFetch(`${API}/api/v1/admin/auth/session-key`, {
         method: "POST",
         headers: { Authorization: `Bearer ${tk}` },
       })
@@ -199,7 +199,7 @@ export default function AleTubeGamesPage() {
     setAccountsLoading(true);
     setAccountsError(null);
     try {
-      const res = await fetch(`${API}/api/v1/aletube/accounts/status`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/accounts/status`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) {
@@ -226,7 +226,7 @@ export default function AleTubeGamesPage() {
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const res = await fetch(`${API}/api/v1/aletube/videos`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/videos`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -245,7 +245,7 @@ export default function AleTubeGamesPage() {
       let url: string;
       if (platform === "tiktok") {
         const headers = getAuthHeaders(adminKey, true);
-        const res = await fetch(`${API}/api/v1/tiktok/auth/admin`, { headers });
+        const res = await apiFetch(`${API}/api/v1/tiktok/auth/admin`, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         url = data.auth_url;
@@ -254,14 +254,14 @@ export default function AleTubeGamesPage() {
         localStorage.setItem("tiktok_oauth_mode", "admin");
       } else if (platform === "youtube") {
         const headers = getAuthHeaders();
-        const res = await fetch(`${API}/api/v1/aletube/auth/youtube`, { headers });
+        const res = await apiFetch(`${API}/api/v1/aletube/auth/youtube`, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         url = data.auth_url;
         if (data.state) localStorage.setItem("youtube_oauth_state", data.state);
       } else if (platform === "facebook" || platform === "instagram") {
         const headers = getAuthHeaders();
-        const res = await fetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
+        const res = await apiFetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         url = data.auth_url;
@@ -284,7 +284,7 @@ export default function AleTubeGamesPage() {
     if (!confirm(`Desconectar ${platform}?`)) return;
     setDisconnecting(platform);
     try {
-      const res = await fetch(`${API}/api/v1/aletube/accounts/${platform}`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/accounts/${platform}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -304,7 +304,7 @@ export default function AleTubeGamesPage() {
     try {
       const form = new FormData();
       form.append("file", selectedFile);
-      const res = await fetch(`${API}/api/v1/aletube/upload`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/upload`, {
         method: "POST",
         headers: getAuthHeaders(adminKey, true),
         body: form,
@@ -334,7 +334,7 @@ export default function AleTubeGamesPage() {
     try {
       const form = new FormData();
       form.append("video_id", videoInfo.id);
-      const res = await fetch(`${API}/api/v1/aletube/analyze`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/analyze`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: form,
@@ -386,7 +386,7 @@ export default function AleTubeGamesPage() {
       form.append("instagram_meta", buildMeta("instagram"));
       form.append("facebook_meta", buildMeta("facebook"));
 
-      const res = await fetch(`${API}/api/v1/aletube/publish`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/publish`, {
         method: "POST",
         headers: getAuthHeaders(adminKey, true),
         body: form,
@@ -968,7 +968,7 @@ export default function AleTubeGamesPage() {
                   onClick={async () => {
                     if (!confirm("Remover da DB todos os vídeos cujo ficheiro já não existe no servidor?")) return;
                     try {
-                      const res = await fetch(`${API}/api/v1/aletube/videos/cleanup-orphans`, {
+                      const res = await apiFetch(`${API}/api/v1/aletube/videos/cleanup-orphans`, {
                         method:  "POST",
                         headers: getAuthHeaders(),
                       });
@@ -1067,7 +1067,7 @@ export default function AleTubeGamesPage() {
                           onClick={async () => {
                             if (!confirm(`Apagar "${v.title ?? v.id}"?`)) return;
                             try {
-                              const res = await fetch(`${API}/api/v1/aletube/videos/${v.id}`, {
+                              const res = await apiFetch(`${API}/api/v1/aletube/videos/${v.id}`, {
                                 method:  "DELETE",
                                 headers: getAuthHeaders(),
                               });

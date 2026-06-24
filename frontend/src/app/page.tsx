@@ -20,7 +20,7 @@ import FAQ from "@/components/home/FAQ";
 import HowItWorks from "@/components/home/HowItWorks";
 import FeaturedOffers from "@/components/home/FeaturedOffers";
 import { getChartData } from "@/lib/mockData";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, apiFetch } from "@/lib/api";
 import type { ChartDay } from "@/components/home/SearchesChart";
 
 type StoredUser = { name: string; is_admin: boolean };
@@ -153,7 +153,7 @@ function Section({ children, maxWidth = 960 }: { children: React.ReactNode; maxW
 // ═══════════════════════════════════════════════════════════════════════════════
 async function fetchChartData(): Promise<ChartDay[]> {
   try {
-    const resp = await fetch(`${API_BASE}/api/v1/stats`, {
+    const resp = await apiFetch(`${API_BASE}/api/v1/stats`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

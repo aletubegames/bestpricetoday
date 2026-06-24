@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect } from "react"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import type { Offer } from "@/types"
 
 type TikTokOffer = Partial<Offer> & {
@@ -73,7 +73,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
   // ── Buscar conta conectada ─────────────────────────────────────────────────
   const fetchAccountInfo = async (openId: string) => {
     try {
-      const res = await fetch(`${API}/api/v1/tiktok/account/me?open_id=${openId}`)
+      const res = await apiFetch(`${API}/api/v1/tiktok/account/me?open_id=${openId}`)
       if (res.ok) {
         const data = await res.json() as TikTokAccount
         setAccount(data)
@@ -93,7 +93,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
     setStep("connect")
     setError(null)
     try {
-      const res  = await fetch(`${API}/api/v1/tiktok/auth/user`)
+      const res  = await apiFetch(`${API}/api/v1/tiktok/auth/user`)
       const data = await res.json() as TikTokAuthResponse
       if (!data.state || !data.auth_url) throw new Error("Resposta inválida do TikTok auth")
 
@@ -140,7 +140,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
     setError(null)
     try {
       const openId = localStorage.getItem("tiktok_open_id")
-      const res = await fetch(`${API}/api/v1/tiktok/share/link`, {
+      const res = await apiFetch(`${API}/api/v1/tiktok/share/link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

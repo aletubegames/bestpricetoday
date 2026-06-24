@@ -2,6 +2,7 @@
 
 import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { apiFetch } from "@/lib/api";
 
 function FacebookCallbackContent() {
   const router = useRouter();
@@ -13,7 +14,7 @@ function FacebookCallbackContent() {
 
     if (code) {
       const API = process.env.NEXT_PUBLIC_API_URL || 'https://sacrament-subduing-confined.ngrok-free.dev';
-      fetch(`${API}/api/v1/aletube/callback/facebook?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
+      apiFetch(`${API}/api/v1/aletube/callback/facebook?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
         .then(async res => {
           if (!res.ok) {
             const err = await res.json().catch(() => null) as { detail?: string } | null;

@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
 import Link from "next/link"
 
@@ -45,7 +45,7 @@ export default function DashboardPage() {
     setUser(u)
 
     // Busca alertas do usuário logado
-    fetch(`${API}/api/v1/alerts?owner_id=${u.id}`, { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch(`${API}/api/v1/alerts?owner_id=${u.id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
       .then(alertData => {
         setAlerts(Array.isArray(alertData) ? alertData : [])
@@ -57,7 +57,7 @@ export default function DashboardPage() {
   const deleteAlert = async (id: string) => {
     const token = localStorage.getItem("bpt_token")
     if (!user) return
-    await fetch(`${API}/api/v1/alerts/${id}?owner_id=${user.id}`, {
+    await apiFetch(`${API}/api/v1/alerts/${id}?owner_id=${user.id}`, {
       method: "DELETE", headers: { Authorization: `Bearer ${token ?? ""}` },
     })
     setAlerts(prev => (prev || []).filter(a => a.id !== id))
