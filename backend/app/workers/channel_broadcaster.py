@@ -22,10 +22,12 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
-CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "")
+from app.core.config import settings
+
+BOT_TOKEN  = settings.TELEGRAM_BOT_TOKEN
+CHANNEL_ID = settings.TELEGRAM_CHANNEL_ID
 API_URL    = os.getenv("API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
-ADMIN_KEY  = os.getenv("ADMIN_MANAGER_KEY", "")
+ADMIN_KEY  = settings.ADMIN_MANAGER_KEY
 
 # Arquivo local de deduplicação (persiste entre restarts do worker)
 DEDUP_FILE = Path("/tmp/broadcaster_dedup.json")

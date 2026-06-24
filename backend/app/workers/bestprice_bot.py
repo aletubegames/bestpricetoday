@@ -90,7 +90,7 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Auto-share exceptional deals to channel
-        channel_id = os.getenv("TELEGRAM_CHANNEL_ID", "")
+        channel_id = settings.TELEGRAM_CHANNEL_ID
         if result.offers and result.offers[0].score >= 85 and channel_id:
             asyncio.create_task(auto_share_to_channel(result.offers[0], query))
 
@@ -116,7 +116,7 @@ async def cmd_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = []
         found = 0
         import httpx
-        API_URL = os.getenv("API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
+        API_URL = os.getenv("API_URL", settings.INTERNAL_API_URL or "https://sacrament-subduing-confined.ngrok-free.dev")
         PROVIDER_EMOJI = {
             "mercadolivre": "🟡", "amazon": "📦", "shopee": "🟠",
             "kabum": "🟢", "aliexpress": "🔴", "lomadee": "🟣", "awin": "🔵",
@@ -156,7 +156,7 @@ async def cmd_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    channel_id = os.getenv("TELEGRAM_CHANNEL_ID", "")
+    channel_id = settings.TELEGRAM_CHANNEL_ID
     channel_link = channel_id if channel_id.startswith("@") else "@BestPriceTodayBR"
     await update.message.reply_text(
         f"📣 *Canal BestPriceToday*\n\n"
