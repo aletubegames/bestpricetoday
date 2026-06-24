@@ -70,14 +70,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+# Custom CORS middleware - FORCE headers on ALL responses
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    # Handle OPTIONS preflight
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+        return response
+    
+    try:
+        response = await call_next(request)
+    except Exception:
+        response = Response(status_code=500)
+    
+    # Force CORS headers on ALL responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+    
+    return response
 
 # app.add_middleware(GZipMiddleware, minimum_size=1024)  # Temporarily disabled for CORS
 
