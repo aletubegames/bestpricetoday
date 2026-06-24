@@ -82,12 +82,12 @@ class Settings(BaseSettings):
     # TikTok API
     TIKTOK_CLIENT_KEY: str = ""
     TIKTOK_CLIENT_SECRET: str = ""
-    TIKTOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/tiktok/callback"
+    TIKTOK_REDIRECT_URI: str = os.getenv("TIKTOK_REDIRECT_URI", "https://bestpricetoday.vercel.app/tiktok/callback")
 
     # YouTube
     YOUTUBE_CLIENT_ID: str = ""
     YOUTUBE_CLIENT_SECRET: str = ""
-    YOUTUBE_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/youtube"
+    YOUTUBE_REDIRECT_URI: str = os.getenv("YOUTUBE_REDIRECT_URI", "https://bestpricetoday.vercel.app/aletube/callback/youtube")
 
     # Instagram / Facebook
     INSTAGRAM_APP_ID: str = ""  # Legacy - use ID_APLICATIVO_INSTAGRAM
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     ID_APLICATIVO_FACEBOOK: str = ""
     FACEBOOK_APP_SECRET: str = ""  # Para validar signed requests do Data Deletion Callback
     FACEBOOK_PAGE_ACCESS_TOKEN: str = ""
-    FACEBOOK_REDIRECT_URI: str = "https://aletubegames.github.io/bpverify/callback/facebook"
+    FACEBOOK_REDIRECT_URI: str = os.getenv("FACEBOOK_REDIRECT_URI", "https://bestpricetoday.vercel.app/aletube/callback/facebook")
 
     # Claude API (para análise de vídeo) — direto, opcional
     ANTHROPIC_API_KEY: str = ""

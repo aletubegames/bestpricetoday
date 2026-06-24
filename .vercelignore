@@ -1,0 +1,6 @@
+backend/
+hf_space/
+.env
+*.db
+__pycache__/
+*.pyc

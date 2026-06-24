@@ -46,7 +46,7 @@ VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "./videos")  # ✅ Usar ./vide
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
 # Get INTERNAL_API_URL for serving videos publicly
-INTERNAL_API_URL = os.environ.get("INTERNAL_API_URL", "http://localhost:8000")
+INTERNAL_API_URL = os.environ.get("INTERNAL_API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
 
 
 def _generate_code(length: int = 8) -> str:

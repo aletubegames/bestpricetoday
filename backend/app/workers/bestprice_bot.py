@@ -116,7 +116,7 @@ async def cmd_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = []
         found = 0
         import httpx
-        API_URL = os.getenv("API_URL", "https://alessandro2090-bestpricetoday-api.hf.space")
+        API_URL = os.getenv("API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
         PROVIDER_EMOJI = {
             "mercadolivre": "🟡", "amazon": "📦", "shopee": "🟠",
             "kabum": "🟢", "aliexpress": "🔴", "lomadee": "🟣", "awin": "🔵",

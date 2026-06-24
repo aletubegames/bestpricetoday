@@ -42,7 +42,7 @@ LINKS = [
     ("S5L99N-YHT3",  "https://meli.la/2PDYyF6"),
 ]
 
-API = os.environ.get("BPT_API_URL", "https://alessandro2090-bestpricetoday-api.hf.space")
+API = os.environ.get("BPT_API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
 ADMIN_KEY = os.environ.get("BPT_ADMIN_KEY", "754210!As@")
 
 async def main():

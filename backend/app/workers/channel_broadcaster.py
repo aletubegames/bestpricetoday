@@ -24,7 +24,7 @@ from pathlib import Path
 
 BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "")
-API_URL    = os.getenv("API_URL", "https://alessandro2090-bestpricetoday-api.hf.space")
+API_URL    = os.getenv("API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
 ADMIN_KEY  = os.getenv("ADMIN_MANAGER_KEY", "")
 
 # Arquivo local de deduplicação (persiste entre restarts do worker)

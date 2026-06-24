@@ -13,7 +13,7 @@ function FacebookCallbackContent() {
 
     if (code) {
       // Enviar o código para o backend processar
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://alessandro2090-bestpricetoday-api.hf.space'}/api/v1/aletube/callback/facebook?code=${code}&state=${state}`)
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://sacrament-subduing-confined.ngrok-free.dev'}/api/v1/aletube/callback/facebook?code=${code}&state=${state}`)
         .then(res => res.json())
         .then(data => {
           console.log('Facebook callback success:', data);

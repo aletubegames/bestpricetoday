@@ -749,7 +749,7 @@ async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     ML sends header: x-signature: ts=<timestamp>,v1=<hmac>
     HMAC = SHA256(secret, "ts:<timestamp>\nv1:<body_hash>")
 
-    Register URL: https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre
+    Register URL: https://sacrament-subduing-confined.ngrok-free.dev/api/v1/admin/webhooks/mercadolivre
     """
     body = await request.body()
 
@@ -901,7 +901,7 @@ async def get_integration_status(
     return {
         "mercadolivre": {
             **ml_status,
-            "note": "Register webhook at: https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre"
+            "note": "Register webhook at: https://sacrament-subduing-confined.ngrok-free.dev/api/v1/admin/webhooks/mercadolivre"
         },
         "aliexpress": {
             "status": "active" if settings.ALIEXPRESS_APP_KEY and settings.ALIEXPRESS_APP_SECRET else "not_configured",
