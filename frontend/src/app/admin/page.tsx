@@ -265,7 +265,10 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   }, [suggestions]);
 
   const togglePlat = (id: string) =>
-    setSelectedPlats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+    setSelectedPlats(p => {
+      const current = p || [];
+      return current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+    });
 
   const stopPoll = () => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
@@ -1252,7 +1255,7 @@ export default function AdminPage() {
                   </div>
                 );
               })()}
-              {hasIntegrationStatus && getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
+              {hasIntegrationStatus && (getIntegrations(integrationStatus) || []).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
                 <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8 }}>
                   <span style={{ fontSize: 12 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 12, color: int.color }}>{int.status} {int.statusText}</span>
@@ -1319,7 +1322,7 @@ export default function AdminPage() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 320 }}>
                         <thead><tr>{["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                         <tbody>
-                          {recentClicks.filter(c => c.product_title === p.product_title).slice(0, 5).map((c, ci) => (
+                          {(recentClicks || []).filter(c => c.product_title === p.product_title).slice(0, 5).map((c, ci) => (
                             <tr key={ci}><td style={S.td}>{fmtTime(c.clicked_at)}</td><td style={S.td}>{c.source}</td><td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td><td style={S.td}>{c.ip_address || "–"}</td></tr>
                           ))}
                         </tbody>

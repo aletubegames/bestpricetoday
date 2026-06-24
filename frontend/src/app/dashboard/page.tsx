@@ -75,8 +75,8 @@ export default function DashboardPage() {
     </div>
   )
 
-  const activeAlerts    = alerts.filter(a => a.is_active)
-  const triggeredAlerts = alerts.filter(a => !a.is_active && a.triggered_at)
+  const activeAlerts    = (alerts || []).filter(a => a.is_active)
+  const triggeredAlerts = (alerts || []).filter(a => !a.is_active && a.triggered_at)
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>

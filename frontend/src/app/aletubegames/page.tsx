@@ -364,7 +364,7 @@ export default function AleTubeGamesPage() {
     try {
       const form = new FormData();
       form.append("video_id", analyzeResult.video_id);
-      const plats = (Object.keys(selectedPlatforms) as PlatformKey[]).filter(p => selectedPlatforms[p]);
+      const plats = (Object.keys(selectedPlatforms || {}) as PlatformKey[]).filter(p => selectedPlatforms?.[p]);
       form.append("plataformas", plats.join(","));
       if (affiliateUrl) form.append("affiliate_url", affiliateUrl);
 
@@ -376,7 +376,7 @@ export default function AleTubeGamesPage() {
           caption: m.caption ?? m.description ?? "",
           hashtags: typeof m.hashtags === "string"
             ? (m.hashtags as string).split(",").map((h: string) => h.trim()).filter(Boolean)
-            : m.hashtags ?? [],
+            : (m.hashtags || []),
         });
       };
 

@@ -112,7 +112,7 @@ const STATUS_META: Record<ProviderStatus["status"], { label: string; color: stri
 const HIDDEN_STATUSES = new Set(["blocked", "not_configured", "error"]);
 
 function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
-  const visible = statuses.filter(s => (s.returned_count ?? 0) > 0);
+  const visible = (statuses || []).filter(s => (s.returned_count ?? 0) > 0);
   if (!visible.length) return null;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
@@ -204,11 +204,12 @@ export default function HomePage() {
 
   const handleCompare = (offer: Offer) => {
     setCompareList(prev => {
-      if (prev.find(o => o.affiliate_url === offer.affiliate_url)) {
-        return prev.filter(o => o.affiliate_url !== offer.affiliate_url);
+      const current = prev || [];
+      if (current.find(o => o.affiliate_url === offer.affiliate_url)) {
+        return current.filter(o => o.affiliate_url !== offer.affiliate_url);
       }
-      if (prev.length >= 3) return prev;
-      return [...prev, offer];
+      if (current.length >= 3) return current;
+      return [...current, offer];
     });
   };
 

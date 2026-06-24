@@ -288,13 +288,14 @@ function ProductsTab({ token }: { token: string }) {
 
   // Filter + Pagination
   const filtered = (() => {
+    const productsArr = products || [];
     let arr = search.trim()
-      ? products.filter(p =>
+      ? productsArr.filter(p =>
           (p.title || "").toLowerCase().includes(search.toLowerCase()) ||
           (p.ml_code || "").toLowerCase().includes(search.toLowerCase()) ||
           (p.category || "").toLowerCase().includes(search.toLowerCase())
         )
-      : [...products]
+      : [...productsArr]
 
     if (sortKey) {
       arr.sort((a, b) => {
@@ -835,7 +836,7 @@ function ShortLinksTab({ token }: { token: string }) {
   }, [])
 
   const filteredProducts = search.trim()
-    ? products.filter(p =>
+    ? (products || []).filter(p =>
         (p.title || "").toLowerCase().includes(search.toLowerCase()) ||
         (p.ml_code || "").toLowerCase().includes(search.toLowerCase()) ||
         (p.category || "").toLowerCase().includes(search.toLowerCase())

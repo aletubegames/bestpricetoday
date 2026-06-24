@@ -128,7 +128,7 @@ export default function AlertasPage() {
 
   const remove = async (id: string) => {
     // Optimistic update
-    setAlerts(prev => prev.filter(a => a.id !== id));
+    setAlerts(prev => (prev || []).filter(a => a.id !== id));
     try {
       await fetch(`${API}/api/v1/alerts/${id}?owner_id=${encodeURIComponent(anonId)}`, { method: "DELETE" });
     } catch {
