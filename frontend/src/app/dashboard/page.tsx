@@ -60,7 +60,7 @@ export default function DashboardPage() {
     await fetch(`${API}/api/v1/alerts/${id}?owner_id=${user.id}`, {
       method: "DELETE", headers: { Authorization: `Bearer ${token ?? ""}` },
     })
-    setAlerts(prev => prev.filter(a => a.id !== id))
+    setAlerts(prev => (prev || []).filter(a => a.id !== id))
   }
 
   const logout = () => {
