@@ -110,6 +110,9 @@ class Settings(BaseSettings):
     VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
     VIDEO_API_KEY: str = ""
 
+    # URL interna usada por workers para se comunicar com a própria API
+    INTERNAL_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
+
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 5
 
