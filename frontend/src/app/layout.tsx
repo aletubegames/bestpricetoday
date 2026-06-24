@@ -97,7 +97,6 @@ export default function RootLayout({
       </head>
       <body className={dmSans.className}>
         <Providers>{children}</Providers>
-        <ServiceWorkerRegistration />
       </body>
     </html>
   );
