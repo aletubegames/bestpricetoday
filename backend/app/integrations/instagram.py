@@ -13,12 +13,9 @@ FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
 GRAPH_API    = "https://graph.facebook.com/v19.0"
 
 # Escopos necessários para publicar no Instagram + Facebook
+# Escopos reduzidos para evitar erros de aprovação em modo desenvolvimento
 FB_SCOPES = ",".join([
-    "pages_manage_posts",
-    "pages_read_engagement",
-    "instagram_basic",
-    "instagram_content_publish",
-    "instagram_manage_insights",
+    "pages_show_list",
     "public_profile",
 ])
 
@@ -26,8 +23,8 @@ FB_SCOPES = ",".join([
 class InstagramFacebookClient:
     def __init__(self):
         # Facebook OAuth usa ID_APLICATIVO_FACEBOOK como client_id
-        self.app_id       = settings.ID_APLICATIVO_FACEBOOK or settings.INSTAGRAM_APP_ID
-        self.app_secret   = settings.FACEBOOK_APP_SECRET or settings.SECRET_KEY_INSTAGRAM_APP or settings.INSTAGRAM_APP_SECRET
+        self.app_id       = settings.ID_APLICATIVO_FACEBOOK or settings.ID_APLICATIVO_INSTAGRAM
+        self.app_secret   = settings.FACEBOOK_APP_SECRET or settings.SECRET_KEY_INSTAGRAM_APP
         self.redirect_uri = settings.FACEBOOK_REDIRECT_URI
 
     def get_auth_url(self, state: str) -> str:
