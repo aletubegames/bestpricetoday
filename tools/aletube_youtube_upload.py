@@ -2,7 +2,6 @@
 """
 aletube_youtube_upload.py — upload local de vídeos para o YouTube.
 
-Para vídeos grandes (>100MB) que não passam pelo ingress do HF Space free.
 Sobe directamente da tua máquina via YouTube Data API v3 (resumable upload),
 e regista o resultado no backend AleTubeGames para aparecer no dashboard.
 
@@ -14,7 +13,7 @@ Uso:
       --privacy public
 
 Setup (uma vez):
-  export ALETUBE_API_URL="https://aletubegames-bestpricetoday-api.hf.space"
+  export ALETUBE_API_URL="https://sacrament-subduing-confined.ngrok-free.dev"
   export ALETUBE_ADMIN_KEY="<X-Admin-Key>"
 
 Requer: Python 3.9+, httpx (já no requirements do projecto).
