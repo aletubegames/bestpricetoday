@@ -81,7 +81,7 @@ class MercadoLivreProvider(BaseProvider):
             # 1. Busca catalogo
             r = await client.get(
                 "https://api.mercadolibre.com/products/search",
-                params={"site_id": "MLB", "q": query, "limit": min(limit, 8)},
+                params={"site_id": "MLB", "q": query, "limit": 20},
                 headers={"Authorization": f"Bearer {token}"},
             )
             if r.status_code != 200:
@@ -151,7 +151,7 @@ class MercadoLivreProvider(BaseProvider):
                     logger.warning(f"ML item fetch failed for {pid}: {e}")
                     return None
 
-            tasks = [fetch_item(p) for p in products[:8]]
+            tasks = [fetch_item(p) for p in products[:20]]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             offers = [o for o in results if isinstance(o, OfferSchema)]
 
