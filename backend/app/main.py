@@ -73,6 +73,14 @@ app = FastAPI(
 # Custom CORS middleware - ensures headers on ALL responses including errors
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
+    # Handle OPTIONS preflight requests - return 200 OK immediately
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+    
     try:
         response = await call_next(request)
     except Exception:
