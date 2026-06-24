@@ -28,3 +28,19 @@ export function apiFetch(url: string, options: RequestInit = {}): Promise<Respon
   headers.set("ngrok-skip-browser-warning", "true");
   return fetch(url, { ...options, headers });
 }
+
+// Safety net: interceptar fetch() global no browser para garantir que o header
+// ngrok-skip-browser-warning esteja presente em todas as requisições ao backend.
+// Isso cobre bibliotecas de terceiros, chamadas esquecidas e cache de deploys antigos.
+if (typeof window !== "undefined" && typeof window.fetch !== "undefined") {
+  const originalFetch = window.fetch;
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("ngrok-free.dev") || url.includes("sacrament-subduing-confined")) {
+      const headers = new Headers(init?.headers);
+      headers.set("ngrok-skip-browser-warning", "true");
+      init = { ...init, headers };
+    }
+    return originalFetch(input, init);
+  };
+}
