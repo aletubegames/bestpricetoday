@@ -1,15 +1,21 @@
-"""Mercado Livre Provider — busca na tabela local affiliate_products.
+"""Mercado Livre Provider — busca via API oficial do Mercado Livre.
 
 Fluxo:
-  query → tokeniza → ILIKE em title/category/notes → score por relevância → OfferSchema
-Sem chamada externa. Todos os links são afiliados reais do proprietário.
+  1. Busca produtos no catalogo: /products/search?site_id=MLB&q=...
+  2. Para cada produto, busca o item mais barato: /products/{id}/items?limit=1
+  3. Mapeia para OfferSchema
+
+Se o token ML nao estiver disponivel ou a API falhar, cai no fallback
+local da tabela affiliate_products.
 """
 import re
 import unicodedata
-from typing import List
+from typing import List, Optional
+import httpx
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
+from app.core.logging import logger
 
 _STOPWORDS = {"de", "da", "do", "para", "com", "em", "e", "o", "a", "os", "as", "um", "uma"}
 
@@ -26,7 +32,7 @@ def _tokenize(query: str) -> list[str]:
 
 
 def _score(title: str, tokens: list[str]) -> float:
-    """Proporção de tokens da query presentes no título normalizado."""
+    """Proporcao de tokens da query presentes no titulo normalizado."""
     if not tokens:
         return 1.0
     norm = _normalize(title)
@@ -42,19 +48,146 @@ class MercadoLivreProvider(BaseProvider):
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
         if not settings.MERCADOLIVRE_APP_ID:
-            self.set_status(ProviderSearchState.not_configured, message="ML não configurado.")
+            return await self._local_fallback(query, limit)
+
+        try:
+            token = await self._get_token()
+            if not token:
+                logger.warning("ML token nao disponivel; usando fallback local.")
+                return await self._local_fallback(query, limit)
+
+            offers = await self._search_api(query, limit, token)
+            if offers:
+                return offers
+
+            # API retornou vazio — tenta fallback local
+            return await self._local_fallback(query, limit)
+        except Exception as e:
+            logger.error(f"MercadoLivre API error: {e}")
+            return await self._local_fallback(query, limit)
+
+    async def _get_token(self) -> Optional[str]:
+        from app.db.session import AsyncSessionLocal
+        from app.services.ml_token_service import get_token
+        try:
+            async with AsyncSessionLocal() as db:
+                return await get_token(db)
+        except Exception:
+            return None
+
+    async def _search_api(self, query: str, limit: int, token: str) -> List[OfferSchema]:
+        async with httpx.AsyncClient(timeout=20) as client:
+            # 1. Busca catalogo
+            r = await client.get(
+                "https://api.mercadolibre.com/products/search",
+                params={"site_id": "MLB", "q": query, "limit": limit},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if r.status_code != 200:
+                self.set_status(
+                    ProviderSearchState.error,
+                    message=f"ML products/search falhou: HTTP {r.status_code}",
+                )
+                return []
+
+            products = r.json().get("results", [])
+            if not products:
+                self.set_status(
+                    ProviderSearchState.no_results,
+                    message="ML nao retornou produtos para esta busca.",
+                )
+                return []
+
+            tokens = _tokenize(query)
+            offers: List[OfferSchema] = []
+
+            # 2. Para cada produto, busca o item com melhor preco
+            for prod in products:
+                pid = prod.get("id") or prod.get("catalog_product_id")
+                if not pid:
+                    continue
+
+                try:
+                    r2 = await client.get(
+                        f"https://api.mercadolibre.com/products/{pid}/items",
+                        params={"limit": 1, "sort": "price_asc"},
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    if r2.status_code != 200:
+                        continue
+
+                    items = r2.json().get("results", [])
+                    if not items:
+                        continue
+
+                    item = items[0]
+                    price = item.get("price", 0)
+                    original_price = item.get("original_price") or price
+                    discount = 0.0
+                    if original_price and original_price > price:
+                        discount = round((original_price - price) / original_price * 100, 2)
+
+                    shipping = item.get("shipping", {})
+                    free_shipping = shipping.get("free_shipping", False)
+                    image_url = ""
+                    if item.get("thumbnail"):
+                        image_url = item["thumbnail"]
+                    elif item.get("pictures"):
+                        image_url = item["pictures"][0].get("url", "")
+                    elif prod.get("thumbnail"):
+                        image_url = prod["thumbnail"]
+
+                    title = item.get("title") or prod.get("name", "")
+                    score = _score(title, tokens)
+
+                    offers.append(OfferSchema(
+                        provider=ProviderEnum.mercadolivre,
+                        title=title,
+                        price=price,
+                        original_price=original_price,
+                        discount_percent=discount,
+                        shipping_free=free_shipping,
+                        shipping_price=0.0,
+                        final_price=price,
+                        score=round(score, 4),
+                        product_id=pid,
+                        product_url=item.get("permalink") or prod.get("permalink", ""),
+                        affiliate_url=item.get("permalink") or prod.get("permalink", ""),
+                        image_url=image_url,
+                        economy=round((original_price or price) - price, 2),
+                    ))
+
+                    if len(offers) >= limit:
+                        break
+                except Exception as e:
+                    logger.warning(f"ML item fetch failed for {pid}: {e}")
+                    continue
+
+        if not offers:
+            self.set_status(
+                ProviderSearchState.no_results,
+                message="ML encontrou produtos, mas nenhum item com preco disponivel.",
+            )
             return []
 
+        self.set_status(
+            ProviderSearchState.ok,
+            message=f"Mercado Livre: {len(offers)} oferta(s) do catalogo.",
+            returned_count=len(offers),
+        )
+        return offers
+
+    async def _local_fallback(self, query: str, limit: int) -> List[OfferSchema]:
+        """Busca na tabela affiliate_products quando a API nao esta disponivel."""
         try:
             from app.db.session import AsyncSessionLocal
             from app.models.models import AffiliateProduct
-            from sqlalchemy import select, or_, and_, func
+            from sqlalchemy import select, or_, func
 
-            tokens  = _tokenize(query)
+            tokens = _tokenize(query)
             q_lower = f"%{_normalize(query)}%"
 
             async with AsyncSessionLocal() as db:
-                # Busca ampla: qualquer token presente em title/category/notes
                 if tokens:
                     token_filters = [
                         or_(
@@ -64,7 +197,6 @@ class MercadoLivreProvider(BaseProvider):
                         )
                         for t in tokens
                     ]
-                    # OR entre tokens (inclusivo) para não retornar vazio
                     where_clause = or_(*token_filters)
                 else:
                     where_clause = func.lower(AffiliateProduct.title).like(q_lower)
@@ -76,17 +208,18 @@ class MercadoLivreProvider(BaseProvider):
                         AffiliateProduct.title != None,
                         where_clause,
                     )
-                    .limit(limit * 3)  # busca mais, filtra por score depois
+                    .limit(limit * 3)
                 )
-                result   = await db.execute(stmt)
+                result = await db.execute(stmt)
                 products = result.scalars().all()
 
             if not products:
-                self.set_status(ProviderSearchState.no_results,
-                                message="Nenhum produto afiliado ML para esta busca.")
+                self.set_status(
+                    ProviderSearchState.no_results,
+                    message="Nenhum produto afiliado ML para esta busca.",
+                )
                 return []
 
-            # Calcular score e ordenar
             scored = sorted(
                 products,
                 key=lambda p: _score(p.title or "", tokens),
@@ -96,7 +229,7 @@ class MercadoLivreProvider(BaseProvider):
             offers = []
             for p in scored:
                 price = p.price or 0.01
-                s     = _score(p.title or "", tokens)
+                s = _score(p.title or "", tokens)
                 offers.append(OfferSchema(
                     provider=ProviderEnum.mercadolivre,
                     title=p.title or p.ml_code or "",
@@ -116,11 +249,11 @@ class MercadoLivreProvider(BaseProvider):
 
             self.set_status(
                 ProviderSearchState.ok,
-                message=f"Mercado Livre: {len(offers)} produto(s) afiliado(s).",
+                message=f"Mercado Livre: {len(offers)} produto(s) afiliado(s) local.",
                 returned_count=len(offers),
             )
             return offers
 
         except Exception as e:
-            self.set_status(ProviderSearchState.error, message=f"Mercado Livre falhou: {e}")
+            self.set_status(ProviderSearchState.error, message=f"Mercado Livre fallback falhou: {e}")
             return []
