@@ -70,6 +70,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_CORS_ALLOW_HEADERS = (
+    "Content-Type, Authorization, X-Requested-With, Accept, Origin, "
+    "X-Admin-Key, X-Api-Key, X-Auth-Token, ngrok-skip-browser-warning"
+)
+
 # Custom CORS middleware - FORCE headers on ALL responses
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
@@ -78,27 +83,28 @@ async def cors_middleware(request: Request, call_next):
         response = Response()
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+        response.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
+        response.headers["Access-Control-Max-Age"] = "86400"
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         return response
-    
+
     try:
         response = await call_next(request)
     except Exception:
         response = Response(status_code=500)
-    
+
     # Force CORS headers on ALL responses
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
-    
+    response.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
+
     # Disable cache completely
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    
+
     return response
 
 # app.add_middleware(GZipMiddleware, minimum_size=1024)  # Temporarily disabled for CORS
