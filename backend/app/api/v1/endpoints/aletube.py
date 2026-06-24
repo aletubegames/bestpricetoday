@@ -426,6 +426,63 @@ async def auth_facebook():
     return {"auth_url": auth_url, "state": state}
 
 
+@router.get("/test/facebook-credentials")
+async def test_facebook_credentials():
+    """Testa se as credenciais Facebook estão corretas"""
+    try:
+        import httpx
+        from app.core.config import settings
+        
+        log.info("Testando credenciais Facebook...")
+        log.info(f"App ID: {settings.ID_APLICATIVO_FACEBOOK}")
+        log.info(f"App Secret: {settings.FACEBOOK_APP_SECRET[:10]}..." if settings.FACEBOOK_APP_SECRET else "Secret não configurado")
+        
+        # Teste simples: tentar chamar a API com as credenciais
+        params = {
+            "client_id": settings.ID_APLICATIVO_FACEBOOK,
+            "client_secret": settings.FACEBOOK_APP_SECRET,
+            "grant_type": "client_credentials"
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get("https://graph.facebook.com/v19.0/oauth/access_token", params=params)
+            log.info(f"Credentials test status: {r.status_code}")
+            log.info(f"Response: {r.text[:200]}")
+            
+            if r.status_code == 200:
+                return {"status": "success", "credentials_valid": True, "response": r.json()}
+            else:
+                return {"status": "error", "credentials_valid": False, "error": r.text[:200]}
+                
+    except Exception as e:
+        log.error(f"Erro ao testar credenciais: {str(e)}")
+        return {"status": "error", "credentials_valid": False, "error": str(e)}
+
+
+@router.get("/test/facebook-connectivity")
+async def test_facebook_connectivity():
+    """Testa conectividade com a API do Facebook"""
+    try:
+        import httpx
+        log.info("Testando conectividade com Facebook API...")
+        
+        # Teste simples: fazer uma requisição para a API do Facebook
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Testar se consegue conectar com graph.facebook.com
+            r = await client.get("https://graph.facebook.com/v19.0", timeout=10.0)
+            log.info(f"Facebook connectivity test status: {r.status_code}")
+            return {"status": "success", "facebook_api_reachable": True, "status_code": r.status_code}
+    except httpx.TimeoutException:
+        log.error("Timeout ao tentar conectar com Facebook API")
+        return {"status": "error", "facebook_api_reachable": False, "error": "Timeout"}
+    except httpx.NetworkError as e:
+        log.error(f"Erro de rede ao conectar com Facebook API: {str(e)}")
+        return {"status": "error", "facebook_api_reachable": False, "error": f"Network error: {str(e)}"}
+    except Exception as e:
+        log.error(f"Erro ao testar conectividade: {str(e)}")
+        return {"status": "error", "facebook_api_reachable": False, "error": str(e)}
+
+
 @router.get("/callback/facebook")
 async def callback_facebook(
     code:  str,
@@ -433,65 +490,101 @@ async def callback_facebook(
     db:    AsyncSession  = Depends(get_db),
 ):
     try:
-        token_data   = await ig_fb_client.get_access_token(code)
-        short_token  = token_data["access_token"]
-        long_data    = await ig_fb_client.get_long_lived_token(short_token)
-        access_token = long_data.get("access_token", short_token)
-        expires_in   = long_data.get("expires_in", 5184000)  # 60 days default
-        expires_at   = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        log.info(f"Facebook callback recebido: code={code[:20] if code else 'None'}..., state={state}")
+        
+        if not code:
+            log.error("Código OAuth não recebido")
+            raise HTTPException(status_code=400, detail="Código OAuth não recebido")
+        
+        # Tentar obter token do Facebook
+        try:
+            token_data = await ig_fb_client.get_access_token(code)
+            log.info(f"Token obtido com sucesso: {list(token_data.keys())}")
+            return {"status": "success", "message": "Token obtido com sucesso", "data": token_data}
+        except Exception as token_error:
+            import traceback
+            error_trace = traceback.format_exc()
+            log.error(f"Erro ao obter token: {str(token_error)}")
+            log.error(f"Traceback: {error_trace}")
+            return {"status": "error", "message": f"Erro ao obter token: {str(token_error)}", "trace": error_trace[:500]}
 
-        # Páginas
-        pages = await ig_fb_client.get_pages(access_token)
-        for page in pages:
-            page_id    = page["id"]
-            page_token = page.get("access_token", access_token)
+        # Páginas - com tratamento de erro para escopos limitados
+        try:
+            pages = await ig_fb_client.get_pages(access_token)
+            for page in pages:
+                page_id    = page["id"]
+                page_token = page.get("access_token", access_token)
 
-            # Salvar/atualizar Facebook page
-            existing_fb = (await db.execute(
-                select(FacebookAccount).where(FacebookAccount.page_id == page_id)
-            )).scalar()
-            if existing_fb:
-                existing_fb.access_token = page_token
-                existing_fb.page_name    = page.get("name")
-                existing_fb.avatar_url   = page.get("picture", {}).get("data", {}).get("url")
-                existing_fb.token_expires_at = expires_at
-                existing_fb.is_active    = True
-            else:
-                db.add(FacebookAccount(
-                    page_id      = page_id,
-                    page_name    = page.get("name"),
-                    page_url     = f"https://facebook.com/{page_id}",
-                    avatar_url   = page.get("picture", {}).get("data", {}).get("url"),
-                    access_token = page_token,
-                    token_expires_at = expires_at,
-                ))
-
-            # Instagram vinculado à página
-            ig_info = await ig_fb_client.get_instagram_account(page_id, page_token)
-            if ig_info:
-                existing_ig = (await db.execute(
-                    select(InstagramAccount).where(InstagramAccount.instagram_id == ig_info["id"])
+                # Salvar/atualizar Facebook page
+                existing_fb = (await db.execute(
+                    select(FacebookAccount).where(FacebookAccount.page_id == page_id)
                 )).scalar()
-                if existing_ig:
-                    existing_ig.access_token     = page_token
-                    existing_ig.username         = ig_info.get("username")
-                    existing_ig.display_name     = ig_info.get("name")
-                    existing_ig.avatar_url       = ig_info.get("profile_picture_url")
-                    existing_ig.token_expires_at = expires_at
-                    existing_ig.is_active        = True
+                if existing_fb:
+                    existing_fb.access_token = page_token
+                    existing_fb.page_name    = page.get("name")
+                    existing_fb.avatar_url   = page.get("picture", {}).get("data", {}).get("url")
+                    existing_fb.token_expires_at = expires_at
+                    existing_fb.is_active    = True
                 else:
-                    db.add(InstagramAccount(
-                        instagram_id  = ig_info["id"],
-                        username      = ig_info.get("username"),
-                        display_name  = ig_info.get("name"),
-                        avatar_url    = ig_info.get("profile_picture_url"),
-                        access_token  = page_token,
+                    db.add(FacebookAccount(
+                        page_id      = page_id,
+                        page_name    = page.get("name"),
+                        page_url     = f"https://facebook.com/{page_id}",
+                        avatar_url   = page.get("picture", {}).get("data", {}).get("url"),
+                        access_token = page_token,
                         token_expires_at = expires_at,
                     ))
 
-        await db.commit()
-        return {"status": "success", "pages_connected": len(pages)}
+                # Instagram vinculado à página
+                try:
+                    ig_info = await ig_fb_client.get_instagram_account(page_id, page_token)
+                    if ig_info:
+                        existing_ig = (await db.execute(
+                            select(InstagramAccount).where(InstagramAccount.instagram_id == ig_info["id"])
+                        )).scalar()
+                        if existing_ig:
+                            existing_ig.access_token     = page_token
+                            existing_ig.username         = ig_info.get("username")
+                            existing_ig.display_name     = ig_info.get("name")
+                            existing_ig.avatar_url       = ig_info.get("profile_picture_url")
+                            existing_ig.token_expires_at = expires_at
+                            existing_ig.is_active        = True
+                        else:
+                            db.add(InstagramAccount(
+                                instagram_id  = ig_info["id"],
+                                username      = ig_info.get("username"),
+                                display_name  = ig_info.get("name"),
+                                avatar_url    = ig_info.get("profile_picture_url"),
+                                access_token  = page_token,
+                                token_expires_at = expires_at,
+                            ))
+                except Exception as ig_error:
+                    log.warning(f"Não foi possível buscar conta Instagram: {ig_error}")
+
+            await db.commit()
+            return {"status": "success", "pages_connected": len(pages)}
+        except Exception as pages_error:
+            log.warning(f"Não foi possível buscar páginas Facebook (escopos limitados): {pages_error}")
+            # Salvar pelo menos o token básico para mostrar como conectado
+            existing_fb = (await db.execute(
+                select(FacebookAccount).where(FacebookAccount.page_id == "user_token")
+            )).scalar()
+            if existing_fb:
+                existing_fb.access_token = access_token
+                existing_fb.token_expires_at = expires_at
+                existing_fb.is_active = True
+            else:
+                db.add(FacebookAccount(
+                    page_id      = "user_token",
+                    page_name    = "Facebook User",
+                    page_url     = "https://facebook.com",
+                    access_token = access_token,
+                    token_expires_at = expires_at,
+                ))
+            await db.commit()
+            return {"status": "success", "pages_connected": 0, "note": "Conexão básica estabelecida (escopos limitados)"}
     except Exception as e:
+        log.error(f"Erro OAuth Facebook: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Erro OAuth Facebook: {str(e)}")
 
 

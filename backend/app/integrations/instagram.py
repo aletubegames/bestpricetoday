@@ -7,13 +7,14 @@ import httpx
 import urllib.parse
 from typing import Dict, Any, Optional
 from app.core.config import settings
+from app.core.logging import logger as log
 
 FB_AUTH_URL  = "https://www.facebook.com/v19.0/dialog/oauth"
 FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
 GRAPH_API    = "https://graph.facebook.com/v19.0"
 
 # Escopos necessários para publicar no Instagram + Facebook
-# Escopos reduzidos para evitar erros de aprovação em modo desenvolvimento
+# Escopos básicos que funcionam em modo publicado sem aprovação adicional
 FB_SCOPES = ",".join([
     "pages_show_list",
     "public_profile",
@@ -38,15 +39,32 @@ class InstagramFacebookClient:
         return f"{FB_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
     async def get_access_token(self, code: str) -> Dict[str, Any]:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(FB_TOKEN_URL, params={
-                "client_id":     self.app_id,
-                "client_secret": self.app_secret,
-                "redirect_uri":  self.redirect_uri,
-                "code":          code,
-            })
-            r.raise_for_status()
-            return r.json()
+        try:
+            log.info(f"Tentando conectar com Facebook API...")
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.get(FB_TOKEN_URL, params={
+                    "client_id":     self.app_id,
+                    "client_secret": self.app_secret,
+                    "redirect_uri":  self.redirect_uri,
+                    "code":          code,
+                })
+                log.info(f"Facebook API status: {r.status_code}")
+                log.info(f"Facebook API response: {r.text[:200]}")
+                r.raise_for_status()
+                return r.json()
+        except httpx.HTTPStatusError as e:
+            log.error(f"HTTP Error: {e.response.status_code}")
+            log.error(f"Response: {e.response.text[:200]}")
+            raise Exception(f"Facebook API error {e.response.status_code}: {e.response.text[:100]}")
+        except httpx.TimeoutException as e:
+            log.error(f"Timeout error: {str(e)}")
+            raise Exception(f"Timeout ao conectar com Facebook API (60s)")
+        except httpx.NetworkError as e:
+            log.error(f"Network error: {str(e)}")
+            raise Exception(f"Erro de rede ao conectar com Facebook API: {str(e)}")
+        except Exception as e:
+            log.error(f"Erro na chamada Facebook API: {str(e)}")
+            raise
 
     async def get_long_lived_token(self, short_token: str) -> Dict[str, Any]:
         """Troca short-lived token por long-lived (60 dias)."""
