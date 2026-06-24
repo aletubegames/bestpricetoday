@@ -12,21 +12,36 @@ function FacebookCallbackContent() {
     const state = searchParams.get('state');
 
     if (code) {
-      // Enviar o código para o backend processar
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://sacrament-subduing-confined.ngrok-free.dev'}/api/v1/aletube/callback/facebook?code=${code}&state=${state}`)
-        .then(res => res.json())
+      const API = process.env.NEXT_PUBLIC_API_URL || 'https://sacrament-subduing-confined.ngrok-free.dev';
+      fetch(`${API}/api/v1/aletube/callback/facebook?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || '')}`)
+        .then(async res => {
+          if (!res.ok) {
+            const err = await res.json().catch(() => null) as { detail?: string } | null;
+            throw new Error(err?.detail || `HTTP ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
           console.log('Facebook callback success:', data);
-          // Redirecionar para a página aletubegames
-          router.push('/aletubegames');
+          if (window.opener) {
+            window.opener.postMessage({ type: 'FACEBOOK_AUTH_SUCCESS', data }, '*');
+            setTimeout(() => window.close(), 1500);
+          } else {
+            router.push('/aletubegames?connected=facebook');
+          }
         })
         .catch(error => {
           console.error('Facebook callback error:', error);
-          router.push('/aletubegames?error=facebook_callback_failed');
+          const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+          if (window.opener) {
+            window.opener.postMessage({ type: 'FACEBOOK_AUTH_ERROR', error: msg }, '*');
+          }
+          router.push(`/aletubegames?error=${encodeURIComponent(msg)}`);
         });
     } else {
-      console.error('No code in Facebook callback');
-      router.push('/aletubegames?error=no_code');
+      const errorParam = searchParams.get('error') || 'no_code';
+      console.error('No code in Facebook callback, error:', errorParam);
+      router.push(`/aletubegames?error=${encodeURIComponent(errorParam)}`);
     }
   }, [searchParams, router]);
 

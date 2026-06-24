@@ -491,22 +491,28 @@ async def callback_facebook(
 ):
     try:
         log.info(f"Facebook callback recebido: code={code[:20] if code else 'None'}..., state={state}")
-        
+
         if not code:
             log.error("Código OAuth não recebido")
             raise HTTPException(status_code=400, detail="Código OAuth não recebido")
-        
-        # Tentar obter token do Facebook
+
+        # Obter token do Facebook
+        token_data = await ig_fb_client.get_access_token(code)
+        log.info(f"Token obtido com sucesso: {list(token_data.keys())}")
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=400, detail="access_token não retornado pelo Facebook")
+
+        # Trocar por long-lived token (60 dias)
         try:
-            token_data = await ig_fb_client.get_access_token(code)
-            log.info(f"Token obtido com sucesso: {list(token_data.keys())}")
-            return {"status": "success", "message": "Token obtido com sucesso", "data": token_data}
-        except Exception as token_error:
-            import traceback
-            error_trace = traceback.format_exc()
-            log.error(f"Erro ao obter token: {str(token_error)}")
-            log.error(f"Traceback: {error_trace}")
-            return {"status": "error", "message": f"Erro ao obter token: {str(token_error)}", "trace": error_trace[:500]}
+            ll = await ig_fb_client.get_long_lived_token(access_token)
+            access_token = ll.get("access_token", access_token)
+            expires_in = ll.get("expires_in", 5184000)  # 60 dias default
+        except Exception as ll_err:
+            log.warning(f"Não foi possível trocar por long-lived token: {ll_err}")
+            expires_in = token_data.get("expires_in", 3600)
+
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
         # Páginas - com tratamento de erro para escopos limitados
         try:

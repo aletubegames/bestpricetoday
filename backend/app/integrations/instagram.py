@@ -14,10 +14,14 @@ FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
 GRAPH_API    = "https://graph.facebook.com/v19.0"
 
 # Escopos necessários para publicar no Instagram + Facebook
-# Escopos básicos que funcionam em modo publicado sem aprovação adicional
 FB_SCOPES = ",".join([
     "pages_show_list",
+    "pages_read_engagement",
+    "pages_manage_posts",
     "public_profile",
+    "instagram_basic",
+    "instagram_content_publish",
+    "business_management",
 ])
 
 
@@ -118,9 +122,10 @@ class InstagramFacebookClient:
         """
         Publica Reel no Instagram via Graph API.
         O vídeo deve estar em URL pública acessível.
-        Fluxo: create container → wait → publish
+        Fluxo: create container → poll status → publish
         """
-        async with httpx.AsyncClient(timeout=60) as client:
+        import asyncio
+        async with httpx.AsyncClient(timeout=120) as client:
             # Step 1: criar container
             r = await client.post(f"{GRAPH_API}/{ig_account_id}/media", params={
                 "media_type":   "REELS",
@@ -133,7 +138,25 @@ class InstagramFacebookClient:
             if not container_id:
                 raise Exception("Instagram não retornou container_id")
 
-            # Step 2: publish
+            # Step 2: polling até container estar FINISHED (máximo 90s)
+            for attempt in range(18):
+                await asyncio.sleep(5)
+                status_r = await client.get(f"{GRAPH_API}/{container_id}", params={
+                    "fields":       "status_code,status",
+                    "access_token": access_token,
+                })
+                status_r.raise_for_status()
+                status_data = status_r.json()
+                status_code = status_data.get("status_code", "")
+                log.info(f"Instagram container {container_id} status: {status_code} (attempt {attempt+1})")
+                if status_code == "FINISHED":
+                    break
+                if status_code in ("ERROR", "EXPIRED"):
+                    raise Exception(f"Instagram container falhou: {status_data.get('status', status_code)}")
+            else:
+                raise Exception("Instagram container não processou em 90s (timeout)")
+
+            # Step 3: publish
             r2 = await client.post(f"{GRAPH_API}/{ig_account_id}/media_publish", params={
                 "creation_id":  container_id,
                 "access_token": access_token,

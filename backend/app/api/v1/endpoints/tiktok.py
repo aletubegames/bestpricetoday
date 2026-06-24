@@ -133,13 +133,15 @@ async def tiktok_callback(
         await db.refresh(account)
 
         return {
-            "status":       "success",
-            "message":      "Conta TikTok conectada com sucesso!",
-            "account_type": account.account_type,
-            "display_name": account.display_name,
-            "avatar_url":   account.avatar_url,
-            "is_verified":  account.is_verified,
-            "scopes":       scopes,
+            "status":         "success",
+            "message":        "Conta TikTok conectada com sucesso!",
+            "account_type":   account.account_type,
+            "display_name":   account.display_name,
+            "avatar_url":     account.avatar_url,
+            "is_verified":    account.is_verified,
+            "scopes":         scopes,
+            "tiktok_open_id": account.tiktok_open_id,
+            "open_id":        account.tiktok_open_id,
         }
 
     except HTTPException:
