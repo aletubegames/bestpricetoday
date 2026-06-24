@@ -67,7 +67,10 @@ async def get_token(db: AsyncSession) -> Optional[str]:
         if not access_token or not refresh_token:
             return None
         # Check if still valid (with buffer)
-        if row.expires_at > datetime.now(timezone.utc) + timedelta(minutes=REFRESH_BUFFER_MINUTES):
+        expires_at = row.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at > datetime.now(timezone.utc) + timedelta(minutes=REFRESH_BUFFER_MINUTES):
             return access_token
         # Needs refresh
         logger.info("ML access_token near expiry, refreshing [token redacted]")
@@ -151,16 +154,23 @@ async def get_token_status(db: AsyncSession) -> dict:
         }
 
     now = datetime.now(timezone.utc)
-    expires_in_minutes = int((row.expires_at - now).total_seconds() / 60)
-    is_expired = row.expires_at <= now
-    needs_refresh = row.expires_at <= now + timedelta(minutes=REFRESH_BUFFER_MINUTES)
+    expires_at = row.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    updated_at = row.updated_at
+    if updated_at and updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+
+    expires_in_minutes = int((expires_at - now).total_seconds() / 60)
+    is_expired = expires_at <= now
+    needs_refresh = expires_at <= now + timedelta(minutes=REFRESH_BUFFER_MINUTES)
 
     return {
         "status": "expired" if is_expired else ("expiring_soon" if needs_refresh else "active"),
         "source": "database",
-        "expires_at": row.expires_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
         "expires_in_minutes": max(0, expires_in_minutes),
         "user_id": row.user_id,
-        "updated_at": row.updated_at.isoformat(),
+        "updated_at": updated_at.isoformat() if updated_at else None,
         "needs_reauth": is_expired and not _decrypt_token(row.refresh_token),
     }
