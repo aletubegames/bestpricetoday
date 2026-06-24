@@ -25,20 +25,20 @@
 ```
 /home/alessandro/bin/Git_Repo/BestPriceToday/   ← repo principal (master)
 ├── frontend/      ─→ Vercel (auto-deploy ao push em github)
-├── backend/       ─→ HF Space "aletubegames/bestpricetoday-api"  (push manual: git push hf master)
-└── hf_space/      ← repo INDEPENDENTE (main), espelho do backend, deploya em
-                     HF Space "alessandro2090/bestpricetoday-api"
+├── backend/       ─→ alaserver (ngrok: https://sacrament-subduing-confined.ngrok-free.dev)
+└── hf_space/      ← repo INDEPENDENTE (main), espelho do backend, DEPRECATED
+                     HF Space "alessandro2090/bestpricetoday-api" (CONTA BLOQUEADA)
                      ⚠ Auto-sincronizado do GitHub via GH Action (commits "AleBot — deploy: sync from GitHub <hash>")
 ```
 
 **Remotes do repo principal** (`git remote -v`):
 - `github` → `https://github.com/aletubegames/bestpricetoday.git`
-- `hf`     → `https://huggingface.co/spaces/aletubegames/bestpricetoday-api`
+- `hf`     → `https://huggingface.co/spaces/aletubegames/bestpricetoday-api` (DEPRECATED)
 
 **Remote do `hf_space/`** (subdir, repo separado):
-- `origin` → `https://huggingface.co/spaces/alessandro2090/bestpricetoday-api`
+- `origin` → `https://huggingface.co/spaces/alessandro2090/bestpricetoday-api` (DEPRECATED)
 
-> **Implicação chave:** mudanças em `backend/` precisam de push manual para `hf` (e o GH Action propaga até `hf_space/`). Mudanças feitas diretamente em `hf_space/` ficam **fora-de-sync** com `backend/` e podem ser sobrescritas pelo auto-sync. **Edita sempre `backend/`**, nunca `hf_space/` à mão.
+> **NOVA CONFIGURAÇÃO:** Backend rodando no alaserver (192.168.100.30) via ngrok. Facebook API funciona sem bloqueio. Banco de dados SQLite local. Hugging Face conta bloqueada - não usar mais.
 
 ---
 
@@ -65,11 +65,11 @@ vercel --prod --yes
 # 3) Verificar se deploy Vercel ficou Ready
 vercel ls bestpricetoday --yes | head -n 20
 
-# 4) Push para HF (backend)
-git push hf master
+# 4) Deploy backend no alaserver (manual)
+ssh alaserver "cd ~/backend && git pull && source venv/bin/activate && pkill -f uvicorn && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
 ```
 
-Se o passo 4 travar/pedir credencial, vai para a seção de diagnóstico abaixo.
+> **NOTA:** Hugging Face está DEPRECATED (conta bloqueada). Backend agora roda no alaserver via ngrok.
 
 ---
 
@@ -77,13 +77,14 @@ Se o passo 4 travar/pedir credencial, vai para a seção de diagnóstico abaixo.
 
 - `git push github master`:
   - Vercel do frontend costuma atualizar automaticamente.
-  - GH Action pode sincronizar `backend/` para o repo `hf_space/` (espelho `alessandro2090`).
-- `git push hf master`:
-  - Continua necessário para atualizar diretamente o Space `aletubegames/bestpricetoday-api`.
+  - GH Action pode sincronizar `backend/` para o repo `hf_space/` (DEPRECATED - conta bloqueada).
+- Backend alaserver:
+  - Deploy manual via SSH para alaserver (ngrok já configurado).
 
 Resumo prático:
 - Para frontend, evita repetir `vercel --prod --yes` em todo push.
-- Usa deploy manual da Vercel apenas quando o webhook falhar, conta estiver errada, ou precisares forçar um rebuild imediato.
+- Para backend, usa deploy manual SSH no alaserver.
+- Hugging Face não é mais usado (conta bloqueada).
 
 ---
 
@@ -105,13 +106,14 @@ vercel inspect bestpricetoday-aaswilel-9706s-projects.vercel.app
 # 3) Só se NÃO ficar Ready após alguns minutos, forçar manual
 vercel --prod --yes
 
-# 4) Backend no Space principal (obrigatório)
-git push hf master
+# 4) Backend no alaserver (obrigatório)
+ssh alaserver "cd ~/backend && git pull && source venv/bin/activate && pkill -f uvicorn && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
 ```
 
 Regra anti-loop:
 - Não executar `vercel --prod --yes` repetidamente enquanto já existe build em andamento.
 - Esperar status passar de `Building` para `Ready` antes de novo trigger.
+- Backend alaserver: verificar health check após deploy.
 
 ---
 
@@ -139,34 +141,31 @@ vercel --prod --yes
 vercel inspect <url-do-deploy>
 ```
 
-### B) HF não atualiza
+### B) alaserver não atualiza
 
-**1. Remote incorreto**
+**1. Conexão SSH**
 ```bash
-git remote -v | grep '^hf'
-git remote set-url hf https://aletubegames@huggingface.co/spaces/aletubegames/bestpricetoday-api
+ssh alaserver "cd ~/backend && git status"
 ```
 
-**2. Sem credencial salva para huggingface.co**
+**2. Backend não reinicia**
 ```bash
-git config --global credential.helper store
-# depois execute push e informe:
-# Username: aletubegames
-# Password: hf_xxx (token write)
-git push hf master
+ssh alaserver "pkill -f uvicorn"
+ssh alaserver "cd ~/backend && source venv/bin/activate && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
 ```
 
-**3. `git push hf master` trava sem erro claro**
+**3. Health check falha**
 ```bash
-timeout 25 git ls-remote hf -h refs/heads/master; echo EXIT:$?
+curl -s https://sacrament-subduing-confined.ngrok-free.dev/health
 ```
-- `EXIT:124` indica timeout (rede/proxy/firewall/VPN/canal TLS) ou prompt oculto de credencial.
 
-**4. Teste HTTP do Space retorna 401**
+**4. Ngrok não funciona**
 ```bash
-curl -I -m 15 https://huggingface.co/spaces/aletubegames/bestpricetoday-api
+ssh alaserver "ps aux | grep ngrok"
+ssh alaserver "nohup ngrok http 8000 --log=stdout > ngrok.log 2>&1 &"
 ```
-- `401 Invalid username or password` confirma problema de autenticação para o Space.
+
+> **NOTA:** Hugging Face está DEPRECATED (conta bloqueada). Não usar mais.
 
 ### C) Mudanças de `.env` "não sobem"
 
@@ -184,9 +183,9 @@ Se precisa dessas variáveis em produção:
 
 1. Primeiro confirme hash local vs GitHub.
 2. Depois force Vercel manualmente.
-3. Depois faça push HF.
-4. Se HF falhar: corrigir remote + credencial antes de qualquer outra coisa.
-5. Nunca debuggar código antes de validar conta/token/remotes.
+3. Depois faça deploy SSH no alaserver.
+4. Se alaserver falhar: verificar SSH, backend health, ngrok.
+5. Nunca debuggar código antes de validar conexão SSH/ngrok.
 
 ---
 
@@ -208,17 +207,17 @@ git commit -m "feat: descrição clara
 - ponto 1
 - ponto 2"
 
-# 3. Push GitHub (dispara Vercel + GH Action de sync para hf_space/)
+# 3. Push GitHub (dispara Vercel)
 git push                                      # equivale a: git push github master
 
-# 4. Push HF Space (backend → aletubegames/bestpricetoday-api)
-git push hf master
+# 4. Deploy backend no alaserver
+ssh alaserver "cd ~/backend && git pull && source venv/bin/activate && pkill -f uvicorn && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
 ```
 
 **Após push, esperar:**
 - Vercel: ~1–2 min para o build do frontend.
-- HF Space (`aletubegames`): ~2–5 min para rebuild.
-- HF Space (`alessandro2090`): aguarda o GH Action correr + push automático.
+- alaserver: ~30s para reiniciar backend.
+- Ngrok: já configurado e funcionando.
 
 ---
 

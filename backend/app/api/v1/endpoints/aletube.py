@@ -42,7 +42,7 @@ router = APIRouter(prefix="/aletube", tags=["aletube"])
 
 log = logging.getLogger("aletube")
 
-VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "/app/videos")  # ✅ Usar /app/videos (persistente no HF Space)
+VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "./videos")  # ✅ Usar ./videos local
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
 # Get INTERNAL_API_URL for serving videos publicly

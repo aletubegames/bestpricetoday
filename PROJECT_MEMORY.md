@@ -339,9 +339,9 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
 | Frontend      | https://bestpricetoday.vercel.app (Next.js 14, Vercel)                    |
-| Backend       | https://alessandro2090-bestpricetoday-api.hf.space (FastAPI, HuggingFace) |
-| Banco         | Neon PostgreSQL (free tier) — string no `.env`                            |
-| Cache         | Upstash Redis (free tier) — string no `.env`                              |
+| Backend       | https://sacrament-subduing-confined.ngrok-free.dev (FastAPI, alaserver)   |
+| Banco         | SQLite local (alaserver) — string no `.env`                               |
+| Cache         | Redis local (alaserver) — string no `.env`                                |
 | Repo          | https://github.com/aletubegames/bestpricetoday                            |
 
 ---
@@ -351,7 +351,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 - **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
 - **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
-- **Deploy backend:** workflow GitHub Actions sincroniza `backend/app/` → HF Space
+- **Deploy backend:** SSH manual para alaserver (ngrok já configurado)
 - **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
 - **Testes:** pytest + pytest-asyncio — **24 testes passando** (test_integrity.py:16 + test_api.py:8)
 
@@ -1032,9 +1032,9 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
 | Frontend      | https://bestpricetoday.vercel.app (Next.js 14, Vercel)                    |
-| Backend       | https://alessandro2090-bestpricetoday-api.hf.space (FastAPI, HuggingFace) |
-| Banco         | Neon PostgreSQL (free tier) — string no `.env`                            |
-| Cache         | Upstash Redis (free tier) — string no `.env`                              |
+| Backend       | https://sacrament-subduing-confined.ngrok-free.dev (FastAPI, alaserver)   |
+| Banco         | SQLite local (alaserver) — string no `.env`                               |
+| Cache         | Redis local (alaserver) — string no `.env`                                |
 | Repo          | https://github.com/aletubegames/bestpricetoday                            |
 
 ---
@@ -1044,7 +1044,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 - **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
 - **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
-- **Deploy backend:** workflow GitHub Actions sincroniza `backend/app/` → HF Space
+- **Deploy backend:** SSH manual para alaserver (ngrok já configurado)
 - **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
 - **Testes:** pytest + pytest-asyncio — 35+ testes passando
 

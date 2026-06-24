@@ -3,7 +3,7 @@
 Comparador de preços em tempo real com links afiliados rastreados, dashboard de monetização e geração de vídeos com IA.
 
 [![Deploy](https://img.shields.io/badge/frontend-vercel-black)](https://bestpricetoday.vercel.app)
-[![API](https://img.shields.io/badge/backend-huggingface-yellow)](https://alessandro2090-bestpricetoday-api.hf.space/docs)
+[![API](https://img.shields.io/badge/backend-alaserver-green)](https://sacrament-subduing-confined.ngrok-free.dev/docs)
 
 ---
 
@@ -22,7 +22,7 @@ BestPriceToday/
 │       ├── hooks/               # useSearch, useTrendingSearches
 │       └── lib/api.ts           # ← Fonte única de API_BASE
 │
-├── backend/                     # FastAPI + PostgreSQL — HuggingFace Space
+├── backend/                     # FastAPI + SQLite — alaserver (ngrok)
 │   ├── app/
 │   │   ├── api/v1/endpoints/
 │   │   │   ├── search.py        # Busca multi-provider + trending
@@ -43,14 +43,14 @@ BestPriceToday/
 │   │   │   └── conversion_cron.py    # Poll horário de conversões
 │   │   ├── models/models.py     # SQLAlchemy ORM
 │   │   └── core/config.py       # Variáveis de ambiente (pydantic-settings)
-│   ├── hf_deploy/               # Espelho HuggingFace (sync via sync_hf_deploy.sh)
+│   ├── hf_deploy/               # Espelho HuggingFace (DEPRECATED - conta bloqueada)
 │   ├── tests/
 │   │   ├── test_integrity.py    # 16 testes estruturais (sem endpoint fake, ownership, etc.)
 │   │   └── test_api.py          # 8 testes funcionais
 │   └── scripts/
 │       └── migration_owner_id.py # Migration owner_id (já aplicada em produção)
 └── .github/workflows/
-    └── deploy-hf.yml            # CI/CD: push em backend/ → deploy automático no HF Space
+    └── deploy-hf.yml            # CI/CD: DEPRECATED (Hugging Face conta bloqueada)
 ```
 
 ---
@@ -84,7 +84,7 @@ npm run dev
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DATABASE_URL` | ✅ | PostgreSQL async (ex: Neon) |
+| `DATABASE_URL` | ✅ | SQLite (alaserver) ou PostgreSQL async (ex: Neon) |
 | `ADMIN_MANAGER_KEY` | ✅ | Chave para endpoints `/admin` |
 | `ALIEXPRESS_APP_KEY` | Recomendado | Busca + rastreio AliExpress |
 | `ALIEXPRESS_APP_SECRET` | Recomendado | |

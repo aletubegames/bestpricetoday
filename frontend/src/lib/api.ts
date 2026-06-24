@@ -10,4 +10,4 @@
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://alessandro2090-bestpricetoday-api.hf.space";
+  "https://sacrament-subduing-confined.ngrok-free.dev";

@@ -267,7 +267,7 @@ Backend re-deployed with new code
 ### 5. Testar em Produção
 
 ```
-https://alessandro2090-bestpricetoday-api.hf.space/docs
+https://sacrament-subduing-confined.ngrok-free.dev/docs
   ↓
 GET /api/v1/aletube/auth/youtube (sem header admin)
   ↓

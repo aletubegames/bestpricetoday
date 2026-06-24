@@ -8,8 +8,8 @@ set -e
 
 cd "$(dirname "$0")/frontend"
 
-echo "🔨 Building para produção com API HF Space..."
-NEXT_PUBLIC_API_URL="https://alessandro2090-bestpricetoday-api.hf.space" \
+echo "🔨 Building para produção com API alaserver (ngrok)..."
+NEXT_PUBLIC_API_URL="https://sacrament-subduing-confined.ngrok-free.dev" \
   vercel build --prod
 
 echo "🚀 Deployando para Vercel..."

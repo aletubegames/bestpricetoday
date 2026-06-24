@@ -139,28 +139,29 @@ fix(aletube): remove require_admin from OAuth endpoints
 ✅ Commit cd3be77 visível em github.com/aletubegames/bestpricetoday
 ```
 
-### HF.space (Webhook)
+### alaserver (SSH Deploy)
 ```
-⏳ HF.space detecta push via webhook
-⏳ Rebuild backend (~1-2 minutos)
-⏳ Deploy automático em hf.space
+⏳ SSH para alaserver
+⏳ git pull backend
+⏳ Reiniciar uvicorn
+⏳ Ngrok já configurado
 ```
 
 **Como monitorar:**
-1. Acesse: https://huggingface.co/spaces/aletubegames/bestpricetoday-api
-2. Vá para aba "Activity" (logs de build)
-3. Aguarde mensagem: "Successfully built" ou "Deployment complete"
+1. SSH: `ssh alaserver "cd ~/backend && git status"`
+2. Verificar health: `curl https://sacrament-subduing-confined.ngrok-free.dev/health`
+3. Resultado esperado: `{"status": "ok"}`
 
 ---
 
 ## ✅ PRÓXIMOS PASSOS
 
-### 1. Aguardar HF.space Rebuild (⏳ ~2 min)
+### 1. Aguardar alaserver Deploy (⏳ ~30s)
 
 Monitor da API:
 ```bash
 # Verificar se a API respondeu
-curl https://alessandro2090-bestpricetoday-api.hf.space/health
+curl https://sacrament-subduing-confined.ngrok-free.dev/health
 
 # Resultado esperado:
 # {"status": "ok"}
