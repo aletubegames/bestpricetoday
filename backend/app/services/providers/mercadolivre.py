@@ -8,6 +8,7 @@ Fluxo:
 Se o token ML nao estiver disponivel ou a API falhar, cai no fallback
 local da tabela affiliate_products.
 """
+import asyncio
 import re
 import unicodedata
 from typing import List, Optional
@@ -80,7 +81,7 @@ class MercadoLivreProvider(BaseProvider):
             # 1. Busca catalogo
             r = await client.get(
                 "https://api.mercadolibre.com/products/search",
-                params={"site_id": "MLB", "q": query, "limit": limit},
+                params={"site_id": "MLB", "q": query, "limit": min(limit, 8)},
                 headers={"Authorization": f"Bearer {token}"},
             )
             if r.status_code != 200:
@@ -99,48 +100,38 @@ class MercadoLivreProvider(BaseProvider):
                 return []
 
             tokens = _tokenize(query)
-            offers: List[OfferSchema] = []
 
-            # 2. Para cada produto, busca o item com melhor preco
-            for prod in products:
+            # 2. Busca itens em paralelo (limita a 8 produtos para nao estourar tempo)
+            async def fetch_item(prod: dict) -> Optional[OfferSchema]:
                 pid = prod.get("id") or prod.get("catalog_product_id")
                 if not pid:
-                    continue
-
+                    return None
                 try:
                     r2 = await client.get(
                         f"https://api.mercadolibre.com/products/{pid}/items",
-                        params={"limit": 1, "sort": "price_asc"},
+                        params={"limit": 1},
                         headers={"Authorization": f"Bearer {token}"},
                     )
                     if r2.status_code != 200:
-                        continue
-
+                        return None
                     items = r2.json().get("results", [])
                     if not items:
-                        continue
-
+                        return None
                     item = items[0]
                     price = item.get("price", 0)
                     original_price = item.get("original_price") or price
                     discount = 0.0
                     if original_price and original_price > price:
                         discount = round((original_price - price) / original_price * 100, 2)
-
                     shipping = item.get("shipping", {})
                     free_shipping = shipping.get("free_shipping", False)
-                    image_url = ""
-                    if item.get("thumbnail"):
-                        image_url = item["thumbnail"]
-                    elif item.get("pictures"):
-                        image_url = item["pictures"][0].get("url", "")
-                    elif prod.get("thumbnail"):
-                        image_url = prod["thumbnail"]
-
+                    image_url = (
+                        item.get("thumbnail", "")
+                        or (item.get("pictures", [])[0].get("url", "") if item.get("pictures") else "")
+                        or prod.get("thumbnail", "")
+                    )
                     title = item.get("title") or prod.get("name", "")
-                    score = _score(title, tokens)
-
-                    offers.append(OfferSchema(
+                    return OfferSchema(
                         provider=ProviderEnum.mercadolivre,
                         title=title,
                         price=price,
@@ -149,19 +140,20 @@ class MercadoLivreProvider(BaseProvider):
                         shipping_free=free_shipping,
                         shipping_price=0.0,
                         final_price=price,
-                        score=round(score, 4),
+                        score=round(_score(title, tokens), 4),
                         product_id=pid,
                         product_url=item.get("permalink") or prod.get("permalink", ""),
                         affiliate_url=item.get("permalink") or prod.get("permalink", ""),
                         image_url=image_url,
                         economy=round((original_price or price) - price, 2),
-                    ))
-
-                    if len(offers) >= limit:
-                        break
+                    )
                 except Exception as e:
                     logger.warning(f"ML item fetch failed for {pid}: {e}")
-                    continue
+                    return None
+
+            tasks = [fetch_item(p) for p in products[:8]]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            offers = [o for o in results if isinstance(o, OfferSchema)]
 
         if not offers:
             self.set_status(
@@ -175,7 +167,7 @@ class MercadoLivreProvider(BaseProvider):
             message=f"Mercado Livre: {len(offers)} oferta(s) do catalogo.",
             returned_count=len(offers),
         )
-        return offers
+        return offers[:limit]
 
     async def _local_fallback(self, query: str, limit: int) -> List[OfferSchema]:
         """Busca na tabela affiliate_products quando a API nao esta disponivel."""
