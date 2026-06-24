@@ -202,7 +202,10 @@ export default function AleTubeGamesPage() {
       const res = await fetch(`${API}/api/v1/aletube/accounts/status`, {
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.substring(0, 100)}`);
+      }
       const data: AccountsStatus = await res.json();
       setAccounts(data);
       // Pre-select connected platforms
