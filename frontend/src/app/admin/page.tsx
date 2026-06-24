@@ -818,6 +818,7 @@ export default function AdminPage() {
         const user = JSON.parse(userStr);
         if (user.is_admin) {
           fetch(`${API}/api/v1/admin/auth/session-key`, {
+            method: "POST",
             headers: { "Authorization": `Bearer ${token}` },
           })
             .then(async (r) => {

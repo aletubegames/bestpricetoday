@@ -144,6 +144,7 @@ export default function AfiliadosPage() {
     const storedKey = localStorage.getItem("admin_key")
     if (!storedKey && tk) {
       fetch(`${API}/api/v1/admin/auth/session-key`, {
+        method: "POST",
         headers: { Authorization: `Bearer ${tk}` },
       })
         .then(r => r.ok ? r.json() : null)
