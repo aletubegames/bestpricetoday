@@ -81,7 +81,7 @@ class MercadoLivreProvider(BaseProvider):
             # 1. Busca catalogo
             r = await client.get(
                 "https://api.mercadolibre.com/products/search",
-                params={"site_id": "MLB", "q": query, "limit": 20},
+                params={"site_id": "MLB", "q": query, "limit": 10},
                 headers={"Authorization": f"Bearer {token}"},
             )
             if r.status_code != 200:
@@ -118,6 +118,27 @@ class MercadoLivreProvider(BaseProvider):
                     if not items:
                         return None
                     item = items[0]
+                    item_id = item.get("item_id")
+
+                    # Enriquece com thumbnail e permalink reais do item
+                    image_url = ""
+                    permalink = ""
+                    if item_id:
+                        try:
+                            r3 = await client.get(
+                                f"https://api.mercadolibre.com/items/{item_id}",
+                                headers={"Authorization": f"Bearer {token}"},
+                                timeout=10,
+                            )
+                            if r3.status_code == 200:
+                                item_data = r3.json()
+                                permalink = item_data.get("permalink", "")
+                                image_url = item_data.get("thumbnail", "")
+                                if not image_url and item_data.get("pictures"):
+                                    image_url = item_data["pictures"][0].get("url", "")
+                        except Exception as e:
+                            logger.debug(f"ML item enrichment failed for {item_id}: {e}")
+
                     price = item.get("price", 0)
                     original_price = item.get("original_price") or price
                     discount = 0.0
@@ -125,12 +146,9 @@ class MercadoLivreProvider(BaseProvider):
                         discount = round((original_price - price) / original_price * 100, 2)
                     shipping = item.get("shipping", {})
                     free_shipping = shipping.get("free_shipping", False)
-                    image_url = (
-                        item.get("thumbnail", "")
-                        or (item.get("pictures", [])[0].get("url", "") if item.get("pictures") else "")
-                        or prod.get("thumbnail", "")
-                    )
                     title = item.get("title") or prod.get("name", "")
+                    if not permalink:
+                        permalink = f"https://produto.mercadolivre.com.br/{item_id}"
                     return OfferSchema(
                         provider=ProviderEnum.mercadolivre,
                         title=title,
@@ -142,8 +160,8 @@ class MercadoLivreProvider(BaseProvider):
                         final_price=price,
                         score=round(_score(title, tokens), 4),
                         product_id=pid,
-                        product_url=item.get("permalink") or prod.get("permalink", ""),
-                        affiliate_url=item.get("permalink") or prod.get("permalink", ""),
+                        product_url=permalink,
+                        affiliate_url=permalink,
                         image_url=image_url,
                         economy=round((original_price or price) - price, 2),
                     )
@@ -151,7 +169,7 @@ class MercadoLivreProvider(BaseProvider):
                     logger.warning(f"ML item fetch failed for {pid}: {e}")
                     return None
 
-            tasks = [fetch_item(p) for p in products[:20]]
+            tasks = [fetch_item(p) for p in products[:10]]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             offers = [o for o in results if isinstance(o, OfferSchema)]
 
