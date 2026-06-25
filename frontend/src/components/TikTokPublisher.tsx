@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import type { Offer } from "@/types"
 
@@ -186,29 +187,29 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
     }
   }
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
   // ── Botão fechado ─────────────────────────────────────────────────────────
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => {
-          setIsOpen(true)
-          const openId = localStorage.getItem("tiktok_open_id")
-          setStep(openId ? "idle" : "connect")
-        }}
-        style={{
-          marginTop: 8, width: "100%", padding: "10px", borderRadius: 10,
-          background: "rgba(255,0,80,0.08)", border: "1px solid rgba(255,0,80,0.25)",
-          color: "#ff3060", cursor: "pointer", fontSize: 13, fontWeight: 700,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-        }}
-      >
-        ♪ Compartilhar no TikTok
-      </button>
-    )
-  }
+  const closedButton = (
+    <button
+      onClick={() => {
+        setIsOpen(true)
+        const openId = localStorage.getItem("tiktok_open_id")
+        setStep(openId ? "idle" : "connect")
+      }}
+      style={{
+        marginTop: 8, width: "100%", padding: "10px", borderRadius: 10,
+        background: "rgba(255,0,80,0.08)", border: "1px solid rgba(255,0,80,0.25)",
+        color: "#ff3060", cursor: "pointer", fontSize: 13, fontWeight: 700,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+      }}
+    >
+      ♪ Compartilhar no TikTok
+    </button>
+  )
 
   // ── Modal ─────────────────────────────────────────────────────────────────
-  return (
+  const modal = (
     <div style={{
       position: "fixed", inset: 0,
       background: "rgba(0,0,0,0.88)",
@@ -410,7 +411,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
               fontSize: 14, fontWeight: 800,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
-              ♪ {/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? "Abrir TikTok para compartilhar" : "Copiar texto para TikTok"}
+              ♪ {isMobile ? "Abrir TikTok para compartilhar" : "Copiar texto para TikTok"}
             </button>
 
             <div style={{
@@ -433,6 +434,13 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
         )}
       </div>
     </div>
+  )
+
+  return (
+    <>
+      {!isOpen ? closedButton : null}
+      {isOpen && typeof document !== "undefined" && createPortal(modal, document.body)}
+    </>
   )
 }
 
