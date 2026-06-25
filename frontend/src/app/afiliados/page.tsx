@@ -139,18 +139,23 @@ export default function AfiliadosPage() {
 function ProductsTab({ token, provider }: { token: string; provider: "mercadolivre" | "shopee" | "aliexpress" | "lomadee" }) {
   const [products, setProducts] = useState<Offer[]>([])
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await apiFetch(`${API}/api/v1/search?provider=${provider}&q=${encodeURIComponent(search)}&limit=50`, { headers: buildAdminHeaders(token) })
+      const r = await apiFetch(`${API}/api/v1/affiliate/products?provider=${provider}&page=${page}&per_page=${perPage}`, { headers: buildAdminHeaders(token) })
       const d = await r.json()
       setProducts(d.offers ?? [])
+      setTotal(d.total ?? 0)
+      setTotalPages(d.total_pages ?? 0)
     } finally {
       setLoading(false)
     }
-  }, [token, provider, search])
+  }, [token, provider, page, perPage])
 
   useEffect(() => { load() }, [load])
 
@@ -160,73 +165,101 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Search */}
-      <div style={{ display: "flex", gap: 10 }}>
-        <input
-          type="text"
-          placeholder="Buscar produtos..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            flex: 1, padding: "12px 16px", borderRadius: 10, border: "1px solid #ddd",
-            fontSize: 14,
-          }}
-        />
-        <button
-          onClick={() => load()}
-          style={{ padding: "12px 24px", background: accent, color: "#fff", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600 }}
-        >
-          🔍 Buscar
-        </button>
+      {/* Per page selector */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 14, color: muted }}>Produtos por página:</span>
+        {[20, 40, 60, 80, 100].map(p => (
+          <button
+            key={p}
+            onClick={() => { setPerPage(p); setPage(1) }}
+            style={{
+              padding: "6px 12px", borderRadius: 6, border: "1px solid #ddd", background: perPage === p ? accent : "#fff",
+              color: perPage === p ? "#fff" : muted, cursor: "pointer", fontSize: 13,
+            }}
+          >
+            {p}
+          </button>
+        ))}
       </div>
 
       {/* Products Grid */}
       {products.length === 0 ? (
         <div style={{ textAlign: "center", padding: 40, color: muted }}>
-          {search ? "Nenhum produto encontrado" : "Digite uma busca para carregar produtos"}
+          Nenhum produto encontrado
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-          {products.map(offer => (
-            <div key={offer.id} style={cardStyle}>
-              {offer.image_url && (
-                <img src={offer.image_url} alt="" style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8, marginBottom: 12 }} />
-              )}
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", marginBottom: 4, minHeight: 40 }}>
-                {offer.title?.slice(0, 80)}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 13, color: muted, textDecoration: offer.original_price && offer.original_price > offer.final_price ? "line-through" : "none" }}>
-                    {offer.original_price ? fmt(offer.original_price) : ""}
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#00e5a0" }}>
-                    {fmt(offer.final_price)}
-                  </div>
-                </div>
-                {offer.discount_pct && (
-                  <div style={{ background: "rgba(0,229,160,0.1)", color: "#00e5a0", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-                    -{offer.discount_pct}%
-                  </div>
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+            {products.map(offer => (
+              <div key={offer.id} style={cardStyle}>
+                {offer.image_url && (
+                  <img src={offer.image_url} alt="" style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8, marginBottom: 12 }} />
                 )}
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", marginBottom: 4, minHeight: 40 }}>
+                  {offer.title?.slice(0, 80)}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: muted, textDecoration: offer.original_price && offer.original_price > offer.final_price ? "line-through" : "none" }}>
+                      {offer.original_price ? fmt(offer.original_price) : ""}
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#00e5a0" }}>
+                      {fmt(offer.final_price)}
+                    </div>
+                  </div>
+                  {offer.discount_pct && (
+                    <div style={{ background: "rgba(0,229,160,0.1)", color: "#00e5a0", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+                      -{offer.discount_pct}%
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <a
+                    href={offer.affiliate_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      flex: 1, padding: "10px", textAlign: "center", borderRadius: 8,
+                      background: accent, color: "#fff", textDecoration: "none", fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Ver oferta →
+                  </a>
+                  <CopyBtn text={offer.affiliate_url} />
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <a
-                  href={offer.affiliate_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    flex: 1, padding: "10px", textAlign: "center", borderRadius: 8,
-                    background: accent, color: "#fff", textDecoration: "none", fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  Ver oferta →
-                </a>
-                <CopyBtn text={offer.affiliate_url} />
-              </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{
+                  padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "#fff",
+                  color: page === 1 ? "#ccc" : muted, cursor: page === 1 ? "not-allowed" : "pointer", fontSize: 13,
+                }}
+              >
+                ← Anterior
+              </button>
+              <span style={{ fontSize: 14, color: muted }}>
+                Página {page} de {totalPages} ({total} produtos)
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                style={{
+                  padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "#fff",
+                  color: page === totalPages ? "#ccc" : muted, cursor: page === totalPages ? "not-allowed" : "pointer", fontSize: 13,
+                }}
+              >
+                Próxima →
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   )

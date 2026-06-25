@@ -41,6 +41,53 @@ async def search_get(
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
+@router.get("/affiliate/products")
+async def list_affiliate_products(
+    req: Request,
+    provider: str = Query(..., description="Provider: mercadolivre, shopee, aliexpress, lomadee"),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=20, le=100),
+):
+    """Lista produtos afiliados por provider com paginação (sem busca)."""
+    from app.core.rate_limit import check_rate_limit, get_client_ip
+    from app.services.search import search_all
+    ip = get_client_ip(req)
+    if not await check_rate_limit(ip, key="affiliate", max_calls=60, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit: max 60 req/min por IP.")
+    
+    try:
+        # Usa busca genérica para pegar produtos populares do provider
+        # Query genérica para trazer produtos populares
+        generic_queries = {
+            "mercadolivre": "oferta",
+            "shopee": "promoção",
+            "aliexpress": "sale",
+            "lomadee": "desconto",
+        }
+        query = generic_queries.get(provider, "oferta")
+        
+        # Busca mais produtos para permitir paginação
+        result = await search_all(
+            query=query,
+            limit=100,  # busca mais para permitir paginação
+            providers=[provider],
+        )
+        
+        # Simula paginação calculando offset
+        offset = (page - 1) * per_page
+        offers = result.offers[offset:offset + per_page]
+        return {
+            "offers": offers,
+            "total": len(result.offers),
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (len(result.offers) + per_page - 1) // per_page,
+        }
+    except Exception as e:
+        logger.error(f"Affiliate products error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list products: {str(e)}")
+
+
 @router.get("/search/trending", response_model=TrendingSearchResponse)
 async def trending_searches(limit: int = Query(default=20, ge=1, le=20)):
     try:
