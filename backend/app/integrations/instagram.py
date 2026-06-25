@@ -28,9 +28,9 @@ FB_SCOPES = ",".join([
 
 class InstagramFacebookClient:
     def __init__(self):
-        # Facebook OAuth usa ID_APLICATIVO_FACEBOOK como client_id
-        self.app_id       = settings.ID_APLICATIVO_FACEBOOK or settings.ID_APLICATIVO_INSTAGRAM
-        self.app_secret   = settings.FACEBOOK_APP_SECRET or settings.SECRET_KEY_INSTAGRAM_APP
+        # Tenta usar o app do Instagram primeiro; se nao tiver, fallback para Facebook.
+        self.app_id       = settings.ID_APLICATIVO_INSTAGRAM or settings.ID_APLICATIVO_FACEBOOK
+        self.app_secret   = settings.SECRET_KEY_INSTAGRAM_APP or settings.FACEBOOK_APP_SECRET
         self.redirect_uri = settings.FACEBOOK_REDIRECT_URI
 
     def get_auth_url(self, state: str) -> str:
