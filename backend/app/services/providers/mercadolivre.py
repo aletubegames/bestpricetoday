@@ -132,16 +132,20 @@ class MercadoLivreProvider(BaseProvider):
                     if not item_id:
                         return None
 
-                    # Formato afiliado do Mercado Livre: produto.mercadolivre.com.br/MLB-{id}
-                    # com matt_word e matt_tool (Programa de Afiliados e Criadores)
+                    # Formato oficial do Mercado Livre para produtos:
+                    # https://produto.mercadolivre.com.br/MLB-{id}-_JM
+                    # Adiciona parametros de afiliado do Programa de Afiliados e Criadores.
+                    import re
+                    numeric_id = re.sub(r"^MLB", "", item_id)
+                    base_url = f"https://produto.mercadolivre.com.br/MLB-{numeric_id}-_JM"
                     if settings.ML_AFFILIATE_MATT_WORD and settings.ML_AFFILIATE_MATT_TOOL:
                         permalink = (
-                            f"https://produto.mercadolivre.com.br/{item_id}"
+                            f"{base_url}"
                             f"?matt_word={settings.ML_AFFILIATE_MATT_WORD}"
                             f"&matt_tool={settings.ML_AFFILIATE_MATT_TOOL}"
                         )
                     else:
-                        permalink = f"https://produto.mercadolivre.com.br/{item_id}"
+                        permalink = base_url
 
                     price = item.get("price", 0)
                     original_price = item.get("original_price") or price
