@@ -171,8 +171,14 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
 
   // ── Abrir Share Kit ───────────────────────────────────────────────────────
   const openShareKit = () => {
-    if (shareResult?.share_kit_url) {
-      window.open(shareResult.share_kit_url, "_blank")
+    if (!shareResult?.share_kit_url) return
+    // Share Kit oficial só funciona em apps mobile. No desktop, apenas copia o texto.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    if (isMobile) {
+      window.location.href = shareResult.share_kit_url
+    } else {
+      const text = `${shareResult.caption}\n\n${shareResult.short_link}\n\n${shareResult.hashtags}`
+      copyToClipboard(text, "tiktok-text")
     }
   }
 
@@ -400,7 +406,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
               fontSize: 14, fontWeight: 800,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
-              ♪ Abrir TikTok para compartilhar
+              ♪ {/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? "Abrir TikTok para compartilhar" : "Copiar texto para TikTok"}
             </button>
 
             <div style={{
