@@ -60,12 +60,12 @@ async def list_affiliate_products(
     try:
         # Queries genéricas para cada provider
         generic_queries = {
-            "mercadolivre": "oferta",  # busca genérica para ML
-            "shopee": "promoção",  # busca genérica para Shopee
-            "aliexpress": "sale",  # busca genérica para AliExpress
-            "lomadee": "desconto",  # busca genérica para Lomadee
+            "mercadolivre": "",  # busca vazia para ML
+            "shopee": "",  # busca vazia para Shopee
+            "aliexpress": "",  # busca vazia para AliExpress
+            "lomadee": "",  # busca vazia para Lomadee
         }
-        query = generic_queries.get(provider, "oferta")
+        query = generic_queries.get(provider, "")
         
         # Busca mais produtos para permitir paginação
         result = await search_all(
