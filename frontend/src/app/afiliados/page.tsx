@@ -143,11 +143,12 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
   const [perPage, setPerPage] = useState(20)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+  const [sort, setSort] = useState<"relevance" | "price_asc" | "price_desc">("relevance")
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await apiFetch(`${API}/api/v1/affiliate/products?provider=${provider}&page=${page}&per_page=${perPage}`, { headers: buildAdminHeaders(token) })
+      const r = await apiFetch(`${API}/api/v1/affiliate/products?provider=${provider}&page=${page}&per_page=${perPage}&sort=${sort}`, { headers: buildAdminHeaders(token) })
       const d = await r.json()
       setProducts(d.offers ?? [])
       setTotal(d.total ?? 0)
@@ -155,7 +156,7 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
     } finally {
       setLoading(false)
     }
-  }, [token, provider, page, perPage])
+  }, [token, provider, page, perPage, sort])
 
   useEffect(() => { load() }, [load])
 
@@ -165,8 +166,8 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Per page selector */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Filters */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 14, color: muted }}>Produtos por página:</span>
         {[20, 40, 60, 80, 100].map(p => (
           <button
@@ -178,6 +179,23 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
             }}
           >
             {p}
+          </button>
+        ))}
+        <span style={{ fontSize: 14, color: muted, marginLeft: 20 }}>Ordenar por:</span>
+        {[
+          { value: "relevance", label: "Relevância" },
+          { value: "price_asc", label: "Menor preço" },
+          { value: "price_desc", label: "Maior preço" },
+        ].map(s => (
+          <button
+            key={s.value}
+            onClick={() => { setSort(s.value as any); setPage(1) }}
+            style={{
+              padding: "6px 12px", borderRadius: 6, border: "1px solid #ddd", background: sort === s.value ? accent : "#fff",
+              color: sort === s.value ? "#fff" : muted, cursor: "pointer", fontSize: 13,
+            }}
+          >
+            {s.label}
           </button>
         ))}
       </div>

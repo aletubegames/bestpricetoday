@@ -47,41 +47,51 @@ async def list_affiliate_products(
     provider: str = Query(..., description="Provider: mercadolivre, shopee, aliexpress, lomadee"),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=20, le=100),
+    sort: str = Query(default="relevance", description="sort: relevance, price_asc, price_desc"),
 ):
     """Lista produtos afiliados por provider com paginação (sem busca)."""
     from app.core.rate_limit import check_rate_limit, get_client_ip
     from app.services.search import search_all
+    from app.schemas.schemas import ProviderEnum
     ip = get_client_ip(req)
     if not await check_rate_limit(ip, key="affiliate", max_calls=60, window_seconds=60):
         raise HTTPException(status_code=429, detail="Rate limit: max 60 req/min por IP.")
     
     try:
-        # Usa busca genérica para pegar produtos populares do provider
-        # Query genérica para trazer produtos populares
+        # Queries genéricas para cada provider
         generic_queries = {
-            "mercadolivre": "oferta",
-            "shopee": "promoção",
-            "aliexpress": "sale",
-            "lomadee": "desconto",
+            "mercadolivre": "oferta",  # busca genérica para ML
+            "shopee": "promoção",  # busca genérica para Shopee
+            "aliexpress": "sale",  # busca genérica para AliExpress
+            "lomadee": "desconto",  # busca genérica para Lomadee
         }
         query = generic_queries.get(provider, "oferta")
         
         # Busca mais produtos para permitir paginação
         result = await search_all(
             query=query,
-            limit=100,  # busca mais para permitir paginação
-            providers=[provider],
+            limit=300,  # busca mais para permitir paginação
+            providers=[ProviderEnum(provider)],
         )
+        
+        # Ordenação
+        offers = result.offers
+        if sort == "price_asc":
+            offers = sorted(offers, key=lambda x: x.final_price or float('inf'))
+        elif sort == "price_desc":
+            offers = sorted(offers, key=lambda x: x.final_price or 0, reverse=True)
+        # relevance usa a ordem padrão do ranking
         
         # Simula paginação calculando offset
         offset = (page - 1) * per_page
-        offers = result.offers[offset:offset + per_page]
+        paginated_offers = offers[offset:offset + per_page]
         return {
-            "offers": offers,
-            "total": len(result.offers),
+            "offers": paginated_offers,
+            "total": len(offers),
             "page": page,
             "per_page": per_page,
-            "total_pages": (len(result.offers) + per_page - 1) // per_page,
+            "total_pages": (len(offers) + per_page - 1) // per_page,
+            "sort": sort,
         }
     except Exception as e:
         logger.error(f"Affiliate products error: {e}", exc_info=True)
