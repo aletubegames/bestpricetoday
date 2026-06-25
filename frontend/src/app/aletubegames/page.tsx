@@ -17,7 +17,6 @@ interface AccountStatus {
 interface AccountsStatus {
   tiktok: AccountStatus;
   youtube: AccountStatus;
-  facebook: AccountStatus;
 }
 
 interface VideoInfo {
@@ -67,18 +66,16 @@ interface HistoryVideo {
 
 type Tab = "accounts" | "publish" | "history";
 type PublishStep = 1 | 2 | 3 | 4;
-type PlatformKey = "tiktok" | "youtube" | "facebook";
+type PlatformKey = "tiktok" | "youtube";
 
 const PLATFORMS: { key: PlatformKey; label: string; color: string; icon: string }[] = [
   { key: "tiktok", label: "TikTok", color: "#ff0050", icon: "🎵" },
   { key: "youtube", label: "YouTube", color: "#ff0000", icon: "▶️" },
-  { key: "facebook", label: "Facebook", color: "#1877f2", icon: "👥" },
 ];
 
 const PLATFORM_NOTES: Record<PlatformKey, string> = {
   tiktok: "Requer aprovação Content Posting API",
   youtube: "OAuth Google — funciona imediatamente após configurar client_id",
-  facebook: "Requer app Facebook aprovado + Página vinculada",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -126,11 +123,11 @@ export default function AleTubeGamesPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const [editedMeta, setEditedMeta] = useState<Record<PlatformKey, PlatformMeta>>({
-    tiktok: {}, youtube: {}, facebook: {},
+    tiktok: {}, youtube: {},
   });
   const [metaTab, setMetaTab] = useState<PlatformKey>("tiktok");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<PlatformKey, boolean>>({
-    tiktok: false, youtube: false, facebook: false,
+    tiktok: false, youtube: false,
   });
   const [affiliateUrl, setAffiliateUrl] = useState("");
   const [publishing, setPublishing] = useState(false);
@@ -209,7 +206,6 @@ export default function AleTubeGamesPage() {
       setSelectedPlatforms({
         tiktok: !!data.tiktok?.connected,
         youtube: !!data.youtube?.connected,
-        facebook: !!data.facebook?.connected,
       });
     } catch (e: unknown) {
       setAccountsError(e instanceof Error ? e.message : "Erro ao carregar contas");
@@ -255,13 +251,6 @@ export default function AleTubeGamesPage() {
         const data = await res.json();
         url = data.auth_url;
         if (data.state) localStorage.setItem("youtube_oauth_state", data.state);
-      } else if (platform === "facebook") {
-        const headers = getAuthHeaders();
-        const res = await apiFetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        url = data.auth_url;
-        if (data.state) localStorage.setItem("facebook_oauth_state", data.state);
       } else {
         return;
       }
@@ -343,7 +332,7 @@ export default function AleTubeGamesPage() {
         tiktok: { ...data.platform_metadata?.tiktok },
         youtube: { ...data.platform_metadata?.youtube },
 
-        facebook: { ...data.platform_metadata?.facebook },
+
       };
       setEditedMeta(meta);
       setPublishStep(3);
@@ -379,7 +368,6 @@ export default function AleTubeGamesPage() {
 
       form.append("tiktok_meta", buildMeta("tiktok"));
       form.append("youtube_meta", buildMeta("youtube"));
-      form.append("facebook_meta", buildMeta("facebook"));
 
       const res = await apiFetch(`${API}/api/v1/aletube/publish`, {
         method: "POST",
@@ -403,7 +391,7 @@ export default function AleTubeGamesPage() {
     setSelectedFile(null);
     setVideoInfo(null);
     setAnalyzeResult(null);
-    setEditedMeta({ tiktok: {}, youtube: {}, facebook: {} });
+    setEditedMeta({ tiktok: {}, youtube: {} });
     setAffiliateUrl("");
     setPublishResult(null);
     setUploadError(null);
