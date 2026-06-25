@@ -17,7 +17,6 @@ interface AccountStatus {
 interface AccountsStatus {
   tiktok: AccountStatus;
   youtube: AccountStatus;
-  instagram: AccountStatus;
   facebook: AccountStatus;
 }
 
@@ -68,20 +67,18 @@ interface HistoryVideo {
 
 type Tab = "accounts" | "publish" | "history";
 type PublishStep = 1 | 2 | 3 | 4;
-type PlatformKey = "tiktok" | "youtube" | "instagram" | "facebook";
+type PlatformKey = "tiktok" | "youtube" | "facebook";
 
 const PLATFORMS: { key: PlatformKey; label: string; color: string; icon: string }[] = [
   { key: "tiktok", label: "TikTok", color: "#ff0050", icon: "🎵" },
   { key: "youtube", label: "YouTube", color: "#ff0000", icon: "▶️" },
-  { key: "instagram", label: "Instagram", color: "#e1306c", icon: "📷" },
   { key: "facebook", label: "Facebook", color: "#1877f2", icon: "👥" },
 ];
 
 const PLATFORM_NOTES: Record<PlatformKey, string> = {
   tiktok: "Requer aprovação Content Posting API",
   youtube: "OAuth Google — funciona imediatamente após configurar client_id",
-  instagram: "Requer app Facebook aprovado + conta Business/Creator",
-  facebook: "Requer app Facebook aprovado + conta Business/Creator",
+  facebook: "Requer app Facebook aprovado + Página vinculada",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,11 +126,11 @@ export default function AleTubeGamesPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const [editedMeta, setEditedMeta] = useState<Record<PlatformKey, PlatformMeta>>({
-    tiktok: {}, youtube: {}, instagram: {}, facebook: {},
+    tiktok: {}, youtube: {}, facebook: {},
   });
   const [metaTab, setMetaTab] = useState<PlatformKey>("tiktok");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<PlatformKey, boolean>>({
-    tiktok: false, youtube: false, instagram: false, facebook: false,
+    tiktok: false, youtube: false, facebook: false,
   });
   const [affiliateUrl, setAffiliateUrl] = useState("");
   const [publishing, setPublishing] = useState(false);
@@ -212,7 +209,6 @@ export default function AleTubeGamesPage() {
       setSelectedPlatforms({
         tiktok: !!data.tiktok?.connected,
         youtube: !!data.youtube?.connected,
-        instagram: !!data.instagram?.connected,
         facebook: !!data.facebook?.connected,
       });
     } catch (e: unknown) {
@@ -259,7 +255,7 @@ export default function AleTubeGamesPage() {
         const data = await res.json();
         url = data.auth_url;
         if (data.state) localStorage.setItem("youtube_oauth_state", data.state);
-      } else if (platform === "facebook" || platform === "instagram") {
+      } else if (platform === "facebook") {
         const headers = getAuthHeaders();
         const res = await apiFetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -346,7 +342,7 @@ export default function AleTubeGamesPage() {
       const meta: Record<PlatformKey, PlatformMeta> = {
         tiktok: { ...data.platform_metadata?.tiktok },
         youtube: { ...data.platform_metadata?.youtube },
-        instagram: { ...data.platform_metadata?.instagram },
+
         facebook: { ...data.platform_metadata?.facebook },
       };
       setEditedMeta(meta);
@@ -383,7 +379,6 @@ export default function AleTubeGamesPage() {
 
       form.append("tiktok_meta", buildMeta("tiktok"));
       form.append("youtube_meta", buildMeta("youtube"));
-      form.append("instagram_meta", buildMeta("instagram"));
       form.append("facebook_meta", buildMeta("facebook"));
 
       const res = await apiFetch(`${API}/api/v1/aletube/publish`, {
@@ -408,7 +403,7 @@ export default function AleTubeGamesPage() {
     setSelectedFile(null);
     setVideoInfo(null);
     setAnalyzeResult(null);
-    setEditedMeta({ tiktok: {}, youtube: {}, instagram: {}, facebook: {} });
+    setEditedMeta({ tiktok: {}, youtube: {}, facebook: {} });
     setAffiliateUrl("");
     setPublishResult(null);
     setUploadError(null);
@@ -840,7 +835,7 @@ export default function AleTubeGamesPage() {
                           onChange={e => updateMeta(key, "title", e.target.value)}
                         />
                       </div>
-                      {(key === "tiktok" || key === "instagram") ? (
+                      {key === "tiktok" ? (
                         <div style={{ marginBottom: 12 }}>
                           <label style={s.label}>Caption</label>
                           <textarea
