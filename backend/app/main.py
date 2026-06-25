@@ -41,10 +41,6 @@ async def lifespan(app: FastAPI):
     from app.workers.ml_refresh_cron import start_ml_refresh_cron
     ml_refresh_task = asyncio.create_task(start_ml_refresh_cron())
 
-    # Keep-warm ping (evita cold start do HF Space)
-    from app.workers.keep_warm import start_keep_warm
-    keep_warm_task = asyncio.create_task(start_keep_warm())
-
     yield
 
     cron_task.cancel()
@@ -52,8 +48,7 @@ async def lifespan(app: FastAPI):
     bot_task.cancel()
     alert_task.cancel()
     ml_refresh_task.cancel()
-    keep_warm_task.cancel()
-    for task in [cron_task, broadcast_task, bot_task, alert_task, ml_refresh_task, keep_warm_task]:
+    for task in [cron_task, broadcast_task, bot_task, alert_task, ml_refresh_task]:
         try:
             await task
         except asyncio.CancelledError:
