@@ -58,14 +58,14 @@ async def list_affiliate_products(
         raise HTTPException(status_code=429, detail="Rate limit: max 60 req/min por IP.")
     
     try:
-        # Queries genéricas para cada provider
+        # Queries genéricas para cada provider (mínimo 2 caracteres)
         generic_queries = {
-            "mercadolivre": "",  # busca vazia para ML
-            "shopee": "",  # busca vazia para Shopee
-            "aliexpress": "",  # busca vazia para AliExpress
-            "lomadee": "",  # busca vazia para Lomadee
+            "mercadolivre": "celular",  # busca genérica popular
+            "shopee": "tenis",  # busca genérica popular
+            "aliexpress": "phone",  # busca genérica popular
+            "lomadee": "smartphone",  # busca genérica popular
         }
-        query = generic_queries.get(provider, "")
+        query = generic_queries.get(provider, "oferta")
         
         # Busca mais produtos para permitir paginação
         result = await search_all(
