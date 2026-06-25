@@ -15,6 +15,7 @@ export async function GET(
         "X-Forwarded-For": request.headers.get("x-forwarded-for") || "",
         "User-Agent": request.headers.get("user-agent") || "",
         "Referer": request.headers.get("referer") || "",
+        "ngrok-skip-browser-warning": "true",
       },
     })
     

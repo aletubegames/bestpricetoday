@@ -3,11 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install",
-  "outputDirectory": ".next",
-  "rewrites": [
-    {
-      "source": "/r/:code",
-      "destination": "https://sacrament-subduing-confined.ngrok-free.dev/api/v1/r/:code"
-    }
-  ]
+  "outputDirectory": ".next"
 }
