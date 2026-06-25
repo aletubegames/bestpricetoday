@@ -107,6 +107,16 @@ class MercadoLivreProvider(BaseProvider):
                 if not pid:
                     return None
                 try:
+                    # Busca detalhes do produto (imagem e permalink)
+                    r_prod = await client.get(
+                        f"https://api.mercadolibre.com/products/{pid}?includes=items",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    prod_data = r_prod.json() if r_prod.status_code == 200 else {}
+                    pictures = prod_data.get("pictures", [])
+                    image_url = pictures[0].get("url", "") if pictures else ""
+
+                    # Busca o item com melhor preço
                     r2 = await client.get(
                         f"https://api.mercadolibre.com/products/{pid}/items",
                         params={"limit": 1},
@@ -119,25 +129,19 @@ class MercadoLivreProvider(BaseProvider):
                         return None
                     item = items[0]
                     item_id = item.get("item_id")
+                    if not item_id:
+                        return None
 
-                    # Enriquece com thumbnail e permalink reais do item
-                    image_url = ""
-                    permalink = ""
-                    if item_id:
-                        try:
-                            r3 = await client.get(
-                                f"https://api.mercadolibre.com/items/{item_id}",
-                                headers={"Authorization": f"Bearer {token}"},
-                                timeout=10,
-                            )
-                            if r3.status_code == 200:
-                                item_data = r3.json()
-                                permalink = item_data.get("permalink", "")
-                                image_url = item_data.get("thumbnail", "")
-                                if not image_url and item_data.get("pictures"):
-                                    image_url = item_data["pictures"][0].get("url", "")
-                        except Exception as e:
-                            logger.debug(f"ML item enrichment failed for {item_id}: {e}")
+                    # Formato afiliado do Mercado Livre: produto.mercadolivre.com.br/MLB-{id}
+                    # com matt_word e matt_tool (Programa de Afiliados e Criadores)
+                    if settings.ML_AFFILIATE_MATT_WORD and settings.ML_AFFILIATE_MATT_TOOL:
+                        permalink = (
+                            f"https://produto.mercadolivre.com.br/{item_id}"
+                            f"?matt_word={settings.ML_AFFILIATE_MATT_WORD}"
+                            f"&matt_tool={settings.ML_AFFILIATE_MATT_TOOL}"
+                        )
+                    else:
+                        permalink = f"https://produto.mercadolivre.com.br/{item_id}"
 
                     price = item.get("price", 0)
                     original_price = item.get("original_price") or price
@@ -147,8 +151,6 @@ class MercadoLivreProvider(BaseProvider):
                     shipping = item.get("shipping", {})
                     free_shipping = shipping.get("free_shipping", False)
                     title = item.get("title") or prod.get("name", "")
-                    if not permalink:
-                        permalink = f"https://produto.mercadolivre.com.br/{item_id}"
                     return OfferSchema(
                         provider=ProviderEnum.mercadolivre,
                         title=title,

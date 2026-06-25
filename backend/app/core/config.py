@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     MERCADOLIVRE_ACCESS_TOKEN: str = ""
     MERCADOLIVRE_REFRESH_TOKEN: str = ""
     MERCADOLIVRE_TOKEN_EXPIRES_AT: int = 0  # Unix timestamp
+
+    # Affiliate link parameters (Programa de Afiliados e Criadores do Mercado Livre)
+    ML_AFFILIATE_MATT_WORD: str = ""
+    ML_AFFILIATE_MATT_TOOL: str = ""
     ML_WEBHOOK_SECRET: str = ""  # Optional: HMAC secret from ML Developer Portal
     ML_TOKEN_ENCRYPTION_KEY: str = ""  # Optional AES-256 key material for DB token encryption
 
