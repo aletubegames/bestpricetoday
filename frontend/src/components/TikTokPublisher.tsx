@@ -66,6 +66,7 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
   useEffect(() => {
     const openId = localStorage.getItem("tiktok_open_id")
     if (openId && isOpen) {
+      setStep("connected")
       fetchAccountInfo(openId)
     }
   }, [isOpen])
@@ -172,12 +173,15 @@ export default function TikTokPublisher({ offer }: TikTokPublisherProps) {
   // ── Abrir Share Kit ───────────────────────────────────────────────────────
   const openShareKit = () => {
     if (!shareResult?.share_kit_url) return
+    const text = `${shareResult.caption}\n\n${shareResult.short_link}\n\n${shareResult.hashtags}`
     // Share Kit oficial só funciona em apps mobile. No desktop, apenas copia o texto.
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
     if (isMobile) {
-      window.location.href = shareResult.share_kit_url
+      const popup = window.open(shareResult.share_kit_url, "_blank")
+      if (!popup || popup.closed) {
+        copyToClipboard(text, "tiktok-text")
+      }
     } else {
-      const text = `${shareResult.caption}\n\n${shareResult.short_link}\n\n${shareResult.hashtags}`
       copyToClipboard(text, "tiktok-text")
     }
   }
