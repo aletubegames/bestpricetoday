@@ -49,23 +49,46 @@ class MercadoLivreProvider(BaseProvider):
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
         if not settings.MERCADOLIVRE_APP_ID:
-            return await self._local_fallback(query, limit)
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="ML app nao configurado.",
+            )
+            return []
+
+        # Garante que links de afiliado estejam configurados antes de buscar
+        if not settings.ML_AFFILIATE_MATT_WORD or not settings.ML_AFFILIATE_MATT_TOOL:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="ML_AFFILIATE_MATT_WORD e ML_AFFILIATE_MATT_TOOL nao configurados.",
+            )
+            return []
 
         try:
             token = await self._get_token()
             if not token:
-                logger.warning("ML token nao disponivel; usando fallback local.")
-                return await self._local_fallback(query, limit)
+                logger.warning("ML token nao disponivel.")
+                self.set_status(
+                    ProviderSearchState.error,
+                    message="ML token nao disponivel.",
+                )
+                return []
 
             offers = await self._search_api(query, limit, token)
             if offers:
                 return offers
 
-            # API retornou vazio — tenta fallback local
-            return await self._local_fallback(query, limit)
+            self.set_status(
+                ProviderSearchState.no_results,
+                message="ML nao retornou ofertas com itens ativos.",
+            )
+            return []
         except Exception as e:
             logger.error(f"MercadoLivre API error: {e}")
-            return await self._local_fallback(query, limit)
+            self.set_status(
+                ProviderSearchState.error,
+                message=f"MercadoLivre API error: {e}",
+            )
+            return []
 
     async def _get_token(self) -> Optional[str]:
         from app.db.session import AsyncSessionLocal
