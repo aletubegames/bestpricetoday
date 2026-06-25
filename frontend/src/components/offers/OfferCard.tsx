@@ -2,7 +2,6 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
-import TikTokPublisher from "@/components/TikTokPublisher";
 import { openTrackedOffer } from "@/lib/tracking";
 
 const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
@@ -359,7 +358,6 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             Link indisponível
           </div>
         )}
-        <TikTokPublisher offer={offer} />
       </div>
     </motion.article>
   );

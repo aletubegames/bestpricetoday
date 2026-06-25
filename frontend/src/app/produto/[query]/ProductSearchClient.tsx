@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react"
 import type { MouseEvent } from "react"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { openTrackedOffer } from "@/lib/tracking"
-import TikTokPublisher from "@/components/TikTokPublisher"
 import type { Offer } from "@/types"
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -131,7 +130,6 @@ export default function ProductSearchClient({ query }: { query: string }) {
                 >
                   {openingOfferKey === key ? "Abrindo..." : "Ver oferta →"}
                 </a>
-                <TikTokPublisher offer={offer} />
               </div>
             </div>
           )
