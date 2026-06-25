@@ -11,7 +11,7 @@
 6. [Fluxo de Push (caso comum)](#fluxo-de-push-caso-comum)
 7. [Fluxo de Vídeos — AleTubeGames](#fluxo-de-vídeos--aletubegames)
 8. [Deploy: Vercel (Frontend)](#deploy-vercel-frontend)
-9. [Deploy: Hugging Face Spaces (Backend)](#deploy-hugging-face-spaces-backend)
+9. [Deploy: Backend no alaserver](#deploy-backend-no-alaserver)
 10. [Limitações de Storage no HF Free](#limitações-de-storage-no-hf-free)
 11. [Segurança](#segurança)
 12. [Erros Comuns (e como resolvi cada um)](#erros-comuns-e-como-resolvi-cada-um)
@@ -23,22 +23,16 @@
 ## Mapa dos Repos e Deploys
 
 ```
-/home/alessandro/bin/Git_Repo/BestPriceToday/   ← repo principal (master)
-├── frontend/      ─→ Vercel (auto-deploy ao push em github)
+/media/alessandro/34C0E9B1C0E97A0E/Git_Repo/BestPriceToday/   ← repo principal (master)
+├── frontend/      ─→ Vercel (deploy via ./deploy.sh)
 ├── backend/       ─→ alaserver (ngrok: https://sacrament-subduing-confined.ngrok-free.dev)
-└── hf_space/      ← repo INDEPENDENTE (main), espelho do backend, DEPRECATED
-                     HF Space "alessandro2090/bestpricetoday-api" (CONTA BLOQUEADA)
-                     ⚠ Auto-sincronizado do GitHub via GH Action (commits "AleBot — deploy: sync from GitHub <hash>")
+└── hf_space/      ← DEPRECATED, não usar mais
 ```
 
 **Remotes do repo principal** (`git remote -v`):
 - `github` → `https://github.com/aletubegames/bestpricetoday.git`
-- `hf`     → `https://huggingface.co/spaces/aletubegames/bestpricetoday-api` (DEPRECATED)
 
-**Remote do `hf_space/`** (subdir, repo separado):
-- `origin` → `https://huggingface.co/spaces/alessandro2090/bestpricetoday-api` (DEPRECATED)
-
-> **NOVA CONFIGURAÇÃO:** Backend rodando no alaserver (192.168.100.30) via ngrok. Facebook API funciona sem bloqueio. Banco de dados SQLite local. Hugging Face conta bloqueada - não usar mais.
+> **NOVA CONFIGURAÇÃO:** Backend rodando no alaserver (192.168.100.30) via ngrok. Banco de dados SQLite local. Hugging Face não é mais usado (remote removido).
 
 ---
 
@@ -47,44 +41,42 @@
 Quando estiver tudo confuso, usa este fluxo exatamente nessa ordem:
 
 ```bash
-cd /home/alessandro/bin/Git_Repo/BestPriceToday
+cd /media/alessandro/34C0E9B1C0E97A0E/Git_Repo/BestPriceToday
 
 # 0) Estado local e remoto
 git status -sb
 git remote -v
 git branch --show-current
 
-# 1) Confirmar commit no GitHub
-git rev-parse HEAD
-git ls-remote github -h refs/heads/master
+# 1) Commit no GitHub (opcional, para versionamento)
+git add -A
+git commit -m "fix: ..."
+git push github master
 
-# 2) Deploy Vercel manual (independe do webhook do GitHub)
-vercel whoami
-vercel --prod --yes
+# 2) Deploy completo: backend (alaserver) + frontend (Vercel)
+./deploy.sh
 
 # 3) Verificar se deploy Vercel ficou Ready
 vercel ls bestpricetoday --yes | head -n 20
 
-# 4) Deploy backend no alaserver (manual)
-ssh alaserver "cd ~/backend && git pull && source venv/bin/activate && pkill -f uvicorn && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
+# 4) Health check backend
+ssh alaserver "curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8000/health"
 ```
 
-> **NOTA:** Hugging Face está DEPRECATED (conta bloqueada). Backend agora roda no alaserver via ngrok.
+> **NOTA:** Hugging Face não é mais usado. Backend roda no alaserver.
 
 ---
 
 ## Auto-Deploy: o que é automático e o que não é
 
-- `git push github master`:
-  - Vercel do frontend costuma atualizar automaticamente.
-  - GH Action pode sincronizar `backend/` para o repo `hf_space/` (DEPRECATED - conta bloqueada).
-- Backend alaserver:
-  - Deploy manual via SSH para alaserver (ngrok já configurado).
+- **Frontend Vercel:** deploy manual via `./deploy.sh` (ou `vercel --prod --yes`).
+- **Backend alaserver:** deploy manual via `./deploy_backend.sh`.
+- **Hugging Face:** não é mais usado (remote removido).
 
 Resumo prático:
-- Para frontend, evita repetir `vercel --prod --yes` em todo push.
-- Para backend, usa deploy manual SSH no alaserver.
-- Hugging Face não é mais usado (conta bloqueada).
+- Para frontend, rode `./deploy.sh` (ele já faz backend + frontend).
+- Para backend apenas, rode `./deploy_backend.sh`.
+- Não é mais necessário push para GitHub para fazer deploy.
 
 ---
 
@@ -93,25 +85,25 @@ Resumo prático:
 Usa este fluxo para evitar loops e comandos duplicados:
 
 ```bash
-cd /home/alessandro/bin/Git_Repo/BestPriceToday
+cd /media/alessandro/34C0E9B1C0E97A0E/Git_Repo/BestPriceToday
 
-# 1) Commit + push no GitHub
+# 1) Commit + push no GitHub (versionamento)
 git add -A
 git commit -m "fix: ..."
 git push github master
 
-# 2) Verifica auto-deploy do frontend (sem forçar manual)
-vercel inspect bestpricetoday-aaswilel-9706s-projects.vercel.app
+# 2) Deploy completo: alaserver + Vercel
+./deploy.sh
 
-# 3) Só se NÃO ficar Ready após alguns minutos, forçar manual
-vercel --prod --yes
+# 3) Verificar status no Vercel
+vercel ls bestpricetoday --yes | head -n 20
 
-# 4) Backend no alaserver (obrigatório)
-ssh alaserver "cd ~/backend && git pull && source venv/bin/activate && pkill -f uvicorn && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
+# 4) Health check backend
+ssh alaserver "curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8000/health"
 ```
 
 Regra anti-loop:
-- Não executar `vercel --prod --yes` repetidamente enquanto já existe build em andamento.
+- Não executar `deploy.sh` repetidamente enquanto já existe build em andamento.
 - Esperar status passar de `Building` para `Ready` antes de novo trigger.
 - Backend alaserver: verificar health check após deploy.
 
@@ -274,32 +266,51 @@ npm run dev         # smoke test
 
 ---
 
-## Deploy: Hugging Face Spaces (Backend)
+## Deploy: Backend no alaserver
+
+> ⚠️ Hugging Face Spaces não é mais usado. Backend roda no alaserver.
+
+### Deploy rápido
 
 ```bash
-# Edita backend/, NUNCA hf_space/
-cd backend
-# ... edita ...
-python -m py_compile app/api/v1/endpoints/aletube.py
-
-cd ..
-git add backend/
-git commit -m "fix: ..."
-git push                    # GitHub + dispara GH Action de sync para hf_space/
-git push hf master          # HF Space aletubegames
+cd /media/alessandro/34C0E9B1C0E97A0E/Git_Repo/BestPriceToday
+./deploy_backend.sh
 ```
 
-**Verificar deploy:**
-- https://huggingface.co/spaces/aletubegames/bestpricetoday-api → tab **Logs**
-- https://alessandro2090-bestpricetoday-api.hf.space/docs
+O script sincroniza `backend/app/` via `rsync` e reinicia o `uvicorn`.
 
-**Se o GH Action falhar** (sync para `alessandro2090` não acontece): pode-se forçar manualmente
+### Deploy manual
+
 ```bash
-cd hf_space
-git pull --rebase origin main
-# (se necessário copiar mudanças de backend/ aqui à mão — última opção)
-git push origin main
+# 1) Conectar no servidor
+ssh alessandro@192.168.100.30
+
+# 2) Ir para o backend e ativar venv
+cd ~/backend
+source venv/bin/activate
+
+# 3) Matar processo antigo
+pkill -f uvicorn
+
+# 4) Iniciar novo processo
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+
+# 5) Health check
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8000/health
 ```
+
+### Ngrok
+
+O ngrok deve estar rodando no alaserver expondo a porta 8000:
+
+```bash
+ssh alessandro@192.168.100.30
+nohup ngrok http 8000 --log=stdout > ngrok.log 2>&1 &
+```
+
+URL atual: `https://sacrament-subduing-confined.ngrok-free.dev`
+
+> Se o ngrok reiniciar, a URL muda. Atualize `NEXT_PUBLIC_API_URL` no Vercel e `YOUTUBE_REDIRECT_URI` no Google Cloud Console.
 
 ---
 
