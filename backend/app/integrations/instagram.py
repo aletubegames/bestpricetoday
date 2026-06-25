@@ -13,11 +13,12 @@ FB_AUTH_URL  = "https://www.facebook.com/v19.0/dialog/oauth"
 FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
 GRAPH_API    = "https://graph.facebook.com/v19.0"
 
-# Escopos necessários para publicar no Instagram + Facebook
+# Escopos necessários para publicar no Instagram + Facebook.
+# Usa escopos compatíveis com apps não revisados do Facebook/Instagram.
 FB_SCOPES = ",".join([
     "pages_show_list",
     "pages_read_engagement",
-    "pages_manage_posts",
+    "pages_manage_metadata",
     "public_profile",
     "instagram_basic",
     "instagram_content_publish",
