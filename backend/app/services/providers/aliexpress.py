@@ -49,6 +49,12 @@ class AliExpressProvider(BaseProvider):
                 message="Credenciais AliExpress (APP_KEY/APP_SECRET) não configuradas.",
             )
             return []
+        if not settings.ALIEXPRESS_TRACKING_ID:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="ALIEXPRESS_TRACKING_ID não configurado — links não seriam afiliados.",
+            )
+            return []
 
         try:
             results = await self._client.search(query, limit=limit)

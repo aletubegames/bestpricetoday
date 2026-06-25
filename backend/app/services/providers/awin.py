@@ -2,7 +2,7 @@
 import httpx
 from typing import List
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -12,8 +12,12 @@ class AwinProvider(BaseProvider):
     BASE_URL = "https://api.awin.com"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
-        if not settings.AWIN_API_TOKEN:
+        if not settings.AWIN_API_TOKEN or not settings.AWIN_PUBLISHER_ID:
             logger.warning("Awin: not configured, skipping")
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="Credenciais Awin (API_TOKEN/PUBLISHER_ID) não configuradas.",
+            )
             return []
         try:
             client = await self.get_client()
