@@ -21,10 +21,11 @@ import asyncio
 import logging
 import re
 import subprocess
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -374,6 +375,8 @@ async def callback_youtube(
     state: str,
     db:    AsyncSession  = Depends(get_db),
 ):
+    """Callback OAuth YouTube. Redireciona para o frontend com status."""
+    frontend_callback = "https://bestpricetoday.vercel.app/aletube/callback/youtube"
     try:
         token_data = await youtube_client.get_access_token(code)
         access_token  = token_data["access_token"]
@@ -408,9 +411,16 @@ async def callback_youtube(
             ))
 
         await db.commit()
-        return {"status": "success", "channel_title": channel_info.get("channel_title")}
+        params = urllib.parse.urlencode({
+            "status": "success",
+            "channel_title": channel_info.get("channel_title", ""),
+            "channel_id": channel_info.get("channel_id", ""),
+        })
+        return RedirectResponse(url=f"{frontend_callback}?{params}", status_code=302)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro OAuth YouTube: {str(e)}")
+        log.error(f"YouTube OAuth callback failed: {e}")
+        params = urllib.parse.urlencode({"status": "error", "message": str(e)})
+        return RedirectResponse(url=f"{frontend_callback}?{params}", status_code=302)
 
 
 # ─── OAuth Facebook / Instagram ───────────────────────────────────────────────
