@@ -9,9 +9,9 @@ from typing import Dict, Any, Optional
 from app.core.config import settings
 from app.core.logging import logger as log
 
-FB_AUTH_URL  = "https://www.facebook.com/v19.0/dialog/oauth"
-FB_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token"
-GRAPH_API    = "https://graph.facebook.com/v19.0"
+FB_AUTH_URL  = "https://www.facebook.com/v25.0/dialog/oauth"
+FB_TOKEN_URL = "https://graph.facebook.com/v25.0/oauth/access_token"
+GRAPH_API    = "https://graph.facebook.com/v25.0"
 
 # Escopos necessários para publicar no Instagram + Facebook.
 # Usa escopos compatíveis com apps não revisados do Facebook/Instagram.
@@ -28,9 +28,9 @@ FB_SCOPES = ",".join([
 
 class InstagramFacebookClient:
     def __init__(self):
-        # Tenta usar o app do Instagram primeiro; se nao tiver, fallback para Facebook.
-        self.app_id       = settings.ID_APLICATIVO_INSTAGRAM or settings.ID_APLICATIVO_FACEBOOK
-        self.app_secret   = settings.SECRET_KEY_INSTAGRAM_APP or settings.FACEBOOK_APP_SECRET
+        # Facebook OAuth usa ID_APLICATIVO_FACEBOOK como client_id.
+        self.app_id       = settings.ID_APLICATIVO_FACEBOOK or settings.ID_APLICATIVO_INSTAGRAM
+        self.app_secret   = settings.FACEBOOK_APP_SECRET or settings.SECRET_KEY_INSTAGRAM_APP
         self.redirect_uri = settings.FACEBOOK_REDIRECT_URI
 
     def get_auth_url(self, state: str) -> str:
