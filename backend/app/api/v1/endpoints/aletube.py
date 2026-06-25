@@ -316,6 +316,9 @@ async def accounts_status(
     def _token_status(expires_at):
         if not expires_at:
             return "unknown"
+        # Banco pode guardar datetime offset-naive; converte para UTC-aware
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
         if expires_at < now:
             return "expired"
         if expires_at < now + timedelta(days=7):
