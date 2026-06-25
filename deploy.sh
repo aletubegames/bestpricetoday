@@ -1,12 +1,16 @@
 #!/bin/bash
-# deploy.sh — Build e deploy para produção com a API correta
+# deploy.sh — Build e deploy para produção (frontend Vercel + backend alaserver)
 # Uso: ./deploy.sh
-# Mantém .env.local apontando para localhost (desenvolvimento)
-# Deploy sempre usa o HF Space
+# Primeiro sincroniza o backend no alaserver, depois deploya frontend no Vercel.
 
 set -e
 
-cd "$(dirname "$0")/frontend"
+ROOT_DIR="$(dirname "$0")"
+
+echo "🖥️  Deployando backend no alaserver..."
+"$ROOT_DIR/deploy_backend.sh"
+
+cd "$ROOT_DIR/frontend"
 
 echo "🔨 Building para produção com API alaserver (ngrok)..."
 NEXT_PUBLIC_API_URL="https://sacrament-subduing-confined.ngrok-free.dev" \
@@ -15,4 +19,4 @@ NEXT_PUBLIC_API_URL="https://sacrament-subduing-confined.ngrok-free.dev" \
 echo "🚀 Deployando para Vercel..."
 vercel deploy --prebuilt --prod
 
-echo "✅ Deploy concluído!"
+echo "✅ Deploy completo! Backend no alaserver + frontend no Vercel."
