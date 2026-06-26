@@ -64,29 +64,23 @@ class MercadoLivreProvider(BaseProvider):
             return []
 
         try:
-            token = await self._get_token()
-            if not token:
-                logger.warning("ML token nao disponivel.")
-                self.set_status(
-                    ProviderSearchState.error,
-                    message="ML token nao disponivel.",
-                )
-                return []
-
-            offers = await self._search_api(query, limit, token)
+            # 1. PRIMEIRO busca na tabela affiliate_products (dados do scraper com meli.la)
+            offers = await self._local_fallback(query, limit)
             if offers:
                 return offers
 
+            # 2. API do ML desativada — retorna URLs longas sem meli.la
+            # Só usamos produtos do scraper (com links de afiliado reais)
             self.set_status(
                 ProviderSearchState.no_results,
-                message="ML nao retornou ofertas com itens ativos.",
+                message="ML nao retornou ofertas. Rode o scraper para atualizar.",
             )
             return []
         except Exception as e:
-            logger.error(f"MercadoLivre API error: {e}")
+            logger.error(f"MercadoLivre error: {e}")
             self.set_status(
                 ProviderSearchState.error,
-                message=f"MercadoLivre API error: {e}",
+                message=f"MercadoLivre error: {e}",
             )
             return []
 
@@ -101,10 +95,12 @@ class MercadoLivreProvider(BaseProvider):
 
     async def _search_api(self, query: str, limit: int, token: str) -> List[OfferSchema]:
         async with httpx.AsyncClient(timeout=20) as client:
-            # 1. Busca catalogo
+            # Endpoint /sites/MLB/search foi DESATIVADO pelo ML (403 Forbidden)
+            # Usar /products/search (catálogo) + /products/{id}/items (itens)
+            # Documentação: https://developers.mercadolivre.com.ar/en_us/categories-and-attributes/products-search
             r = await client.get(
                 "https://api.mercadolibre.com/products/search",
-                params={"site_id": "MLB", "q": query, "limit": 10},
+                params={"site_id": "MLB", "q": query, "limit": 50, "status": "active"},
                 headers={"Authorization": f"Bearer {token}"},
             )
             if r.status_code != 200:
@@ -124,13 +120,13 @@ class MercadoLivreProvider(BaseProvider):
 
             tokens = _tokenize(query)
 
-            # 2. Busca itens em paralelo (limita a 8 produtos para nao estourar tempo)
+            # Busca itens em paralelo para cada produto do catálogo
             async def fetch_item(prod: dict) -> Optional[OfferSchema]:
                 pid = prod.get("id") or prod.get("catalog_product_id")
                 if not pid:
                     return None
                 try:
-                    # Busca detalhes do produto (imagem e permalink)
+                    # Busca detalhes do produto (imagem)
                     r_prod = await client.get(
                         f"https://api.mercadolibre.com/products/{pid}?includes=items",
                         headers={"Authorization": f"Bearer {token}"},
@@ -146,13 +142,16 @@ class MercadoLivreProvider(BaseProvider):
                         headers={"Authorization": f"Bearer {token}"},
                     )
                     if r2.status_code != 200:
+                        logger.warning(f"ML items for {pid}: HTTP {r2.status_code}")
                         return None
                     items = r2.json().get("results", [])
                     if not items:
+                        logger.warning(f"ML items for {pid}: no results")
                         return None
                     item = items[0]
                     item_id = item.get("item_id")
                     if not item_id:
+                        logger.warning(f"ML items for {pid}: no item_id")
                         return None
 
                     # Formato oficial do Mercado Livre para produtos:
@@ -198,9 +197,10 @@ class MercadoLivreProvider(BaseProvider):
                     logger.warning(f"ML item fetch failed for {pid}: {e}")
                     return None
 
-            tasks = [fetch_item(p) for p in products[:10]]
+            tasks = [fetch_item(p) for p in products[:50]]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             offers = [o for o in results if isinstance(o, OfferSchema)]
+            logger.info(f"ML search '{query}': {len(products)} produtos no catalogo, {len(offers)} itens validos")
 
         if not offers:
             self.set_status(
@@ -221,13 +221,15 @@ class MercadoLivreProvider(BaseProvider):
         try:
             from app.db.session import AsyncSessionLocal
             from app.models.models import AffiliateProduct
-            from sqlalchemy import select, or_, func
+            from sqlalchemy import select, or_, and_, func
 
             tokens = _tokenize(query)
             q_lower = f"%{_normalize(query)}%"
 
             async with AsyncSessionLocal() as db:
                 if tokens:
+                    # AND: todos os tokens devem aparecer no titulo OU categoria OU notes
+                    # Isso evita retornar produtos irrelevantes que match apenas 1 token
                     token_filters = [
                         or_(
                             func.lower(AffiliateProduct.title).like(f"%{t}%"),
@@ -236,7 +238,7 @@ class MercadoLivreProvider(BaseProvider):
                         )
                         for t in tokens
                     ]
-                    where_clause = or_(*token_filters)
+                    where_clause = and_(*token_filters)
                 else:
                     where_clause = func.lower(AffiliateProduct.title).like(q_lower)
 
@@ -259,16 +261,35 @@ class MercadoLivreProvider(BaseProvider):
                 )
                 return []
 
+            # Filtra por score minimo (pelo menos 50% dos tokens no titulo)
+            min_score = 0.5 if len(tokens) > 1 else 0.0
             scored = sorted(
                 products,
                 key=lambda p: _score(p.title or "", tokens),
                 reverse=True,
-            )[:limit]
+            )
+            scored = [p for p in scored if _score(p.title or "", tokens) >= min_score][:limit]
 
             offers = []
             for p in scored:
                 price = p.price or 0.01
                 s = _score(p.title or "", tokens)
+                # Garante que o affiliate_url tenha matt_word + matt_tool (tracking de afiliado ML)
+                aff_url = p.affiliate_url or ""
+                if aff_url and settings.ML_AFFILIATE_MATT_WORD and settings.ML_AFFILIATE_MATT_TOOL:
+                    if "matt_word" not in aff_url:
+                        # Remove fragment (#...) e adiciona matt params antes do fragment
+                        fragment = ""
+                        if "#" in aff_url:
+                            aff_url, fragment = aff_url.split("#", 1)
+                            fragment = "#" + fragment
+                        sep = "&" if "?" in aff_url else "?"
+                        # Remove UTMs genéricos se existirem (vão ser re-adicionados pelo add_utm)
+                        aff_url = (
+                            f"{aff_url}{sep}matt_word={settings.ML_AFFILIATE_MATT_WORD}"
+                            f"&matt_tool={settings.ML_AFFILIATE_MATT_TOOL}"
+                            f"{fragment}"
+                        )
                 offers.append(OfferSchema(
                     provider=ProviderEnum.mercadolivre,
                     title=p.title or p.ml_code or "",
@@ -280,8 +301,8 @@ class MercadoLivreProvider(BaseProvider):
                     final_price=price,
                     score=round(s, 4),
                     product_id=p.ml_code,
-                    product_url=p.affiliate_url,
-                    affiliate_url=p.affiliate_url,
+                    product_url=aff_url,
+                    affiliate_url=aff_url,
                     image_url=p.image_url or "",
                     economy=0.0,
                 ))

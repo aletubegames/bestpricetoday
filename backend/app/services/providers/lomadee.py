@@ -21,6 +21,13 @@ class LomadeeProvider(BaseProvider):
     BASE_URL = "https://api-beta.lomadee.com.br/affiliate"
     CHANNEL_ID = settings.LOMADEE_SOURCE_ID
 
+    # Cache de links BrandPage por organizationId (evita chamar API repetidamente)
+    _brand_link_cache: dict = {}
+    # Cache de organizationIds que falharam com Custom (pula direto para BrandPage)
+    _custom_failed_orgs: set = set()
+    # Semáforo para limitar requisições concorrentes ao shortener (evita 429)
+    _shortener_sem = asyncio.Semaphore(5)
+
     def __init__(self):
         super().__init__()
         self._catalog_access: Optional[bool] = None
@@ -110,29 +117,54 @@ class LomadeeProvider(BaseProvider):
         """
         Gera link afiliado rastreado via POST /affiliate/shortener/url.
         Tipo Custom com a URL exata do produto.
-        Fallback para URL com sourceId se o shortener rejeitar o domínio.
+        Fallback para BrandPage (link da marca) com cache por organizationId.
         """
         if not product_url or not organization_id:
-            return self._build_affiliate_url(product_url)
+            return None
         try:
-            client = await self.get_client()
-            resp = await client.post(
-                f"{self.BASE_URL}/shortener/url",
-                headers={"x-api-key": settings.LOMADEE_API_KEY, "Content-Type": "application/json"},
-                json={"url": product_url, "organizationId": organization_id, "type": "Custom"},
-                timeout=8,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                # Resposta é lista de canais; pegar primeiro shortUrl disponível
-                if isinstance(data, list) and data:
-                    short_urls = data[0].get("shortUrls", [])
-                    if short_urls:
-                        return short_urls[0]
+            async with self._shortener_sem:
+                client = await self.get_client()
+                
+                # Se Custom já falhou para esta org, pula direto para BrandPage
+                skip_custom = organization_id in self._custom_failed_orgs
+                
+                if not skip_custom:
+                    # Tenta Custom primeiro (link direto do produto)
+                    resp = await client.post(
+                        f"{self.BASE_URL}/shortener/url",
+                        headers={"x-api-key": settings.LOMADEE_API_KEY, "Content-Type": "application/json"},
+                        json={"url": product_url, "organizationId": organization_id, "type": "Custom"},
+                        timeout=5,
+                    )
+                    if resp.status_code in (200, 201):
+                        data = resp.json()
+                        if isinstance(data, list) and data:
+                            short_urls = data[0].get("shortUrls", [])
+                            if short_urls:
+                                return short_urls[0]
+                    # Custom falhou — marca para pular nas próximas
+                    self._custom_failed_orgs.add(organization_id)
+
+                # Fallback: BrandPage com cache
+                if organization_id in self._brand_link_cache:
+                    return self._brand_link_cache[organization_id]
+
+                resp2 = await client.post(
+                    f"{self.BASE_URL}/shortener/url",
+                    headers={"x-api-key": settings.LOMADEE_API_KEY, "Content-Type": "application/json"},
+                    json={"organizationId": organization_id, "type": "BrandPage"},
+                    timeout=5,
+                )
+                if resp2.status_code in (200, 201):
+                    data = resp2.json()
+                    if isinstance(data, list) and data:
+                        short_urls = data[0].get("shortUrls", [])
+                        if short_urls:
+                            self._brand_link_cache[organization_id] = short_urls[0]
+                            return short_urls[0]
         except Exception as exc:
             logger.debug(f"Lomadee shortener failed: {type(exc).__name__}: {exc}")
-        # Fallback
-        return self._build_affiliate_url(product_url)
+        return None
 
     async def _has_catalog_access(self) -> bool:
         if self._catalog_access is not None:
@@ -191,6 +223,35 @@ class LomadeeProvider(BaseProvider):
                 )
                 return []
 
+            # Filtro de relevância: remove produtos cujo titulo nao contem
+            # o token mais significativo da query (evita Dorflex para "iphone")
+            import re, unicodedata
+            def _norm(t):
+                t = t.lower().strip()
+                t = unicodedata.normalize("NFKD", t)
+                return "".join(c for c in t if not unicodedata.combining(c))
+            query_tokens = [t for t in re.findall(r"\w+", _norm(query)) if len(t) > 2]
+            if query_tokens:
+                # Token mais longo = mais significativo (ex: "iphone" > "max")
+                primary_token = max(query_tokens, key=len)
+                filtered = []
+                for p in products:
+                    title = _norm(p.get("name", "") or p.get("title", "") or "")
+                    if primary_token in title:
+                        filtered.append(p)
+                # Se filtrou tudo, nao retorna irrelevantes — retorna vazio
+                if filtered:
+                    products = filtered
+                else:
+                    self.set_status(
+                        ProviderSearchState.no_results,
+                        message=f"Lomadee: nenhum produto continha '{primary_token}' no titulo.",
+                        http_status=resp.status_code,
+                        raw_count=raw_count,
+                        returned_count=0,
+                    )
+                    return []
+
             # Gera links afiliados em paralelo (max 5 por vez)
             offers = await self._parse_with_links(products[:limit])
             valid_offers = [o for o in offers if o.price]
@@ -213,7 +274,7 @@ class LomadeeProvider(BaseProvider):
             return []
 
     async def _parse_with_links(self, products: list) -> List[OfferSchema]:
-        """Parse produtos e gera links afiliados em paralelo."""
+        """Parse produtos e gera links afiliados em paralelo (semáforo limita concorrência)."""
         tasks = [self._parse_product(item) for item in products]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         offers = []
@@ -252,10 +313,7 @@ class LomadeeProvider(BaseProvider):
             list_price = round(float(list_raw), 2) if list_raw else None
 
             # Lomadee freq. retorna listPrice == price (sem desconto na fonte)
-            # Tenta scraping da página, depois MSRP de referência
-            if not list_price or list_price <= price:
-                product_url_tmp = item.get("url", "")
-                list_price = await self._fetch_suggested_price(product_url_tmp, price)
+            # Scraping desativado — muito lento (3s/produto). Usa MSRP de referência.
             if not list_price or list_price <= price:
                 list_price = self._get_msrp(item.get("name", ""), price)
 
@@ -279,7 +337,9 @@ class LomadeeProvider(BaseProvider):
             # Gera link afiliado rastreado
             affiliate_url = await self._generate_affiliate_link(product_url, organization_id)
             if not affiliate_url:
-                affiliate_url = product_url  # fallback para URL direta
+                # Se shortener falhou completamente, pula o produto (não usa URL direta)
+                logger.debug(f"Lomadee: sem link afiliado para {item.get('name','')[:40]}")
+                return None
 
             return OfferSchema(
                 provider=ProviderEnum.lomadee,

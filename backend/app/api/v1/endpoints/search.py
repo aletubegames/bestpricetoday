@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Request
+from typing import Optional
 from app.schemas.schemas import SearchRequest, SearchResponse, TrendingSearchResponse, TrendingSearchItem
 from app.services.search import get_trending_searches, search_all
 from app.core.logging import logger
@@ -29,13 +30,18 @@ async def search_get(
     req: Request,
     q: str = Query(..., min_length=2, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
+    providers: Optional[str] = Query(default=None, description="Filtrar providers: mercadolivre,shopee,aliexpress,lomadee"),
 ):
     from app.core.rate_limit import check_rate_limit, get_client_ip
+    from app.schemas.schemas import ProviderEnum
     ip = get_client_ip(req)
     if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
         raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")
     try:
-        return await search_all(query=q, limit=limit)
+        provider_list = None
+        if providers:
+            provider_list = [ProviderEnum(p.strip()) for p in providers.split(",") if p.strip()]
+        return await search_all(query=q, limit=limit, providers=provider_list)
     except Exception as e:
         logger.error(f"Search GET error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
@@ -48,8 +54,9 @@ async def list_affiliate_products(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=20, le=100),
     sort: str = Query(default="relevance", description="sort: relevance, price_asc, price_desc"),
+    search: str = Query(default="", description="Busca específica opcional (ex: iphone x)"),
 ):
-    """Lista produtos afiliados por provider com paginação (sem busca)."""
+    """Lista produtos afiliados por provider com paginação e busca opcional."""
     from app.core.rate_limit import check_rate_limit, get_client_ip
     from app.services.search import search_all
     from app.schemas.schemas import ProviderEnum
@@ -58,24 +65,65 @@ async def list_affiliate_products(
         raise HTTPException(status_code=429, detail="Rate limit: max 60 req/min por IP.")
     
     try:
-        # Queries genéricas para cada provider (mínimo 2 caracteres)
-        generic_queries = {
-            "mercadolivre": "celular",  # busca genérica popular
-            "shopee": "tenis",  # busca genérica popular
-            "aliexpress": "phone",  # busca genérica popular
-            "lomadee": "smartphone",  # busca genérica popular
-        }
-        query = generic_queries.get(provider, "oferta")
+        # Para AliExpress sem busca específica, usar hot products
+        if provider == "aliexpress" and (not search or len(search) < 2):
+            from app.integrations.aliexpress import AliExpressClient
+            from app.services.providers.aliexpress import AliExpressProvider
+            
+            client = AliExpressClient()
+            provider_instance = AliExpressProvider()
+            
+            hot_products = await client.get_hot_products(limit=100)
+            
+            # Converter ProductResult para OfferSchema
+            offers = [provider_instance._to_offer(p) for p in hot_products]
+            
+            # Ordenação
+            if sort == "price_asc":
+                offers = sorted(offers, key=lambda x: x.final_price or float('inf'))
+            elif sort == "price_desc":
+                offers = sorted(offers, key=lambda x: x.final_price or 0, reverse=True)
+            
+            # Simula paginação
+            offset = (page - 1) * per_page
+            paginated_offers = offers[offset:offset + per_page]
+            return {
+                "offers": paginated_offers,
+                "total": len(offers),
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (len(offers) + per_page - 1) // per_page,
+                "sort": sort,
+            }
         
-        # Busca mais produtos para permitir paginação
+        # Sem busca específica, retornar vazio (não usar queries genéricas)
+        if not search or len(search) < 2:
+            return {
+                "offers": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": 0,
+                "sort": sort,
+            }
+        
+        # Busca com o que o usuário digitou
+        query = search
+        
+        # Lomadee tem rate limit de 60 req/60s no shortener — limita a 20 produtos
+        search_limit = 20 if provider == "lomadee" else 100
+        
+        # Busca mais produtos para permitir paginação (seguindo documentação oficial)
         result = await search_all(
             query=query,
-            limit=300,  # busca mais para permitir paginação
+            limit=search_limit,
             providers=[ProviderEnum(provider)],
         )
         
+        # Filtrar ofertas pelo provider solicitado (garantia extra)
+        offers = [offer for offer in result.offers if offer.provider == provider]
+        
         # Ordenação
-        offers = result.offers
         if sort == "price_asc":
             offers = sorted(offers, key=lambda x: x.final_price or float('inf'))
         elif sort == "price_desc":
@@ -108,6 +156,62 @@ async def trending_searches(limit: int = Query(default=20, ge=1, le=20)):
     except Exception as e:
         logger.error(f"Trending search error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Trending search failed: {str(e)}")
+
+
+# Curadoria de queries importada do módulo de dados (6700+ queries)
+# Usado pelo sitemap para garantir páginas indexáveis mesmo com pouco tráfego
+from app.data.curated_queries import CURATED_QUERIES
+
+
+@router.get("/search/sitemap-queries")
+async def sitemap_queries(limit: int = Query(default=5000, ge=1, le=10000)):
+    """Retorna queries para o sitemap (trending do banco + curadoria manual).
+
+    Usado pelo frontend (sitemap.ts) para gerar URLs indexáveis.
+    Combina:
+    1. Trending real do banco (buscas reais dos usuários)
+    2. Curadoria manual por nicho de alta comissão
+    Deduplica e ordena por score.
+    """
+    from app.services.search import get_trending_searches
+
+    queries_set = set()
+    result = []
+
+    # 1. Trending do banco (buscas reais)
+    try:
+        items = await get_trending_searches(limit=100)
+        for item in items:
+            q = item.get("query", "").strip()
+            if q and q not in queries_set and len(q) >= 3:
+                queries_set.add(q)
+                result.append({
+                    "query": q,
+                    "score": float(item.get("score", 0)),
+                    "source": "trending",
+                })
+    except Exception as e:
+        logger.warning(f"Sitemap queries: trending failed: {e}")
+
+    # 2. Curadoria manual (preenche até o limite)
+    for q in CURATED_QUERIES:
+        if len(result) >= limit:
+            break
+        if q not in queries_set:
+            queries_set.add(q)
+            result.append({
+                "query": q,
+                "score": 50,  # score base para curados
+                "source": "curated",
+            })
+
+    # Ordena por score (trending real primeiro, depois curados)
+    result.sort(key=lambda x: x["score"], reverse=True)
+
+    return {
+        "count": len(result),
+        "queries": result[:limit],
+    }
 
 
 @router.get("/debug/aliexpress")

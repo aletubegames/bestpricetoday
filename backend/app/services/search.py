@@ -214,7 +214,8 @@ async def search_all(
 ) -> SearchResponse:
     start = time.time()
     normalized = normalize_query(query)
-    cache_key = make_cache_key("search", query=normalized, limit=limit)
+    provider_key = ",".join(sorted([p.value for p in providers])) if providers else "all"
+    cache_key = make_cache_key("search", query=normalized, limit=limit, providers=provider_key)
 
     cached = await get_cached(cache_key)
     if cached:
@@ -230,7 +231,7 @@ async def search_all(
         if p in PROVIDERS:
             instance = PROVIDERS[p]()
             instances.append(instance)
-            tasks.append(instance.safe_search(normalized, limit=min(limit, 10)))
+            tasks.append(instance.safe_search(normalized, limit=min(limit, 30)))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -252,7 +253,7 @@ async def search_all(
     # Close all clients
     await asyncio.gather(*[i.close() for i in instances], return_exceptions=True)
 
-    ranked = rank_offers(all_offers)
+    ranked = rank_offers(all_offers, query=normalized)
 
     # Garantir que produtos ML afiliados apareçam nos resultados
     # (podem ter score baixo por preço alto, mas são links afiliados reais)
