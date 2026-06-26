@@ -4,6 +4,41 @@
 
 ---
 
+## Atualizações recentes (2026-06-25)
+
+### Mercado Livre Token — Sistema de Renovação Automática Robusto
+**Problema:** O token do Mercado Livre expirava e não renovava automaticamente. O sistema tinha fallback para tokens estáticos do .env que nunca eram renovados.
+
+**Solução implementada:**
+- **Removido fallback do .env**: O sistema agora usa exclusivamente OAuth flow + banco de dados
+- **Refresh token robusto**: Implementado seguindo documentação oficial do ML:
+  - Access token: válido por 6 horas
+  - Refresh token: uso único (cada refresh gera um novo refresh token)
+  - Refresh token duração: 6 meses
+- **Cron job melhorado**: Verifica a cada 15 minutos, renova se expira em menos de 1 hora
+- **Buffer de segurança**: Renova 30 minutos antes da expiração (aumentado de 10 min)
+- **Validação de resposta**: Verifica se refresh retornou access_token e refresh_token válidos
+- **Tratamento de erros**: Detecção específica de `invalid_grant` (token expirado/já usado)
+- **Endpoint de diagnóstico**: `/api/v1/auth/ml/status` mostra status detalhado + instruções
+- **Endpoint de refresh manual**: `/api/v1/auth/ml/refresh` para testes/recuperação
+
+**Como usar:**
+1. Acesse `/api/v1/auth/ml/authorize` para autenticar no Mercado Livre
+2. O token é salvo no banco de dados criptografado
+3. O sistema renova automaticamente antes de expirar
+4. Verifique status em `/api/v1/auth/ml/status`
+
+**Arquivos modificados:**
+- `backend/app/services/ml_token_service.py` - Core do sistema de token
+- `backend/app/workers/ml_refresh_cron.py` - Cron job de renovação
+- `backend/app/api/v1/endpoints/auth.py` - Endpoints de OAuth e diagnóstico
+- `backend/.env` - Removidos tokens estáticos
+- `hf_space/` - Mesmas mudanças para deploy HuggingFace
+
+**Importante:** Se o refresh falhar no meio do processo (após usar o token no ML mas antes de salvar no banco), o refresh token antigo fica inválido e o usuário precisa re-autenticar. O sistema agora loga erros críticos e fornece mensagens claras.
+
+---
+
 ## Atualizações recentes (2026-05-21)
 
 ### Afiliados ML — Ordenação de colunas na tabela de Produtos
