@@ -302,6 +302,77 @@ def build_caption_facebook(offer: dict) -> str:
     return "\n".join(lines)
 
 
+def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -> str:
+    """Descrição para YouTube — COM link direto da loja + disclosure (política 2026).
+
+    YouTube permite links de afiliado na descrição (diferente do Facebook).
+    Requisitos:
+    - Disclosure obrigatório nas primeiras linhas (FTC + YouTube)
+    - Link direto da loja (Amazon, Shopee, etc.) — permitido
+    - Short link também (para tracking interno)
+    - Data da oferta (para vídeos perecíveis não enganarem no futuro)
+    """
+    title = offer.get("title", "")[:80]
+    price = offer.get("final_price", 0)
+    original = offer.get("original_price", 0)
+    discount = offer.get("discount_percent", 0)
+    shipping_free = offer.get("shipping_free", False)
+    provider = offer.get("provider", "loja")
+    economy = offer.get("economy", 0)
+    score = offer.get("score", 0)
+    emoji = PROVIDER_EMOJI.get(provider, "🏪")
+    now = datetime.now().strftime("%d/%m/%Y")
+
+    lines = []
+
+    # 1. Disclosure obrigatório (FTC + YouTube) — primeiras linhas
+    lines.append("Este vídeo contém links de afiliado. Posso ganhar uma comissão se você comprar por eles.")
+    lines.append("")
+
+    # 2. Título da oferta
+    lines.append(f"🔥 {title}")
+    lines.append(f"📅 Oferta do dia: {now}")
+    lines.append("")
+
+    # 3. Preço
+    if original and original > price:
+        lines.append(f"De R$ {original:.2f}")
+    lines.append(f"💵 R$ {price:.2f}")
+    if discount >= 5:
+        lines.append(f"🏷️ -{discount:.0f}% de desconto")
+    if shipping_free:
+        lines.append("✅ Frete grátis")
+    if economy > 10:
+        lines.append(f"💰 Economize R$ {economy:.2f}")
+
+    lines.append("")
+
+    # 4. Links — direto da loja + short link para tracking
+    lines.append("🛒 Compre aqui (link direto):")
+    lines.append(affiliate_url)
+    lines.append("")
+    lines.append("🔗 Ou pelo BestPriceToday (com tracking de preço):")
+    lines.append(short_url)
+
+    lines.append("")
+
+    # 5. Sobre o canal
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("BestPriceToday — Menor Preço do Brasil")
+    lines.append("Compare preços em Mercado Livre, Amazon, Shopee, KaBuM e mais.")
+    lines.append("Cupons automáticos + cashback + histórico de preços.")
+    lines.append(f"{settings.PUBLIC_SITE_URL}")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+
+    # 6. Hashtags SEO
+    tags = ["#oferta", "#desconto", f"#{provider}", "#bestpricetoday", "#promoção"]
+    if discount >= 30:
+        tags.append("#ofertaimperdível")
+    lines.append(" ".join(tags))
+
+    return "\n".join(lines)
+
+
 # ─── Telegram poster ──────────────────────────────────────────────────────────
 
 async def post_to_telegram(offer: dict, caption: str) -> dict:
