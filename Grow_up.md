@@ -373,6 +373,13 @@ Shopee") e adiciona vídeo conforme valida.
       - `post_comment_facebook()` + `pin_comment_facebook()` no instagram.py
       - **FUNCIONAL** — `pages_manage_engagement` ativado + OAuth refeito.
         Teste OK: posts + comentários com link fixados nas 3 páginas.
+      - **Por que short link `/r/{code}` em vez do link direto da loja:**
+        1. **Tracking**: registra IP, user-agent, referrer, horário (link direto = cego)
+        2. **Anti-banimento**: Meta não reconhece `/r/abc123` como afiliado
+           (reconhece `amazon.com.br/dp/...` e limita alcance)
+        3. **Flexibilidade**: troca o destino no banco sem mudar o post
+        4. **Branding**: todo clique passa pelo domínio do projeto
+        Fluxo: clique → ClickEvent → 302 redirect → loja com cookie de afiliado
 - [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
