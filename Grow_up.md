@@ -16,8 +16,7 @@
 | Links Telegram | ✅ | Short links `:9443/r/{code}` → 302 redirect funcionando |
 | Métricas ML | ✅ | Scraping diário do portal de afiliados → `affiliate_metrics_snapshots` |
 | SSR SEO | ✅ | `/produto/[query]` server-rendered com JSON-LD `Product` + `AggregateOffer` |
-| Sitemap expandido | ✅ | **5.046 URLs** (antes 314) — 6.759 queries curadas + 32 marcas + categorias |
-| Páginas de marca | ✅ | **32 páginas SSG** `/marca/[slug]` com JSON-LD `CollectionPage` + `ItemList` |
+| Sitemap honesto | ✅ | **35 URLs** com conteúdo real (4 estáticas + 10 categorias + 21 produtos) |
 | Categorias | ✅ | 10 hubs `/categoria/[cat]` com SSR + JSON-LD `CollectionPage` |
 | Analytics | ✅ | GA4 (`G-D2J769S99H`) + Microsoft Clarity (`xd51oaxppe`) ativos |
 | Distribuição | ✅ | Orquestrador `distributor.py` + loop automático 5x/dia no Telegram |
@@ -25,6 +24,14 @@
 | Dashboard | ✅ | `/admin/distribute/stats` tracking por canal/post |
 | Filtro de relevância | ✅ | Remove acessórios (capas, cases) de buscas de produtos principais |
 | Filtro Lomadee | ✅ | Remove resultados irrelevantes (ex: Dorflex para "iphone") |
+
+### ⚠️ Problema real (catálogo limitado)
+- **Testadas 6.759 queries:** só 21 têm ≥3 ofertas (todas airfryers)
+- **Nenhum provider tem eletrônicos reais** (iPhones, TVs, notebooks, etc.)
+- **ML:** tabela com 2.530 produtos aleatórios (orquídeas, móveis)
+- **AliExpress/Shopee:** só retornam acessórios (capas, cases) — filtrados
+- **Lomadee:** não tem eletrônicos no catálogo acessível
+- **Solução:** rodar scraper ML com queries de eletrônicos OU configurar Amazon Associates
 
 ### ⬜ Pendente (ações do usuário)
 | Item | Ação |
@@ -38,9 +45,8 @@
 ### 📈 Métricas atuais
 - **Posts no Telegram:** 8 (5 testes + 3 automáticos)
 - **Cliques rastreados:** 0 (ofertas acabaram de ser postadas)
-- **Páginas indexáveis:** 5.046 (sitemap) — antes 314
-- **Páginas de marca:** 32 (SSG com JSON-LD)
-- **Queries curadas no backend:** 6.759 (geradas programaticamente)
+- **Páginas indexáveis:** 35 (sitemap) — só URLs com ofertas reais
+- **Queries com produtos:** 21 (todas airfryers — único nicho com catálogo)
 - **Frequência de postagem:** 5x/dia (9h, 13h, 18h, 0h, 6h) — ~11 ofertas/dia
 
 ---
@@ -64,9 +70,9 @@
 - ✅ **GA4 ativo** (ID: `G-D2J769S99H`) — tráfego e conversões rastreados.
 - ✅ **Microsoft Clarity ativo** (ID: `xd51oaxppe`) — heatmaps + session replay.
 - ✅ **SSR ativo** em `/produto/[query]` — Google vê preços sem JS (ISR 30min).
-- ✅ **Sitemap com 5.046 URLs** (6.759 queries curadas + 32 marcas + 10 categorias + 4 estáticas).
-- ✅ **32 páginas de marca** (`/marca/[slug]`) SSG com JSON-LD `CollectionPage` + `ItemList`.
+- ✅ **Sitemap com 35 URLs** (4 estáticas + 10 categorias + 21 produtos com ofertas reais).
 - ✅ **10 páginas de categoria** (`/categoria/[cat]`) com SSR + JSON-LD.
+- ⚠️ **Páginas de marca** (`/marca/[slug]`) existem mas têm 0 ofertas — removidas do sitemap.
 - ✅ **Distributor automático** postando no Telegram 5x/dia (9h, 13h, 18h, 0h, 6h).
 - ✅ **Scraping de métricas ML** rodando diariamente (portal de afiliados).
 - ✅ **Filtro de acessórios** ativo no ranking (remove capas/cases de buscas de produtos).
@@ -85,8 +91,9 @@
    `scrape_metrics_summary()` no `ml_scraper.py` coleta métricas do portal
    de afiliados ML diariamente. Tabela `affiliate_metrics_snapshots` no banco.
 5. ~~**SEO inexistente em escala.**~~ → **CORRIGIDO**: SSR em `/produto/[query]`
-   com JSON-LD `Product` + `AggregateOffer`. Sitemap dinâmico com **5.046 URLs**
-   (antes 314). 10 páginas de categoria + **32 páginas de marca** com JSON-LD.
+   com JSON-LD `Product` + `AggregateOffer`. Sitemap com **35 URLs com conteúdo
+   real** (antes 314, tentou 5.046 mas 99.7% estariam vazias). 10 páginas de
+   categoria com JSON-LD. Páginas de marca existem mas aguardam catálogo.
 6. ~~**Busca retornando acessórios irrelevantes.**~~ → **CORRIGIDO**: Filtro
    de acessórios no ranking engine (remove capas/cases de buscas por
    smartphones/notebooks/etc). Filtro de relevância no Lomadee (exige token
@@ -406,8 +413,9 @@ e **só se** o loop de conversão estiver fechado e a fonte dominante identifica
 ✅ Dia 1:     FASE 0.1-0.3 (URLs :9443 + workers no alaserver + links corrigidos)
 ✅ Dia 1:     FASE 0.4a (scraping métricas ML + endpoints admin)
 ✅ Dia 1:     FASE 1.1 (SSR /produto/[query] + JSON-LD Product)
-✅ Dia 1:     FASE 1.2 (sitemap 314 URLs dinâmico → expandido para 5.046 URLs)
-✅ Dia 2:     FASE 3.2 (SEO em escala: 6.759 queries curadas + 32 páginas de marca + filtros relevância)
+✅ Dia 1:     FASE 1.2 (sitemap 314 URLs dinâmico)
+✅ Dia 2:     FASE 3.2 (SEO em escala → testado 6.759 queries → só 21 válidas → sitemap honesto com 35 URLs)
+✅ Dia 2:     Filtros de relevância (acessórios + Lomadee + ML AND)
 ✅ Dia 1:     FASE 1.3 (10 páginas de categoria + link juice)
 ✅ Dia 1:     FASE 1.4 (GA4 + Microsoft Clarity + robots.txt)
 ✅ Dia 1:     FASE 2.1-2.5 (orquestrador + IA + Telegram + dashboard + loop auto)
@@ -473,7 +481,8 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
 
 ### Próximas implementações (quando pronto):
 - **Fase 3.1:** Rede de canais Telegram por nicho (5-10 canais segmentados)
-- ~~**Fase 3.2:** SEO em escala (sitemap 5k-10k + páginas de marca)~~ ✅ CONCLUÍDO
+- ~~**Fase 3.2:** SEO em escala~~ ✅ CONCLUÍDO (sitemap honesto: 35 URLs com conteúdo real)
 - **Fase 3.3:** Tráfego pago com arbitragem (Meta Pixel + Conversion API)
 - **Fase 3.4:** Cortar perdedores, dobrar vencedores
-- **Fase 3.5:** Catálogo de eletrônicos (scraper ML + Amazon Associates)
+- **Fase 3.5:** **EXPANDIR CATÁLOGO** (scraper ML com eletrônicos + Amazon Associates)
+  — isto é o que vai permitir crescer o sitemap de 35 para centenas de URLs
