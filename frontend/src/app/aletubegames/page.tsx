@@ -10,13 +10,23 @@ import { isTokenExpired } from "@/lib/utils";
 interface AccountStatus {
   connected: boolean;
   username?: string;
+  display_name?: string;
+  channel_title?: string;
+  page_name?: string;
   avatar?: string;
-  token_status?: "ok" | "expiring" | "expired";
+  avatar_url?: string;
+  channel_url?: string;
+  page_url?: string;
+  token_status?: "ok" | "expiring" | "expired" | "expiring_soon" | "unknown";
+  auth_url?: string;
+  note?: string;
 }
 
 interface AccountsStatus {
   tiktok: AccountStatus;
   youtube: AccountStatus;
+  instagram: AccountStatus;
+  facebook: AccountStatus;
 }
 
 interface VideoInfo {
@@ -66,16 +76,20 @@ interface HistoryVideo {
 
 type Tab = "accounts" | "publish" | "history";
 type PublishStep = 1 | 2 | 3 | 4;
-type PlatformKey = "tiktok" | "youtube";
+type PlatformKey = "tiktok" | "youtube" | "instagram" | "facebook";
 
 const PLATFORMS: { key: PlatformKey; label: string; color: string; icon: string }[] = [
   { key: "tiktok", label: "TikTok", color: "#ff0050", icon: "🎵" },
   { key: "youtube", label: "YouTube", color: "#ff0000", icon: "▶️" },
+  { key: "instagram", label: "Instagram", color: "#e1306c", icon: "📸" },
+  { key: "facebook", label: "Facebook", color: "#1877f2", icon: "👍" },
 ];
 
 const PLATFORM_NOTES: Record<PlatformKey, string> = {
   tiktok: "Requer aprovação Content Posting API",
   youtube: "OAuth Google — funciona imediatamente após configurar client_id",
+  instagram: "Conecta via Facebook Login (requer conta Business/Creator)",
+  facebook: "OAuth Facebook — publica em Páginas conectadas",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -123,11 +137,11 @@ export default function AleTubeGamesPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const [editedMeta, setEditedMeta] = useState<Record<PlatformKey, PlatformMeta>>({
-    tiktok: {}, youtube: {},
+    tiktok: {}, youtube: {}, instagram: {}, facebook: {},
   });
   const [metaTab, setMetaTab] = useState<PlatformKey>("tiktok");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<PlatformKey, boolean>>({
-    tiktok: false, youtube: false,
+    tiktok: false, youtube: false, instagram: false, facebook: false,
   });
   const [affiliateUrl, setAffiliateUrl] = useState("");
   const [publishing, setPublishing] = useState(false);
@@ -206,6 +220,8 @@ export default function AleTubeGamesPage() {
       setSelectedPlatforms({
         tiktok: !!data.tiktok?.connected,
         youtube: !!data.youtube?.connected,
+        instagram: !!data.instagram?.connected,
+        facebook: !!data.facebook?.connected,
       });
     } catch (e: unknown) {
       setAccountsError(e instanceof Error ? e.message : "Erro ao carregar contas");
@@ -251,6 +267,13 @@ export default function AleTubeGamesPage() {
         const data = await res.json();
         url = data.auth_url;
         if (data.state) localStorage.setItem("youtube_oauth_state", data.state);
+      } else if (platform === "instagram" || platform === "facebook") {
+        const headers = getAuthHeaders();
+        const res = await apiFetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        url = data.auth_url;
+        if (data.state) localStorage.setItem("facebook_oauth_state", data.state);
       } else {
         return;
       }
@@ -331,8 +354,8 @@ export default function AleTubeGamesPage() {
       const meta: Record<PlatformKey, PlatformMeta> = {
         tiktok: { ...data.platform_metadata?.tiktok },
         youtube: { ...data.platform_metadata?.youtube },
-
-
+        instagram: { ...data.platform_metadata?.instagram },
+        facebook: { ...data.platform_metadata?.facebook },
       };
       setEditedMeta(meta);
       setPublishStep(3);
@@ -368,6 +391,8 @@ export default function AleTubeGamesPage() {
 
       form.append("tiktok_meta", buildMeta("tiktok"));
       form.append("youtube_meta", buildMeta("youtube"));
+      form.append("instagram_meta", buildMeta("instagram"));
+      form.append("facebook_meta", buildMeta("facebook"));
 
       const res = await apiFetch(`${API}/api/v1/aletube/publish`, {
         method: "POST",
@@ -391,7 +416,7 @@ export default function AleTubeGamesPage() {
     setSelectedFile(null);
     setVideoInfo(null);
     setAnalyzeResult(null);
-    setEditedMeta({ tiktok: {}, youtube: {} });
+    setEditedMeta({ tiktok: {}, youtube: {}, instagram: {}, facebook: {} });
     setAffiliateUrl("");
     setPublishResult(null);
     setUploadError(null);
@@ -669,11 +694,13 @@ export default function AleTubeGamesPage() {
                       </span>
                       {acc.connected && acc.token_status && (
                         <span style={s.tokenBadge(acc.token_status)}>
-                          {acc.token_status === "ok" ? "Token OK" : acc.token_status === "expiring" ? "⚠ Expirando" : "❌ Expirado"}
+                          {acc.token_status === "ok" ? "Token OK" : (acc.token_status === "expiring" || acc.token_status === "expiring_soon") ? "⚠ Expirando" : acc.token_status === "expired" ? "❌ Expirado" : "❓ Desconhecido"}
                         </span>
                       )}
-                      {acc.connected && acc.username && (
-                        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>@{acc.username}</div>
+                      {acc.connected && (acc.username || acc.display_name || acc.channel_title || acc.page_name) && (
+                        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+                          {acc.username ? `@${acc.username}` : acc.display_name || acc.channel_title || acc.page_name}
+                        </div>
                       )}
                       <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12, lineHeight: 1.4 }}>
                         {PLATFORM_NOTES[key]}
