@@ -23,7 +23,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' https: data: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' http://localhost:8000 http://localhost:8765 https://alessandro2090-bestpricetoday-api.hf.space https://*.ngrok-free.app https://*.ngrok-free.dev wss://*.ngrok-free.app wss://*.ngrok-free.dev",
+              "connect-src 'self' http://localhost:8000 http://localhost:8765 https://api.alaserver.com.br:9443 https://api.alaserver.com.br:8080 http://api.alaserver.com.br https://sacrament-subduing-confined.ngrok-free.dev https://*.ngrok-free.app https://*.ngrok-free.dev wss://*.ngrok-free.app wss://*.ngrok-free.dev",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

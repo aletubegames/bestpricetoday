@@ -9,12 +9,23 @@ from app.core.logging import logger
 
 def add_utm(url: str, provider: str, source: str = "web") -> str:
     """Add UTM params to affiliate link if not already present."""
-    if not url or "utm_source" in url:
+    if not url:
+        return url
+    # Verifica utm_source apenas na query string (antes do #), não no fragment
+    # URLs do ML têm #polycard_client=affiliates&...&utm_source=... no fragment
+    query_part = url.split("#")[0]
+    if "utm_source=bestpricetoday" in query_part:
         return url
     # Garantir que provider é string pura, não ProviderEnum.shopee
     provider_str = str(provider).replace("ProviderEnum.", "").split(".")[-1]
-    sep = "&" if "?" in url else "?"
-    return f"{url}{sep}utm_source=bestpricetoday&utm_medium=affiliate&utm_campaign=search&utm_content={provider_str}"
+    # Adicionar UTMs antes do fragment (#)
+    fragment = ""
+    clean_url = url
+    if "#" in url:
+        clean_url, fragment = url.split("#", 1)
+        fragment = "#" + fragment
+    sep = "&" if "?" in clean_url else "?"
+    return f"{clean_url}{sep}utm_source=bestpricetoday&utm_medium=affiliate&utm_campaign=search&utm_content={provider_str}{fragment}"
 
 
 class BaseProvider(ABC):

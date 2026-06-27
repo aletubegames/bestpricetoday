@@ -488,6 +488,6 @@ async def create_shortlink(
 
     return {
         "code":      code,
-        "short_url": f"https://bestpricetoday.vercel.app/r/{code}",
+        "short_url": f"{settings.PUBLIC_SITE_URL}/r/{code}",
         "product":   p.title or p.ml_code,
     }

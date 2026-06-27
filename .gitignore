@@ -25,3 +25,16 @@ backend/hf_deploy/
 Videos_Uploads/
 tools/shopee_extract_mp4/videos/
 .vscode/
+
+# Server runtime / debug artifacts (not source)
+.ml_*
+.test_modal*
+.env.bak*
+backend/test_debug.*
+backend/test_modal.py
+backend/test_share.py
+backend/test_img.py
+backend/videos/
+
+# Sensitive business docs / 2FA recovery codes served from public/
+frontend/public/Aletube-Company/

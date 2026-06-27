@@ -2,7 +2,7 @@
 import httpx
 from typing import List
 from app.services.providers.base import BaseProvider
-from app.schemas.schemas import OfferSchema, ProviderEnum
+from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -12,6 +12,12 @@ class KabumProvider(BaseProvider):
     BASE_URL = "https://api.kabum.com.br/produtos/busca"
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
+        if not settings.KABUM_AFFILIATE_TOKEN:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="KABUM_AFFILIATE_TOKEN não configurado — links não seriam afiliados.",
+            )
+            return []
         try:
             client = await self.get_client()
             resp = await client.get(

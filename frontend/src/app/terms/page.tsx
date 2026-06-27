@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { SITE_BASE } from "@/lib/api";
 
 export const metadata: Metadata = {
   title: "Termos de Uso — BestPriceToday",
   description: "Termos e condições de uso da plataforma BestPriceToday.",
-  alternates: { canonical: "https://bestpricetoday.vercel.app/terms" },
+  alternates: { canonical: `${SITE_BASE}/terms` },
 };
 
 export default function TermsPage() {

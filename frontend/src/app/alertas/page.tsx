@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Bell, Plus, Trash2, TrendingDown, RefreshCw } from "lucide-react";
-import { API_BASE as API } from "@/lib/api";
+import { API_BASE as API, apiFetch } from "@/lib/api";
 
 interface Alert {
   id: string;
@@ -76,7 +76,7 @@ export default function AlertasPage() {
     if (!id) return;
     setLoadingList(true);
     try {
-      const r = await fetch(`${API}/api/v1/alerts?owner_id=${encodeURIComponent(id)}`);
+      const r = await apiFetch(`${API}/api/v1/alerts?owner_id=${encodeURIComponent(id)}`);
       if (r.ok) {
         const data = await r.json();
         setAlerts(Array.isArray(data) ? data : []);
@@ -97,7 +97,7 @@ export default function AlertasPage() {
     setLoading(true);
     setMsg("");
     try {
-      const r = await fetch(`${API}/api/v1/alerts`, {
+      const r = await apiFetch(`${API}/api/v1/alerts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -128,9 +128,9 @@ export default function AlertasPage() {
 
   const remove = async (id: string) => {
     // Optimistic update
-    setAlerts(prev => prev.filter(a => a.id !== id));
+    setAlerts(prev => (prev || []).filter(a => a.id !== id));
     try {
-      await fetch(`${API}/api/v1/alerts/${id}?owner_id=${encodeURIComponent(anonId)}`, { method: "DELETE" });
+      await apiFetch(`${API}/api/v1/alerts/${id}?owner_id=${encodeURIComponent(anonId)}`, { method: "DELETE" });
     } catch {
       // Se falhar, recarrega a lista
       loadAlerts(anonId);

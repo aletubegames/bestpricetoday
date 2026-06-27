@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import type { Metadata } from "next";
 
 // Note: metadata not available in client components, removed
@@ -34,7 +35,7 @@ export default function DeletionStatusPage() {
     setSearched(true);
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/v1/facebook/deletion-status/${encodeURIComponent(codeToSearch)}`
       );
       const data = await response.json();

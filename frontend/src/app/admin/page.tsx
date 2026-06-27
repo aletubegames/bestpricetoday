@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE as API } from "@/lib/api";
+import { API_BASE as API, apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { isTokenExpired } from "@/lib/utils";
 
@@ -232,7 +232,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       if (src === "top_clicks") {
         setSourceProducts(topProducts.slice(0, 10));
       } else {
-        const r = await fetch(
+        const r = await apiFetch(
           `${apiBase}/api/v1/admin/products/suggestions?source=${src}&limit=10`,
           { headers: { "X-Admin-Key": adminKey } }
         );
@@ -265,7 +265,10 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   }, [suggestions]);
 
   const togglePlat = (id: string) =>
-    setSelectedPlats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+    setSelectedPlats(p => {
+      const current = p || [];
+      return current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+    });
 
   const stopPoll = () => {
     if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
@@ -277,16 +280,14 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
   // Busca a URL da Video API do backend e chama DIRETO do browser
   // (sem proxy pelo HF Space — o browser admin está na mesma rede que o ngrok)
   React.useEffect(() => {
-    fetch(`${apiBase}/api/v1/admin/video/url`, { headers: { "X-Admin-Key": adminKey } })
+    apiFetch(`${apiBase}/api/v1/admin/video/url`, { headers: { "X-Admin-Key": adminKey } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d?.url) return;
         const url = d.url;
         setVideoApiUrl(url);
         // Checar health direto do browser
-        return fetch(`${url}/health`, {
-          headers: { "ngrok-skip-browser-warning": "true" }
-        })
+        return apiFetch(`${url}/health`)
           .then(r => r.ok ? r.json() : null)
           .then(h => setVideoApiOnline(!!h?.ok))
           .catch(() => setVideoApiOnline(false));
@@ -311,9 +312,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       // Tenta ngrok direto primeiro, fallback via HF Space
       if (videoApiUrl) {
         try {
-          const r = await fetch(`${videoApiUrl}/video/status/${jid}`, {
-            headers: { "ngrok-skip-browser-warning": "true" },
-          });
+          const r = await apiFetch(`${videoApiUrl}/video/status/${jid}`);
           if (r.ok) data = await r.json();
         } catch { /* ngrok falhou, tenta HF Space abaixo */ }
       }
@@ -321,7 +320,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       // Fallback: proxy via HF Space (backend → ngrok interno)
       if (!data?.ok) {
         try {
-          const r = await fetch(`${apiBase}/api/v1/admin/video/status/${jid}`, {
+          const r = await apiFetch(`${apiBase}/api/v1/admin/video/status/${jid}`, {
             headers: { "X-Admin-Key": adminKey },
           });
           if (r.ok) data = await r.json();
@@ -367,9 +366,9 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       // Tenta ngrok direto primeiro
       if (videoApiUrl) {
         try {
-          const r = await fetch(`${videoApiUrl}/video/publish`, {
+          const r = await apiFetch(`${videoApiUrl}/video/publish`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           if (r.ok) d = await r.json();
@@ -378,7 +377,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
 
       // Fallback: HF Space proxy
       if (!d?.ok) {
-        const r = await fetch(`${apiBase}/api/v1/admin/video/publish`, {
+        const r = await apiFetch(`${apiBase}/api/v1/admin/video/publish`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
           body: JSON.stringify(payload),
@@ -817,7 +816,8 @@ export default function AdminPage() {
       try {
         const user = JSON.parse(userStr);
         if (user.is_admin) {
-          fetch(`${API}/api/v1/admin/auth/session-key`, {
+          apiFetch(`${API}/api/v1/admin/auth/session-key`, {
+            method: "POST",
             headers: { "Authorization": `Bearer ${token}` },
           })
             .then(async (r) => {
@@ -840,7 +840,7 @@ export default function AdminPage() {
   }, []);
 
   const adminFetch = <T,>(url: string, k: string, options: RequestInit = {}): Promise<T> =>
-    fetch(`${API}${url}`, {
+    apiFetch(`${API}${url}`, {
       cache: "no-store",
       ...options,
       headers: { "Content-Type": "application/json", "X-Admin-Key": k, ...(options.headers || {}) },
@@ -858,13 +858,13 @@ export default function AdminPage() {
         adminFetch<AdminProduct[]>(`/api/v1/admin/products/top?limit=10`, k),
         adminFetch<AdminListResponse<RecentClick>>(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
         adminFetch<AdminListResponse<RecentConversion>>(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
-        fetch(`${API}/api/v1/admin/integrations/status`, { cache: "no-store", headers: { "X-Admin-Key": k } })
+        apiFetch(`${API}/api/v1/admin/integrations/status`, { cache: "no-store", headers: { "X-Admin-Key": k } })
           .then(parseJsonResponse<IntegrationStatus>)
           .catch((error: unknown) => {
             setIntegrationStatusError(getErrorMessage(error));
             return null;
           }),
-        fetch(`${API}/api/v1/tiktok/admin/account`, { cache: "no-store", headers: { "X-Admin-Key": k } }).then(async r => await r.json() as TikTokAdminAccount).catch(() => null),
+        apiFetch(`${API}/api/v1/tiktok/admin/account`, { cache: "no-store", headers: { "X-Admin-Key": k } }).then(async r => await r.json() as TikTokAdminAccount).catch(() => null),
       ]);
       setOverview(ov); setAnalytics(an.data || {}); setMarketplaces(Array.isArray(mk) ? mk : []);
       setTraffic(Array.isArray(tr) ? tr : []); setTopProducts(Array.isArray(tp) ? tp : []);
@@ -885,7 +885,7 @@ export default function AdminPage() {
   const handleLogin = async () => {
     setLoginError("");
     try {
-      const res = await fetch(`${API}/api/v1/admin/overview?days=1`, { cache: "no-store", headers: { "X-Admin-Key": inputKey } });
+      const res = await apiFetch(`${API}/api/v1/admin/overview?days=1`, { cache: "no-store", headers: { "X-Admin-Key": inputKey } });
       if (!res.ok) { setLoginError("Chave inválida"); return; }
       localStorage.setItem("admin_key", inputKey);
       localStorage.setItem("admin_key_ts", String(Date.now()));
@@ -895,7 +895,7 @@ export default function AdminPage() {
 
   const connectTikTokAdmin = async () => {
     try {
-      const res  = await fetch(`${API}/api/v1/tiktok/auth/admin`, { headers: { "X-Admin-Key": key } });
+      const res  = await apiFetch(`${API}/api/v1/tiktok/auth/admin`, { headers: { "X-Admin-Key": key } });
       const data = await res.json();
       if (data.auth_url) {
         const popup = window.open(data.auth_url, "TikTok Admin Auth", "width=480,height=700,scrollbars=yes");
@@ -1104,7 +1104,7 @@ export default function AdminPage() {
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📱 Canal Telegram</div>
               <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 12 }}>Posta ofertas de texto/imagem direto no canal</div>
               <button onClick={async () => {
-                const res = await fetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, { method: "POST", headers: { "X-Admin-Key": key } });
+                const res = await apiFetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, { method: "POST", headers: { "X-Admin-Key": key } });
                 const d = await res.json();
                 alert(d.ok ? `✅ ${d.posted} ofertas postadas!\n${d.titles?.join("\n") || ""}` : `❌ ${d.error || "Erro"}`);
               }} style={{ width: "100%", padding: "9px", borderRadius: 8, background: "rgba(41,182,246,0.1)", border: "1px solid rgba(41,182,246,0.3)", color: "#29b6f6", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
@@ -1137,7 +1137,7 @@ export default function AdminPage() {
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={async () => {
-                const res = await fetch(`${API}/api/v1/admin/conversions/poll`, { method: "POST", headers: { "X-Admin-Key": key } });
+                const res = await apiFetch(`${API}/api/v1/admin/conversions/poll`, { method: "POST", headers: { "X-Admin-Key": key } });
                 const data = await res.json();
                 alert(`Poll: ${JSON.stringify(data.new_conversions)}`); fetchAll(key);
               }} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(0,229,160,0.3)", background: "rgba(0,229,160,0.08)", color: "#00e5a0", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
@@ -1246,12 +1246,12 @@ export default function AdminPage() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8, gap: 6, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 12 }}>🟡 Mercado Livre</span>
                     <span style={{ fontSize: 12, color: mlColor }}>{mlIcon} {mlLabel}</span>
-                    <button onClick={() => fetch(`${API}/api/v1/auth/ml/refresh`, { method: "POST", headers: { "X-Admin-Key": key } }).then(r => r.json()).then(d => { alert(d.ok ? "Token renovado!" : `Erro: ${d.error}`); fetchAll(key); })}
+                    <button onClick={() => apiFetch(`${API}/api/v1/auth/ml/refresh`, { method: "POST", headers: { "X-Admin-Key": key } }).then(r => r.json()).then(d => { alert(d.ok ? "Token renovado!" : `Erro: ${d.error}`); fetchAll(key); })}
                       style={{ fontSize: 10, padding: "2px 7px", background: "#1a1a2e", border: "1px solid #333", borderRadius: 5, color: "#a78bfa", cursor: "pointer" }}>Renovar</button>
                   </div>
                 );
               })()}
-              {hasIntegrationStatus && getIntegrations(integrationStatus).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
+              {hasIntegrationStatus && (getIntegrations(integrationStatus) || []).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
                 <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8 }}>
                   <span style={{ fontSize: 12 }}>{int.icon} {int.name}</span>
                   <span style={{ fontSize: 12, color: int.color }}>{int.status} {int.statusText}</span>
@@ -1318,7 +1318,7 @@ export default function AdminPage() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 320 }}>
                         <thead><tr>{["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
                         <tbody>
-                          {recentClicks.filter(c => c.product_title === p.product_title).slice(0, 5).map((c, ci) => (
+                          {(recentClicks || []).filter(c => c.product_title === p.product_title).slice(0, 5).map((c, ci) => (
                             <tr key={ci}><td style={S.td}>{fmtTime(c.clicked_at)}</td><td style={S.td}>{c.source}</td><td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td><td style={S.td}>{c.ip_address || "–"}</td></tr>
                           ))}
                         </tbody>

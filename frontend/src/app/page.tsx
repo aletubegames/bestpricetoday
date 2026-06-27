@@ -19,8 +19,9 @@ import Testimonials from "@/components/home/Testimonials";
 import FAQ from "@/components/home/FAQ";
 import HowItWorks from "@/components/home/HowItWorks";
 import FeaturedOffers from "@/components/home/FeaturedOffers";
+import { CATEGORIES } from "@/lib/categories";
 import { getChartData } from "@/lib/mockData";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, apiFetch } from "@/lib/api";
 import type { ChartDay } from "@/components/home/SearchesChart";
 
 type StoredUser = { name: string; is_admin: boolean };
@@ -111,15 +112,25 @@ const STATUS_META: Record<ProviderStatus["status"], { label: string; color: stri
 
 const HIDDEN_STATUSES = new Set(["blocked", "not_configured", "error"]);
 
-function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
-  const visible = statuses.filter(s => (s.returned_count ?? 0) > 0);
+function ProviderStatusGrid({ statuses, offers }: { statuses: ProviderStatus[]; offers?: Offer[] }) {
+  // Conta ofertas reais exibidas por provider (não o returned_count bruto do backend)
+  const realCounts: Record<string, number> = {};
+  if (offers) {
+    for (const o of offers) {
+      realCounts[o.provider] = (realCounts[o.provider] || 0) + 1;
+    }
+  }
+  const visible = (statuses || []).filter(s => {
+    const count = realCounts[s.provider] ?? 0;
+    return count > 0;
+  });
   if (!visible.length) return null;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
       {visible.map((status) => {
         const meta = STATUS_META[status.status];
         const providerLabel = PROVIDER_LABELS[status.provider] || status.provider;
-        const count = status.returned_count || 0;
+        const count = realCounts[status.provider] ?? 0;
         return (
           <div key={status.provider} style={{
             display: "inline-flex", alignItems: "center", gap: 8,
@@ -153,7 +164,7 @@ function Section({ children, maxWidth = 960 }: { children: React.ReactNode; maxW
 // ═══════════════════════════════════════════════════════════════════════════════
 async function fetchChartData(): Promise<ChartDay[]> {
   try {
-    const resp = await fetch(`${API_BASE}/api/v1/stats`, {
+    const resp = await apiFetch(`${API_BASE}/api/v1/stats`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -204,11 +215,12 @@ export default function HomePage() {
 
   const handleCompare = (offer: Offer) => {
     setCompareList(prev => {
-      if (prev.find(o => o.affiliate_url === offer.affiliate_url)) {
-        return prev.filter(o => o.affiliate_url !== offer.affiliate_url);
+      const current = prev || [];
+      if (current.find(o => o.affiliate_url === offer.affiliate_url)) {
+        return current.filter(o => o.affiliate_url !== offer.affiliate_url);
       }
-      if (prev.length >= 3) return prev;
-      return [...prev, offer];
+      if (current.length >= 3) return current;
+      return [...current, offer];
     });
   };
 
@@ -448,6 +460,32 @@ export default function HomePage() {
             <FeaturedOffers onSearch={setQuery} />
           </section>
 
+          {/* ── CATEGORIES HUB ── */}
+          <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 48px" }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 20, textAlign: "center" }}>
+              📂 Compre por categoria
+            </h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
+              {CATEGORIES.map(cat => (
+                <a
+                  key={cat.slug}
+                  href={`/categoria/${cat.slug}`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "12px 20px", borderRadius: 14,
+                    background: "rgba(255,255,255,0.8)",
+                    border: "1px solid rgba(108,92,231,0.15)",
+                    color: "#1a1a2e", textDecoration: "none",
+                    fontSize: 14, fontWeight: 600,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                  {cat.name}
+                </a>
+              ))}
+            </div>
+          </section>
+
           {/* ── HOW IT WORKS ── */}
           <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 48px" }}>
             <HowItWorks />
@@ -480,7 +518,7 @@ export default function HomePage() {
                   <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: "rgba(0,229,160,0.08)", border: "1px solid rgba(0,229,160,0.2)", color: "var(--grn)" }}>⚡ cache</span>
                 )}
               </div>
-              <ProviderStatusGrid statuses={data.provider_statuses} />
+              <ProviderStatusGrid statuses={data.provider_statuses} offers={data.offers} />
               <OfferGrid offers={data.offers} onCompare={handleCompare} compareSelected={compareList.map(o => o.affiliate_url || "")} />
             </motion.div>
           )}

@@ -20,12 +20,14 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select, update
 
+from app.core.config import settings
+
 logger = logging.getLogger("alert_checker")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./bestprice.db")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-API_BASE = os.getenv("INTERNAL_API_URL", "http://localhost:8000")
+DATABASE_URL = settings.DATABASE_URL
+TELEGRAM_TOKEN = settings.TELEGRAM_BOT_TOKEN
+API_BASE = settings.INTERNAL_API_URL
 CHECK_INTERVAL_SECONDS = int(os.getenv("ALERT_CHECK_INTERVAL", "1800"))  # 30 min
 
 engine = create_async_engine(DATABASE_URL, echo=False)

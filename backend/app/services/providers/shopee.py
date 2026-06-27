@@ -21,6 +21,7 @@ class ShopeeProvider(BaseProvider):
         self._client = ShopeeClient()
 
     def _to_offer(self, p: ProductResult) -> OfferSchema:
+        from app.core.config import settings
         return OfferSchema(
             provider=ProviderEnum.shopee,
             title=p.title,
@@ -33,8 +34,10 @@ class ShopeeProvider(BaseProvider):
             shipping_free=p.shipping_free,
             shipping_price=p.shipping_price,
             final_price=p.final_price,
+            product_id=p.external_id,
             product_url=p.product_url,
             affiliate_url=p.affiliate_url or "",
+            tracking_id=str(settings.SHOPEE_AFFILIATE_ID) if settings.SHOPEE_AFFILIATE_ID else None,
             image_url=p.image_url,
             economy=p.economy,
             is_fake_discount=False,

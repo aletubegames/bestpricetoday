@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import { logger } from "@/lib/logger"
 import Link from "next/link"
 
@@ -16,7 +16,7 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
     try {
-      const res = await fetch(`${API}/api/v1/auth/login`, {
+      const res = await apiFetch(`${API}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

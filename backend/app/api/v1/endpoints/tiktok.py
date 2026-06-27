@@ -133,13 +133,15 @@ async def tiktok_callback(
         await db.refresh(account)
 
         return {
-            "status":       "success",
-            "message":      "Conta TikTok conectada com sucesso!",
-            "account_type": account.account_type,
-            "display_name": account.display_name,
-            "avatar_url":   account.avatar_url,
-            "is_verified":  account.is_verified,
-            "scopes":       scopes,
+            "status":         "success",
+            "message":        "Conta TikTok conectada com sucesso!",
+            "account_type":   account.account_type,
+            "display_name":   account.display_name,
+            "avatar_url":     account.avatar_url,
+            "is_verified":    account.is_verified,
+            "scopes":         scopes,
+            "tiktok_open_id": account.tiktok_open_id,
+            "open_id":        account.tiktok_open_id,
         }
 
     except HTTPException:
@@ -210,7 +212,7 @@ async def create_share_link(
         if not code:
             raise HTTPException(status_code=500, detail="Falha ao gerar código único")
 
-        short_link_url = f"https://bestpricetoday.vercel.app/r/{code}"
+        short_link_url = f"{settings.PUBLIC_SITE_URL}/r/{code}"
 
         link = ShortLink(
             code          = code,
@@ -389,7 +391,7 @@ async def admin_publish_video(
                 break
 
         if code:
-            tracked_link = f"https://bestpricetoday.vercel.app/r/{code}"
+            tracked_link = f"{settings.PUBLIC_SITE_URL}/r/{code}"
             link = ShortLink(
                 code          = code,
                 affiliate_url = data.affiliate_url,

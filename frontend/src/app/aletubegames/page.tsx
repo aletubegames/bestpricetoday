@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE as API } from "@/lib/api";
+import { API_BASE as API, apiFetch } from "@/lib/api";
 import { isTokenExpired } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,8 +17,6 @@ interface AccountStatus {
 interface AccountsStatus {
   tiktok: AccountStatus;
   youtube: AccountStatus;
-  instagram: AccountStatus;
-  facebook: AccountStatus;
 }
 
 interface VideoInfo {
@@ -68,20 +66,16 @@ interface HistoryVideo {
 
 type Tab = "accounts" | "publish" | "history";
 type PublishStep = 1 | 2 | 3 | 4;
-type PlatformKey = "tiktok" | "youtube" | "instagram" | "facebook";
+type PlatformKey = "tiktok" | "youtube";
 
 const PLATFORMS: { key: PlatformKey; label: string; color: string; icon: string }[] = [
   { key: "tiktok", label: "TikTok", color: "#ff0050", icon: "🎵" },
   { key: "youtube", label: "YouTube", color: "#ff0000", icon: "▶️" },
-  { key: "instagram", label: "Instagram", color: "#e1306c", icon: "📷" },
-  { key: "facebook", label: "Facebook", color: "#1877f2", icon: "👥" },
 ];
 
 const PLATFORM_NOTES: Record<PlatformKey, string> = {
   tiktok: "Requer aprovação Content Posting API",
   youtube: "OAuth Google — funciona imediatamente após configurar client_id",
-  instagram: "Requer app Facebook aprovado + conta Business/Creator",
-  facebook: "Requer app Facebook aprovado + conta Business/Creator",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,11 +123,11 @@ export default function AleTubeGamesPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const [editedMeta, setEditedMeta] = useState<Record<PlatformKey, PlatformMeta>>({
-    tiktok: {}, youtube: {}, instagram: {}, facebook: {},
+    tiktok: {}, youtube: {},
   });
   const [metaTab, setMetaTab] = useState<PlatformKey>("tiktok");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Record<PlatformKey, boolean>>({
-    tiktok: false, youtube: false, instagram: false, facebook: false,
+    tiktok: false, youtube: false,
   });
   const [affiliateUrl, setAffiliateUrl] = useState("");
   const [publishing, setPublishing] = useState(false);
@@ -173,7 +167,8 @@ export default function AleTubeGamesPage() {
 
     // Auto-fetch admin_key se não tiver no localStorage
     if (!key && tk) {
-      fetch(`${API}/api/v1/admin/auth/session-key`, {
+      apiFetch(`${API}/api/v1/admin/auth/session-key`, {
+        method: "POST",
         headers: { Authorization: `Bearer ${tk}` },
       })
         .then(r => r.ok ? r.json() : null)
@@ -198,18 +193,19 @@ export default function AleTubeGamesPage() {
     setAccountsLoading(true);
     setAccountsError(null);
     try {
-      const res = await fetch(`${API}/api/v1/aletube/accounts/status`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/accounts/status`, {
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.substring(0, 100)}`);
+      }
       const data: AccountsStatus = await res.json();
       setAccounts(data);
       // Pre-select connected platforms
       setSelectedPlatforms({
         tiktok: !!data.tiktok?.connected,
         youtube: !!data.youtube?.connected,
-        instagram: !!data.instagram?.connected,
-        facebook: !!data.facebook?.connected,
       });
     } catch (e: unknown) {
       setAccountsError(e instanceof Error ? e.message : "Erro ao carregar contas");
@@ -222,7 +218,7 @@ export default function AleTubeGamesPage() {
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const res = await fetch(`${API}/api/v1/aletube/videos`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/videos`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -241,35 +237,26 @@ export default function AleTubeGamesPage() {
       let url: string;
       if (platform === "tiktok") {
         const headers = getAuthHeaders(adminKey, true);
-        console.log(`[handleConnect] tiktok headers:`, JSON.stringify(headers));
-        const res = await fetch(`${API}/api/v1/tiktok/auth/admin`, { headers });
-        console.log(`[handleConnect] tiktok res.status=${res.status}`);
+        const res = await apiFetch(`${API}/api/v1/tiktok/auth/admin`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        console.log(`[handleConnect] tiktok data:`, JSON.stringify(data));
         url = data.auth_url;
+        // Salvar state e mode no localStorage para o callback validar
+        if (data.state) localStorage.setItem("tiktok_oauth_state", data.state);
+        localStorage.setItem("tiktok_oauth_mode", "admin");
       } else if (platform === "youtube") {
         const headers = getAuthHeaders();
-        console.log(`[handleConnect] youtube headers:`, JSON.stringify(headers));
-        const res = await fetch(`${API}/api/v1/aletube/auth/youtube`, { headers });
-        console.log(`[handleConnect] youtube res.status=${res.status}`);
-        const text = await res.text();
-        console.log(`[handleConnect] youtube res.text:`, text);
-        const data = JSON.parse(text);
-        url = data.auth_url;
-      } else if (platform === "facebook" || platform === "instagram") {
-        const headers = getAuthHeaders();
-        const res = await fetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
-        console.log(`[handleConnect] fb/ig res.status=${res.status}`);
+        const res = await apiFetch(`${API}/api/v1/aletube/auth/youtube`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         url = data.auth_url;
+        if (data.state) localStorage.setItem("youtube_oauth_state", data.state);
       } else {
         return;
       }
       if (url) {
-        console.log(`[handleConnect] opening URL: ${url}`);
         window.open(url, "_blank");
       } else {
-        console.error(`[handleConnect] NO auth_url in response for ${platform}`);
         alert(`Erro: auth_url não retornada para ${platform}`);
       }
     } catch (e: unknown) {
@@ -282,7 +269,7 @@ export default function AleTubeGamesPage() {
     if (!confirm(`Desconectar ${platform}?`)) return;
     setDisconnecting(platform);
     try {
-      const res = await fetch(`${API}/api/v1/aletube/accounts/${platform}`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/accounts/${platform}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -302,7 +289,7 @@ export default function AleTubeGamesPage() {
     try {
       const form = new FormData();
       form.append("file", selectedFile);
-      const res = await fetch(`${API}/api/v1/aletube/upload`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/upload`, {
         method: "POST",
         headers: getAuthHeaders(adminKey, true),
         body: form,
@@ -332,7 +319,7 @@ export default function AleTubeGamesPage() {
     try {
       const form = new FormData();
       form.append("video_id", videoInfo.id);
-      const res = await fetch(`${API}/api/v1/aletube/analyze`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/analyze`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: form,
@@ -344,8 +331,8 @@ export default function AleTubeGamesPage() {
       const meta: Record<PlatformKey, PlatformMeta> = {
         tiktok: { ...data.platform_metadata?.tiktok },
         youtube: { ...data.platform_metadata?.youtube },
-        instagram: { ...data.platform_metadata?.instagram },
-        facebook: { ...data.platform_metadata?.facebook },
+
+
       };
       setEditedMeta(meta);
       setPublishStep(3);
@@ -363,7 +350,7 @@ export default function AleTubeGamesPage() {
     try {
       const form = new FormData();
       form.append("video_id", analyzeResult.video_id);
-      const plats = (Object.keys(selectedPlatforms) as PlatformKey[]).filter(p => selectedPlatforms[p]);
+      const plats = (Object.keys(selectedPlatforms || {}) as PlatformKey[]).filter(p => selectedPlatforms?.[p]);
       form.append("plataformas", plats.join(","));
       if (affiliateUrl) form.append("affiliate_url", affiliateUrl);
 
@@ -375,16 +362,14 @@ export default function AleTubeGamesPage() {
           caption: m.caption ?? m.description ?? "",
           hashtags: typeof m.hashtags === "string"
             ? (m.hashtags as string).split(",").map((h: string) => h.trim()).filter(Boolean)
-            : m.hashtags ?? [],
+            : (m.hashtags || []),
         });
       };
 
       form.append("tiktok_meta", buildMeta("tiktok"));
       form.append("youtube_meta", buildMeta("youtube"));
-      form.append("instagram_meta", buildMeta("instagram"));
-      form.append("facebook_meta", buildMeta("facebook"));
 
-      const res = await fetch(`${API}/api/v1/aletube/publish`, {
+      const res = await apiFetch(`${API}/api/v1/aletube/publish`, {
         method: "POST",
         headers: getAuthHeaders(adminKey, true),
         body: form,
@@ -406,7 +391,7 @@ export default function AleTubeGamesPage() {
     setSelectedFile(null);
     setVideoInfo(null);
     setAnalyzeResult(null);
-    setEditedMeta({ tiktok: {}, youtube: {}, instagram: {}, facebook: {} });
+    setEditedMeta({ tiktok: {}, youtube: {} });
     setAffiliateUrl("");
     setPublishResult(null);
     setUploadError(null);
@@ -838,7 +823,7 @@ export default function AleTubeGamesPage() {
                           onChange={e => updateMeta(key, "title", e.target.value)}
                         />
                       </div>
-                      {(key === "tiktok" || key === "instagram") ? (
+                      {key === "tiktok" ? (
                         <div style={{ marginBottom: 12 }}>
                           <label style={s.label}>Caption</label>
                           <textarea
@@ -966,7 +951,7 @@ export default function AleTubeGamesPage() {
                   onClick={async () => {
                     if (!confirm("Remover da DB todos os vídeos cujo ficheiro já não existe no servidor?")) return;
                     try {
-                      const res = await fetch(`${API}/api/v1/aletube/videos/cleanup-orphans`, {
+                      const res = await apiFetch(`${API}/api/v1/aletube/videos/cleanup-orphans`, {
                         method:  "POST",
                         headers: getAuthHeaders(),
                       });
@@ -1065,7 +1050,7 @@ export default function AleTubeGamesPage() {
                           onClick={async () => {
                             if (!confirm(`Apagar "${v.title ?? v.id}"?`)) return;
                             try {
-                              const res = await fetch(`${API}/api/v1/aletube/videos/${v.id}`, {
+                              const res = await apiFetch(`${API}/api/v1/aletube/videos/${v.id}`, {
                                 method:  "DELETE",
                                 headers: getAuthHeaders(),
                               });

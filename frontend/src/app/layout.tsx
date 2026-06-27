@@ -1,8 +1,14 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Syne, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import { SITE_BASE } from "@/lib/api";
+
+// Analytics IDs (setar no .env.local)
+const GA4_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
+const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -35,15 +41,15 @@ export const metadata: Metadata = {
     "brasil",
   ],
   authors: [
-    { name: "BestPriceToday", url: "https://bestpricetoday.vercel.app" },
+    { name: "BestPriceToday", url: SITE_BASE },
   ],
   creator: "AleTubeGames",
   publisher: "AleTubeGames",
-  metadataBase: new URL("https://bestpricetoday.vercel.app"),
+  metadataBase: new URL(SITE_BASE),
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    url: "https://bestpricetoday.vercel.app",
+    url: SITE_BASE,
     title: "BestPriceToday — Menor Preço do Brasil",
     description:
       "Busca automática do menor preço em todas as lojas. Cupons aplicados na hora.",
@@ -93,11 +99,41 @@ export default function RootLayout({
       className={`${syne.variable} ${dmSans.variable}`}
     >
       <head>
-        <link rel="canonical" href="https://bestpricetoday.vercel.app" />
+        <link rel="canonical" href={SITE_BASE} />
       </head>
       <body className={dmSans.className}>
         <Providers>{children}</Providers>
-        <ServiceWorkerRegistration />
+
+        {/* Google Analytics 4 (GA4) */}
+        {GA4_MEASUREMENT_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA4_MEASUREMENT_ID}', { page_path: window.location.pathname });
+              `}
+            </Script>
+          </>
+        )}
+
+        {/* Microsoft Clarity (heatmaps + session recordings) */}
+        {CLARITY_ID && (
+          <Script id="clarity-init" strategy="afterInteractive">
+            {`
+              (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+              })(window,document,"clarity","script","${CLARITY_ID}");
+            `}
+          </Script>
+        )}
       </body>
     </html>
   );

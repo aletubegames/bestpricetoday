@@ -293,6 +293,7 @@ async def list_clicks(
                     "provider": c.provider,
                     "product_title": c.product_title,
                     "price": c.price,
+                    "affiliate_url": c.affiliate_url,
                     "source": c.source,
                     "ip_address": c.ip_address,
                     "clicked_at": c.clicked_at.isoformat() if c.clicked_at else None,
@@ -741,93 +742,10 @@ async def trigger_conversion_poll(
         return {"ok": False, "error": str(e)}
 
 
-@router.post("/webhooks/mercadolivre")
-async def ml_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    """
-    Receives ML order webhook with HMAC-SHA256 signature validation.
-
-    ML sends header: x-signature: ts=<timestamp>,v1=<hmac>
-    HMAC = SHA256(secret, "ts:<timestamp>\nv1:<body_hash>")
-
-    Register URL: https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre
-    """
-    body = await request.body()
-
-    # Validate HMAC before accepting the payload.
-    ml_secret = getattr(settings, 'ML_WEBHOOK_SECRET', "")
-    if not ml_secret:
-        logger.error("ML webhook rejected: ML_WEBHOOK_SECRET is not configured")
-        raise HTTPException(status_code=503, detail="Webhook signature secret not configured")
-
-    from app.integrations.conversion_tracker import validate_ml_webhook_signature
-    signature_header = request.headers.get("x-signature", "")
-    if not validate_ml_webhook_signature(body, signature_header):
-        logger.warning("ML webhook rejected: invalid HMAC signature")
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
-
-    # Process payload
-    try:
-        payload = await request.json()
-    except Exception:
-        return {"ok": True}  # always 200 to ML
-
-    topic = payload.get("topic", "")
-    resource = payload.get("resource", "")
-
-    logger.info(f"ML webhook received: topic={topic} resource={resource}")
-
-    if topic not in ("orders", "merchant_orders"):
-        return {"ok": True, "skipped": True}
-
-    order_id = resource.split("/")[-1]
-
-    # Get valid token from DB
-    try:
-        from app.services.ml_token_service import get_token
-        token = await get_token(db)
-        if not token:
-            logger.warning("ML webhook: no valid token available")
-            return {"ok": True, "warning": "no token"}
-
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(
-                f"https://api.mercadolibre.com/orders/{order_id}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-
-        if r.status_code != 200:
-            logger.warning(f"ML webhook: order fetch failed HTTP {r.status_code} [body redacted]")
-            return {"ok": True}
-
-        order = r.json()
-        total = float(order.get("total_amount", 0) or 0)
-        status_raw = order.get("status", "")
-        status = "confirmed" if status_raw in ("paid", "approved") else \
-                 "rejected" if status_raw in ("cancelled", "refunded") else "pending"
-
-        items = order.get("order_items", [])
-        title = items[0].get("item", {}).get("title", "ML Order")[:200] if items else "ML Order"
-
-        commission_rate = None
-        commission_value = None
-
-        # Find matching click
-        from app.integrations.conversion_tracker import _find_matching_click, _save_conversion_safe
-        click_id = await _find_matching_click(db, "mercadolivre", title)
-
-        saved = await _save_conversion_safe(
-            db, f"ml_{order_id}", "mercadolivre", title,
-            total, commission_rate, commission_value, status, click_id
-        )
-
-        logger.info(
-            f"ML order {order_id}: status={status} total={total:.2f} commission=unknown saved={saved} click_linked={bool(click_id)}"
-        )
-        return {"ok": True}
-
-    except Exception as e:
-        logger.error(f"ML webhook processing error: {type(e).__name__} [details redacted]")
-        return {"ok": True}
+# NOTE: ML webhook endpoint removed (2026-06-26).
+# ML affiliate program does not provide webhooks for affiliates.
+# Conversion tracking is done via scraping the affiliate portal (ml_scraper.py)
+# and polling APIs for AliExpress/Shopee/Lomadee (conversion_tracker.py).
 
 
 @router.get("/conversions/summary")
@@ -888,6 +806,125 @@ async def conversion_summary(
     }
 
 
+@router.get("/metrics/snapshots")
+async def get_metrics_snapshots(
+    provider: Optional[str] = None,
+    limit: int = 30,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Retorna snapshots de métricas dos portais de afiliados (coletados via scraping).
+
+    Fonte: tabela affiliate_metrics_snapshots, populada pelo ml_scraper.py
+    após cada execução diária. O ML não tem API pública de relatório de
+    afiliados — só o portal web (atualiza a cada 24h).
+    """
+    from app.models.models import AffiliateMetricsSnapshot
+
+    q = select(AffiliateMetricsSnapshot).order_by(
+        AffiliateMetricsSnapshot.collected_at.desc()
+    ).limit(limit)
+    if provider:
+        q = q.where(AffiliateMetricsSnapshot.provider == provider)
+
+    r = await db.execute(q)
+    snaps = r.scalars().all()
+
+    return {
+        "count": len(snaps),
+        "snapshots": [
+            {
+                "id": str(s.id),
+                "provider": s.provider,
+                "period_until": s.period_until,
+                "clicks": s.clicks,
+                "orders": s.orders,
+                "estimated_earnings": s.estimated_earnings,
+                "confirmed_earnings": s.confirmed_earnings,
+                "raw_data": s.raw_data,
+                "collected_at": s.collected_at.isoformat() if s.collected_at else None,
+            }
+            for s in snaps
+        ],
+    }
+
+
+@router.get("/metrics/latest")
+async def get_latest_metrics(
+    provider: str = "mercadolivre",
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Retorna o snapshot mais recente de um provider (para dashboard)."""
+    from app.models.models import AffiliateMetricsSnapshot
+
+    r = await db.execute(
+        select(AffiliateMetricsSnapshot)
+        .where(AffiliateMetricsSnapshot.provider == provider)
+        .order_by(AffiliateMetricsSnapshot.collected_at.desc())
+        .limit(1)
+    )
+    snap = r.scalar_one_or_none()
+
+    if not snap:
+        return {"provider": provider, "found": False}
+
+    return {
+        "provider": snap.provider,
+        "found": True,
+        "period_until": snap.period_until,
+        "clicks": snap.clicks,
+        "orders": snap.orders,
+        "estimated_earnings": snap.estimated_earnings,
+        "confirmed_earnings": snap.confirmed_earnings,
+        "raw_data": snap.raw_data,
+        "collected_at": snap.collected_at.isoformat() if snap.collected_at else None,
+    }
+
+
+@router.post("/metrics/scrape-now")
+async def trigger_metrics_scrape(
+    _: str = Depends(require_admin),
+):
+    """Dispara coleta imediata de métricas do portal ML (sem rodar scraping de produtos).
+
+    Útil para testar ou atualizar métricas fora do cron das 4h.
+    Requer cookies válidos (.ml_cookies.json).
+    """
+    import asyncio as _asyncio
+    from app.workers.ml_scraper import scrape_metrics_summary, save_metrics_snapshot
+    from playwright.async_api import async_playwright
+    import json
+    from pathlib import Path
+
+    COOKIES_FILE = Path(__file__).resolve().parent.parent.parent.parent.parent / ".ml_cookies.json"
+
+    async def _run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                executable_path="/usr/bin/chromium-browser",
+                args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+            )
+            context = await browser.new_context(
+                viewport={"width": 1280, "height": 900},
+                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            )
+            if COOKIES_FILE.exists():
+                cookies = json.loads(COOKIES_FILE.read_text())
+                await context.add_cookies(cookies)
+            else:
+                return {"ok": False, "error": "Cookies ML não encontrados"}
+            page = await context.new_page()
+            metrics = await scrape_metrics_summary(page)
+            saved = await save_metrics_snapshot(metrics)
+            await browser.close()
+            return {"ok": saved, "metrics": metrics}
+
+    result = await _run()
+    return result
+
+
 @router.get("/integrations/status")
 async def get_integration_status(
     db: AsyncSession = Depends(get_db),
@@ -901,7 +938,7 @@ async def get_integration_status(
     return {
         "mercadolivre": {
             **ml_status,
-            "note": "Register webhook at: https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre"
+            "note": "Conversions tracked via scraping (ml_scraper.py) — no webhook needed"
         },
         "aliexpress": {
             "status": "active" if settings.ALIEXPRESS_APP_KEY and settings.ALIEXPRESS_APP_SECRET else "not_configured",
@@ -945,12 +982,74 @@ async def trigger_telegram_broadcast(
     n: int = 3,
     _: str = Depends(require_admin),
 ):
-    """Manually trigger Telegram channel broadcast."""
+    """Manually trigger Telegram channel broadcast (legacy broadcaster)."""
     try:
         from app.workers.channel_broadcaster import broadcast_top_offers
         result = await broadcast_top_offers(n_offers=n)
         return {"ok": True, **result}
     except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ─── Distributor (orquestrador central) ───────────────────────────────────────
+
+class DistributeOfferRequest(BaseModel):
+    """Distribui uma oferta específica para os canais ativos."""
+    offer: dict                      # oferta completa (provider, title, final_price, affiliate_url, etc.)
+    channels: list[str] = ["telegram"]
+    campaign: Optional[str] = None
+    use_ai: bool = True
+
+
+@router.post("/distribute")
+async def distribute_single_offer(
+    req: DistributeOfferRequest,
+    _: str = Depends(require_admin),
+):
+    """Distribui uma oferta específica para os canais ativos.
+
+    Cria short link único por canal, gera legenda (IA opcional), posta e registra.
+    """
+    try:
+        from app.workers.distributor import distribute_offer
+        result = await distribute_offer(
+            offer=req.offer,
+            channels=req.channels,
+            campaign=req.campaign,
+            use_ai=req.use_ai,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Distribute error: {e}", exc_info=True)
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/distribute/auto")
+async def distribute_auto(
+    n: int = 3,
+    channels: list[str] = None,
+    campaign: Optional[str] = None,
+    use_ai: bool = True,
+    _: str = Depends(require_admin),
+):
+    """Busca e distribui N ofertas automaticamente (alta qualidade: desconto >= 15%, preço >= R$20).
+
+    Filtros:
+    - discount_percent >= 15%
+    - final_price >= R$ 20
+    - não postada nas últimas 24h (dedup)
+    """
+    try:
+        from app.workers.distributor import distribute_auto
+        result = await distribute_auto(
+            n_offers=n,
+            channels=channels or ["telegram"],
+            campaign=campaign,
+            use_ai=use_ai,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Distribute auto error: {e}", exc_info=True)
         return {"ok": False, "error": str(e)}
 
 
@@ -1079,7 +1178,7 @@ async def get_link_stats(
         return [
             {
                 "code": l.code,
-                "url": f"https://bestpricetoday.vercel.app/r/{l.code}",
+                "url": f"{settings.PUBLIC_SITE_URL}/r/{l.code}",
                 "provider": l.provider,
                 "product": l.product_title[:60] if l.product_title else "",
                 "clicks": l.clicks,
@@ -1092,6 +1191,77 @@ async def get_link_stats(
         ]
     except Exception:
         return []
+
+
+@router.get("/distribute/stats")
+async def distribute_stats(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Dashboard: tracking por canal/post.
+
+    Agrega cliques por source (canal) e mostra top posts por comissão/cliques.
+    """
+    from sqlalchemy import func, case
+
+    try:
+        # 1. Cliques por source (canal)
+        r = await db.execute(
+            select(
+                ShortLink.source,
+                func.count(ShortLink.id).label("posts"),
+                func.coalesce(func.sum(ShortLink.clicks), 0).label("total_clicks"),
+                func.coalesce(func.avg(ShortLink.clicks), 0).label("avg_clicks"),
+            )
+            .where(ShortLink.source.like("distributor%"))
+            .group_by(ShortLink.source)
+            .order_by(func.sum(ShortLink.clicks).desc())
+        )
+        by_channel = [
+            {
+                "source": row.source,
+                "posts": row.posts,
+                "total_clicks": int(row.total_clicks),
+                "avg_clicks": round(float(row.avg_clicks), 1),
+            }
+            for row in r.fetchall()
+        ]
+
+        # 2. Top 10 posts por cliques
+        r = await db.execute(
+            select(ShortLink)
+            .where(ShortLink.source.like("distributor%"))
+            .order_by(ShortLink.clicks.desc())
+            .limit(10)
+        )
+        top_posts = [
+            {
+                "code": l.code,
+                "url": f"{settings.PUBLIC_SITE_URL}/r/{l.code}",
+                "product": l.product_title[:60] if l.product_title else "",
+                "provider": l.provider,
+                "source": l.source,
+                "campaign": l.campaign,
+                "clicks": l.clicks,
+                "price": float(l.price) if l.price else None,
+                "created_at": l.created_at.isoformat() if l.created_at else None,
+            }
+            for l in r.scalars().all()
+        ]
+
+        # 3. Totais
+        total_posts = sum(c["posts"] for c in by_channel)
+        total_clicks = sum(c["total_clicks"] for c in by_channel)
+
+        return {
+            "total_posts": total_posts,
+            "total_clicks": total_clicks,
+            "by_channel": by_channel,
+            "top_posts": top_posts,
+        }
+    except Exception as e:
+        logger.error(f"Distribute stats error: {e}", exc_info=True)
+        return {"total_posts": 0, "total_clicks": 0, "by_channel": [], "top_posts": []}
 
 
 @router.get("/debug/db")
@@ -1395,7 +1565,7 @@ async def ml_test_items(
 
 
 
-@router.get("/auth/session-key")
+@router.post("/auth/session-key")
 async def get_session_admin_key(
     user=Depends(get_current_admin),
 ):

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, SITE_BASE } from "@/lib/api"
 
 export async function GET(
   request: NextRequest,
@@ -25,9 +25,9 @@ export async function GET(
     }
     
     // Fallback
-    return NextResponse.redirect("https://bestpricetoday.vercel.app")
-    
+    return NextResponse.redirect(SITE_BASE)
+
   } catch {
-    return NextResponse.redirect("https://bestpricetoday.vercel.app")
+    return NextResponse.redirect(SITE_BASE)
   }
 }

@@ -36,7 +36,12 @@ class Settings(BaseSettings):
     MERCADOLIVRE_ACCESS_TOKEN: str = ""
     MERCADOLIVRE_REFRESH_TOKEN: str = ""
     MERCADOLIVRE_TOKEN_EXPIRES_AT: int = 0  # Unix timestamp
-    ML_WEBHOOK_SECRET: str = ""  # Optional: HMAC secret from ML Developer Portal
+
+    # Affiliate link parameters (Programa de Afiliados e Criadores do Mercado Livre)
+    ML_AFFILIATE_MATT_WORD: str = ""
+    ML_AFFILIATE_MATT_TOOL: str = ""
+    # NOTE: ML_WEBHOOK_SECRET removed (2026-06-26) — ML affiliate program
+    # does not provide webhooks for affiliates. Conversions tracked via scraping.
     ML_TOKEN_ENCRYPTION_KEY: str = ""  # Optional AES-256 key material for DB token encryption
 
     AMAZON_ACCESS_KEY: str = ""
@@ -73,7 +78,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://bestpricetoday.vercel.app",
+        "https://bestpricetoday.alaserver.com.br",
+        "https://bestpricetoday.alaserver.com.br:9443",
         "https://bestpricetoday.com.br",
     ]
 
@@ -82,12 +88,12 @@ class Settings(BaseSettings):
     # TikTok API
     TIKTOK_CLIENT_KEY: str = ""
     TIKTOK_CLIENT_SECRET: str = ""
-    TIKTOK_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/tiktok/callback"
+    TIKTOK_REDIRECT_URI: str = os.getenv("TIKTOK_REDIRECT_URI", "https://api.alaserver.com.br:9443/api/v1/tiktok/callback")
 
     # YouTube
     YOUTUBE_CLIENT_ID: str = ""
     YOUTUBE_CLIENT_SECRET: str = ""
-    YOUTUBE_REDIRECT_URI: str = "https://bestpricetoday.vercel.app/aletube/callback/youtube"
+    YOUTUBE_REDIRECT_URI: str = os.getenv("YOUTUBE_REDIRECT_URI", "https://api.alaserver.com.br:9443/api/v1/aletube/callback/youtube")
 
     # Instagram / Facebook
     INSTAGRAM_APP_ID: str = ""  # Legacy - use ID_APLICATIVO_INSTAGRAM
@@ -97,7 +103,7 @@ class Settings(BaseSettings):
     ID_APLICATIVO_FACEBOOK: str = ""
     FACEBOOK_APP_SECRET: str = ""  # Para validar signed requests do Data Deletion Callback
     FACEBOOK_PAGE_ACCESS_TOKEN: str = ""
-    FACEBOOK_REDIRECT_URI: str = "https://aletubegames.github.io/bpverify/callback/facebook"
+    FACEBOOK_REDIRECT_URI: str = os.getenv("FACEBOOK_REDIRECT_URI", "https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook")
 
     # Claude API (para análise de vídeo) — direto, opcional
     ANTHROPIC_API_KEY: str = ""
@@ -109,6 +115,14 @@ class Settings(BaseSettings):
     # Video API (GPU local via ngrok ou URL fixa)
     VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
     VIDEO_API_KEY: str = ""
+
+    # URL interna usada por workers para se comunicar com a própria API
+    # Em produção: https://api.alaserver.com.br:9443 (nginx proxy para backend na 8000)
+    INTERNAL_API_URL: str = "https://api.alaserver.com.br:9443"
+
+    # URL pública do frontend (usada em short links, mensagens Telegram, etc.)
+    # Em produção: https://bestpricetoday.alaserver.com.br:9443 (nginx proxy para frontend na 3000)
+    PUBLIC_SITE_URL: str = "https://bestpricetoday.alaserver.com.br:9443"
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 5

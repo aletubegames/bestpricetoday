@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bestpricetoday.vercel.app/sitemap.xml
+Sitemap: https://bestpricetoday.alaserver.com.br:9443/sitemap.xml

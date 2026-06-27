@@ -21,6 +21,14 @@ class AliExpressProvider(BaseProvider):
         self._client = AliExpressClient()
 
     def _to_offer(self, p: ProductResult) -> OfferSchema:
+        from app.core.config import settings
+        import re
+        # Extrai product_id do product_url se external_id estiver vazio
+        pid = p.external_id
+        if not pid and p.product_url:
+            m = re.search(r"/item/(\d+)\.html", p.product_url)
+            if m:
+                pid = m.group(1)
         return OfferSchema(
             provider=ProviderEnum.aliexpress,
             title=p.title,
@@ -33,8 +41,10 @@ class AliExpressProvider(BaseProvider):
             shipping_free=p.shipping_free,
             shipping_price=p.shipping_price,
             final_price=p.final_price,
+            product_id=pid,
             product_url=p.product_url,
             affiliate_url=p.affiliate_url or "",
+            tracking_id=settings.ALIEXPRESS_TRACKING_ID,
             image_url=p.image_url,
             economy=p.economy,
             is_fake_discount=p.discount_pct > 80,
@@ -47,6 +57,12 @@ class AliExpressProvider(BaseProvider):
             self.set_status(
                 ProviderSearchState.not_configured,
                 message="Credenciais AliExpress (APP_KEY/APP_SECRET) não configuradas.",
+            )
+            return []
+        if not settings.ALIEXPRESS_TRACKING_ID:
+            self.set_status(
+                ProviderSearchState.not_configured,
+                message="ALIEXPRESS_TRACKING_ID não configurado — links não seriam afiliados.",
             )
             return []
 

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { SITE_BASE } from "@/lib/api";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade — BestPriceToday",
   description: "Como o BestPriceToday coleta, usa e protege seus dados pessoais.",
-  alternates: { canonical: "https://bestpricetoday.vercel.app/privacy" },
+  alternates: { canonical: `${SITE_BASE}/privacy` },
 };
 
 export default function PrivacyPage() {
@@ -30,8 +31,8 @@ export default function PrivacyPage() {
 
         <Section title="1. Controlador dos Dados">
           <strong style={{ color: "var(--txt)" }}>BestPriceToday</strong><br />
-          Website: <a href="https://bestpricetoday.vercel.app" style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            bestpricetoday.vercel.app
+          Website: <a href={SITE_BASE} style={{ color: "var(--acc2)", textDecoration: "none" }}>
+            {SITE_BASE.replace("https://", "")}
           </a><br />
           Contato: <a href="mailto:aletubegames@gmail.com"
                       style={{ color: "var(--acc2)", textDecoration: "none" }}>
@@ -98,7 +99,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Provedores de infraestrutura:</strong> Neon PostgreSQL (banco de dados), Upstash Redis (cache),
-              Vercel (frontend), HuggingFace (backend) — todos operam sob contratos de processamento de dados adequados.
+              Alaserver (self-hosted) — todos operam sob contratos de processamento de dados adequados.
             </li>
             <li>
               <strong>Telegram:</strong> utilizado para entrega de notificações de alerta. Seu ID do Telegram é
@@ -169,9 +170,9 @@ export default function PrivacyPage() {
 
         <Section title="11. Alterações nesta Política">
           Podemos atualizar esta Política periodicamente. A versão atual sempre estará disponível em{" "}
-          <a href="https://bestpricetoday.vercel.app/privacy"
+          <a href={`${SITE_BASE}/privacy`}
              style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            bestpricetoday.vercel.app/privacy
+            {SITE_BASE.replace("https://", "")}/privacy
           </a>.
           Alterações significativas serão comunicadas por aviso na Plataforma.
         </Section>
@@ -208,9 +209,9 @@ export default function PrivacyPage() {
                 style={{ color: "var(--acc2)", textDecoration: "none" }}>
             aletubegames@gmail.com
           </a><br />
-          🌐 <a href="https://bestpricetoday.vercel.app"
+          🌐 <a href={SITE_BASE}
                 style={{ color: "var(--acc2)", textDecoration: "none" }}>
-            bestpricetoday.vercel.app
+            {SITE_BASE.replace("https://", "")}
           </a>
         </Section>
 

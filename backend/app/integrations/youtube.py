@@ -14,6 +14,7 @@ YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 
 YOUTUBE_SCOPES = " ".join([
     "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube",  # full access — permite deletar/atualizar vídeos
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/userinfo.profile",
 ])
@@ -138,6 +139,47 @@ class YouTubeClient:
                 "video_url": f"https://youtube.com/watch?v={result.get('id')}",
                 "status":    result.get("status", {}).get("uploadStatus"),
             }
+
+    async def delete_video(self, access_token: str, video_id: str) -> bool:
+        """Deleta vídeo do YouTube via Data API v3.
+        Requer escopo 'youtube' (não só 'youtube.upload').
+        Retorna True se deletou com sucesso.
+        """
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.delete(
+                f"{YOUTUBE_API_BASE}/videos",
+                params={"id": video_id},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            return r.status_code == 204
+
+    async def update_video_description(
+        self, access_token: str, video_id: str, description: str, title: str = None
+    ) -> bool:
+        """Atualiza descrição/título de um vídeo (para marcar oferta encerrada).
+        Requer escopo 'youtube'.
+        """
+        metadata = {
+            "id": video_id,
+            "snippet": {
+                "description": description[:5000],
+                "categoryId": "22",
+            },
+        }
+        if title:
+            metadata["snippet"]["title"] = title[:100]
+
+        import json as _json
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.put(
+                f"{YOUTUBE_API_BASE}/videos?part=snippet",
+                headers={
+                    "Authorization": "Bearer " + access_token,
+                    "Content-Type": "application/json",
+                },
+                content=_json.dumps(metadata).encode(),
+            )
+            return r.status_code == 200
 
 
 youtube_client = YouTubeClient()

@@ -21,7 +21,7 @@ from app.core.logging import logger
 from app.models.models import MLToken
 
 
-REFRESH_BUFFER_MINUTES = 10  # refresh 10 min before expiry
+REFRESH_BUFFER_MINUTES = 30  # refresh 30 min before expiry (increased for safety)
 TOKEN_ENCRYPTION_PREFIX = "aesgcm:v1:"
 
 
@@ -56,6 +56,9 @@ async def get_token(db: AsyncSession) -> Optional[str]:
     Returns a valid ML access_token.
     Auto-refreshes if within REFRESH_BUFFER_MINUTES of expiry.
     Returns None if no token is stored or refresh fails.
+    
+    IMPORTANT: No longer falls back to .env token - must use OAuth flow
+    to get initial token into database for auto-refresh to work.
     """
     # Try DB first
     r = await db.execute(select(MLToken).order_by(MLToken.updated_at.desc()).limit(1))
@@ -65,9 +68,13 @@ async def get_token(db: AsyncSession) -> Optional[str]:
         access_token = _decrypt_token(row.access_token)
         refresh_token = _decrypt_token(row.refresh_token)
         if not access_token or not refresh_token:
+            logger.error("ML token exists in DB but decryption failed - reauth required")
             return None
         # Check if still valid (with buffer)
-        if row.expires_at > datetime.now(timezone.utc) + timedelta(minutes=REFRESH_BUFFER_MINUTES):
+        expires_at = row.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at > datetime.now(timezone.utc) + timedelta(minutes=REFRESH_BUFFER_MINUTES):
             return access_token
         # Needs refresh
         logger.info("ML access_token near expiry, refreshing [token redacted]")
@@ -79,10 +86,8 @@ async def get_token(db: AsyncSession) -> Optional[str]:
             logger.warning("ML token refresh failed — user must re-authorize")
             return None
 
-    # Fall back to settings (initial bootstrap)
-    if settings.MERCADOLIVRE_ACCESS_TOKEN:
-        return settings.MERCADOLIVRE_ACCESS_TOKEN
-
+    # No token in DB - user must authenticate via OAuth
+    logger.warning("No ML token in database - user must authenticate via OAuth flow")
     return None
 
 
@@ -92,30 +97,43 @@ async def save_from_oauth(db: AsyncSession, token_data: dict) -> None:
 
 
 async def _save_tokens(db: AsyncSession, data: dict) -> None:
-    """Upsert token row. Always saves both access + refresh token. Deletes old rows."""
-    user_id = str(data.get("user_id", "default"))
-    expires_in = int(data.get("expires_in", 21600))
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    """Upsert token row. Always saves both access + refresh token. Deletes old rows.
+    
+    CRITICAL: This must succeed after a refresh, otherwise the old refresh_token
+    becomes invalid and user must re-authenticate.
+    """
+    try:
+        user_id = str(data.get("user_id", "default"))
+        expires_in = int(data.get("expires_in", 21600))
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
-    # Remove todos os tokens antigos (garante 1 linha só)
-    await db.execute(delete(MLToken))
+        # Remove todos os tokens antigos (garante 1 linha só)
+        await db.execute(delete(MLToken))
 
-    row = MLToken(
-        user_id=user_id,
-        access_token=_encrypt_token(data["access_token"]),
-        refresh_token=_encrypt_token(data["refresh_token"]),
-        expires_at=expires_at,
-        scope=data.get("scope"),
-    )
-    db.add(row)
-    await db.commit()
-    logger.info(f"ML tokens saved for user_id={user_id} expires_at={expires_at} [values redacted]")
+        row = MLToken(
+            user_id=user_id,
+            access_token=_encrypt_token(data["access_token"]),
+            refresh_token=_encrypt_token(data["refresh_token"]),
+            expires_at=expires_at,
+            scope=data.get("scope"),
+        )
+        db.add(row)
+        await db.commit()
+        logger.info(f"ML tokens saved successfully for user_id={user_id} expires_at={expires_at} [values redacted]")
+    except Exception as e:
+        logger.error(f"CRITICAL: Failed to save ML tokens after refresh - user must re-authenticate: {type(e).__name__}")
+        await db.rollback()
+        raise
 
 
 async def _do_refresh(refresh_token: str) -> Optional[dict]:
-    """Exchange refresh_token for new access+refresh pair."""
+    """Exchange refresh_token for new access+refresh pair.
+    
+    IMPORTANT: ML refresh_token is single-use. If this call succeeds but we fail
+    to save the new tokens, the old refresh_token becomes invalid and user must re-auth.
+    """
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 "https://api.mercadolibre.com/oauth/token",
                 data={
@@ -126,8 +144,18 @@ async def _do_refresh(refresh_token: str) -> Optional[dict]:
                 },
             )
         if resp.status_code == 200:
-            return resp.json()
-        logger.warning(f"ML refresh failed: HTTP {resp.status_code} [body redacted]")
+            data = resp.json()
+            # Validate response contains required fields
+            if not data.get("access_token") or not data.get("refresh_token"):
+                logger.error("ML refresh response missing required fields")
+                return None
+            logger.info("ML refresh API call successful - new tokens received")
+            return data
+        elif resp.status_code == 400:
+            # invalid_grant - refresh token expired or already used
+            logger.error(f"ML refresh failed: invalid_grant - refresh token may be expired or already used")
+        else:
+            logger.warning(f"ML refresh failed: HTTP {resp.status_code} [body redacted]")
         return None
     except Exception as e:
         logger.error(f"ML refresh exception: {type(e).__name__} [details redacted]")
@@ -140,27 +168,34 @@ async def get_token_status(db: AsyncSession) -> dict:
     row = r.scalar()
 
     if not row:
-        # Check settings fallback
-        has_env_token = bool(settings.MERCADOLIVRE_ACCESS_TOKEN)
+        # No token in database - user must authenticate via OAuth
         return {
-            "status": "env_only" if has_env_token else "not_configured",
-            "source": "environment" if has_env_token else "none",
+            "status": "not_configured",
+            "source": "none",
             "expires_at": None,
             "user_id": None,
-            "needs_reauth": not has_env_token,
+            "needs_reauth": True,
+            "message": "No ML token in database - user must authenticate via OAuth flow"
         }
 
     now = datetime.now(timezone.utc)
-    expires_in_minutes = int((row.expires_at - now).total_seconds() / 60)
-    is_expired = row.expires_at <= now
-    needs_refresh = row.expires_at <= now + timedelta(minutes=REFRESH_BUFFER_MINUTES)
+    expires_at = row.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    updated_at = row.updated_at
+    if updated_at and updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+
+    expires_in_minutes = int((expires_at - now).total_seconds() / 60)
+    is_expired = expires_at <= now
+    needs_refresh = expires_at <= now + timedelta(minutes=REFRESH_BUFFER_MINUTES)
 
     return {
         "status": "expired" if is_expired else ("expiring_soon" if needs_refresh else "active"),
         "source": "database",
-        "expires_at": row.expires_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
         "expires_in_minutes": max(0, expires_in_minutes),
         "user_id": row.user_id,
-        "updated_at": row.updated_at.isoformat(),
+        "updated_at": updated_at.isoformat() if updated_at else None,
         "needs_reauth": is_expired and not _decrypt_token(row.refresh_token),
     }

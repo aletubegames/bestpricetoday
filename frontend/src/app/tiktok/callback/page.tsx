@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { API_BASE as API } from "@/lib/api"
+import { API_BASE as API, apiFetch } from "@/lib/api"
 import { Suspense } from "react"
 
 interface TikTokCallbackAccount {
@@ -57,7 +57,7 @@ function TikTokCallbackInner() {
 
     const exchange = async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `${API}/api/v1/tiktok/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || "")}&mode=${mode}`
         )
 

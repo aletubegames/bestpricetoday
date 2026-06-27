@@ -214,7 +214,8 @@ async def search_all(
 ) -> SearchResponse:
     start = time.time()
     normalized = normalize_query(query)
-    cache_key = make_cache_key("search", query=normalized, limit=limit)
+    provider_key = ",".join(sorted([p.value for p in providers])) if providers else "all"
+    cache_key = make_cache_key("search", query=normalized, limit=limit, providers=provider_key)
 
     cached = await get_cached(cache_key)
     if cached:
@@ -230,7 +231,7 @@ async def search_all(
         if p in PROVIDERS:
             instance = PROVIDERS[p]()
             instances.append(instance)
-            tasks.append(instance.safe_search(normalized, limit=min(limit, 10)))
+            tasks.append(instance.safe_search(normalized, limit=min(limit, 30)))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -252,25 +253,40 @@ async def search_all(
     # Close all clients
     await asyncio.gather(*[i.close() for i in instances], return_exceptions=True)
 
-    ranked = rank_offers(all_offers)
+    ranked = rank_offers(all_offers, query=normalized)
 
-    # Garantir que produtos ML afiliados apareçam nos resultados
-    # (podem ter score baixo por preço alto, mas são links afiliados reais)
-    ml_offers  = [o for o in ranked if o.provider.value == "mercadolivre"]
-    other      = [o for o in ranked if o.provider.value != "mercadolivre"]
-    # Intercalar: 1 ML a cada 4 outros, ou colocar no topo se único provider com resultado
-    if ml_offers and other:
-        merged = []
-        ml_idx = 0
-        for i, o in enumerate(other):
-            merged.append(o)
-            if (i + 1) % 4 == 0 and ml_idx < len(ml_offers):
-                merged.append(ml_offers[ml_idx])
-                ml_idx += 1
-        merged.extend(ml_offers[ml_idx:])
-        ranked = merged[:limit]
-    else:
-        ranked = ranked[:limit]
+    # Garantir diversidade de providers nos resultados
+    # (produtos da Amazon/ML podem ter score baixo por preço alto,
+    #  mas são links afiliados reais com comissão)
+    providers_with_offers = {}
+    for o in ranked:
+        p = o.provider.value
+        if p not in providers_with_offers:
+            providers_with_offers[p] = []
+        if len(providers_with_offers[p]) < 3:  # max 3 por provider
+            providers_with_offers[p].append(o)
+
+    # Round-robin: intercala ofertas de cada provider
+    merged = []
+    max_per_provider = {p: 3 for p in providers_with_offers}
+    provider_queues = {p: list(offers) for p, offers in providers_with_offers.items()}
+    while len(merged) < limit:
+        added = False
+        # Prioriza Amazon e ML (comissão real), depois outros
+        priority = ["amazon", "mercadolivre", "shopee", "aliexpress", "lomadee", "kabum", "awin"]
+        sorted_providers = [p for p in priority if p in provider_queues] + \
+                          [p for p in provider_queues if p not in priority]
+        for p in sorted_providers:
+            if provider_queues[p] and max_per_provider.get(p, 3) > 0:
+                merged.append(provider_queues[p].pop(0))
+                max_per_provider[p] -= 1
+                added = True
+                if len(merged) >= limit:
+                    break
+        if not added:
+            break
+
+    ranked = merged[:limit] if merged else ranked[:limit]
 
     # Add UTM params to all affiliate links
     for offer in ranked:
