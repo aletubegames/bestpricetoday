@@ -33,7 +33,7 @@
 - `backend/app/workers/ml_refresh_cron.py` - Cron job de renovação
 - `backend/app/api/v1/endpoints/auth.py` - Endpoints de OAuth e diagnóstico
 - `backend/.env` - Removidos tokens estáticos
-- `hf_space/` - Mesmas mudanças para deploy HuggingFace
+- DEPRECATED — removido
 
 **Importante:** Se o refresh falhar no meio do processo (após usar o token no ML mas antes de salvar no banco), o refresh token antigo fica inválido e o usuário precisa re-autenticar. O sistema agora loga erros críticos e fornece mensagens claras.
 
@@ -214,7 +214,7 @@
    - Tabela `ShortLink` — rastreamento de cliques com `source="aletube_admin"`
    - Autenticação admin via `require_admin` dependency
 
-**Status:** ✅ Implementado, commitado, deployado em Vercel.
+**Status:** ✅ Implementado, commitado, deployado em Alaserver.
 
 **Próximas melhorias:**
 - Integração com Claude Vision para análise IA real (frames → metadata)
@@ -252,10 +252,10 @@
 - **Frontend:**
   - `frontend/src/components/TikTokPublisher.tsx` — modal IA: gera título/descrição/hashtags + botão publicar
   - `frontend/src/app/produto/[query]/ProductSearchClient.tsx` — botão TikTok em cada oferta
-- **Verificação de domínio:** 7 arquivos `.txt` em `public/` + 2 em `public/privacy/` e `public/terms/` — todos 200 OK no Vercel
-- **Credenciais HF Space:** `TIKTOK_CLIENT_KEY=awllka8qo05dhkri` + `TIKTOK_CLIENT_SECRET` configurados
+- **Verificação de domínio:** 7 arquivos `.txt` em `public/` + 2 em `public/privacy/` e `public/terms/` — todos 200 OK no Alaserver
+- **Credenciais DEPRECATED:** `TIKTOK_CLIENT_KEY=awllka8qo05dhkri` + `TIKTOK_CLIENT_SECRET` configurados
 - **Status:** `GET /tiktok/auth` funcionando, aguardando aprovação do app pelo TikTok
-- **Redirect URI:** `https://bestpricetoday.vercel.app/api/v1/tiktok/callback`
+- **Redirect URI:** `https://bestpricetoday.alaserver.com.br/api/v1/tiktok/callback`
 
 ### 2) Correções de bugs críticos (2026-05-17/18)
 
@@ -281,7 +281,7 @@
 - `frontend/public/manifest.json` criado (PWA)
 - `frontend/next.config.mjs` — `protocol: "https"` adicionado nos `remotePatterns`
 
-### 5) sync_hf_deploy.sh expandido
+### 5) sync_DEPRECATED.sh expandido
 
 - Agora sincroniza: endpoints, providers, core, models, services, ranking
 - Antes sincronizava apenas `alerts.py`, `favorites.py`, `schemas.py`
@@ -373,7 +373,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
-| Frontend      | https://bestpricetoday.vercel.app (Next.js 14, Vercel)                    |
+| Frontend      | https://bestpricetoday.alaserver.com.br (Next.js 14, Alaserver)                    |
 | Backend       | https://sacrament-subduing-confined.ngrok-free.dev (FastAPI, alaserver)   |
 | Banco         | SQLite local (alaserver) — string no `.env`                               |
 | Cache         | Redis local (alaserver) — string no `.env`                                |
@@ -387,7 +387,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 - **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
 - **Deploy backend:** SSH manual para alaserver (ngrok já configurado)
-- **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
+- **Deploy frontend:** `next build && sudo systemctl restart bestprice-frontend` no alaserver
 - **Testes:** pytest + pytest-asyncio — **24 testes passando** (test_integrity.py:16 + test_api.py:8)
 
 ---
@@ -426,13 +426,13 @@ backend/app/
     ├── conversion_cron.py           # polling horário de conversões
     └── alert_checker.py            # ← NOVO: verifica alertas a cada 30min, envia Telegram se preço caiu
 
-backend/hf_deploy/                   # Deploy target HuggingFace Space (standalone)
-├── app/api/v1/endpoints/alerts.py   # ← sincronizado via sync_hf_deploy.sh
+backend/DEPRECATED/                   # Deploy target DEPRECATED Space (standalone)
+├── app/api/v1/endpoints/alerts.py   # ← sincronizado via sync_DEPRECATED.sh
 ├── app/api/v1/endpoints/favorites.py
 ├── app/schemas/schemas.py
 └── ...                              # NÃO inclui admin.py nem links.py
 
-backend/sync_hf_deploy.sh            # ← NOVO: copia alerts.py, favorites.py, schemas.py → hf_deploy
+backend/sync_DEPRECATED.sh            # ← NOVO: copia alerts.py, favorites.py, schemas.py → DEPRECATED
 backend/scripts/migration_owner_id.py # ← NOVO: migration owner_id aplicada em produção
 backend/tests/test_integrity.py      # ← NOVO: 16 testes estruturais
 ```
@@ -504,7 +504,7 @@ Busca → Ranking/Card → openTrackedOffer()
 
 ## Admin Dashboard (`/admin`)
 
-**Acesso:** `https://bestpricetoday.vercel.app/admin`
+**Acesso:** `https://bestpricetoday.alaserver.com.br/admin`
 **Auth:** header `X-Admin-Key: ADMIN_MANAGER_KEY`
 **Layout:** responsivo — funciona em mobile e desktop
 
@@ -538,7 +538,7 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 3. `conversion_tracker.py` usa dados reais (sem flat rate, sem `DEFAULT_COMMISSION`)
 4. Ownership: todos endpoints de alerts/favorites retornam 422 sem `owner_id`
 5. Frontend: nenhum arquivo fora de `lib/api.ts` declara fallback de URL
-6. `hf_deploy` sincronizado com canônico (falha se `sync_hf_deploy.sh` não rodou)
+6. `DEPRECATED` sincronizado com canônico (falha se `sync_DEPRECATED.sh` não rodou)
 
 **test_api.py** (8 testes):
 - Health, validação de busca, mock de providers, schema de alertas, cache hit
@@ -551,7 +551,7 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 ```typescript
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://alessandro2090-bestpricetoday-api.hf.space";
+  "https://api.alaserver.com.br:9443";
 ```
 
 Todos os arquivos importam `{ API_BASE }` dali. Nenhum fallback inline ou `localhost` restante.
@@ -968,7 +968,7 @@ Upload
 ### Alta prioridade
 1. **Shopee secret** → pegar de https://affiliate.shopee.com.br → My Tools → Open API
 2. **ML Programa de Afiliados** → solicitar aprovação para desbloquear `/sites/MLB/search`
-3. **ADMIN_MANAGER_KEY** → configurar nos secrets do HF Space
+3. **ADMIN_MANAGER_KEY** → configurar nos secrets do DEPRECATED
 4. **Webhook ML** → registrar URL no portal ML Developer → Notificações
 
 ### Média prioridade
@@ -987,7 +987,7 @@ Upload
 
 ## Variáveis de ambiente
 
-### `backend/.env` (local) e HF Space secrets (produção)
+### `backend/.env` (local) e DEPRECATED secrets (produção)
 ```
 DATABASE_URL               # Neon PostgreSQL
 REDIS_URL                  # Upstash Redis
@@ -1002,7 +1002,7 @@ ALIEXPRESS_TRACKING_ID     # ⚠️ inválido no HF → fallback sem tracking
 SHOPEE_APP_ID=18308041054
 SHOPEE_SECRET              # ⚠️ errado — precisa do portal afiliado
 TELEGRAM_BOT_TOKEN
-ADMIN_MANAGER_KEY          # ⚠️ configurar no HF Space secrets
+ADMIN_MANAGER_KEY          # ⚠️ configurar no DEPRECATED secrets
 INTERNAL_API_URL           # URL interna para alert_checker.py buscar preços (default: localhost:8000)
 ALERT_CHECK_INTERVAL       # Intervalo do alert_checker em segundos (default: 1800)
 ```
@@ -1066,7 +1066,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
-| Frontend      | https://bestpricetoday.vercel.app (Next.js 14, Vercel)                    |
+| Frontend      | https://bestpricetoday.alaserver.com.br (Next.js 14, Alaserver)                    |
 | Backend       | https://sacrament-subduing-confined.ngrok-free.dev (FastAPI, alaserver)   |
 | Banco         | SQLite local (alaserver) — string no `.env`                               |
 | Cache         | Redis local (alaserver) — string no `.env`                                |
@@ -1080,7 +1080,7 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 - **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
 - **Deploy backend:** SSH manual para alaserver (ngrok já configurado)
-- **Deploy frontend:** `vercel --prod --yes` (não auto-deploy — fazer manualmente)
+- **Deploy frontend:** `next build && sudo systemctl restart bestprice-frontend` no alaserver
 - **Testes:** pytest + pytest-asyncio — 35+ testes passando
 
 ---
@@ -1176,7 +1176,7 @@ Fix: `search()` faz retry sem tracking_id quando recebe 402.
 ```
 https://auth.mercadolivre.com.br/authorization?response_type=code
   &client_id=2661096739949809
-  &redirect_uri=https://bestpricetoday.vercel.app/auth/callback
+  &redirect_uri=https://bestpricetoday.alaserver.com.br/auth/callback
 ```
 Logar com conta principal (user_id=6727655) — não colaborador.
 
@@ -1197,8 +1197,8 @@ O código está correto — problema é credencial errada.
 
 ## Admin Dashboard (`/admin`)
 
-**Acesso:** `https://bestpricetoday.vercel.app/admin`
-**Auth:** header `X-Admin-Key: ADMIN_MANAGER_KEY` (configurar no HF Space secrets)
+**Acesso:** `https://bestpricetoday.alaserver.com.br/admin`
+**Auth:** header `X-Admin-Key: ADMIN_MANAGER_KEY` (configurar no DEPRECATED secrets)
 
 **Endpoints backend (`/api/v1/admin/`):**
 - `POST /clicks` — registra clique (sem auth — chamado automaticamente)
@@ -1215,7 +1215,7 @@ O código está correto — problema é credencial errada.
 
 **Webhook ML para registrar no portal:**
 ```
-POST https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/mercadolivre
+POST https://api.alaserver.com.br:9443/api/v1/admin/webhooks/mercadolivre
 ```
 
 **Features do dashboard:**
@@ -1308,7 +1308,7 @@ POST https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/me
 ### Alta prioridade
 1. **Shopee** → pegar App Secret de https://affiliate.shopee.com.br → My Tools → Open API
 2. **ML Programa de Afiliados** → solicitar aprovação para desbloquear `/sites/MLB/search`
-3. **ADMIN_MANAGER_KEY** → configurar nos secrets do HF Space
+3. **ADMIN_MANAGER_KEY** → configurar nos secrets do DEPRECATED
 4. **Webhook ML** → registrar URL no ML Developer Portal → Notificações
 
 ### Média prioridade
@@ -1329,7 +1329,7 @@ POST https://alessandro2090-bestpricetoday-api.hf.space/api/v1/admin/webhooks/me
 
 ## Variáveis de ambiente
 
-### `backend/.env` (local) e HF Space secrets (produção)
+### `backend/.env` (local) e DEPRECATED secrets (produção)
 ```
 DATABASE_URL               # Neon PostgreSQL
 REDIS_URL                  # Upstash Redis
@@ -1346,7 +1346,7 @@ ALIEXPRESS_TRACKING_ID     # ⚠️ inválido no HF → código faz fallback sem
 SHOPEE_APP_ID=18308041054
 SHOPEE_SECRET              # ⚠️ errado — precisa ser do portal afiliado
 TELEGRAM_BOT_TOKEN
-ADMIN_MANAGER_KEY          # ⚠️ configurar no HF Space secrets
+ADMIN_MANAGER_KEY          # ⚠️ configurar no DEPRECATED secrets
 ```
 
 ---
@@ -1354,7 +1354,7 @@ ADMIN_MANAGER_KEY          # ⚠️ configurar no HF Space secrets
 ## Video API local (2026-05-16)
 
 ### Problema
-O admin estava chamando `/admin/video/publish` no HF Space, que tentava rodar `traffic_machine.py` em `/root/wan2` (inexistente). O Wan2.1 e a GPU só existem na máquina local.
+O admin estava chamando `/admin/video/publish` no DEPRECATED, que tentava rodar `traffic_machine.py` em `/root/wan2` (inexistente). O Wan2.1 e a GPU só existem na máquina local.
 
 ### Solução: `~/wan2/video_api.py`
 Servidor FastAPI leve (porta 8765) que roda **localmente** e expõe:
@@ -1375,7 +1375,7 @@ sudo systemctl enable --now bestprice-video-api
 ```
 Admin (browser)
   1. Tenta POST http://localhost:8765/video/publish (direto na máquina local)
-  2. Se offline, fallback via HF Space que usa VIDEO_API_URL do .env
+  2. Se offline, fallback via DEPRECATED que usa VIDEO_API_URL do .env
 Video API local executa traffic_machine.py com os parâmetros
 Admin faz poll GET /video/status/{job_id} a cada 3s, mostra log em tempo real
 Admin mostra ✅ / ❌ online/offline da API local
@@ -1383,7 +1383,7 @@ Admin mostra ✅ / ❌ online/offline da API local
 
 ### Variáveis de ambiente adicionadas
 ```
-VIDEO_API_URL = http://localhost:8765   # URL da Video API (usada pelo HF Space como proxy)
+VIDEO_API_URL = http://localhost:8765   # URL da Video API (usada pelo DEPRECATED como proxy)
 VIDEO_API_KEY =                         # chave opcional (vazio = aceita tudo localmente)
 VIDEO_API_PORT = 8765                   # porta da Video API
 ```

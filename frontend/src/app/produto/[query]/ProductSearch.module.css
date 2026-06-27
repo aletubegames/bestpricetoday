@@ -1,0 +1,293 @@
+/* ProductSearch — página /produto/[query]
+   Responsiva via container queries.
+   Alvo: 8" mobile (360px) até 32" desktop (3840px). */
+
+.root {
+  min-height: 100vh;
+  background: #f0f4ff;
+  color: #1a1a2e;
+  font-family: system-ui, sans-serif;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+.header {
+  border-bottom: 1px solid rgba(108, 92, 231, 0.2);
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.97);
+}
+
+@media (max-width: 768px) {
+  .header { padding: 12px 16px; }
+}
+
+.headerInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerLink {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerLogo {
+  font-size: 24px;
+}
+
+.headerBrand {
+  font-weight: 800;
+  font-size: 17px;
+  color: #7c6aff;
+}
+
+/* ─── Container ──────────────────────────────────────────────────────────── */
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 40px 16px;
+}
+
+@media (max-width: 768px) {
+  .container { padding: 24px 14px; }
+}
+
+@media (min-width: 1920px) {
+  .container { max-width: 1800px; padding: 60px 32px; }
+}
+
+.title {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.titleAccent { color: #7c6aff; }
+
+.subtitle {
+  color: #4a4a6a;
+  margin-bottom: 40px;
+}
+
+@media (max-width: 768px) {
+  .subtitle { margin-bottom: 24px; }
+}
+
+/* ─── Result meta ────────────────────────────────────────────────────────── */
+.meta {
+  color: #4a4a6a;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metaCount {
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.refreshBtn {
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  background: transparent;
+  color: #7c6aff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ─── Grid de ofertas (container queries) ────────────────────────────────── */
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+@container bp (min-width: 480px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+@container bp (min-width: 900px) {
+  .grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+}
+@container bp (min-width: 1280px) {
+  .grid { grid-template-columns: repeat(4, 1fr); }
+}
+@container bp (min-width: 1800px) {
+  .grid { grid-template-columns: repeat(5, 1fr); }
+}
+
+/* ─── Card de oferta ─────────────────────────────────────────────────────── */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(124, 106, 255, 0.15);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.cardBest {
+  border-color: rgba(0, 229, 160, 0.4);
+}
+
+.cardBestBar {
+  background: linear-gradient(90deg, #00e5a0, #0ea5e9);
+  height: 3px;
+}
+
+.cardBody {
+  padding: 16px;
+}
+
+.cardBestLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #00e5a0;
+  margin-bottom: 8px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cardLogo { font-size: 16px; }
+
+.cardProvider {
+  font-size: 12px;
+  font-weight: 700;
+  color: #a78bfa;
+  text-transform: capitalize;
+}
+
+.cardDiscount {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.cardImage {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #eef0ff;
+  margin-bottom: 12px;
+}
+
+/* Container estreito: imagem menor */
+@container bp (max-width: 479px) {
+  .cardImage { height: 130px; }
+}
+
+/* Container largo: imagem maior */
+@container bp (min-width: 1600px) {
+  .cardImage { height: 200px; }
+}
+
+.cardTitle {
+  font-size: 13px;
+  color: #4a4a6a;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  min-height: 40px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.cardOriginalPrice {
+  font-size: 12px;
+  color: #475569;
+  text-decoration: line-through;
+}
+
+.cardPrice {
+  font-size: 28px;
+  font-weight: 900;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+@container bp (max-width: 479px) {
+  .cardPrice { font-size: 24px; }
+}
+
+@container bp (min-width: 1600px) {
+  .cardPrice { font-size: 32px; }
+}
+
+.cardFreeShip {
+  font-size: 12px;
+  color: #00e5a0;
+  margin-bottom: 12px;
+}
+
+.cardCta {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 14px;
+  background: linear-gradient(135deg, #7c6aff, #a78bfa);
+  color: #fff;
+}
+
+.cardCtaBest {
+  background: linear-gradient(135deg, #00e5a0, #0ea5e9);
+  color: #000;
+}
+
+/* ─── Empty state ────────────────────────────────────────────────────────── */
+.empty {
+  color: #4a4a6a;
+  padding: 40px;
+  text-align: center;
+}
+
+.emptyEmoji { font-size: 40px; }
+
+.emptyBack {
+  color: #7c6aff;
+  text-decoration: none;
+}
+
+/* ─── Related searches ───────────────────────────────────────────────────── */
+.related {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid #1e293b;
+}
+
+.relatedTitle {
+  color: #475569;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.relatedList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.relatedLink {
+  padding: 6px 14px;
+  border-radius: 99px;
+  background: #f5f7ff;
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  color: #4a4a6a;
+  text-decoration: none;
+  font-size: 13px;
+}

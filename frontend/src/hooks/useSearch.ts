@@ -10,7 +10,7 @@ export function useSearch(query: string) {
     queryFn: async () => {
       try {
         const { data } = await axios.get(`${API_URL}/api/v1/search`, {
-          params: { q: query, limit: 20 },
+          params: { q: query, limit: 40 },
         });
         return data;
       } catch (error: unknown) {

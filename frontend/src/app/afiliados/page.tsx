@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
+import styles from "./page.module.css"
 
 interface Offer {
   id: string
@@ -19,12 +20,6 @@ interface Offer {
 
 const accent = "#7c6aff"
 const muted = "#6b6b8a"
-const cardStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid rgba(108,92,231,0.2)",
-  borderRadius: 14,
-  padding: "20px 24px",
-}
 
 function fmt(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
@@ -44,7 +39,7 @@ function CopyBtn({ text }: { text: string }) {
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-      style={{ padding: "4px 12px", borderRadius: 8, border: `1px solid ${accent}`, background: "transparent", color: accent, cursor: "pointer", fontSize: 12 }}
+      className={styles.copyBtn}
     >
       {copied ? "✅" : "📋 Copiar"}
     </button>
@@ -95,30 +90,25 @@ export default function AfiliadosPage() {
   if (!token) return null
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f4ff", fontFamily: "system-ui, sans-serif", padding: "0 0 60px" }}>
+    <div className={styles.root}>
       {/* Header */}
-      <div style={{ background: "#fff", borderBottom: "1px solid rgba(108,92,231,0.15)", padding: "18px 32px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <div className={styles.header}>
+        <div className={styles.headerTop}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>💰 Afiliados</span>
+            <span className={styles.headerTitle}>💰 Afiliados</span>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={() => router.push("/")} style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>← Home</button>
-            <button onClick={() => router.push("/dashboard")} style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>📊 Dashboard</button>
+          <div className={styles.headerActions}>
+            <button onClick={() => router.push("/")} className={styles.headerBtn}>← Home</button>
+            <button onClick={() => router.push("/dashboard")} className={styles.headerBtn}>📊 Dashboard</button>
           </div>
         </div>
-        <p style={{ margin: 0, color: muted, fontSize: 14 }}>Produtos afiliados por plataforma</p>
-        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        <p className={styles.headerSubtitle}>Produtos afiliados por plataforma</p>
+        <div className={styles.providerTabs}>
           {(["mercadolivre", "shopee", "aliexpress", "lomadee"] as const).map(p => (
             <button
               key={p}
               onClick={() => setProvider(p)}
-              style={{
-                padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 14,
-                background: provider === p ? accent : "#fff",
-                color: provider === p ? "#fff" : muted,
-                border: `1px solid ${provider === p ? accent : "#ddd"}`,
-              }}
+              className={`${styles.providerTab} ${provider === p ? styles.providerTabActive : ""}`}
             >
               {p === "mercadolivre" ? "🟡 Mercado Livre" : p === "shopee" ? "🟠 Shopee" : p === "aliexpress" ? "🔴 AliExpress" : "🟣 Lomadee"}
             </button>
@@ -126,7 +116,7 @@ export default function AfiliadosPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "28px 24px" }}>
+      <div className={styles.container}>
         <ProductsTab token={token} provider={provider} />
       </div>
     </div>
@@ -144,11 +134,14 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [sort, setSort] = useState<"relevance" | "price_asc" | "price_desc">("relevance")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [submittedQuery, setSubmittedQuery] = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await apiFetch(`${API}/api/v1/affiliate/products?provider=${provider}&page=${page}&per_page=${perPage}&sort=${sort}`, { headers: buildAdminHeaders(token) })
+      const searchParam = submittedQuery ? `&search=${encodeURIComponent(submittedQuery)}` : ""
+      const r = await apiFetch(`${API}/api/v1/affiliate/products?provider=${provider}&page=${page}&per_page=${perPage}&sort=${sort}${searchParam}`, { headers: buildAdminHeaders(token) })
       const d = await r.json()
       setProducts(d.offers ?? [])
       setTotal(d.total ?? 0)
@@ -156,32 +149,55 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
     } finally {
       setLoading(false)
     }
-  }, [token, provider, page, perPage, sort])
+  }, [token, provider, page, perPage, sort, submittedQuery])
 
+  const handleSearch = () => {
+    setSubmittedQuery(searchQuery)
+    setPage(1)
+  }
+
+  const handleClear = () => {
+    setSearchQuery("")
+    setSubmittedQuery("")
+    setPage(1)
+  }
+
+  // Busca quando provider, page, perPage, sort ou submittedQuery mudam
   useEffect(() => { load() }, [load])
 
   if (loading) {
-    return <div style={{ textAlign: "center", padding: 40 }}>Carregando...</div>
+    return <div className={styles.loading}>Carregando...</div>
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Search Input */}
+      <div className={styles.searchRow}>
+        <input
+          type="text"
+          placeholder="Buscar produto específico (ex: iphone x)..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSearch() }}
+          className={styles.searchInput}
+        />
+        <button onClick={handleSearch} className={styles.searchBtn}>Buscar</button>
+        <button onClick={handleClear} className={styles.searchBtn}>Limpar</button>
+      </div>
+
       {/* Filters */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, color: muted }}>Produtos por página:</span>
+      <div className={styles.filters}>
+        <span className={styles.filterLabel}>Produtos por página:</span>
         {[20, 40, 60, 80, 100].map(p => (
           <button
             key={p}
             onClick={() => { setPerPage(p); setPage(1) }}
-            style={{
-              padding: "6px 12px", borderRadius: 6, border: "1px solid #ddd", background: perPage === p ? accent : "#fff",
-              color: perPage === p ? "#fff" : muted, cursor: "pointer", fontSize: 13,
-            }}
+            className={`${styles.filterBtn} ${perPage === p ? styles.filterBtnActive : ""}`}
           >
             {p}
           </button>
         ))}
-        <span style={{ fontSize: 14, color: muted, marginLeft: 20 }}>Ordenar por:</span>
+        <span className={styles.filterLabel} style={{ marginLeft: 20 }}>Ordenar por:</span>
         {[
           { value: "relevance", label: "Relevância" },
           { value: "price_asc", label: "Menor preço" },
@@ -189,11 +205,8 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
         ].map(s => (
           <button
             key={s.value}
-            onClick={() => { setSort(s.value as any); setPage(1) }}
-            style={{
-              padding: "6px 12px", borderRadius: 6, border: "1px solid #ddd", background: sort === s.value ? accent : "#fff",
-              color: sort === s.value ? "#fff" : muted, cursor: "pointer", fontSize: 13,
-            }}
+            onClick={() => setSort(s.value as any)}
+            className={`${styles.filterBtn} ${sort === s.value ? styles.filterBtnActive : ""}`}
           >
             {s.label}
           </button>
@@ -201,84 +214,68 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
       </div>
 
       {/* Products Grid */}
-      {products.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: muted }}>
-          Nenhum produto encontrado
-        </div>
-      ) : (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-            {products.map(offer => (
-              <div key={offer.id} style={cardStyle}>
-                {offer.image_url && (
-                  <img src={offer.image_url} alt="" style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8, marginBottom: 12 }} />
+      <div className={`cq ${styles.grid}`}>
+        {products.map((offer) => (
+          <div key={offer.id} className={styles.card}>
+            <div className={styles.cardTop}>
+              {offer.image_url && (
+                <img
+                  src={offer.image_url}
+                  alt={offer.title}
+                  className={styles.cardImg}
+                />
+              )}
+              <div className={styles.cardInfo}>
+                <div className={styles.cardTitle}>{offer.title}</div>
+                <div className={styles.cardStore}>{offer.store || offer.provider}</div>
+                <div className={styles.cardPrice}>{fmt(offer.final_price)}</div>
+                {offer.original_price && offer.original_price > offer.final_price && (
+                  <div className={styles.cardOriginalPrice}>{fmt(offer.original_price)}</div>
                 )}
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e", marginBottom: 4, minHeight: 40 }}>
-                  {offer.title?.slice(0, 80)}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 13, color: muted, textDecoration: offer.original_price && offer.original_price > offer.final_price ? "line-through" : "none" }}>
-                      {offer.original_price ? fmt(offer.original_price) : ""}
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#00e5a0" }}>
-                      {fmt(offer.final_price)}
-                    </div>
-                  </div>
-                  {offer.discount_pct && (
-                    <div style={{ background: "rgba(0,229,160,0.1)", color: "#00e5a0", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-                      -{offer.discount_pct}%
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <a
-                    href={offer.affiliate_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      flex: 1, padding: "10px", textAlign: "center", borderRadius: 8,
-                      background: accent, color: "#fff", textDecoration: "none", fontWeight: 600, cursor: "pointer",
-                    }}
-                  >
-                    Ver oferta →
-                  </a>
-                  <CopyBtn text={offer.affiliate_url} />
-                </div>
               </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                style={{
-                  padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "#fff",
-                  color: page === 1 ? "#ccc" : muted, cursor: page === 1 ? "not-allowed" : "pointer", fontSize: 13,
-                }}
-              >
-                ← Anterior
-              </button>
-              <span style={{ fontSize: 14, color: muted }}>
-                Página {page} de {totalPages} ({total} produtos)
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                style={{
-                  padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "#fff",
-                  color: page === totalPages ? "#ccc" : muted, cursor: page === totalPages ? "not-allowed" : "pointer", fontSize: 13,
-                }}
-              >
-                Próxima →
-              </button>
             </div>
-          )}
-        </>
+            <div className={styles.cardActions}>
+              <CopyBtn text={offer.affiliate_url} />
+              <a
+                href={offer.affiliate_url}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className={styles.cardLink}
+              >
+                Ver oferta
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className={styles.pagination}>
+          <button
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page === 1}
+            className={`${styles.pageBtn} ${page === 1 ? styles.pageBtnDisabled : ""}`}
+          >
+            ← Anterior
+          </button>
+          <span className={styles.pageInfo}>
+            Página {page} de {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(Math.min(totalPages, page + 1))}
+            disabled={page === totalPages}
+            className={`${styles.pageBtn} ${page === totalPages ? styles.pageBtnDisabled : ""}`}
+          >
+            Próxima →
+          </button>
+        </div>
       )}
+
+      {/* Info */}
+      <div className={styles.info}>
+        Total: {total} produtos • Página {page} de {totalPages}
+      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
 import { openTrackedOffer } from "@/lib/tracking";
+import styles from "./OfferCard.module.css";
 
 const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
   aliexpress: (
@@ -103,9 +104,9 @@ function ScoreRing({ score }: { score: number }) {
   const dash = (score / 100) * circumference;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      <div style={{ position: "relative", width: 48, height: 48 }}>
-        <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
+    <div className={styles.scoreRing}>
+      <div className={styles.scoreRingWrap}>
+        <svg width="48" height="48" className={styles.scoreRingWrap} style={{ transform: "rotate(-90deg)" }}>
           <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(108,92,231,0.15)" strokeWidth="3" />
           <circle cx="24" cy="24" r="18" fill="none" stroke={color} strokeWidth="3"
             strokeDasharray={`${dash} ${circumference}`}
@@ -115,7 +116,7 @@ function ScoreRing({ score }: { score: number }) {
           <span style={{ fontSize: 13, fontWeight: 800, color }}>{Math.round(score)}</span>
         </div>
       </div>
-      <span style={{ fontSize: 9, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</span>
+      <span className={styles.scoreLabel} style={{ color }}>{label}</span>
     </div>
   );
 }
@@ -157,80 +158,35 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
     }
   }, [offer, loadingUrl]);
 
+  const cardClass = [
+    styles.card,
+    isSelected ? styles.cardSelected : "",
+  ].filter(Boolean).join(" ");
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: rank * 0.04, duration: 0.3 }}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-        overflow: "hidden",
-        position: "relative",
-        background: "#ffffff",
-        border: `1px solid ${isSelected ? "rgba(108,92,231,0.6)" : "rgba(108,92,231,0.15)"}`,
-        borderRadius: 14,
-        transition: "border-color 0.2s, box-shadow 0.2s, transform 0.15s",
-        cursor: "default",
-      }}
-      whileHover={{
-        y: -2,
-      }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.borderColor = "rgba(108,92,231,0.4)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 24px rgba(108,92,231,0.12)";
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLElement).style.borderColor = isSelected ? "rgba(108,92,231,0.6)" : "rgba(108,92,231,0.15)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
-      }}
+      className={cardClass}
     >
-      {/* Best card top gradient border */}
-      {best && (
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0,
-          height: 3,
-          background: "linear-gradient(90deg, #7c6aff, #a78bfa, #e879f9)",
-        }} />
-      )}
+      {best && <div className={styles.bestBorder} />}
 
-      <div style={{ padding: "20px 20px 0" }}>
+      <div className={styles.body}>
         {/* Top bar: provider logo + compare button */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className={styles.topBar}>
+          <div className={styles.providerGroup}>
             {logo && <div style={{ flexShrink: 0 }}>{logo}</div>}
-            <span style={{
-              fontSize: 12, fontWeight: 700,
-              color: p.color,
-              textTransform: "capitalize",
-            }}>
+            <span className={styles.providerName} style={{ color: p.color }}>
               {p.name}
             </span>
-            {best && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: "#fff",
-                background: "linear-gradient(135deg,#6c5ce7,#8b7cf8)",
-                padding: "2px 8px", borderRadius: 99,
-              }}>
-                ⚡ Melhor
-              </span>
-            )}
+            {best && <span className={styles.bestBadge}>⚡ Melhor</span>}
           </div>
           {onCompare && (
             <button
               onClick={(e) => { e.preventDefault(); onCompare(offer); }}
               title="Comparar"
-              style={{
-                width: 28, height: 28, borderRadius: 6,
-                background: isSelected ? "#7c6aff" : "rgba(124,106,255,0.15)",
-                border: `1px solid ${isSelected ? "#7c6aff" : "rgba(124,106,255,0.3)"}`,
-                color: isSelected ? "#fff" : "#7c6aff",
-                fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.2s",
-                flexShrink: 0,
-              }}
+              className={`${styles.compareBtn} ${isSelected ? styles.compareBtnSelected : ""}`}
             >
               ⊕
             </button>
@@ -239,67 +195,49 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
 
         {/* Fake discount alert */}
         {offer.is_fake_discount && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6,
-            fontSize: 11, fontWeight: 600, color: "#fb923c",
-            background: "rgba(251,146,60,.08)", border: "1px solid rgba(251,146,60,.2)",
-            borderRadius: 8, padding: "5px 10px", marginBottom: 12,
-          }}>
+          <div className={styles.fakeAlert}>
             ⚠️ Desconto possivelmente inflado
           </div>
         )}
 
         {/* Product image + title */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
-          <div style={{
-            width: "100%", height: 180, borderRadius: 10, overflow: "hidden",
-            background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.1)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
+        <div className={styles.productSection}>
+          <div className={styles.imageWrap}>
             {offer.image_url && offer.image_url.startsWith("http") ? (
               <img src={offer.image_url} alt={offer.title} loading="lazy" fetchPriority="low"
-                style={{ width: "100%", height: "100%", objectFit: "contain", padding: 8 }}
                 onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             ) : (
-              <span style={{ fontSize: 40, opacity: 0.4 }}>🛍️</span>
+              <span className={styles.imagePlaceholder}>🛍️</span>
             )}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <p style={{
-              fontSize: 12, lineHeight: 1.5,
-              color: "rgba(26,26,46,0.75)",
-              overflow: "hidden", display: "-webkit-box",
-              WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const,
-              margin: 0,
-            }}>
-              {offer.title}
-            </p>
+          <div>
+            <p className={styles.title}>{offer.title}</p>
           </div>
         </div>
 
         {/* Price block */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+        <div className={styles.priceBlock}>
           <div>
             {offer.original_price && offer.final_price && offer.original_price > (offer.final_price + 0.5) && (
-              <div style={{ fontSize: 12, color: "rgba(26,26,46,0.30)", textDecoration: "line-through", marginBottom: 2 }}>
+              <div className={styles.originalPrice}>
                 R$ {fmtPrice(offer.original_price)}
               </div>
             )}
-            <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+            <div className={styles.priceRow}>
               {offer.final_price && offer.final_price > 0.02 ? (
                 <>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(26,26,46,0.45)" }}>R$</span>
-                  <span style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-1px", lineHeight: 1, color: "#1a1a2e" }}>
+                  <span className={styles.currency}>R$</span>
+                  <span className={styles.priceValue}>
                     {fmtPrice(offer.final_price)}
                   </span>
                 </>
               ) : (
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#facc15", letterSpacing: "-0.3px" }}>🔥 Descubra o preço e fique surpreso!!</span>
+                <span className={styles.priceHidden}>🔥 Descubra o preço e fique surpreso!!</span>
               )}
             </div>
             {offer.economy > 0.5 && (
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#00e5a0", marginTop: 4 }}>
+              <div className={styles.economy}>
                 ↓ Economize R$ {fmtPrice(offer.economy)}
               </div>
             )}
@@ -310,16 +248,11 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
 
       {/* Badges row */}
       {badges.length > 0 && (
-        <div style={{ display: "flex", gap: 6, padding: "0 20px 12px", flexWrap: "wrap" }}>
+        <div className={styles.badgesRow}>
           {badges.map(badge => (
-            <span key={badge.id} style={{
-              fontSize: 11, fontWeight: 600,
-              color: badge.color,
-              background: badge.bg,
-              border: `1px solid ${badge.border}`,
-              padding: "3px 10px", borderRadius: 99,
-              whiteSpace: "nowrap",
-            }}>
+            <span key={badge.id} className={styles.badge}
+              style={{ color: badge.color, background: badge.bg, border: `1px solid ${badge.border}` }}
+            >
               {badge.label}
             </span>
           ))}
@@ -327,34 +260,23 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
       )}
 
       {/* CTA */}
-      <div style={{ padding: "0 16px 16px" }}>
+      <div className={styles.ctaWrap}>
         {offer.affiliate_url ? (
           <a
             href={buyUrl}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener noreferrer sponsored"
             onClick={handleBuy}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              padding: "13px 20px", borderRadius: 12,
-              fontSize: 14, fontWeight: 700, textDecoration: "none",
-              background: buyError ? "rgba(231,76,60,0.1)" : best ? "linear-gradient(135deg,#7c6aff,#a78bfa)" : "#f5f7ff",
-              color: buyError ? "#e74c3c" : best ? "#fff" : "rgba(26,26,46,0.7)",
-              border: buyError ? "1px solid rgba(231,76,60,0.3)" : best ? "none" : "1px solid rgba(108,92,231,0.2)",
-              transition: "filter .2s, transform .15s",
-              opacity: loadingUrl ? 0.7 : 1,
-            }}
-            onMouseEnter={e => Object.assign(e.currentTarget.style, { filter: "brightness(1.12)", transform: "translateY(-1px)" })}
-            onMouseLeave={e => Object.assign(e.currentTarget.style, { filter: "brightness(1)", transform: "translateY(0)" })}
+            className={[
+              styles.cta,
+              buyError ? styles.ctaError : best ? styles.ctaBest : "",
+            ].filter(Boolean).join(" ")}
+            style={{ opacity: loadingUrl ? 0.7 : 1 }}
           >
             {buyError ? "⚠️ Tente novamente" : loadingUrl ? "Carregando..." : "Ver oferta →"}
           </a>
         ) : (
-          <div style={{
-            padding: "13px 20px", borderRadius: 12, fontSize: 14,
-            textAlign: "center", color: "rgba(26,26,46,0.3)",
-            background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.15)",
-          }}>
+          <div className={styles.ctaDisabled}>
             Link indisponível
           </div>
         )}
@@ -362,4 +284,3 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
     </motion.article>
   );
 }
-

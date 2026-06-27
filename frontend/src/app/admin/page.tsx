@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { API_BASE as API, apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { isTokenExpired } from "@/lib/utils";
+import styles from "./page.module.css";
 
 const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
 const PROVIDER_COLORS: Record<string, string> = {
@@ -287,9 +288,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         const url = d.url;
         setVideoApiUrl(url);
         // Checar health direto do browser
-        return apiFetch(`${url}/health`, {
-          headers: { "ngrok-skip-browser-warning": "true" }
-        })
+        return apiFetch(`${url}/health`)
           .then(r => r.ok ? r.json() : null)
           .then(h => setVideoApiOnline(!!h?.ok))
           .catch(() => setVideoApiOnline(false));
@@ -314,9 +313,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
       // Tenta ngrok direto primeiro, fallback via HF Space
       if (videoApiUrl) {
         try {
-          const r = await apiFetch(`${videoApiUrl}/video/status/${jid}`, {
-            headers: { "ngrok-skip-browser-warning": "true" },
-          });
+          const r = await apiFetch(`${videoApiUrl}/video/status/${jid}`);
           if (r.ok) data = await r.json();
         } catch { /* ngrok falhou, tenta HF Space abaixo */ }
       }
@@ -372,7 +369,7 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         try {
           const r = await apiFetch(`${videoApiUrl}/video/publish`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           if (r.ok) d = await r.json();
@@ -983,33 +980,33 @@ export default function AdminPage() {
     );
   }
 
-  // ─── DASHBOARD ───────────────────────────────────────────
+  // ─── DASHBOARD ───────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f4ff", fontFamily: "system-ui, sans-serif", color: "#1a1a2e" }}>
+    <div className={styles.root}>
 
       {/* HEADER — responsivo: empilha no mobile */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "12px 16px" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div className={styles.header}>
+        <div className={styles.headerInner}>
+          <div className={styles.headerLeft}>
             <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <span style={{ fontSize: 22 }}>💹</span>
-              <span style={{ fontWeight: 800, fontSize: 16, color: "#1a1a2e" }}>BestPriceToday</span>
+              <span className={styles.headerLogo}>💹</span>
+              <span className={styles.headerBrand}>BestPriceToday</span>
               <span style={{ color: "#6b6b8a", fontSize: 12, display: "none" }} className="admin-subtitle">Admin</span>
             </a>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className={styles.headerActions}>
             {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
             {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
-            <a href="/aletubegames" style={{ textDecoration: "none" }}><button style={{ background: "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: 8, padding: "5px 12px", color: "#1a1a2e", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>🎥 AleTubeGames</button></a>
-            <a href="/dashboard" style={{ textDecoration: "none" }}><button style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#a78bfa", cursor: "pointer", fontSize: 12 }}>📊 Dashboard</button></a>
-            <button onClick={() => fetchAll(key)} style={{ background: "#1a1a2e", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#a78bfa", cursor: "pointer", fontSize: 12 }}>↻</button>
-            <a href="/" style={{ textDecoration: "none" }}><button style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>← Home</button></a>
-            <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "5px 12px", color: "#6b6b8a", cursor: "pointer", fontSize: 12 }}>Sair</button>
+            <a href="/aletubegames" style={{ textDecoration: "none" }}><button className={`${styles.headerBtn} ${styles.headerBtnPrimary}`}>🎥 AleTubeGames</button></a>
+            <a href="/dashboard" style={{ textDecoration: "none" }}><button className={styles.headerBtn} style={{ color: "#a78bfa" }}>📊 Dashboard</button></a>
+            <button onClick={() => fetchAll(key)} className={`${styles.headerBtn} ${styles.headerBtnDark}`}>↻</button>
+            <a href="/" style={{ textDecoration: "none" }}><button className={styles.headerBtn}>← Home</button></a>
+            <button onClick={handleLogout} className={styles.headerBtn}>Sair</button>
           </div>
         </div>
       </div>
 
-      <div style={{ padding: "16px", maxWidth: 1400, margin: "0 auto" }}>
+      <div className={styles.container}>
 
         {/* FILTER BAR — flex-wrap para mobile */}
         <div style={{ ...S.card, marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -1037,7 +1034,7 @@ export default function AdminPage() {
         </div>
 
         {/* KPI CARDS — grid responsivo: 2 cols mobile, 4 tablet, 7 desktop */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
+        <div className={styles.kpiGrid}>
           {[
             { label: "Cliques Hoje", value: (overview?.total_clicks_today ?? 0).toLocaleString("pt-BR"), color: "#7c6aff", icon: "👆" },
             { label: `Cliques ${activePeriod}d`, value: ((activePeriod <= 7 ? (overview?.total_clicks_week ?? 0) : (overview?.total_clicks_month ?? 0))).toLocaleString("pt-BR"), color: "#60a5fa", icon: "📊" },
@@ -1047,16 +1044,16 @@ export default function AdminPage() {
             { label: "CTR", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "#00e5a0", icon: "🎯" },
             { label: "R$/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "#fbbf24", icon: "💹" },
           ].map(card => (
-            <div key={card.label} style={{ ...S.card, padding: "14px 16px" }}>
-              <div style={{ fontSize: 18, marginBottom: 6 }}>{card.icon}</div>
-              <div style={{ ...S.label, marginBottom: 4 }}>{card.label}</div>
-              <div style={{ color: card.color, fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{card.value}</div>
+            <div key={card.label} className={`${styles.card} ${styles.kpiCard}`}>
+              <div className={styles.kpiIcon}>{card.icon}</div>
+              <div className={styles.kpiLabel}>{card.label}</div>
+              <div className={styles.kpiValue} style={{ color: card.color }}>{card.value}</div>
             </div>
           ))}
         </div>
 
         {/* CHARTS ROW — 1 col mobile, 2 cols desktop */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <div className={styles.chartsRow}>
           {/* Time Series */}
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>📈 Cliques por Dia</div>
@@ -1151,8 +1148,8 @@ export default function AdminPage() {
           </div>
 
           {/* Funil — scroll horizontal no mobile */}
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr auto 1fr", alignItems: "center", gap: 6, minWidth: 500 }}>
+          <div className={styles.funilWrap}>
+            <div className={styles.funil}>
               {[
                 { label: "Cliques", value: overview?.total_clicks_month ?? 0, color: "#7c6aff", pct: "100%" },
                 null,
@@ -1179,8 +1176,8 @@ export default function AdminPage() {
         {/* MARKETPLACE TABLE — scroll horizontal */}
         <div style={{ ...S.card, marginBottom: 16 }}>
           <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🏪 Comparativo de Marketplaces</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 600 }}>
+          <div className={styles.tableWrap}>
+            <table className={styles.tableWrap} style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr>
                   {[["provider", "Marketplace"], ["clicks", "Cliques"], ["conversions", "Conv."], ["conversion_rate", "Taxa%"], ["revenue", "Receita"], ["commission", "Comissão"], ["avg_price", "Preço Méd."]].map(([key, lbl]) => (
@@ -1209,7 +1206,7 @@ export default function AdminPage() {
         </div>
 
         {/* TRAFFIC + INTEGRATIONS — 2 cols */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <div className={styles.twoColGrid}>
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🌐 Fontes de Tráfego</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1336,7 +1333,7 @@ export default function AdminPage() {
         </div>
 
         {/* RECENT CLICKS + CONVERSIONS — 1 col mobile, 2 cols desktop */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <div className={styles.topProductsGrid}>
           {/* Cliques */}
           <div style={S.card}>
             <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🖱️ Cliques Recentes</div>

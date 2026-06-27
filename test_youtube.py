@@ -24,7 +24,7 @@ else:
 # Ler credenciais do ambiente
 YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID", "")
 YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET", "")
-YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI", "https://bestpricetoday.vercel.app/aletube/callback/youtube")
+YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI", "https://bestpricetoday.alaserver.com.br/aletube/callback/youtube")
 
 
 async def test_youtube():

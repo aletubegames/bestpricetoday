@@ -61,8 +61,8 @@ export const openTrackedOffer = async (offer: Offer, campaign = "offer_card"): P
     return url;
   }
 
-  const popup = window.open(url, "_blank", "noopener,noreferrer");
-  if (popup) popup.opener = null;
+  const tab = window.open(url, "_blank");
+  if (tab) tab.opener = null;
 
   return url;
 };

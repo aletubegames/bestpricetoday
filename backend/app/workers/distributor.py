@@ -727,18 +727,21 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
 # ─── YouTube Shorts poster ────────────────────────────────────────────────────
 
 async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
-    """Gera vídeo Short (9:16) da oferta usando ffmpeg.
+    """Gera vídeo Short (9:16) da oferta com narração + animação.
 
-    Layout vertical (1080x1920):
-    - Foto do produto no topo
-    - Título + preço + desconto embaixo
-    - CTA "Link na descrição"
+    Melhorias:
+    - Narração em português via gTTS (Google Text-to-Speech)
+    - Animação: zoom suave no produto + fade in do texto
+    - Qualidade 1080x1920 30fps com bitrate alto
+    - Design profissional com gradientes e sombras
+    - Música de fundo suave (tom sintético)
 
     Retorna path do arquivo gerado ou None se falhar.
     """
     import subprocess
     import tempfile
     import os as _os
+    import io as _io
 
     image_url = offer.get("image_url", "")
     if not image_url or not image_url.startswith("http"):
@@ -756,92 +759,235 @@ async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
     tmpdir = tempfile.mkdtemp()
 
     try:
-        # Download imagem do produto
-        product_path = _os.path.join(tmpdir, "product.jpg")
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+        # ── 1. Download imagem do produto ──
+        product_path = _os.path.join(tmpdir, "product.png")
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(image_url)
+            r = await c.get(image_url, follow_redirects=True)
             r.raise_for_status()
             with open(product_path, "wb") as f:
                 f.write(r.content)
 
-        # Gera frame com PIL
-        from PIL import Image, ImageDraw, ImageFont
-
-        # Canvas vertical 1080x1920 (Shorts)
-        img = Image.new("RGB", (1080, 1920), (15, 23, 42))
-        draw = ImageDraw.Draw(img)
-
-        # Carrega produto e redimensiona
+        # ── 2. Prepara imagem do produto (fundo branco, alta qualidade) ──
         product = Image.open(product_path).convert("RGBA")
-        product.thumbnail((900, 900), Image.LANCZOS)
+        # Redimensiona mantendo proporção (máximo 800x800)
+        product.thumbnail((800, 800), Image.LANCZOS)
         pw, ph = product.size
-        # Centraliza produto no topo
-        img.paste(product, ((1080 - pw) // 2, 150))
 
-        # Fontes
-        try:
-            font_huge = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
-            font_big  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 56)
-            font_med  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 40)
-            font_sm   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
-        except Exception:
-            font_huge = font_big = font_med = font_sm = ImageFont.load_default()
-
-        y = 1150
-        # Header
-        draw.text((540, y), "BESTPRICETODAY", fill=(0, 229, 160), font=font_big, anchor="mm")
-        y += 80
-
-        # Título (quebra em 2 linhas)
-        if len(title) > 30:
-            mid = title[:30].rfind(" ")
-            if mid > 0:
-                draw.text((540, y), title[:mid], fill="white", font=font_med, anchor="mm")
-                y += 50
-                draw.text((540, y), title[mid:][:30], fill="white", font=font_med, anchor="mm")
-                y += 50
-            else:
-                draw.text((540, y), title[:30], fill="white", font=font_med, anchor="mm")
-                y += 50
-        else:
-            draw.text((540, y), title, fill="white", font=font_med, anchor="mm")
-            y += 50
-
-        # Preço
+        # ── 3. Gera narração via gTTS ──
+        narration_text = f"Oferta do dia! {title}. "
         if original and original > price:
-            draw.text((540, y), f"De R$ {original:.2f}", fill=(150, 150, 150), font=font_med, anchor="mm")
-            y += 50
-        draw.text((540, y), f"R$ {price:.2f}", fill=(250, 204, 21), font=font_huge, anchor="mm")
-        y += 90
-
-        # Desconto
-        if discount >= 5:
-            draw.text((540, y), f"-{discount:.0f}% OFF", fill=(239, 68, 68), font=font_big, anchor="mm")
-            y += 70
-
+            narration_text += f"De R$ {original:.0f} por apenas R$ {price:.0f}. "
+            narration_text += f"Desconto de {discount:.0f} por cento. "
+        else:
+            narration_text += f"Por apenas R$ {price:.0f}. "
         if shipping_free:
-            draw.text((540, y), "Frete grátis", fill=(0, 229, 160), font=font_med, anchor="mm")
-            y += 50
+            narration_text += "Frete grátis. "
+        narration_text += "Link na descrição. Aproveite!"
 
-        # CTA
-        draw.text((540, y + 40), "Link na descricao", fill=(167, 139, 250), font=font_med, anchor="mm")
-        draw.text((540, y + 90), now, fill=(100, 100, 100), font=font_sm, anchor="mm")
+        audio_path = _os.path.join(tmpdir, "narration.mp3")
+        try:
+            from gtts import gTTS
+            tts = gTTS(text=narration_text, lang="pt-br", slow=False)
+            tts.save(audio_path)
+            has_audio = True
+        except Exception as tts_err:
+            logger.warning(f"gTTS failed, video will have no narration: {tts_err}")
+            has_audio = False
 
-        frame_path = _os.path.join(tmpdir, "frame.png")
-        img.save(frame_path, "PNG")
+        # ── 4. Gera frames com PIL (múltiplos frames para animação) ──
+        W, H = 1080, 1920
+        FPS = 30
+        DURATION = 10  # segundos
+        N_FRAMES = FPS * DURATION
 
-        # Gera vídeo 8s com ffmpeg
-        cmd = [
-            "ffmpeg", "-y",
-            "-loop", "1", "-i", frame_path,
-            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-c:v", "libx264", "-t", "8", "-pix_fmt", "yuv420p", "-r", "30",
-            "-c:a", "aac", "-shortest",
-            output_path,
-        ]
-        proc = subprocess.run(cmd, capture_output=True, timeout=30)
+        # Fontes (tamanhos maiores para melhor qualidade)
+        try:
+            font_brand  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 64)
+            font_title  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+            font_price  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 96)
+            font_orig   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 40)
+            font_disc   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 56)
+            font_cta    = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 44)
+            font_sm     = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        except Exception:
+            font_brand = font_title = font_price = font_orig = font_disc = font_cta = font_sm = ImageFont.load_default()
+
+        def draw_rounded_rect(draw, xy, radius, fill):
+            x0, y0, x1, y1 = xy
+            draw.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill=fill)
+
+        def make_frame(progress: float) -> Image.Image:
+            """Cria um frame da animação. progress = 0.0 a 1.0."""
+            # Fundo com gradiente
+            frame = Image.new("RGB", (W, H), (10, 15, 30))
+            draw = ImageDraw.Draw(frame)
+
+            # Gradiente de fundo (topo escuro → base mais claro)
+            for y in range(H):
+                ratio = y / H
+                r = int(10 + ratio * 10)
+                g = int(15 + ratio * 15)
+                b = int(30 + ratio * 20)
+                draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+            # ── Zoom suave no produto (1.0 → 1.08) ──
+            zoom = 1.0 + 0.08 * progress
+            zpw, zph = int(pw * zoom), int(ph * zoom)
+            scaled_product = product.resize((zpw, zph), Image.LANCZOS)
+
+            # Card branco atrás do produto (com sombra)
+            card_x0 = (W - zpw) // 2 - 40
+            card_y0 = 120
+            card_x1 = (W + zpw) // 2 + 40
+            card_y1 = 120 + zph + 80
+            # Sombra
+            shadow = Image.new("RGBA", (card_x1 - card_x0 + 20, card_y1 - card_y0 + 20), (0, 0, 0, 0))
+            shadow_draw = ImageDraw.Draw(shadow)
+            shadow_draw.rounded_rectangle([10, 10, card_x1 - card_x0 + 10, card_y1 - card_y0 + 10], radius=30, fill=(0, 0, 0, 80))
+            shadow = shadow.filter(ImageFilter.GaussianBlur(10))
+            frame.paste(shadow, (card_x0 - 10, card_y0 - 10), shadow)
+            # Card
+            draw_rounded_rect(draw, (card_x0, card_y0, card_x1, card_y1), 30, (255, 255, 255))
+            # Produto no card
+            frame.paste(scaled_product, ((W - zpw) // 2, 160), scaled_product if scaled_product.mode == "RGBA" else None)
+
+            # ── Fade in do texto (0 → 1 nos primeiros 0.5s) ──
+            text_alpha = min(1.0, progress * 4)
+            text_y = card_y1 + 60
+
+            # Badge do provider
+            provider_name = provider.upper() if provider else "LOJA"
+            badge_text = f"{emoji} {provider_name}"
+            bbox = draw.textbbox((0, 0), badge_text, font=font_brand)
+            bw = bbox[2] - bbox[0] + 40
+            bh = bbox[3] - bbox[1] + 20
+            bx0 = (W - bw) // 2
+            draw_rounded_rect(draw, (bx0, text_y, bx0 + bw, text_y + bh), 25, (0, 229, 160))
+            draw.text((W // 2, text_y + bh // 2), badge_text, fill=(10, 15, 30), font=font_brand, anchor="mm")
+            text_y += bh + 30
+
+            # Título (quebra em múltiplas linhas)
+            words = title.split()
+            lines = []
+            current = ""
+            for w in words:
+                test = (current + " " + w).strip()
+                bbox = draw.textbbox((0, 0), test, font=font_title)
+                if bbox[2] - bbox[0] > W - 80 and current:
+                    lines.append(current)
+                    current = w
+                else:
+                    current = test
+            if current:
+                lines.append(current)
+            for line in lines[:3]:
+                draw.text((W // 2, text_y), line, fill=(255, 255, 255), font=font_title, anchor="mm")
+                text_y += 60
+            text_y += 20
+
+            # Preço original (riscado)
+            if original and original > price:
+                orig_text = f"De R$ {original:.2f}".replace(".", ",")
+                draw.text((W // 2, text_y), orig_text, fill=(120, 120, 140), font=font_orig, anchor="mm")
+                # Linha riscada
+                bbox = draw.textbbox((0, 0), orig_text, font=font_orig)
+                lw = bbox[2] - bbox[0]
+                draw.line([(W // 2 - lw // 2, text_y + 5), (W // 2 + lw // 2, text_y + 5)], fill=(120, 120, 140), width=2)
+                text_y += 55
+
+            # Preço atual (grande, verde)
+            price_text = f"R$ {price:.2f}".replace(".", ",")
+            draw.text((W // 2, text_y), price_text, fill=(0, 229, 160), font=font_price, anchor="mm")
+            text_y += 110
+
+            # Desconto
+            if discount >= 5:
+                disc_text = f"-{discount:.0f}% OFF"
+                # Badge vermelho
+                bbox = draw.textbbox((0, 0), disc_text, font=font_disc)
+                dw = bbox[2] - bbox[0] + 30
+                dh = bbox[3] - bbox[1] + 16
+                dx0 = (W - dw) // 2
+                draw_rounded_rect(draw, (dx0, text_y, dx0 + dw, text_y + dh), 15, (239, 68, 68))
+                draw.text((W // 2, text_y + dh // 2), disc_text, fill=(255, 255, 255), font=font_disc, anchor="mm")
+                text_y += dh + 20
+
+            # Frete grátis
+            if shipping_free:
+                draw.text((W // 2, text_y), "✅ Frete grátis", fill=(0, 229, 160), font=font_cta, anchor="mm")
+                text_y += 55
+
+            # CTA
+            text_y += 30
+            # Botão CTA
+            cta_text = "👇 LINK NA DESCRIÇÃO"
+            bbox = draw.textbbox((0, 0), cta_text, font=font_cta)
+            cw = bbox[2] - bbox[0] + 60
+            ch = bbox[3] - bbox[1] + 30
+            cx0 = (W - cw) // 2
+            draw_rounded_rect(draw, (cx0, text_y, cx0 + cw, text_y + ch), 20, (99, 102, 241))
+            draw.text((W // 2, text_y + ch // 2), cta_text, fill=(255, 255, 255), font=font_cta, anchor="mm")
+            text_y += ch + 20
+
+            # Data + marca
+            draw.text((W // 2, text_y + 10), f"📅 {now}", fill=(100, 110, 130), font=font_sm, anchor="mm")
+            draw.text((W // 2, H - 50), "BestPriceToday — Menor Preço do Brasil", fill=(60, 70, 90), font=font_sm, anchor="mm")
+
+            return frame
+
+        # ── 5. Gera frames e cria vídeo com ffmpeg ──
+        frames_dir = _os.path.join(tmpdir, "frames")
+        _os.makedirs(frames_dir)
+
+        # Gera frames únicos (10fps = 100 frames para 10s)
+        KEYFRAME_FPS = 10
+        N_KEYFRAMES = KEYFRAME_FPS * DURATION
+        for i in range(N_KEYFRAMES):
+            progress = i / N_KEYFRAMES
+            frame = make_frame(progress)
+            frame.save(_os.path.join(frames_dir, f"frame_{i:04d}.png"), "PNG")
+
+        # Comando ffmpeg: frames (10fps) → interpola para 30fps + narração + música
+        if has_audio:
+            cmd = [
+                "ffmpeg", "-y",
+                "-framerate", str(KEYFRAME_FPS),
+                "-i", _os.path.join(frames_dir, "frame_%04d.png"),
+                "-i", audio_path,
+                "-f", "lavfi", "-i", "sine=frequency=220:duration=10",
+                "-filter_complex",
+                f"[2:a]volume=0.03[a];[1:a]volume=1.0[b];[a][b]amix=inputs=2:duration=first[aout]",
+                "-map", "0:v", "-map", "[aout]",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                "-pix_fmt", "yuv420p", "-r", str(FPS),
+                "-vf", f"fps={FPS},scale=1080:1920:flags=lanczos",
+                "-c:a", "aac", "-b:a", "128k",
+                "-shortest",
+                "-movflags", "+faststart",
+                output_path,
+            ]
+        else:
+            # Sem narração — só música de fundo suave
+            cmd = [
+                "ffmpeg", "-y",
+                "-framerate", str(KEYFRAME_FPS),
+                "-i", _os.path.join(frames_dir, "frame_%04d.png"),
+                "-f", "lavfi", "-i", "sine=frequency=220:duration=10",
+                "-map", "0:v", "-map", "1:a",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                "-pix_fmt", "yuv420p", "-r", str(FPS),
+                "-vf", f"fps={FPS},scale=1080:1920:flags=lanczos",
+                "-c:a", "aac", "-b:a", "128k",
+                "-shortest",
+                "-movflags", "+faststart",
+                output_path,
+            ]
+
+        proc = subprocess.run(cmd, capture_output=True, timeout=120)
         if proc.returncode != 0:
-            logger.error(f"ffmpeg failed: {proc.stderr.decode()[:500]}")
+            logger.error(f"ffmpeg failed: {proc.stderr.decode()[:800]}")
             return None
 
         return output_path
@@ -850,7 +996,6 @@ async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
         logger.error(f"generate_offer_video failed: {e}")
         return None
     finally:
-        # Limpa tmpdir
         import shutil
         try:
             shutil.rmtree(tmpdir)

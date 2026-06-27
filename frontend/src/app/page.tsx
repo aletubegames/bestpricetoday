@@ -19,9 +19,11 @@ import Testimonials from "@/components/home/Testimonials";
 import FAQ from "@/components/home/FAQ";
 import HowItWorks from "@/components/home/HowItWorks";
 import FeaturedOffers from "@/components/home/FeaturedOffers";
+import { CATEGORIES } from "@/lib/categories";
 import { getChartData } from "@/lib/mockData";
 import { API_BASE, apiFetch } from "@/lib/api";
 import type { ChartDay } from "@/components/home/SearchesChart";
+import styles from "./page.module.css";
 
 type StoredUser = { name: string; is_admin: boolean };
 
@@ -111,15 +113,25 @@ const STATUS_META: Record<ProviderStatus["status"], { label: string; color: stri
 
 const HIDDEN_STATUSES = new Set(["blocked", "not_configured", "error"]);
 
-function ProviderStatusGrid({ statuses }: { statuses: ProviderStatus[] }) {
-  const visible = (statuses || []).filter(s => (s.returned_count ?? 0) > 0);
+function ProviderStatusGrid({ statuses, offers }: { statuses: ProviderStatus[]; offers?: Offer[] }) {
+  // Conta ofertas reais exibidas por provider (não o returned_count bruto do backend)
+  const realCounts: Record<string, number> = {};
+  if (offers) {
+    for (const o of offers) {
+      realCounts[o.provider] = (realCounts[o.provider] || 0) + 1;
+    }
+  }
+  const visible = (statuses || []).filter(s => {
+    const count = realCounts[s.provider] ?? 0;
+    return count > 0;
+  });
   if (!visible.length) return null;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
       {visible.map((status) => {
         const meta = STATUS_META[status.status];
         const providerLabel = PROVIDER_LABELS[status.provider] || status.provider;
-        const count = status.returned_count || 0;
+        const count = realCounts[status.provider] ?? 0;
         return (
           <div key={status.provider} style={{
             display: "inline-flex", alignItems: "center", gap: 8,
@@ -217,7 +229,7 @@ export default function HomePage() {
   const showLanding = !query && !isLoading && !data;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div className={styles.root}>
       {/* Animações do logo */}
       <style>{`
         @keyframes logoFloat {
@@ -231,76 +243,30 @@ export default function HomePage() {
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{
-        position: "sticky", top: 0, zIndex: 50,
-        borderBottom: "1px solid var(--bd)",
-        background: "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-      }}>
-        <div style={{
-          maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 96,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <div className={styles.headerLeft}>
+            <div className={styles.logoWrap}>
               <img
                 src="/favicon-192.png"
                 alt="BestPriceToday"
                 width={124}
                 height={124}
-                style={{
-                  width: 124,
-                  height: 124,
-                  objectFit: "cover",
-                  position: "absolute",
-                  left: -36,
-                  top: -24,
-                  zIndex: 0,
-                  transform: "perspective(500px) rotateY(-16deg)",
-                  filter: "drop-shadow(0 6px 10px rgba(124,58,237,0.22))",
-                  borderRadius: 10,
-                }}
+                className={styles.logoImg}
               />
-              <div style={{
-                fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-                fontWeight: 900, fontSize: 20, letterSpacing: "-0.6px",
-                display: "flex", flexDirection: "column", gap: 0, lineHeight: 0.9, textAlign: "center",
-                position: "relative",
-                zIndex: 1,
-                paddingLeft: 52,
-              }}>
-                <span style={{
-                  background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}>BestPrice</span>
-                <span style={{ color: "#000000", fontSize: 18, fontWeight: 900 }}>Today</span>
+              <div className={styles.logoText}>
+                <span className={styles.logoBest}>BestPrice</span>
+                <span className={styles.logoToday}>Today</span>
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 6,
-              fontSize: 12, fontWeight: 500, color: "#f97316",
-              background: "rgba(249,115,22,0.08)",
-              border: "1px solid rgba(249,115,22,0.18)",
-              padding: "4px 12px", borderRadius: 99,
-            }}>
-              <span className="pulse-dot" style={{
-                width: 6, height: 6, borderRadius: "50%", background: "#f97316",
-              }} />
+          <div className={styles.headerRight}>
+            <div className={styles.headerBadge}>
+              <span className={styles.pulseDot} />
               Busca multi-loja
             </div>
-            <a href="/alertas" style={{
-              display: "flex", alignItems: "center", gap: 5,
-              fontSize: 12, fontWeight: 600, color: "var(--muted)",
-              background: "var(--s2)", border: "1px solid var(--bd)",
-              padding: "4px 12px", borderRadius: 99, textDecoration: "none",
-              transition: "color .15s",
-            }}>
-              🔔 Alertas
+            <a href="/alertas" className={styles.headerLink}>
+              🔔 <span>Alertas</span>
             </a>
             <AuthButton />
           </div>
@@ -308,91 +274,33 @@ export default function HomePage() {
       </header>
 
       {/* ── HERO ── */}
-      <section style={{ maxWidth: 980, margin: "0 auto", padding: "40px 20px 32px", textAlign: "center" }}>
+      <section className={styles.hero}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            fontSize: 12, fontWeight: 600, letterSpacing: ".04em",
-            color: "#f97316",
-            background: "rgba(249,115,22,0.08)",
-            border: "1px solid rgba(249,115,22,0.25)",
-            padding: "5px 14px", borderRadius: 99,
-            marginBottom: 28, textTransform: "uppercase",
-          }}>
+          <div className={styles.heroBadge}>
             ⚡ Comparação em tempo real
           </div>
 
-          <div style={{
-            width: "min(100%, 940px)",
-            margin: "0 auto 40px",
-            display: "grid",
-            gridTemplateColumns: "clamp(132px, 20vw, 190px) minmax(0, 1fr)",
-            alignItems: "center",
-            columnGap: 24,
-            rowGap: 18,
-          }}>
+          <div className={styles.heroGrid}>
             {/* Logo com glow ring + animação */}
-            <div style={{
-              position: "relative",
-              width: "clamp(118px, 22vw, 176px)",
-              height: "clamp(118px, 22vw, 176px)",
-              justifySelf: "center",
-            }}>
-              {/* Glow ring pulsante */}
-              <div style={{
-                position: "absolute",
-                inset: "-12px",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(124,58,237,0.25) 0%, rgba(167,139,250,0.08) 45%, transparent 70%)",
-                animation: "pulseGlow 3s ease-in-out infinite",
-              }} />
-              {/* Outer ring */}
-              <div style={{
-                position: "absolute",
-                inset: "-24px",
-                borderRadius: "50%",
-                border: "2px solid rgba(124,58,237,0.15)",
-                animation: "pulseGlow 3s ease-in-out 0.6s infinite",
-              }} />
-              {/* Logo image */}
+            <div className={styles.heroLogoWrap}>
+              <div className={styles.heroGlow} />
+              <div className={styles.heroRing} />
               <img
                 src="/logo.png"
                 alt="BestPriceToday"
                 width={157}
                 height={157}
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  transform: "perspective(900px) rotateY(-18deg) rotateX(10deg)",
-                  filter: "drop-shadow(0 18px 30px rgba(124,58,237,0.35))",
-                  borderRadius: 20,
-                  animation: "logoFloat 4s ease-in-out infinite",
-                }}
+                className={styles.heroLogo}
               />
             </div>
 
-            <div style={{ maxWidth: 520, textAlign: "left" }}>
-              <h1 style={{
-                fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-                fontSize: "clamp(2.4rem, 7vw, 4.5rem)",
-                fontWeight: 800,
-                lineHeight: 1.05,
-                letterSpacing: "-0.03em",
-                marginBottom: 18,
-              }}>
-                <span style={{ color: "var(--txt)" }}>Menor preço</span><br />
-                <span style={{
-                  background: "linear-gradient(135deg, #7c3aed 0%, #f97316 50%, #c084fc 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}>do Brasil.</span>
+            <div className={styles.heroText}>
+              <h1 className={styles.heroTitle}>
+                <span className={styles.heroTitleMain}>Menor preço</span><br />
+                <span className={styles.heroTitleAccent}>do Brasil.</span>
               </h1>
 
-              <p style={{ fontSize: 16, color: "var(--muted)", lineHeight: 1.7, margin: 0 }}>
+              <p className={styles.heroSubtitle}>
                 Busca automática em Mercado Livre, Amazon, Shopee e mais.
                 Cupons aplicados na hora. Score de oferta real.
               </p>
@@ -445,12 +353,38 @@ export default function HomePage() {
       {showLanding && (
         <>
           {/* ── FEATURED OFFERS + CATEGORIES ── */}
-          <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 40px" }}>
+          <section className={styles.section}>
             <FeaturedOffers onSearch={setQuery} />
           </section>
 
+          {/* ── CATEGORIES HUB ── */}
+          <section className={styles.section}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 20, textAlign: "center" }}>
+              📂 Compre por categoria
+            </h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
+              {CATEGORIES.map(cat => (
+                <a
+                  key={cat.slug}
+                  href={`/categoria/${cat.slug}`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "12px 20px", borderRadius: 14,
+                    background: "rgba(255,255,255,0.8)",
+                    border: "1px solid rgba(108,92,231,0.15)",
+                    color: "#1a1a2e", textDecoration: "none",
+                    fontSize: 14, fontWeight: 600,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{cat.icon}</span>
+                  {cat.name}
+                </a>
+              ))}
+            </div>
+          </section>
+
           {/* ── HOW IT WORKS ── */}
-          <section style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 48px" }}>
+          <section className={styles.section}>
             <HowItWorks />
           </section>
         </>
@@ -458,30 +392,30 @@ export default function HomePage() {
 
       {/* ── RESULTS ── */}
       {(isLoading || error || data) && (
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 32px" }}>
+      <section className={styles.searchSection}>
         <AnimatePresence mode="wait">
           {isLoading && <OfferSkeleton key="sk" />}
 
           {error && (
             <motion.div key="err" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              style={{ textAlign: "center", padding: "80px 20px" }}>
-              <p style={{ fontSize: 40, marginBottom: 12 }}>😕</p>
-              <p style={{ color: "var(--red)", fontSize: 14 }}>Erro ao buscar. Tente novamente.</p>
+              className={styles.errorState}>
+              <p className={styles.errorEmoji}>😕</p>
+              <p className={styles.errorText}>Erro ao buscar. Tente novamente.</p>
             </motion.div>
           )}
 
           {data && !isLoading && (
             <motion.div key="res" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-                <p style={{ fontWeight: 700, fontSize: 15 }}>{data.total} {plural(data.total)}</p>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: "var(--s2)", border: "1px solid var(--bd)", color: "var(--muted2)" }}>
+              <div className={styles.resultMeta}>
+                <p className={styles.resultCount}>{data.total} {plural(data.total)}</p>
+                <span className={styles.resultBadge}>
                   {data.took_ms}ms
                 </span>
                 {data.cached && (
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: "rgba(0,229,160,0.08)", border: "1px solid rgba(0,229,160,0.2)", color: "var(--grn)" }}>⚡ cache</span>
+                  <span className={styles.resultCached}>⚡ cache</span>
                 )}
               </div>
-              <ProviderStatusGrid statuses={data.provider_statuses} />
+              <ProviderStatusGrid statuses={data.provider_statuses} offers={data.offers} />
               <OfferGrid offers={data.offers} onCompare={handleCompare} compareSelected={compareList.map(o => o.affiliate_url || "")} />
             </motion.div>
           )}
@@ -491,17 +425,9 @@ export default function HomePage() {
 
       {/* ── STATS + CHART ── */}
       {showLanding && (
-        <section style={{
-          background: "#f8f9fc",
-          padding: "40px 20px",
-          marginTop: 8,
-        }}>
-          <div style={{ maxWidth: 800, margin: "0 auto" }}>
-            <h2 style={{
-              fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-              fontSize: 22, fontWeight: 800, color: "#1a1a2e",
-              textAlign: "center", marginBottom: 24,
-            }}>
+        <section className={styles.statsSection}>
+          <div className={styles.statsInner}>
+            <h2 className={styles.statsTitle}>
               Em <span style={{ color: "#f97316" }}>números</span>
             </h2>
             <StatsCards />
@@ -513,68 +439,46 @@ export default function HomePage() {
       )}
 
       {/* ── TESTIMONIALS ── */}
-      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
+      <section className={styles.section}>
         <Testimonials />
       </section>
 
       {/* ── FAQ ── */}
-      <section style={{
-        background: "#f8f9fc",
-        padding: "40px 20px 60px",
-      }}>
-        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+      <section className={styles.sectionBg}>
+        <div className={styles.section}>
           <FAQ />
         </div>
       </section>
 
       {/* ── TRUST BADGES ── */}
-      <section style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px 32px" }}>
-        <h2 style={{
-          fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-          fontSize: 20, fontWeight: 800, color: "#1a1a2e",
-          textAlign: "center", marginBottom: 20,
-        }}>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>
           Segurança e <span style={{ color: "#7c3aed" }}>confiança</span>
         </h2>
         <TrustBadges />
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{
-        borderTop: "1px solid #e0e0f0",
-        background: "#fff",
-        padding: "24px 20px",
-        textAlign: "center",
-      }}>
-        <div style={{
-          maxWidth: 1200,
-          margin: "0 auto",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 24,
-          flexWrap: "wrap",
-          fontSize: 13,
-          color: "rgba(26,26,46,0.45)",
-        }}>
+      <footer className={styles.footer}>
+        <div className={styles.footerInner}>
           <span>© {new Date().getFullYear()} BestPriceToday</span>
-          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
-          <a href="/terms" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+          <span className={styles.footerSeparator}>|</span>
+          <a href="/terms" className={styles.footerLink}
             onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
           >Termos de Uso</a>
-          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
-          <a href="/privacy" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+          <span className={styles.footerSeparator}>|</span>
+          <a href="/privacy" className={styles.footerLink}
             onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
           >Política de Privacidade</a>
-          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
-          <a href="/deletion-status" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+          <span className={styles.footerSeparator}>|</span>
+          <a href="/deletion-status" className={styles.footerLink}
             onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
           >Solicitação de Exclusão</a>
-          <span style={{ color: "rgba(26,26,46,0.15)" }}>|</span>
-          <a href="mailto:aletubegames@gmail.com" style={{ color: "rgba(26,26,46,0.45)", textDecoration: "none" }}
+          <span className={styles.footerSeparator}>|</span>
+          <a href="mailto:aletubegames@gmail.com" className={styles.footerLink}
             onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
           >Contato</a>
@@ -583,78 +487,55 @@ export default function HomePage() {
 
       {/* ── COMPARE BAR ── */}
       {compareList.length > 0 && (
-        <div style={{
-          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-          background: "rgba(255,255,255,0.97)", backdropFilter: "blur(20px)",
-          borderTop: "1px solid rgba(124,58,237,0.3)",
-          padding: "12px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
-        }}>
-          <span style={{ color: "#7c3aed", fontWeight: 700, fontSize: 14 }}>
+        <div className={styles.compareBar}>
+          <span className={styles.compareLabel}>
             ⊕ {compareList.length} selecionado{compareList.length > 1 ? "s" : ""}
           </span>
           {compareList.map(o => (
-            <span key={o.affiliate_url} style={{
-              background: "#f5f5ff", border: "1px solid rgba(124,58,237,0.2)",
-              borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1a1a2e",
-              display: "flex", alignItems: "center", gap: 6,
-            }}>
+            <span key={o.affiliate_url} className={styles.compareChip}>
               {o.provider} — R${o.final_price?.toFixed(2)}
-              <button onClick={() => handleCompare(o)} style={{ background: "none", border: "none", color: "#6b6b8a", cursor: "pointer", fontSize: 14 }}>×</button>
+              <button onClick={() => handleCompare(o)} className={styles.compareChipBtn}>×</button>
             </span>
           ))}
           {compareList.length >= 2 && (
-            <button onClick={() => setShowCompare(true)} style={{
-              marginLeft: "auto", padding: "8px 20px", borderRadius: 10,
-              background: "linear-gradient(135deg,#7c3aed,#a78bfa)",
-              color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer",
-            }}>
+            <button onClick={() => setShowCompare(true)} className={styles.compareBtn}>
               Comparar →
             </button>
           )}
-          <button onClick={() => setCompareList([])} style={{ background: "none", border: "none", color: "#6b6b8a", cursor: "pointer", fontSize: 14 }}>Limpar</button>
+          <button onClick={() => setCompareList([])} className={styles.compareClear}>Limpar</button>
         </div>
       )}
 
       {/* ── COMPARE MODAL ── */}
       {showCompare && compareList.length >= 2 && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 200,
-          background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-        }} onClick={() => setShowCompare(false)}>
+        <div className={styles.compareOverlay} onClick={() => setShowCompare(false)}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            style={{
-              background: "#fff", borderRadius: 20, padding: "32px",
-              maxWidth: 900, width: "100%", maxHeight: "80vh", overflowY: "auto",
-            }}
+            className={styles.compareModal}
+            style={{ "--cols": compareList.length } as React.CSSProperties}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif", fontSize: 22, fontWeight: 800, color: "#1a1a2e" }}>
+            <div className={styles.compareModalHeader}>
+              <h2 className={styles.compareModalTitle}>
                 Comparar ofertas
               </h2>
-              <button onClick={() => setShowCompare(false)} style={{
-                background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#6b6b8a",
-              }}>✕</button>
+              <button onClick={() => setShowCompare(false)} className={styles.compareModalClose}>✕</button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${compareList.length}, 1fr)`, gap: 16 }}>
+            <div className={styles.compareModalGrid}>
               {compareList.map((offer, i) => (
-                <div key={offer.affiliate_url} style={{
-                  border: "1px solid #e0e0f0", borderRadius: 14, padding: 16,
-                }}>
+                <div key={offer.affiliate_url} className={styles.compareItem}>
                   {offer.image_url && (
-                    <img src={offer.image_url} alt="" style={{ width: "100%", height: 120, objectFit: "contain", borderRadius: 8, marginBottom: 12 }} />
+                    <img src={offer.image_url} alt="" className={styles.compareItemImg} />
                   )}
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", marginBottom: 8, lineHeight: 1.4 }}>
+                  <p className={styles.compareItemTitle}>
                     {offer.title}
                   </p>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#7c3aed", marginBottom: 4 }}>
+                  <div className={styles.compareItemPrice}>
                     R$ {offer.final_price?.toFixed(2) ?? "—"}
                   </div>
                   {offer.economy > 0.5 && (
-                    <div style={{ fontSize: 12, color: "#00b894", fontWeight: 600, marginBottom: 8 }}>
+                    <div className={styles.compareItemEconomy}>
                       ↓ Economize R$ {offer.economy.toFixed(2)}
                     </div>
                   )}
@@ -662,12 +543,11 @@ export default function HomePage() {
                     href={offer.affiliate_url ?? "#"}
                     onClick={(e) => handleCompareOfferClick(e, offer, i)}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener noreferrer sponsored"
+                    className={styles.compareItemLink}
                     style={{
-                      display: "block", textAlign: "center", padding: "10px",
                       background: i === 0 ? "linear-gradient(135deg,#7c3aed,#a78bfa)" : "#f5f5ff",
                       color: i === 0 ? "#fff" : "#7c3aed",
-                      borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: 13,
                       border: i === 0 ? "none" : "1px solid rgba(124,58,237,0.2)",
                     }}
                   >

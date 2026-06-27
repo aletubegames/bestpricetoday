@@ -2,7 +2,7 @@
 
 Comparador de preços em tempo real com links afiliados rastreados, dashboard de monetização e geração de vídeos com IA.
 
-[![Deploy](https://img.shields.io/badge/frontend-vercel-black)](https://bestpricetoday.vercel.app)
+[![Deploy](https://img.shields.io/badge/frontend-alaserver-blue)(https://bestpricetoday.alaserver.com.br)
 [![API](https://img.shields.io/badge/backend-alaserver-green)](https://sacrament-subduing-confined.ngrok-free.dev/docs)
 
 ---
@@ -11,7 +11,7 @@ Comparador de preços em tempo real com links afiliados rastreados, dashboard de
 
 ```
 BestPriceToday/
-├── frontend/                    # Next.js 14 (App Router) — Vercel
+├── frontend/                    # Next.js 14 (App Router) — Alaserver
 │   └── src/
 │       ├── app/
 │       │   ├── page.tsx         # Busca principal
@@ -43,7 +43,7 @@ BestPriceToday/
 │   │   │   └── conversion_cron.py    # Poll horário de conversões
 │   │   ├── models/models.py     # SQLAlchemy ORM
 │   │   └── core/config.py       # Variáveis de ambiente (pydantic-settings)
-│   ├── hf_deploy/               # Espelho HuggingFace (DEPRECATED - conta bloqueada)
+│   ├── DEPRECATED/               # Espelho DEPRECATED (DEPRECATED - conta bloqueada)
 │   ├── tests/
 │   │   ├── test_integrity.py    # 16 testes estruturais (sem endpoint fake, ownership, etc.)
 │   │   └── test_api.py          # 8 testes funcionais
@@ -134,7 +134,7 @@ Usuário clica /r/{code}    →  registra ClickEvent + redirect 302
 
 ## Dashboard Admin
 
-Acesso: `https://bestpricetoday.vercel.app/admin`
+Acesso: `https://bestpricetoday.alaserver.com.br/admin`
 Auth: header `X-Admin-Key: <ADMIN_MANAGER_KEY>`
 
 ### Funcionalidades
@@ -207,7 +207,7 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 - `conversion_tracker.py` usa dados reais das plataformas
 - Ownership: todos endpoints retornam 422 sem `owner_id`
 - Frontend: nenhum fallback de URL fora de `lib/api.ts`
-- `hf_deploy` sincronizado com canônico
+- `DEPRECATED` sincronizado com canônico
 
 ---
 
@@ -226,22 +226,22 @@ sudo systemctl enable --now bestprice-video-api
 curl http://localhost:8765/health
 ```
 
-### Frontend (Vercel)
+### Frontend (Alaserver)
 ```bash
-cd frontend && vercel --prod --yes
+cd frontend && next build && sudo systemctl restart bestprice-frontend
 ```
 
-### Backend (HuggingFace Space)
+### Backend (DEPRECATED Space)
 Push para `master` em qualquer arquivo de `backend/` dispara o GitHub Action `deploy-hf.yml` automaticamente.
 
 Para deploy manual:
 ```bash
-cd backend && bash sync_hf_deploy.sh
+cd backend && bash sync_DEPRECATED.sh
 ```
 
 ### HF Deploy separado
 ```bash
-cd backend/hf_deploy
+cd backend/DEPRECATED
 git add -A && git commit -m "deploy: <desc>" && git push origin main
 ```
 

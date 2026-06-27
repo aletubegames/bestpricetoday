@@ -82,7 +82,139 @@ h1, h2, h3, h4, h5, h6 {
   animation: bar-grow 0.8s ease-out forwards;
 }
 
-/* Responsive */
-@media (max-width: 640px) {
+/* ─── Responsive base ──────────────────────────────────────────────────────
+   Mobile-first. Breakpoints em viewport (para layout de página) e
+   container queries (para componentes reutilizáveis como cards/grids).
+   Alvo: 8" mobile (≥360px) até 32" desktop (≤3840px).
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Viewport breakpoints (layout de página inteira) */
+@media (max-width: 480px) {
   html { font-size: 15px; }
+  /* Em telas muito estreitas, permite scroll horizontal só em tabelas */
+  body { overflow-x: hidden; }
+}
+
+@media (min-width: 1920px) {
+  html { font-size: 18px; } /* 32" e maiores: fonte maior para legibilidade */
+}
+
+@media (min-width: 2560px) {
+  html { font-size: 20px; }
+}
+
+/* ─── Container queries (CSS Containment Level 3) ──────────────────────────
+   Suporte: Chrome 105+, Safari 16+, Firefox 110+ (2023+).
+   Para navegadores antigos, o fallback é o layout default (mobile 1 coluna).
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Utility: marcar um container como contexto de query */
+.cq {
+  container-type: inline-size;
+  container-name: bp;
+}
+
+/* Breakpoints de container (não de viewport):
+   @container bp (min-width: 360px)  → mobile pequeno (8")
+   @container bp (min-width: 600px)  → tablet / mobile grande
+   @container bp (min-width: 900px)  → desktop
+   @container bp (min-width: 1400px) → desktop largo
+   @container bp (min-width: 2000px) → 4K / 32"
+*/
+
+/* Helper: esconder em container pequeno */
+@container bp (max-width: 599px) {
+  .hide-on-narrow { display: none !important; }
+}
+@container bp (min-width: 600px) {
+  .hide-on-wide { display: none !important; }
+}
+
+/* ─── Tabelas responsivas (admin) ───────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Evita que a tabela quebre o layout em mobile */
+}
+.table-wrap > table {
+  min-width: 600px;
+}
+
+/* ─── Grids responsivos genéricos (container queries) ───────────────────── */
+/* Uso: <div className="cq"><div className="grid-cards">...</div></div> */
+.grid-cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr; /* mobile: 1 coluna */
+}
+@container bp (min-width: 360px) {
+  .grid-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@container bp (min-width: 720px) {
+  .grid-cards { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+}
+@container bp (min-width: 1080px) {
+  .grid-cards { grid-template-columns: repeat(4, 1fr); }
+}
+@container bp (min-width: 1600px) {
+  .grid-cards { grid-template-columns: repeat(5, 1fr); gap: 20px; }
+}
+@container bp (min-width: 2200px) {
+  .grid-cards { grid-template-columns: repeat(6, 1fr); }
+}
+
+/* Grid de produtos (cards maiores) */
+.grid-products {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+@container bp (min-width: 480px) {
+  .grid-products { grid-template-columns: repeat(2, 1fr); }
+}
+@container bp (min-width: 900px) {
+  .grid-products { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+}
+@container bp (min-width: 1280px) {
+  .grid-products { grid-template-columns: repeat(4, 1fr); }
+}
+@container bp (min-width: 1800px) {
+  .grid-products { grid-template-columns: repeat(5, 1fr); }
+}
+
+/* ─── Container de página (max-width adaptativo) ────────────────────────── */
+.page-container {
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+  max-width: 1200px;
+}
+@container bp (min-width: 1400px) {
+  .page-container { max-width: 1400px; padding: 0 24px; }
+}
+@container bp (min-width: 2000px) {
+  .page-container { max-width: 1800px; padding: 0 32px; }
+}
+
+/* ─── Flex helpers responsivos ──────────────────────────────────────────── */
+.row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.row-nowrap-narrow {
+  flex-wrap: nowrap;
+}
+@container bp (max-width: 599px) {
+  .row-nowrap-narrow { flex-wrap: wrap; }
+}
+
+/* ─── Stack vertical em mobile, horizontal em desktop ───────────────────── */
+.stack-narrow {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+}
+@container bp (max-width: 599px) {
+  .stack-narrow { flex-direction: column; gap: 12px; }
 }
