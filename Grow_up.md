@@ -19,7 +19,7 @@
 | Sitemap honesto | ✅ | **95 URLs** com conteúdo real (4 estáticas + 10 categorias + 81 produtos) |
 | Categorias | ✅ | 10 hubs `/categoria/[cat]` com SSR + JSON-LD `CollectionPage` |
 | Analytics | ✅ | GA4 (`G-D2J769S99H`) + Microsoft Clarity (`xd51oaxppe`) ativos |
-| Distribuição | ✅ | Orquestrador `distributor.py` + loop automático 5x/dia no Telegram |
+| Distribuição | ✅ | Orquestrador `distributor.py` + loop automático em 4 canais (Telegram + Facebook + Instagram + YouTube) |
 | IA legendas | ✅ | OpenRouter com fallback gracioso (postagem nunca falha) |
 | Dashboard | ✅ | `/admin/distribute/stats` tracking por canal/post |
 | Filtro de relevância | ✅ | Remove acessórios (capas, cases, joysticks, gift cards) de buscas de produtos principais |
@@ -46,13 +46,14 @@
 | **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
 
 ### 📈 Métricas atuais
-- **Posts no Telegram:** 8 (5 testes + 3 automáticos)
-- **Posts no Facebook:** 1 teste (3 páginas simultaneamente — Bestpricetoday + Achados Shoppee + Achados Shopee)
-- **Cliques rastreados:** 0 (ofertas acabaram de ser postadas)
+- **Posts no Telegram:** 31 (cliques: 6)
+- **Posts no Facebook:** 7 em 3 páginas (cliques: 7) — Bestpricetoday + Achados Shoppee + Achados Shopee
+- **Posts no Instagram:** 6 (@aletubegames, cliques: 1)
+- **Posts no YouTube:** 6 (cliques: 1)
 - **Páginas indexáveis:** 95 (sitemap) — 4 estáticas + 10 categorias + 81 produtos
 - **Queries com produtos:** 81 (airfryers + iPhones + Galaxy + notebooks + TVs + PS5 + etc)
 - **Catálogo Amazon:** 1.084 produtos (scraper Playwright)
-- **Frequência de postagem:** 5x/dia (9h, 13h, 18h, 0h, 6h) — ~11 ofertas/dia (Telegram + 3 páginas Facebook)
+- **Frequência de postagem:** 2x/dia (12h, 19h) em 4 canais simultaneamente
 
 ---
 
@@ -80,7 +81,9 @@
 - ✅ **Amazon scraper ativo** (1.084 produtos: iPhones, Galaxy, notebooks, TVs, PS5, etc).
 - ✅ **Cron diário 3am** — scraper Amazon atualiza preços e remove produtos fora de estoque.
 - ⚠️ **Páginas de marca** (`/marca/[slug]`) existem mas têm 0 ofertas — removidas do sitemap.
-- ✅ **Distributor automático** postando no Telegram 5x/dia (9h, 13h, 18h, 0h, 6h).
+- ✅ **Distributor automático** postando em 4 canais (Telegram + Facebook + Instagram + YouTube) 2x/dia.
+- ✅ **3 páginas Facebook** ativas: Bestpricetoday + Achados Shoppee + Achados Shopee.
+- ✅ **Instagram @aletubegames** ativo (Business account vinculada).
 - ✅ **Scraping de métricas ML** rodando diariamente (portal de afiliados).
 
 ### ⏰ Crons ativos no servidor
