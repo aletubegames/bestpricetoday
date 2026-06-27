@@ -2,13 +2,13 @@
 Redirect endpoint — tracked affiliate links.
 GET /r/{code} → register click + 302 redirect to affiliate URL
 POST /links/create → create a new short link, returns the code
+GET /img/proxy/{encoded} → proxy de imagem (para Instagram Graph API)
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
-from app.core.config import settings
 from app.core.config import settings
 from app.models.models import ShortLink, ClickEvent
 from pydantic import BaseModel
@@ -16,6 +16,8 @@ from typing import Optional
 from datetime import datetime, timezone
 import secrets
 import string
+import base64
+import httpx
 
 router = APIRouter()
 
@@ -189,3 +191,45 @@ async def redirect_to_store(
         )
     except Exception:
         return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
+
+
+@router.get("/img/proxy/{encoded}")
+async def proxy_image(encoded: str):
+    """Proxy de imagem para Instagram Graph API.
+    Baixa a imagem da URL original (codificada em base64) e serve
+    como JPEG (Instagram exige JPEG/PNG). Necessário porque o Instagram
+    rejeita URLs de alguns CDNs (AliExpress, vteximg, etc) e formatos webp.
+    """
+    try:
+        # Decodifica base64
+        padding = 4 - len(encoded) % 4
+        if padding != 4:
+            encoded += "=" * padding
+        original_url = base64.urlsafe_b64decode(encoded).decode()
+
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(original_url, follow_redirects=True)
+            if r.status_code != 200:
+                return Response(status_code=404)
+
+        # Converte para JPEG usando PIL (Instagram não aceita webp)
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(r.content))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=90)
+            content = buf.getvalue()
+        except Exception:
+            # Se PIL falhar, serve o conteúdo original
+            content = r.content
+
+        return Response(
+            content=content,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except Exception:
+        return Response(status_code=404)

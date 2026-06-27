@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Request, status, Response
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -25,9 +24,14 @@ async def lifespan(app: FastAPI):
     from app.workers.conversion_cron import start_conversion_cron
     cron_task = asyncio.create_task(start_conversion_cron())
 
-    # Start Telegram channel broadcaster
-    from app.workers.channel_broadcaster import run_broadcaster_loop
-    broadcast_task = asyncio.create_task(run_broadcaster_loop())
+    # Start Telegram channel broadcaster (legacy — desativado, substituído pelo distributor)
+    # from app.workers.channel_broadcaster import run_broadcaster_loop
+    # broadcast_task = asyncio.create_task(run_broadcaster_loop())
+    broadcast_task = asyncio.ensure_future(asyncio.sleep(0))  # no-op placeholder
+
+    # Start distributor (orquestrador central — Telegram com IA + filtros de qualidade)
+    from app.workers.distributor import run_distributor_loop
+    distributor_task = asyncio.create_task(run_distributor_loop())
 
     # Start Telegram bot polling
     from app.workers.bestprice_bot import start_bot_polling
@@ -45,10 +49,11 @@ async def lifespan(app: FastAPI):
 
     cron_task.cancel()
     broadcast_task.cancel()
+    distributor_task.cancel()
     bot_task.cancel()
     alert_task.cancel()
     ml_refresh_task.cancel()
-    for task in [cron_task, broadcast_task, bot_task, alert_task, ml_refresh_task]:
+    for task in [cron_task, broadcast_task, distributor_task, bot_task, alert_task, ml_refresh_task]:
         try:
             await task
         except asyncio.CancelledError:

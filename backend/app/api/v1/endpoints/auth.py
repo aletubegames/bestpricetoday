@@ -13,6 +13,7 @@ Rotas:
 from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import httpx
@@ -33,7 +34,7 @@ import bcrypt as _bcrypt
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
-REDIRECT_URI = "https://bestpricetoday.vercel.app/auth/callback"
+REDIRECT_URI = os.getenv("ML_REDIRECT_URI", "https://bestpricetoday.alaserver.com.br:9443/auth/callback")
 
 
 

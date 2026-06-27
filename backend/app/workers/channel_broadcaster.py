@@ -26,7 +26,7 @@ from app.core.config import settings
 
 BOT_TOKEN  = settings.TELEGRAM_BOT_TOKEN
 CHANNEL_ID = settings.TELEGRAM_CHANNEL_ID
-API_URL    = os.getenv("API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
+API_URL    = settings.INTERNAL_API_URL
 ADMIN_KEY  = settings.ADMIN_MANAGER_KEY
 
 # Arquivo local de deduplicação (persiste entre restarts do worker)
@@ -179,7 +179,7 @@ def _build_caption(offer: dict) -> str:
         lines.append(f"⭐ Score: {score:.0f}/100")
 
     lines.append(f"\n👉 [Ver oferta e comprar]({affiliate_url})")
-    lines.append(f"\n🛍️ @BestPriceToday| bestpricetoday.vercel.app")
+    lines.append(f"\n🛍️ @BestPriceToday| {settings.PUBLIC_SITE_URL.replace('https://', '')}")
 
     return "\n".join(lines)
 

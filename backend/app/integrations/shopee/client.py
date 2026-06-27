@@ -131,6 +131,12 @@ class ShopeeClient(MarketplaceClient):
             if not price:
                 continue
 
+            # Validar se o link do produto é válido
+            product_link = item.get("productLink", item.get("offerLink", ""))
+            if not product_link or "shopee.com.br/product/" not in product_link:
+                logger.warning(f"Shopee: link inválido ou ausente para produto {item.get('itemId')}")
+                continue
+
             price_max = float(item.get("priceMax", price) or price)
             cashback = float(item.get("commissionRate", 0) or 0)
 
@@ -143,7 +149,7 @@ class ShopeeClient(MarketplaceClient):
                 discount_pct=0.0,
                 currency="BRL",
                 image_url=item.get("imageUrl", ""),
-                product_url=item.get("productLink", item.get("offerLink", "")),
+                product_url=product_link,
                 affiliate_url=item.get("offerLink", ""),
                 shipping_free=True,   # Shopee frequentemente oferece frete grátis
                 shipping_price=0.0,
@@ -195,7 +201,7 @@ class ShopeeClient(MarketplaceClient):
         try:
             data = await self._execute(gql, {
                 "keyword":  query,
-                "limit":    min(limit, 50),
+                "limit":    min(limit, 500),  # documentação oficial: page size capped at 500
                 "sortType": SORT_RELEVANCE,
             })
             nodes = (
@@ -205,6 +211,18 @@ class ShopeeClient(MarketplaceClient):
             )
             results = self._parse_product_nodes(nodes)
             logger.info(f"Shopee search '{query}': {len(results)} results")
+            
+            # Garante que todos os produtos tenham link curto s.shopee.com.br
+            # Se offerLink veio vazio ou como URL longa, gera short link
+            for r in results:
+                if not r.affiliate_url or "s.shopee.com.br" not in r.affiliate_url:
+                    try:
+                        short = await self.get_affiliate_link(r.product_url)
+                        if short and "s.shopee.com.br" in short:
+                            r.affiliate_url = short
+                    except Exception as e:
+                        logger.debug(f"Shopee short link failed for {r.external_id}: {e}")
+            
             return results[:limit]
 
         except Exception as e:
@@ -259,9 +277,10 @@ class ShopeeClient(MarketplaceClient):
         Gera link de afiliado rastreado.
 
         Usa: generateShortLink (mutation)
+        Retorna None se falhar (não faz fallback para URL direta).
         """
         if not self._is_configured():
-            return product_url
+            return None
 
         gql = """
         mutation generateLink($originalUrl: String!) {
@@ -275,10 +294,13 @@ class ShopeeClient(MarketplaceClient):
         try:
             data = await self._execute(gql, {"originalUrl": product_url})
             result = data.get("data", {}).get("generateShortLink", {})
-            return result.get("shortLink") or result.get("longLink") or product_url
+            short = result.get("shortLink")
+            if short and "s.shopee.com.br" in short:
+                return short
+            return result.get("longLink") or None
         except Exception as e:
             logger.warning(f"Shopee affiliate link generation failed: {e}")
-            return product_url
+            return None
 
     async def get_coupons(self, store: str = "") -> List[CouponResult]:
         """

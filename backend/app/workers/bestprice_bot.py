@@ -116,7 +116,7 @@ async def cmd_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = []
         found = 0
         import httpx
-        API_URL = os.getenv("API_URL", settings.INTERNAL_API_URL or "https://sacrament-subduing-confined.ngrok-free.dev")
+        API_URL = os.getenv("API_URL", settings.INTERNAL_API_URL)
         PROVIDER_EMOJI = {
             "mercadolivre": "🟡", "amazon": "📦", "shopee": "🟠",
             "kabum": "🟢", "aliexpress": "🔴", "lomadee": "🟣", "awin": "🔵",
@@ -166,7 +166,7 @@ async def cmd_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Descontos reais verificados\n"
         f"• Frete grátis quando disponível\n"
         f"• Links afiliados diretos\n\n"
-        f"🌐 bestpricetoday.vercel.app",
+        f"🌐 {settings.PUBLIC_SITE_URL.replace('https://', '')}",
         parse_mode="Markdown"
     )
 
@@ -177,7 +177,7 @@ async def cmd_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔔 *Alertas de Preço*\n\n"
         "Acesse o site para criar alertas. Seus alertas serão vinculados ao seu Telegram:\n\n"
-        f"🌐 https://bestpricetoday.vercel.app/alertas\n\n"
+        f"🌐 {settings.PUBLIC_SITE_URL}/alertas\n\n"
         "Quando o preço cair, você receberá uma notificação aqui mesmo! 🎉\n\n"
         f"_Seu ID Telegram: `{telegram_id}`_",
         parse_mode="Markdown"

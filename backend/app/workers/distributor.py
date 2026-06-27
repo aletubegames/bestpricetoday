@@ -628,6 +628,27 @@ async def _clean_image_url_for_ig(url: str) -> str:
     return url
 
 
+async def _get_ig_image_url(offer: dict) -> str:
+    """Retorna URL de imagem compatível com Instagram Graph API.
+    Estratégia:
+    1. Amazon/Shopee funcionam diretamente
+    2. Outras URLs: baixa a imagem e re-hospeda via endpoint /img/proxy
+    """
+    import hashlib, base64
+    image_url = offer.get("image_url", "")
+    if not image_url or not image_url.startswith("http"):
+        return ""
+    # Amazon/Shopee funcionam diretamente
+    if "amazon.com" in image_url or "shopee.com" in image_url or "m.media-amazon" in image_url:
+        return image_url
+    # Outras URLs (AliExpress, vteximg, etc): usa proxy do backend
+    # Codifica a URL original em base64 para passar como parâmetro
+    encoded = base64.urlsafe_b64encode(image_url.encode()).decode().rstrip("=")
+    # Usa a API_URL (HTTPS) que é acessível publicamente
+    proxy_url = f"{API_URL}/api/v1/img/proxy/{encoded}"
+    return proxy_url
+
+
 async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> dict:
     """Posta oferta no Instagram via Graph API.
 
@@ -643,12 +664,9 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
     from app.integrations.instagram import InstagramFacebookClient
     from sqlalchemy import select
 
-    image_url = offer.get("image_url", "")
-    if not image_url or not image_url.startswith("http"):
+    image_url = await _get_ig_image_url(offer)
+    if not image_url:
         return {"ok": False, "error": "Offer has no valid image_url for Instagram"}
-
-    # Limpa URL para evitar 400 do Instagram (parâmetros de query longos)
-    image_url = await _clean_image_url_for_ig(image_url)
 
     try:
         async with AsyncSessionLocal() as db:

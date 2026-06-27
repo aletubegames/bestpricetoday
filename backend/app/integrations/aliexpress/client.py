@@ -277,6 +277,14 @@ class AliExpressClient(MarketplaceClient):
         normalized = self._normalize(title)
         return any(kw in normalized for kw in ACCESSORY_KEYWORDS)
 
+    def _is_specific_product(self, query: str) -> bool:
+        """True se a query parece ser um produto específico (ex: iphone, notebook, ps5)."""
+        normalized = self._normalize(query)
+        specific = {"iphone", "samsung", "notebook", "laptop", "ps5", "ps4", "xbox",
+                    "macbook", "ipad", "tablet", "monitor", "tv", "celular", "smartphone",
+                    "camera", "goPro", "console", "kindle"}
+        return any(s in normalized for s in specific)
+
     def _is_relevant(self, query: str, title: str) -> bool:
         query_tokens = self._tokens(query)
         title_tokens = set(self._tokens(title))
@@ -297,23 +305,20 @@ class AliExpressClient(MarketplaceClient):
             if len(overlap) < min_overlap:
                 return False
 
-        # Rejeita acessórios quando a query não é de acessório
-        if self._is_accessory(title) and not self._is_accessory(query):
+        # Rejeita acessórios apenas para queries de produtos específicos
+        # (ex: "iphone 15" não quer capas, mas "sapatos" pode querer palmilhas)
+        if self._is_accessory(title) and self._is_specific_product(query):
             return False
 
         return True
 
     def _filter_relevant(self, query: str, results: List[ProductResult]) -> List[ProductResult]:
-        """Filtra resultados relevantes. Fallback por preço (> R$50) se nada passar."""
+        """Filtra resultados relevantes. Fallback: retorna todos se nada passar."""
         relevant = [r for r in results if self._is_relevant(query, r.title)]
         if relevant:
             return relevant
-        # Fallback: só produtos com preço > R$50 (tipicamente produtos standalone, não acessórios)
-        fallback = sorted(
-            [r for r in results if r.final_price >= 50.0],
-            key=lambda r: r.final_price, reverse=True
-        )
-        return fallback
+        # Fallback: retorna todos os resultados sem filtro
+        return results
 
     # ── Parsers ──────────────────────────────
 
@@ -499,16 +504,9 @@ class AliExpressClient(MarketplaceClient):
             "keywords":        query,
             "page_size":       str(min(limit * 2, 50)),   # busca mais para filtrar
             "page_no":         "1",
-            "sort":            "LAST_VOLUME_DESC",
             "target_currency": "BRL",
-            "target_language": "PT",
             "ship_to_country": "BR",
-            "min_sale_price":  "100",                     # filtra produtos < R$1
         }
-
-        cat = self._guess_category(query)
-        if cat:
-            params["category_ids"] = cat
 
         if settings.ALIEXPRESS_TRACKING_ID:
             params["tracking_id"] = settings.ALIEXPRESS_TRACKING_ID
@@ -520,6 +518,13 @@ class AliExpressClient(MarketplaceClient):
         if resp_result.get("resp_code") == 402 and "tracking_id" in params:
             logger.warning("AliExpress: tracking_id inválido, tentando sem tracking_id")
             params.pop("tracking_id")
+            data = await self._call_top("aliexpress.affiliate.product.query", params)
+            resp_result = data.get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {})
+
+        # Se 405 (result is empty), tenta sem min_sale_price
+        if resp_result.get("resp_code") == 405 and "min_sale_price" in params:
+            logger.warning("AliExpress: 405 com min_sale_price, tentando sem filtro")
+            params.pop("min_sale_price")
             data = await self._call_top("aliexpress.affiliate.product.query", params)
 
         raw = self._parse_top_products(data)
@@ -544,7 +549,6 @@ class AliExpressClient(MarketplaceClient):
             "page_no":         "1",
             "sort":            "LAST_VOLUME_DESC",
             "target_currency": "BRL",
-            "target_language": "PT",
             "ship_to_country": "BR",
         }
 

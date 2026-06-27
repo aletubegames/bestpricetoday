@@ -24,7 +24,7 @@ _fallback: dict[str, list[float]] = defaultdict(list)
 
 def get_client_ip(request: Request) -> str:
     """
-    Retorna o IP real do cliente respeitando proxies reversos (HF Space, Vercel, Cloudflare).
+    Retorna o IP real do cliente respeitando proxies reversos (proxy reverso).
     Ordem de preferência:
       1. CF-Connecting-IP (Cloudflare)
       2. X-Forwarded-For (primeiro da lista = cliente original)

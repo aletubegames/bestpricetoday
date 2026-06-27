@@ -185,7 +185,7 @@ async def handle_deletion_request(request: Request, db: AsyncSession = Depends(g
         await db.commit()
         
         # 8. URL de status onde o usuário pode acompanhar a exclusão
-        status_url = f"https://bestpricetoday.vercel.app/deletion-status?code={confirmation_code}"
+        status_url = f"{settings.PUBLIC_SITE_URL}/deletion-status?code={confirmation_code}"
         
         logger.info(f"✅ Exclusão de dados processada com sucesso!")
         logger.info(f"   Código de confirmação: {confirmation_code}")

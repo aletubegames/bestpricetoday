@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 
 DATABASE_URL = settings.DATABASE_URL
 TELEGRAM_TOKEN = settings.TELEGRAM_BOT_TOKEN
-API_BASE = settings.INTERNAL_API_URL or "http://localhost:8000"
+API_BASE = settings.INTERNAL_API_URL
 CHECK_INTERVAL_SECONDS = int(os.getenv("ALERT_CHECK_INTERVAL", "1800"))  # 30 min
 
 engine = create_async_engine(DATABASE_URL, echo=False)

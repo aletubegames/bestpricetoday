@@ -19,26 +19,8 @@ from app.core.logging import logger
 from app.models.models import ConversionEvent, ClickEvent, ConversionRetryQueue
 
 
-def validate_ml_webhook_signature(raw_body: bytes, signature_header: Optional[str]) -> bool:
-    """Validate Mercado Livre webhook HMAC using the configured secret."""
-    secret = settings.ML_WEBHOOK_SECRET
-    if not secret or not signature_header:
-        return False
-
-    try:
-        parts = dict(part.split("=", 1) for part in signature_header.split(","))
-        ts = parts.get("ts", "")
-        received = parts.get("v1", "")
-        if not ts or not received:
-            return False
-
-        body_hash = hashlib.sha256(raw_body).hexdigest()
-        message = f"ts:{ts}\nv1:{body_hash}"
-        expected = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
-        return hmac.compare_digest(received, expected)
-    except (TypeError, ValueError) as exc:
-        logger.warning(f"ML webhook HMAC parsing failed: {type(exc).__name__}")
-        return False
+# NOTE: validate_ml_webhook_signature removed (2026-06-26).
+# ML affiliate program does not provide webhooks for affiliates.
 
 
 async def _sign_top(method: str, params: dict, app_key: str, app_secret: str) -> dict:
@@ -369,65 +351,9 @@ async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[di
     return saved
 
 
-async def handle_ml_webhook(
-    data: dict,
-    db: AsyncSession,
-    raw_body: Optional[bytes] = None,
-    signature_header: Optional[str] = None,
-) -> dict:
-    """
-    ML sends: { resource: "/orders/123456789", user_id: 123, topic: "orders" }
-    Then we call GET /orders/{id} to get the full order.
-    """
-    if not raw_body or not validate_ml_webhook_signature(raw_body, signature_header):
-        logger.warning("ML webhook handler rejected unsigned or invalid payload")
-        return {"ok": False, "error": "invalid signature"}
-
-    topic = data.get("topic", "")
-    resource = data.get("resource", "")
-
-    if topic not in ("orders", "merchant_orders"):
-        return {"ok": True, "skipped": True}
-
-    order_id = resource.split("/")[-1]
-    token = settings.MERCADOLIVRE_ACCESS_TOKEN
-    if not token:
-        return {"ok": False, "error": "no token"}
-
-    try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(
-                f"https://api.mercadolibre.com/orders/{order_id}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if r.status_code != 200:
-                return {"ok": False, "error": f"ML API {r.status_code}"}
-            order = r.json()
-
-        total = float(order.get("total_amount", 0) or 0)
-        status_raw = order.get("status", "")
-        status = (
-            "confirmed" if status_raw in ("paid", "approved") else
-            "rejected" if status_raw in ("cancelled", "refunded") else
-            "pending"
-        )
-
-        items = order.get("order_items", [])
-        title = items[0].get("item", {}).get("title", "ML Order") if items else "ML Order"
-
-        commission_rate = None
-        commission_value = None
-
-        click_id = await _find_matching_click(db, "mercadolivre", title[:200])
-        await _save_conversion_safe(
-            db, f"ml_{order_id}", "mercadolivre", title[:200],
-            total, commission_rate, commission_value, status, click_id
-        )
-
-        return {"ok": True}
-    except Exception as e:
-        logger.error(f"ML webhook handler error: {e}")
-        return {"ok": False, "error": str(e)}
+# NOTE: handle_ml_webhook removed (2026-06-26).
+# ML affiliate program does not provide webhooks for affiliates.
+# Conversions tracked via scraping (ml_scraper.py) + polling (poll_all_conversions).
 
 
 async def poll_all_conversions(db: AsyncSession) -> dict:

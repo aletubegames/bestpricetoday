@@ -45,8 +45,8 @@ log = logging.getLogger("aletube")
 VIDEOS_DIR = os.environ.get("ALETUBE_VIDEOS_DIR", "./videos")  # ✅ Usar ./videos local
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
-# Get INTERNAL_API_URL for serving videos publicly
-INTERNAL_API_URL = os.environ.get("INTERNAL_API_URL", "https://sacrament-subduing-confined.ngrok-free.dev")
+# Get INTERNAL_API_URL for serving videos publicly (from settings)
+INTERNAL_API_URL = settings.INTERNAL_API_URL
 
 
 def _generate_code(length: int = 8) -> str:
@@ -141,7 +141,7 @@ Gera conteúdo otimizado por plataforma. Regras DURAS:
 - Título e descrição ESPECÍFICOS ao que vês (ex: "Trickson Me parry-perfeito vence New Hex em SF3 3rd Strike"), não vagos.
 - Hashtags relevantes ao conteúdo (jogo, personagem, género, comunidade) — não enche-chouriços.
 - TikTok caption < 200 chars + CTA.
-- YouTube description com 2-3 parágrafos, inclui keywords SEO + link https://bestpricetoday.vercel.app no final.
+- YouTube description com 2-3 parágrafos, inclui keywords SEO + link {settings.PUBLIC_SITE_URL} no final.
 - Instagram caption emocional + emojis + 20-30 hashtags.
 - Facebook texto mais conversacional, 3-5 hashtags.
 - NÃO incluas markdown nem comentários. Resposta = JSON válido apenas.
@@ -163,9 +163,9 @@ def _smart_fallback(filename: str) -> dict:
     base_hash = [f"#{t.lower()}" for t in tokens if len(t) > 2 and t.isalnum()][:5]
     return {
         "tiktok":    {"title": title[:150], "description": f"🎮 {title}\n\n📲 Segue para mais!", "hashtags": base_hash or ["#aletubegames"], "bio_note": "Link na bio 🛒"},
-        "youtube":   {"title": f"{title} | AleTubeGames"[:100], "description": f"{title}\n\n🛒 https://bestpricetoday.vercel.app", "hashtags": [t.lower() for t in tokens][:12] or ["aletubegames"], "end_screen_note": "Inscrição + vídeos relacionados"},
+        "youtube":   {"title": f"{title} | AleTubeGames"[:100], "description": f"{title}\n\n🛒 {settings.PUBLIC_SITE_URL}", "hashtags": [t.lower() for t in tokens][:12] or ["aletubegames"], "end_screen_note": "Inscrição + vídeos relacionados"},
         "instagram": {"title": title[:100], "description": f"🎮 {title}\nLink na bio ⬆️", "hashtags": [t.lower() for t in tokens][:25] or ["aletubegames"], "bio_note": "Atualiza link na bio"},
-        "facebook":  {"title": title[:255], "description": f"{title}\n\n👉 bestpricetoday.vercel.app", "hashtags": [t for t in tokens][:5] or ["AleTubeGames"], "bio_note": "Fixa link nos comentários"},
+        "facebook":  {"title": title[:255], "description": f"{title}\n\n👉 {settings.PUBLIC_SITE_URL.replace('https://', '')}", "hashtags": [t for t in tokens][:5] or ["AleTubeGames"], "bio_note": "Fixa link nos comentários"},
     }
 
 
@@ -213,7 +213,7 @@ async def _call_openrouter_vision(prompt: str, frames: list[bytes]) -> Optional[
                 headers={
                     "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
                     "Content-Type":  "application/json",
-                    "HTTP-Referer":  "https://bestpricetoday.vercel.app",
+                    "HTTP-Referer":  settings.PUBLIC_SITE_URL,
                     "X-Title":       "AleTubeGames",
                 },
                 json=payload,
@@ -817,7 +817,7 @@ async def publish_video(
             campaign      = campaign,
         )
         db.add(link)
-        return f"https://bestpricetoday.vercel.app/r/{code}"
+        return f"{settings.PUBLIC_SITE_URL}/r/{code}"
 
     # ── TikTok ──
     if "tiktok" in plats:

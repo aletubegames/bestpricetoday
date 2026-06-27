@@ -212,7 +212,7 @@ async def create_share_link(
         if not code:
             raise HTTPException(status_code=500, detail="Falha ao gerar código único")
 
-        short_link_url = f"https://bestpricetoday.vercel.app/r/{code}"
+        short_link_url = f"{settings.PUBLIC_SITE_URL}/r/{code}"
 
         link = ShortLink(
             code          = code,
@@ -391,7 +391,7 @@ async def admin_publish_video(
                 break
 
         if code:
-            tracked_link = f"https://bestpricetoday.vercel.app/r/{code}"
+            tracked_link = f"{settings.PUBLIC_SITE_URL}/r/{code}"
             link = ShortLink(
                 code          = code,
                 affiliate_url = data.affiliate_url,
