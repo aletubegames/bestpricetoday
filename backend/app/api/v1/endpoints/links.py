@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
 from app.core.config import settings
+from app.core.config import settings
 from app.models.models import ShortLink, ClickEvent
 from pydantic import BaseModel
 from typing import Optional
@@ -30,6 +31,8 @@ class CreateLinkRequest(BaseModel):
     provider: Optional[str] = None
     product_title: Optional[str] = None
     price: Optional[float] = None
+    image_url: Optional[str] = None
+    original_price: Optional[float] = None
     source: str = "video"
     campaign: Optional[str] = None
 
@@ -62,6 +65,8 @@ async def create_short_link(
             provider=data.provider,
             product_title=data.product_title[:200] if data.product_title else None,
             price=data.price,
+            image_url=data.image_url,
+            original_price=data.original_price,
             source=data.source,
             campaign=data.campaign,
         )
@@ -70,8 +75,8 @@ async def create_short_link(
 
         return {
             "code": code,
-            "url": f"https://bestpricetoday.vercel.app/r/{code}",
-            "short_url": f"https://bestpricetoday.vercel.app/r/{code}",
+            "url": f"{settings.PUBLIC_SITE_URL}/r/{code}",
+            "short_url": f"{settings.PUBLIC_SITE_URL}/r/{code}",
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -84,19 +89,78 @@ async def redirect_link(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Tracked redirect.
+    Tracked redirect — agora vai para a página de oferta no frontend.
     1. Find link by code
-    2. Register click (ClickEvent)
-    3. Update link stats
-    4. 302 redirect to affiliate URL
+    2. 302 redirect para /oferta/{code} (página com botão VER OFERTA)
+    O clique real é registrado em /r/{code}/go quando o usuário clica no botão.
     """
     try:
         result = await db.execute(select(ShortLink).where(ShortLink.code == code))
         link = result.scalar()
 
         if not link:
-            # Fallback to homepage
-            return RedirectResponse(url="https://bestpricetoday.vercel.app", status_code=302)
+            return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
+
+        # Redirect para a página de oferta no frontend
+        return RedirectResponse(
+            url=f"{settings.PUBLIC_SITE_URL}/oferta/{code}",
+            status_code=302,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+            }
+        )
+
+    except Exception:
+        return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
+
+
+@router.get("/r/{code}/info")
+async def get_link_info(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna informações da oferta associada ao short link (sem redirecionar).
+    Usado pela página /oferta/{code} no frontend para mostrar o produto
+    com botão "VER OFERTA" antes de redirecionar para a loja.
+    """
+    result = await db.execute(select(ShortLink).where(ShortLink.code == code))
+    link = result.scalar()
+
+    if not link:
+        return JSONResponse(status_code=404, content={"error": "Link not found"})
+
+    return {
+        "code": link.code,
+        "product_title": link.product_title,
+        "price": link.price,
+        "original_price": link.original_price,
+        "image_url": link.image_url,
+        "provider": link.provider,
+        "affiliate_url": link.affiliate_url,
+        "source": link.source,
+        "clicks": link.clicks,
+        "created_at": link.created_at.isoformat() if link.created_at else None,
+    }
+
+
+@router.get("/r/{code}/go")
+async def redirect_to_store(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Redireciona para a loja (afiliado).
+    Usado quando o usuário clica em "VER OFERTA" na página /oferta/{code}.
+    Registra o clique e faz 302 redirect para o affiliate_url.
+    """
+    try:
+        result = await db.execute(select(ShortLink).where(ShortLink.code == code))
+        link = result.scalar()
+
+        if not link:
+            return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
 
         # Register click
         click = ClickEvent(
@@ -111,14 +175,10 @@ async def redirect_link(
             source=link.source or "video",
         )
         db.add(click)
-
-        # Update link stats
         link.clicks += 1
         link.last_clicked_at = datetime.now(timezone.utc)
-
         await db.commit()
 
-        # 302 redirect — immediate, no intermediate page
         return RedirectResponse(
             url=link.affiliate_url,
             status_code=302,
@@ -127,7 +187,5 @@ async def redirect_link(
                 "X-Redirect-To": link.provider or "affiliate",
             }
         )
-
     except Exception:
-        # Always redirect even on error
-        return RedirectResponse(url="https://bestpricetoday.vercel.app", status_code=302)
+        return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)

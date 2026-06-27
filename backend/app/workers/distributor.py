@@ -109,6 +109,8 @@ async def create_short_link(offer: dict, source: str, campaign: Optional[str] = 
                     "provider": offer.get("provider", ""),
                     "product_title": offer.get("title", "")[:200],
                     "price": offer.get("final_price", 0),
+                    "image_url": offer.get("image_url", ""),
+                    "original_price": offer.get("original_price", 0),
                     "source": source,
                     "campaign": campaign,
                 },

@@ -341,7 +341,7 @@ class FacebookAccount(Base):
 class ShortLink(Base):
     """
     Short link for tracked affiliate redirects.
-    URL: bestpricetoday.vercel.app/r/{code}
+    URL: bestpricetoday.alaserver.com.br/r/{code}
     Flow: user clicks → register analytics → 302 redirect to affiliate URL
     """
     __tablename__ = "short_links"
@@ -352,6 +352,8 @@ class ShortLink(Base):
     provider = Column(String, nullable=True)
     product_title = Column(String, nullable=True)
     price = Column(Float, nullable=True)
+    image_url = Column(String, nullable=True)  # product image for /oferta/{code} page
+    original_price = Column(Float, nullable=True)  # preço original para mostrar desconto
     source = Column(String, default="video")  # video, telegram, youtube, tiktok, web
     campaign = Column(String, nullable=True)  # e.g. "smartwatch_07h_seg"
     clicks = Column(Integer, default=0)
@@ -455,3 +457,31 @@ class DataDeletionRequest(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)  # Quando remover este registro (após 12 meses)
     
     user = relationship("User", back_populates="deletion_requests")
+
+
+class AffiliateMetricsSnapshot(Base):
+    """
+    Snapshot diário das métricas do portal de afiliados (ML, Shopee, etc).
+    Coletado via scraping do portal (ml_scraper.py) — o ML não tem API pública
+    de relatório de afiliados, só o portal web (atualiza a cada 24h).
+
+    Campos:
+      provider: "mercadolivre", "shopee", ...
+      period_until: data do período exibida no portal (ex: "25/06/2026")
+      clicks: total de cliques nos links de afiliado
+      orders: total de pedidos (vendas)
+      estimated_earnings: ganho estimado (R$)
+      confirmed_earnings: ganho confirmado (R$) — da página de Métricas detalhada
+      raw_data: dump JSON completo para debug/auditoria
+    """
+    __tablename__ = "affiliate_metrics_snapshots"
+
+    id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider            = Column(String, nullable=False, index=True)
+    period_until        = Column(String, nullable=True)
+    clicks              = Column(Integer, nullable=True)
+    orders              = Column(Integer, nullable=True)
+    estimated_earnings  = Column(Float, nullable=True)
+    confirmed_earnings  = Column(Float, nullable=True)
+    raw_data            = Column(JSON, nullable=True)
+    collected_at        = Column(DateTime(timezone=True), default=_utcnow, index=True)
