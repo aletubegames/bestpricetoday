@@ -11,6 +11,9 @@ import { isTokenExpired } from "@/lib/utils";
 interface AccountStatus {
   connected: boolean;
   username?: string;
+  display_name?: string;
+  channel_title?: string;
+  page_name?: string;
   avatar?: string;
   display_name?: string;
   page_name?: string;
@@ -268,7 +271,12 @@ export default function AleTubeGamesPage() {
         url = data.auth_url;
         if (data.state) localStorage.setItem("youtube_oauth_state", data.state);
       } else if (platform === "instagram" || platform === "facebook") {
-        url = `${API}/api/v1/aletube/auth/facebook`;
+        const headers = getAuthHeaders();
+        const res = await apiFetch(`${API}/api/v1/aletube/auth/facebook`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        url = data.auth_url;
+        if (data.state) localStorage.setItem("facebook_oauth_state", data.state);
       } else {
         return;
       }
@@ -687,12 +695,12 @@ export default function AleTubeGamesPage() {
                       </span>
                       {acc.connected && acc.token_status && (
                         <span style={s.tokenBadge(acc.token_status)}>
-                          {acc.token_status === "ok" ? "Token OK" : acc.token_status === "expiring" || acc.token_status === "expiring_soon" ? "⚠ Expirando" : "❌ Expirado"}
+                          {acc.token_status === "ok" ? "Token OK" : (acc.token_status === "expiring" || acc.token_status === "expiring_soon") ? "⚠ Expirando" : acc.token_status === "expired" ? "❌ Expirado" : "❓ Desconhecido"}
                         </span>
                       )}
-                      {acc.connected && (acc.username || acc.page_name || acc.channel_title || acc.display_name) && (
+                      {acc.connected && (acc.username || acc.display_name || acc.channel_title || acc.page_name) && (
                         <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
-                          {acc.page_name || acc.channel_title || acc.display_name || (acc.username ? `@${acc.username}` : "")}
+                          {acc.username ? `@${acc.username}` : acc.display_name || acc.channel_title || acc.page_name}
                         </div>
                       )}
                       <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12, lineHeight: 1.4 }}>
