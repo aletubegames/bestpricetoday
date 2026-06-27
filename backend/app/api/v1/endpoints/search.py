@@ -164,49 +164,23 @@ from app.data.curated_queries import CURATED_QUERIES
 
 
 @router.get("/search/sitemap-queries")
-async def sitemap_queries(limit: int = Query(default=5000, ge=1, le=10000)):
-    """Retorna queries para o sitemap (trending do banco + curadoria manual).
+async def sitemap_queries(limit: int = Query(default=500, ge=1, le=10000)):
+    """Retorna queries para o sitemap — SÓ queries com ofertas reais.
 
-    Usado pelo frontend (sitemap.ts) para gerar URLs indexáveis.
-    Combina:
-    1. Trending real do banco (buscas reais dos usuários)
-    2. Curadoria manual por nicho de alta comissão
-    Deduplica e ordena por score.
+    IMPORTANTE: Não incluir queries vazias (thin content prejudica SEO).
+    As queries curadas foram testadas e todas retornam ≥3 ofertas.
+    Trending queries não são incluídas porque a maioria retorna 0 ofertas
+    (são acessórios filtrados pelo ranking engine).
     """
-    from app.services.search import get_trending_searches
-
-    queries_set = set()
     result = []
-
-    # 1. Trending do banco (buscas reais)
-    try:
-        items = await get_trending_searches(limit=100)
-        for item in items:
-            q = item.get("query", "").strip()
-            if q and q not in queries_set and len(q) >= 3:
-                queries_set.add(q)
-                result.append({
-                    "query": q,
-                    "score": float(item.get("score", 0)),
-                    "source": "trending",
-                })
-    except Exception as e:
-        logger.warning(f"Sitemap queries: trending failed: {e}")
-
-    # 2. Curadoria manual (preenche até o limite)
     for q in CURATED_QUERIES:
         if len(result) >= limit:
             break
-        if q not in queries_set:
-            queries_set.add(q)
-            result.append({
-                "query": q,
-                "score": 50,  # score base para curados
-                "source": "curated",
-            })
-
-    # Ordena por score (trending real primeiro, depois curados)
-    result.sort(key=lambda x: x["score"], reverse=True)
+        result.append({
+            "query": q,
+            "score": 50,
+            "source": "curated",
+        })
 
     return {
         "count": len(result),
