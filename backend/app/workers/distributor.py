@@ -5,7 +5,7 @@ Recebe uma oferta → cria short link → gera conteúdo (IA opcional) → posta
 
 Canais suportados (fase 2):
   - Telegram (canal @BestPriceToday) — já funcional
-  - Facebook (página "bestpricetoday") — funcional (requer OAuth ativo no banco)
+  - Facebook (multi-página: "bestpricetoday" + "Achados Shopee" + outras) — funcional (requer OAuth ativo no banco)
   - TikTok / YouTube Shorts — futuro (precisa OAuth + Content API)
 
 Filtros de qualidade:
@@ -304,11 +304,12 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-# ─── Facebook poster (página "bestpricetoday") ────────────────────────────────
+# ─── Facebook poster (multi-página: "bestpricetoday" + outras) ────────────────
 
-async def _get_facebook_page() -> dict | None:
-    """Busca a página Facebook ativa do banco (page_id + page_token).
-    Retorna None se não houver página conectada ou token expirado.
+async def _get_facebook_pages() -> list[dict]:
+    """Busca TODAS as páginas Facebook ativas do banco (page_id + page_token).
+    Retorna [] se não houver página conectada ou todos os tokens expirados.
+    Suporta múltiplas páginas (ex: "Achados Shopee" antiga + "bestpricetoday" nova).
     """
     try:
         from app.db.session import AsyncSessionLocal
@@ -319,42 +320,39 @@ async def _get_facebook_page() -> dict | None:
             stmt = select(FacebookAccount).where(
                 FacebookAccount.is_active == True,
                 FacebookAccount.page_id != "user_token",
-            ).order_by(FacebookAccount.updated_at.desc()).limit(1)
+            ).order_by(FacebookAccount.updated_at.desc())
             result = await db.execute(stmt)
-            acct = result.scalar_one_or_none()
-            if not acct:
-                return None
-            # Verifica expiração
-            if acct.token_expires_at:
-                now = datetime.now(timezone.utc)
-                exp = acct.token_expires_at
-                if exp.tzinfo is None:
-                    exp = exp.replace(tzinfo=timezone.utc)
-                if exp < now:
-                    logger.warning("Distributor: Facebook page token expirado — refazer OAuth")
-                    return None
-            return {
-                "page_id": acct.page_id,
-                "page_name": acct.page_name,
-                "access_token": acct.access_token,
-            }
+            accounts = result.scalars().all()
+            if not accounts:
+                return []
+
+            now = datetime.now(timezone.utc)
+            valid = []
+            for acct in accounts:
+                # Verifica expiração
+                if acct.token_expires_at:
+                    exp = acct.token_expires_at
+                    if exp.tzinfo is None:
+                        exp = exp.replace(tzinfo=timezone.utc)
+                    if exp < now:
+                        logger.warning(f"Distributor: Facebook page '{acct.page_name}' token expirado — refazer OAuth")
+                        continue
+                valid.append({
+                    "page_id": acct.page_id,
+                    "page_name": acct.page_name,
+                    "access_token": acct.access_token,
+                })
+            return valid
     except Exception as e:
-        logger.error(f"Distributor: erro ao buscar página Facebook: {e}")
-        return None
+        logger.error(f"Distributor: erro ao buscar páginas Facebook: {e}")
+        return []
 
 
-async def post_to_facebook(offer: dict, caption: str) -> dict:
-    """Posta oferta na página Facebook (bestpricetoday) com foto + legenda.
-
-    Usa Graph API: POST /{page_id}/photos com URL da imagem + message.
-    Se não houver imagem, posta texto via /{page_id}/feed.
-    """
-    page = await _get_facebook_page()
-    if not page:
-        return {"ok": False, "error": "Facebook page not connected (refazer OAuth em /api/v1/aletube/auth/facebook)"}
-
+async def _post_to_single_facebook_page(page: dict, offer: dict, caption: str) -> dict:
+    """Posta oferta em UMA página Facebook. Retorna dict com resultado."""
     page_id = page["page_id"]
     page_token = page["access_token"]
+    page_name = page.get("page_name") or page_id
     image_url = offer.get("image_url", "")
     affiliate_url = offer.get("affiliate_url", "")
 
@@ -369,10 +367,9 @@ async def post_to_facebook(offer: dict, caption: str) -> dict:
                 image_url=image_url,
                 caption=caption,
             )
-            mark_posted(affiliate_url)
             post_id = data.get("post_id") or data.get("id")
-            logger.info(f"Distributor: Facebook photo posted — post_id={post_id}")
-            return {"ok": True, "post_id": post_id, "method": "photo", "page_name": page.get("page_name")}
+            logger.info(f"Distributor: Facebook photo posted on '{page_name}' — post_id={post_id}")
+            return {"ok": True, "post_id": post_id, "method": "photo", "page_name": page_name}
 
         # Sem imagem: posta texto no feed da página
         async with httpx.AsyncClient(timeout=15) as c:
@@ -381,14 +378,54 @@ async def post_to_facebook(offer: dict, caption: str) -> dict:
                 params={"access_token": page_token, "message": caption},
             )
             if r.status_code == 200:
-                mark_posted(affiliate_url)
                 post_id = r.json().get("id")
-                return {"ok": True, "post_id": post_id, "method": "text", "page_name": page.get("page_name")}
-            return {"ok": False, "error": f"Facebook feed API error: {r.status_code} {r.text[:200]}"}
+                logger.info(f"Distributor: Facebook feed posted on '{page_name}' — post_id={post_id}")
+                return {"ok": True, "post_id": post_id, "method": "text", "page_name": page_name}
+            return {"ok": False, "error": f"Facebook feed API error: {r.status_code} {r.text[:200]}", "page_name": page_name}
 
     except Exception as e:
-        logger.error(f"Distributor: Facebook error: {e}")
-        return {"ok": False, "error": str(e)}
+        logger.error(f"Distributor: Facebook error on '{page_name}': {e}")
+        return {"ok": False, "error": str(e), "page_name": page_name}
+
+
+async def post_to_facebook(offer: dict, caption: str) -> dict:
+    """Posta oferta em TODAS as páginas Facebook ativas com foto + legenda.
+
+    Multi-página: posta na "bestpricetoday" E na antiga "Achados Shopee"
+    (ou quaisquer outras páginas ativas no banco). Cada página recebe um post
+    independente — se uma falhar, as outras ainda recebem.
+
+    Usa Graph API: POST /{page_id}/photos com URL da imagem + message.
+    Se não houver imagem, posta texto via /{page_id}/feed.
+    """
+    pages = await _get_facebook_pages()
+    if not pages:
+        return {"ok": False, "error": "Nenhuma página Facebook conectada (refazer OAuth em /api/v1/aletube/auth/facebook)"}
+
+    affiliate_url = offer.get("affiliate_url", "")
+    results = []
+    ok_count = 0
+
+    for page in pages:
+        result = await _post_to_single_facebook_page(page, offer, caption)
+        results.append(result)
+        if result.get("ok"):
+            ok_count += 1
+        # Rate limit entre páginas (evita bloqueio da Graph API)
+        if len(pages) > 1:
+            await asyncio.sleep(3)
+
+    # Marca como postado se pelo menos uma página recebeu
+    if ok_count > 0:
+        mark_posted(affiliate_url)
+
+    return {
+        "ok": ok_count > 0,
+        "pages_posted": ok_count,
+        "pages_total": len(pages),
+        "results": results,
+        "page_names": [r.get("page_name") for r in results if r.get("ok")],
+    }
 
 
 # ─── Click tracking ───────────────────────────────────────────────────────────

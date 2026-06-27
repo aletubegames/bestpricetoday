@@ -40,8 +40,8 @@
 | **GATE: compra teste** | Comprar R$ 15-30 via link afiliado → aguardar 24-48h → scrape métricas |
 | **Google Search Console** | Reenviar sitemap manualmente |
 | **OpenRouter créditos** | $5 para IA ativa permanente (sem fallback) |
-| **Criar Página FB + IG Business** | Criar nova página "bestpricetoday" + IG Business (a antiga foi desativada por config errada) |
-| **OAuth Facebook** | Após criar página: refazer login em `/api/v1/aletube/auth/facebook` |
+| **Criar Página FB + IG Business** | Criar nova página "bestpricetoday" + IG Business (mantendo a antiga "Achados Shopee" — app Meta posta nas 2) |
+| **OAuth Facebook** | Após criar página: refazer login em `/api/v1/aletube/auth/facebook` (salva as 2 páginas no banco) |
 | **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
 
 ### 📈 Métricas atuais
@@ -355,14 +355,16 @@ Shopee") e adiciona vídeo conforme valida.
       `discount >= 15%` E `price >= R$ 20`. Posta foto + legenda + short link.
 - [x] Cada post = 1 short link `/r/{code}` único com `source = distributor_telegram`.
 - [x] Click tracking registrado no backend (`/admin/clicks`).
-- [x] **Facebook "bestpricetoday":** `post_to_facebook()` implementado no
-      `distributor.py` (foto + legenda + short link via Graph API). Loop
-      automático agora posta em `["telegram", "facebook"]`. **BLOQUEADO em:
-      criar nova página + IG Business + refazer OAuth** (a página antiga foi
-      desativada por config errada — redirect URI apontava para o frontend
-      em vez da API). Redirect URI corrigido para
-      `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`.
-      Escopo `pages_manage_posts` adicionado.
+- [x] **Facebook (multi-página):** `post_to_facebook()` implementado no
+      `distributor.py` (foto + legenda + short link via Graph API). Posta em
+      **TODAS as páginas ativas** no banco (antiga "Achados Shopee" + nova
+      "bestpricetoday" + quaisquer outras). Loop automático posta em
+      `["telegram", "facebook"]`. **BLOQUEADO em: refazer OAuth** (redirect
+      URI foi corrigido de `bestpricetoday.alaserver.com.br:9443/aletube/...`
+      para `api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`).
+      Escopo `pages_manage_posts` adicionado. O callback OAuth já salva todas
+      as páginas da conta do usuário (upsert por page_id, sem desativar
+      existentes) — basta fazer login com a conta admin das 2 páginas.
 - [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
@@ -450,7 +452,7 @@ e **só se** o loop de conversão estiver fechado e a fonte dominante identifica
 ⬜ Pendente:  FASE 0.4c (compra teste → confirmar total_commission > 0) ← GATE
 ⬜ Pendente:  Reenviar sitemap no Google Search Console (ação manual)
 ⬜ Pendente:  Adicionar créditos OpenRouter ($5) para IA ativa permanente
-⬜ Pendente:  Criar Página FB "bestpricetoday" + IG Business + refazer OAuth + TikTok + YouTube
+⬜ Pendente:  Criar Página FB "bestpricetoday" (manter antiga) + IG Business + refazer OAuth + TikTok + YouTube
 ⬜ Futuro:    FASE 3.1-3.4 (canais nicho + SEO escala + tráfego pago)
 ```
 
@@ -493,37 +495,58 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
    (agora com 5.046 URLs — Google vai indexar muito mais páginas)
 3. **Adicionar créditos OpenRouter ($5):** https://openrouter.ai/settings/credits
    — ativa IA permanentemente para legendas do Telegram.
-4. **Criar nova Página Facebook + Instagram Business (bestpricetoday):**
-   A página antiga foi desativada por config errada (redirect URI apontava
-   para o frontend, não para a API). Passo-a-passo manual na Meta:
+4. **Criar nova Página Facebook "bestpricetoday" + Instagram Business:**
+   Mantendo a página antiga "Achados Shopee" ativa. O app Meta posta nas
+   2 páginas (multi-página). Passo-a-passo manual na Meta:
    - **4a.** Criar Página Facebook: https://www.facebook.com/pages/create
      - Categoria: "Loja de varejo" ou "Serviço de compras"
      - Nome: "bestpricetoday"
      - Adicionar foto de perfil + capa
+     - Bio sugerida (do layout.tsx): "Compare preços em Mercado Livre, Amazon,
+       Shopee, KaBuM e mais. Cupons automáticos, cashback e histórico de
+       preços. Economize na hora!"
+     - Link: `https://bestpricetoday.alaserver.com.br:9443`
    - **4b.** Converter conta Instagram para Business:
      - Instagram app → Configurações → Tipo de conta → Mudar para conta profissional
      - Categoria: "Loja de varejo" / "Serviços de compras"
    - **4c.** Vincular Instagram à Página Facebook:
      - Facebook Page → Configurações → Instagram → "Conectar conta Instagram"
      - OU Instagram Business → Configurações → Empresas → "Vincular página Facebook"
-   - **4d.** Configurar redirect URI no Facebook App Dashboard:
+   - **4d.** Garantir que a conta admin do app Meta é admin das 2 páginas:
+     - Tanto a antiga "Achados Shopee" quanto a nova "bestpricetoday"
+       precisam ter o mesmo usuário Facebook como admin
+     - Facebook Page → Configurações → Funções da página → adicionar o usuário
+       como "Administrador" (se ainda não for)
+   - **4e.** Configurar redirect URI no Facebook App Dashboard:
      - https://developers.facebook.com/apps/1321973835927912 →
        Facebook Login → Settings → Valid OAuth Redirect URIs
      - Adicionar: `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`
      - **Remover** a URI antiga errada: `https://bestpricetoday.alaserver.com.br:9443/aletube/callback/facebook`
-   - **4e.** Validar permissões do App:
+   - **4f.** Validar permissões do App:
      - App Dashboard → App Review → Permissions and Features
      - Garantir que `pages_manage_posts`, `pages_read_engagement`,
        `pages_manage_metadata`, `instagram_content_publish`,
        `instagram_basic`, `pages_show_list` estão ativos (em modo dev
        funcionam sem revisão para o admin do app)
-   - **4f.** Refazer OAuth: acessar no navegador
+   - **4g.** Refazer OAuth: acessar no navegador
      `https://api.alaserver.com.br:9443/api/v1/aletube/auth/facebook`
      → copiar a `auth_url` retornada → colar no navegador → autorizar
-     → token salvo automaticamente no backend (FacebookAccount + InstagramAccount)
-   - **4g.** Verificar: `curl -H 'X-Admin-Key: 754210!As@'
+     → token salvo automaticamente no backend para **todas as páginas**
+     que o usuário administra (FacebookAccount + InstagramAccount)
+   - **4h.** Verificar: `curl -H 'X-Admin-Key: 754210!As@'
      https://api.alaserver.com.br:9443/api/v1/aletube/accounts/status`
      → `facebook.connected: true` + `instagram.connected: true`
+   - **4i.** Confirmar 2 páginas no banco (SSH no alaserver):
+     `cd /home/alessandro/backend && source venv/bin/activate && python3 -c "
+     import asyncio; from app.db.session import AsyncSessionLocal
+     from app.models.models import FacebookAccount
+     from sqlalchemy import select
+     async def main():
+         async with AsyncSessionLocal() as db:
+             r = await db.execute(select(FacebookAccount).where(FacebookAccount.is_active == True, FacebookAccount.page_id != 'user_token'))
+             for a in r.scalars(): print(f'  - {a.page_name} (id={a.page_id})')
+     asyncio.run(main())"`
+     → deve listar "Achados Shopee" e "bestpricetoday"
 5. **OAuth TikTok:** acessar
    `https://api.alaserver.com.br:9443/api/v1/tiktok/auth/admin` no navegador.
    Obs: TikTok exige aprovação do app na Content Posting API para postar vídeos.
