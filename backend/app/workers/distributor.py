@@ -5,7 +5,7 @@ Recebe uma oferta → cria short link → gera conteúdo (IA opcional) → posta
 
 Canais suportados (fase 2):
   - Telegram (canal @BestPriceToday) — já funcional
-  - Facebook (página "Achados Shopee") — funcional (requer OAuth ativo no banco)
+  - Facebook (página "bestpricetoday") — funcional (requer OAuth ativo no banco)
   - TikTok / YouTube Shorts — futuro (precisa OAuth + Content API)
 
 Filtros de qualidade:
@@ -304,7 +304,7 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-# ─── Facebook poster (página "Achados Shopee") ────────────────────────────────
+# ─── Facebook poster (página "bestpricetoday") ────────────────────────────────
 
 async def _get_facebook_page() -> dict | None:
     """Busca a página Facebook ativa do banco (page_id + page_token).
@@ -344,7 +344,7 @@ async def _get_facebook_page() -> dict | None:
 
 
 async def post_to_facebook(offer: dict, caption: str) -> dict:
-    """Posta oferta na página Facebook (Achados Shopee) com foto + legenda.
+    """Posta oferta na página Facebook (bestpricetoday) com foto + legenda.
 
     Usa Graph API: POST /{page_id}/photos com URL da imagem + message.
     Se não houver imagem, posta texto via /{page_id}/feed.

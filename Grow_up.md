@@ -40,7 +40,7 @@
 | **GATE: compra teste** | Comprar R$ 15-30 via link afiliado → aguardar 24-48h → scrape métricas |
 | **Google Search Console** | Reenviar sitemap manualmente |
 | **OpenRouter créditos** | $5 para IA ativa permanente (sem fallback) |
-| **Criar Página FB + IG Business** | Criar nova página "Achados Shopee" + IG Business (a antiga foi desativada por config errada) |
+| **Criar Página FB + IG Business** | Criar nova página "bestpricetoday" + IG Business (a antiga foi desativada por config errada) |
 | **OAuth Facebook** | Após criar página: refazer login em `/api/v1/aletube/auth/facebook` |
 | **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
 
@@ -355,7 +355,7 @@ Shopee") e adiciona vídeo conforme valida.
       `discount >= 15%` E `price >= R$ 20`. Posta foto + legenda + short link.
 - [x] Cada post = 1 short link `/r/{code}` único com `source = distributor_telegram`.
 - [x] Click tracking registrado no backend (`/admin/clicks`).
-- [x] **Facebook "Achados Shopee":** `post_to_facebook()` implementado no
+- [x] **Facebook "bestpricetoday":** `post_to_facebook()` implementado no
       `distributor.py` (foto + legenda + short link via Graph API). Loop
       automático agora posta em `["telegram", "facebook"]`. **BLOQUEADO em:
       criar nova página + IG Business + refazer OAuth** (a página antiga foi
@@ -450,7 +450,7 @@ e **só se** o loop de conversão estiver fechado e a fonte dominante identifica
 ⬜ Pendente:  FASE 0.4c (compra teste → confirmar total_commission > 0) ← GATE
 ⬜ Pendente:  Reenviar sitemap no Google Search Console (ação manual)
 ⬜ Pendente:  Adicionar créditos OpenRouter ($5) para IA ativa permanente
-⬜ Pendente:  Refazer OAuth Facebook (Achados Shopee) + TikTok + YouTube
+⬜ Pendente:  Criar Página FB "bestpricetoday" + IG Business + refazer OAuth + TikTok + YouTube
 ⬜ Futuro:    FASE 3.1-3.4 (canais nicho + SEO escala + tráfego pago)
 ```
 
@@ -493,12 +493,12 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
    (agora com 5.046 URLs — Google vai indexar muito mais páginas)
 3. **Adicionar créditos OpenRouter ($5):** https://openrouter.ai/settings/credits
    — ativa IA permanentemente para legendas do Telegram.
-4. **Criar nova Página Facebook + Instagram Business (Achados Shopee):**
+4. **Criar nova Página Facebook + Instagram Business (bestpricetoday):**
    A página antiga foi desativada por config errada (redirect URI apontava
    para o frontend, não para a API). Passo-a-passo manual na Meta:
    - **4a.** Criar Página Facebook: https://www.facebook.com/pages/create
      - Categoria: "Loja de varejo" ou "Serviço de compras"
-     - Nome: "Achados Shopee" (ou similar)
+     - Nome: "bestpricetoday"
      - Adicionar foto de perfil + capa
    - **4b.** Converter conta Instagram para Business:
      - Instagram app → Configurações → Tipo de conta → Mudar para conta profissional
