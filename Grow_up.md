@@ -40,7 +40,8 @@
 | **GATE: compra teste** | Comprar R$ 15-30 via link afiliado → aguardar 24-48h → scrape métricas |
 | **Google Search Console** | Reenviar sitemap manualmente |
 | **OpenRouter créditos** | $5 para IA ativa permanente (sem fallback) |
-| **OAuth Facebook** | Refazer login para ativar canal "Achados Shopee" |
+| **Criar Página FB + IG Business** | Criar nova página "Achados Shopee" + IG Business (a antiga foi desativada por config errada) |
+| **OAuth Facebook** | Após criar página: refazer login em `/api/v1/aletube/auth/facebook` |
 | **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
 
 ### 📈 Métricas atuais
@@ -114,6 +115,15 @@
    devem aparecer, não apenas um).
 7. **`bestpricetoday.com.br`** (domínio próprio real) — ainda não configurado.
    Futuro: apontar para 443 quando Nextcloud for migrado.
+8. ~~**Redirect URIs OAuth apontando para o frontend (404 no callback).**~~ →
+   **CORRIGIDO (2026-06-27)**: Todos os redirect URIs (Facebook, YouTube,
+   TikTok) apontavam para `bestpricetoday.alaserver.com.br:9443/aletube/...`
+   (host do frontend Next.js, sem `/api/v1`). O callback OAuth caía no
+   Next.js que devolvia 404 — token nunca era salvo. Corrigido para
+   `api.alaserver.com.br:9443/api/v1/aletube/callback/...` (host da API).
+   Escopo `pages_manage_posts` adicionado ao fluxo OAuth Facebook.
+   `post_to_facebook()` implementado no distributor (Graph API photos/feed).
+   Loop automático agora posta em `["telegram", "facebook"]`.
 
 ### Conclusão honesta (pós-implementação)
 O sistema estava **quase todo no ar** com 6 defeitos que zeravam a receita.
@@ -345,9 +355,14 @@ Shopee") e adiciona vídeo conforme valida.
       `discount >= 15%` E `price >= R$ 20`. Posta foto + legenda + short link.
 - [x] Cada post = 1 short link `/r/{code}` único com `source = distributor_telegram`.
 - [x] Click tracking registrado no backend (`/admin/clicks`).
-- [ ] **Facebook "Achados Shopee":** tokens expirados — precisa refazer OAuth.
-      Código pronto no `distributor.py` (canal "facebook"), só plugar quando
-      token válido.
+- [x] **Facebook "Achados Shopee":** `post_to_facebook()` implementado no
+      `distributor.py` (foto + legenda + short link via Graph API). Loop
+      automático agora posta em `["telegram", "facebook"]`. **BLOQUEADO em:
+      criar nova página + IG Business + refazer OAuth** (a página antiga foi
+      desativada por config errada — redirect URI apontava para o frontend
+      em vez da API). Redirect URI corrigido para
+      `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`.
+      Escopo `pages_manage_posts` adicionado.
 - [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
@@ -478,11 +493,39 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
    (agora com 5.046 URLs — Google vai indexar muito mais páginas)
 3. **Adicionar créditos OpenRouter ($5):** https://openrouter.ai/settings/credits
    — ativa IA permanentemente para legendas do Telegram.
-4. **Refazer OAuth Facebook:** acessar
-   `https://bestpricetoday.alaserver.com.br:9443/api/v1/aletube/auth/facebook`
-   no navegador → autorizar app → token salvo no backend.
+4. **Criar nova Página Facebook + Instagram Business (Achados Shopee):**
+   A página antiga foi desativada por config errada (redirect URI apontava
+   para o frontend, não para a API). Passo-a-passo manual na Meta:
+   - **4a.** Criar Página Facebook: https://www.facebook.com/pages/create
+     - Categoria: "Loja de varejo" ou "Serviço de compras"
+     - Nome: "Achados Shopee" (ou similar)
+     - Adicionar foto de perfil + capa
+   - **4b.** Converter conta Instagram para Business:
+     - Instagram app → Configurações → Tipo de conta → Mudar para conta profissional
+     - Categoria: "Loja de varejo" / "Serviços de compras"
+   - **4c.** Vincular Instagram à Página Facebook:
+     - Facebook Page → Configurações → Instagram → "Conectar conta Instagram"
+     - OU Instagram Business → Configurações → Empresas → "Vincular página Facebook"
+   - **4d.** Configurar redirect URI no Facebook App Dashboard:
+     - https://developers.facebook.com/apps/1321973835927912 →
+       Facebook Login → Settings → Valid OAuth Redirect URIs
+     - Adicionar: `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`
+     - **Remover** a URI antiga errada: `https://bestpricetoday.alaserver.com.br:9443/aletube/callback/facebook`
+   - **4e.** Validar permissões do App:
+     - App Dashboard → App Review → Permissions and Features
+     - Garantir que `pages_manage_posts`, `pages_read_engagement`,
+       `pages_manage_metadata`, `instagram_content_publish`,
+       `instagram_basic`, `pages_show_list` estão ativos (em modo dev
+       funcionam sem revisão para o admin do app)
+   - **4f.** Refazer OAuth: acessar no navegador
+     `https://api.alaserver.com.br:9443/api/v1/aletube/auth/facebook`
+     → copiar a `auth_url` retornada → colar no navegador → autorizar
+     → token salvo automaticamente no backend (FacebookAccount + InstagramAccount)
+   - **4g.** Verificar: `curl -H 'X-Admin-Key: 754210!As@'
+     https://api.alaserver.com.br:9443/api/v1/aletube/accounts/status`
+     → `facebook.connected: true` + `instagram.connected: true`
 5. **OAuth TikTok:** acessar
-   `https://bestpricetoday.alaserver.com.br:9443/api/v1/tiktok/auth` no navegador.
+   `https://api.alaserver.com.br:9443/api/v1/tiktok/auth/admin` no navegador.
    Obs: TikTok exige aprovação do app na Content Posting API para postar vídeos.
 
 ### Problema conhecido (catálogo de eletrônicos):

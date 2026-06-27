@@ -15,10 +15,13 @@ GRAPH_API    = "https://graph.facebook.com/v25.0"
 
 # Escopos necessários para publicar no Instagram + Facebook.
 # Usa escopos compatíveis com apps não revisados do Facebook/Instagram.
+# pages_manage_posts + pages_read_engagement: postar fotos/ofertas na página Facebook
+# instagram_content_publish: postar Reels no Instagram Business
 FB_SCOPES = ",".join([
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_metadata",
+    "pages_manage_posts",
     "public_profile",
     "instagram_basic",
     "instagram_content_publish",
@@ -185,6 +188,32 @@ class InstagramFacebookClient:
                 )
             r.raise_for_status()
             return r.json()
+
+    async def publish_photo_facebook(
+        self,
+        page_id: str,
+        page_token: str,
+        image_url: str,
+        caption: str,
+    ) -> Dict[str, Any]:
+        """Publica foto em página Facebook via Graph API (URL pública).
+
+        Usado pelo distributor para postar ofertas (foto do produto + legenda + short link).
+        Retorna {"id": post_id, "post_id": "..."}.
+        """
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{GRAPH_API}/{page_id}/photos",
+                params={"access_token": page_token},
+                data={
+                    "url": image_url,
+                    "message": caption,
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+            # Graph API retorna {"id": photo_id, "post_id": "page_id_post_id"}
+            return data
 
 
 ig_fb_client = InstagramFacebookClient()
