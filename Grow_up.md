@@ -40,18 +40,19 @@
 | **GATE: compra teste** | Comprar R$ 15-30 via link afiliado → aguardar 24-48h → scrape métricas |
 | **Google Search Console** | Reenviar sitemap manualmente |
 | **OpenRouter créditos** | $5 para IA ativa permanente (sem fallback) |
-| **Criar App Meta novo** | Criar app em developers.facebook.com/apps (tipo Business) — o antigo `1321973835927912` tem config erradas |
-| **Criar Página FB + IG Business** | Criar nova página "bestpricetoday" + IG Business (mantendo a antiga "Achados Shopee" — app Meta posta nas 2) |
-| **OAuth Facebook** | Após criar app + página: atualizar `.env` + refazer login em `/api/v1/aletube/auth/facebook` (salva as 2 páginas) |
+| ~~Criar App Meta novo~~ | ✅ FEITO — app Business `1555866299595457` (casos de uso: Pages + Instagram) |
+| ~~Criar Página FB + IG Business~~ | ✅ FEITO — 3 páginas conectadas: Bestpricetoday + Achados Shoppee + Achados Shopee |
+| ~~OAuth Facebook~~ | ✅ FEITO — 3 páginas + 1 Instagram (@aletubegames) salvos no banco, post de teste OK |
 | **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
 
 ### 📈 Métricas atuais
 - **Posts no Telegram:** 8 (5 testes + 3 automáticos)
+- **Posts no Facebook:** 1 teste (3 páginas simultaneamente — Bestpricetoday + Achados Shoppee + Achados Shopee)
 - **Cliques rastreados:** 0 (ofertas acabaram de ser postadas)
 - **Páginas indexáveis:** 95 (sitemap) — 4 estáticas + 10 categorias + 81 produtos
 - **Queries com produtos:** 81 (airfryers + iPhones + Galaxy + notebooks + TVs + PS5 + etc)
 - **Catálogo Amazon:** 1.084 produtos (scraper Playwright)
-- **Frequência de postagem:** 5x/dia (9h, 13h, 18h, 0h, 6h) — ~11 ofertas/dia
+- **Frequência de postagem:** 5x/dia (9h, 13h, 18h, 0h, 6h) — ~11 ofertas/dia (Telegram + 3 páginas Facebook)
 
 ---
 
@@ -358,14 +359,11 @@ Shopee") e adiciona vídeo conforme valida.
 - [x] Click tracking registrado no backend (`/admin/clicks`).
 - [x] **Facebook (multi-página):** `post_to_facebook()` implementado no
       `distributor.py` (foto + legenda + short link via Graph API). Posta em
-      **TODAS as páginas ativas** no banco (antiga "Achados Shopee" + nova
-      "bestpricetoday" + quaisquer outras). Loop automático posta em
-      `["telegram", "facebook"]`. **BLOQUEADO em: refazer OAuth** (redirect
-      URI foi corrigido de `bestpricetoday.alaserver.com.br:9443/aletube/...`
-      para `api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`).
-      Escopo `pages_manage_posts` adicionado. O callback OAuth já salva todas
-      as páginas da conta do usuário (upsert por page_id, sem desativar
-      existentes) — basta fazer login com a conta admin das 2 páginas.
+      **TODAS as páginas ativas** no banco. **FUNCIONAL** — app Meta Business
+      `1555866299595457` (casos de uso: Pages + Instagram). 3 páginas
+      conectadas: Bestpricetoday + Achados Shoppee + Achados Shopee.
+      Instagram: @aletubegames. Post de teste OK nas 3 páginas (2026-06-27).
+      Loop automático posta em `["telegram", "facebook"]` 5x/dia.
 - [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
@@ -453,7 +451,7 @@ e **só se** o loop de conversão estiver fechado e a fonte dominante identifica
 ⬜ Pendente:  FASE 0.4c (compra teste → confirmar total_commission > 0) ← GATE
 ⬜ Pendente:  Reenviar sitemap no Google Search Console (ação manual)
 ⬜ Pendente:  Adicionar créditos OpenRouter ($5) para IA ativa permanente
-⬜ Pendente:  Criar App Meta novo + Página FB "bestpricetoday" (manter antiga) + IG Business + refazer OAuth + TikTok + YouTube
+⬜ Pendente:  OAuth TikTok + YouTube (Facebook já funcional com 3 páginas + Instagram)
 ⬜ Futuro:    FASE 3.1-3.4 (canais nicho + SEO escala + tráfego pago)
 ```
 
