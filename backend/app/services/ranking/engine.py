@@ -22,7 +22,11 @@ _ACCESSORY_KEYWORDS = re.compile(
     r"\b(case|capa|cover|pelicula|protetor|screen protector|film|skin|sticker|"
     r"holder|stand|mount|suporte|bracelet|pulseira|strap|correia|band|"
     r"charger|carregador|cable|cabo|adapter|adaptador|dock|base|"
-    r"earphone|earbuds|fone|headphone|headset)\b"
+    r"earphone|earbuds|fone|headphone|headset|"
+    r"joystick|thumbstick|grip|button|trigger|thumb|"
+    r"replacement|repair|fix|conector|socket|module|"
+    r"controller|controle|dualsense|dualshock|"
+    r"gift.?card|vale|cartao.?presente)\b"
     r"|壳|手机壳|保护套|贴膜|钢化膜|充电器|数据线|支架|耳机",
     re.IGNORECASE,
 )
@@ -91,6 +95,14 @@ def rank_offers(offers: List[OfferSchema], query: str = "") -> List[OfferSchema]
     for offer in offers:
         offer.is_fake_discount = detect_fake_discount(offer)
 
+    # Tokeniza query para score de relevância
+    import unicodedata as _ud
+    def _norm(t):
+        t = t.lower().strip()
+        t = _ud.normalize("NFKD", t)
+        return "".join(c for c in t if not _ud.combining(c))
+    query_tokens = [t for t in re.findall(r"\w+", _norm(query)) if len(t) > 2]
+
     # Normalize prices for relative scoring
     prices = [o.final_price for o in offers if o.final_price > 0]
     if not prices:
@@ -100,13 +112,22 @@ def rank_offers(offers: List[OfferSchema], query: str = "") -> List[OfferSchema]
     price_range = max_price - min_price or 1
 
     for offer in offers:
-        # Price score: 0-40 (lower price = higher score)
+        # Price score: 0-30 (lower price = higher score, mas menos peso)
         price_norm = 1 - ((offer.final_price - min_price) / price_range)
-        base = price_norm * 40
+        base = price_norm * 30
+
+        # Relevância do título: 0-25 (produtos que contêm tokens da query)
+        if query_tokens:
+            title_norm = _norm(offer.title or "")
+            hits = sum(1 for t in query_tokens if t in title_norm)
+            relevance = hits / len(query_tokens)
+            base += relevance * 25
+        else:
+            base += 12.5  # sem query, score neutro
 
         if offer.shipping_free:
-            base += 20
-        base += min(offer.discount_percent, 50) * 0.30
+            base += 15
+        base += min(offer.discount_percent, 50) * 0.20
         base += min(offer.cashback_percent * 2, 10)
         trust = PROVIDER_TRUST.get(offer.provider.value, 0.75)
         base += trust * 10
