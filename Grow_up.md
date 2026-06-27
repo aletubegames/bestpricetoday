@@ -40,8 +40,9 @@
 | **GATE: compra teste** | Comprar R$ 15-30 via link afiliado → aguardar 24-48h → scrape métricas |
 | **Google Search Console** | Reenviar sitemap manualmente |
 | **OpenRouter créditos** | $5 para IA ativa permanente (sem fallback) |
+| **Criar App Meta novo** | Criar app em developers.facebook.com/apps (tipo Business) — o antigo `1321973835927912` tem config erradas |
 | **Criar Página FB + IG Business** | Criar nova página "bestpricetoday" + IG Business (mantendo a antiga "Achados Shopee" — app Meta posta nas 2) |
-| **OAuth Facebook** | Após criar página: refazer login em `/api/v1/aletube/auth/facebook` (salva as 2 páginas no banco) |
+| **OAuth Facebook** | Após criar app + página: atualizar `.env` + refazer login em `/api/v1/aletube/auth/facebook` (salva as 2 páginas) |
 | **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
 
 ### 📈 Métricas atuais
@@ -452,7 +453,7 @@ e **só se** o loop de conversão estiver fechado e a fonte dominante identifica
 ⬜ Pendente:  FASE 0.4c (compra teste → confirmar total_commission > 0) ← GATE
 ⬜ Pendente:  Reenviar sitemap no Google Search Console (ação manual)
 ⬜ Pendente:  Adicionar créditos OpenRouter ($5) para IA ativa permanente
-⬜ Pendente:  Criar Página FB "bestpricetoday" (manter antiga) + IG Business + refazer OAuth + TikTok + YouTube
+⬜ Pendente:  Criar App Meta novo + Página FB "bestpricetoday" (manter antiga) + IG Business + refazer OAuth + TikTok + YouTube
 ⬜ Futuro:    FASE 3.1-3.4 (canais nicho + SEO escala + tráfego pago)
 ```
 
@@ -517,17 +518,36 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
        precisam ter o mesmo usuário Facebook como admin
      - Facebook Page → Configurações → Funções da página → adicionar o usuário
        como "Administrador" (se ainda não for)
-   - **4e.** Configurar redirect URI no Facebook App Dashboard:
-     - https://developers.facebook.com/apps/1321973835927912 →
-       Facebook Login → Settings → Valid OAuth Redirect URIs
-     - Adicionar: `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`
-     - **Remover** a URI antiga errada: `https://bestpricetoday.alaserver.com.br:9443/aletube/callback/facebook`
-   - **4f.** Validar permissões do App:
-     - App Dashboard → App Review → Permissions and Features
-     - Garantir que `pages_manage_posts`, `pages_read_engagement`,
-       `pages_manage_metadata`, `instagram_content_publish`,
-       `instagram_basic`, `pages_show_list` estão ativos (em modo dev
-       funcionam sem revisão para o admin do app)
+   - **4e.** Criar NOVO aplicativo Meta (o antigo `1321973835927912` tem config erradas):
+     - Acessar https://developers.facebook.com/apps → **Create App**
+     - Tipo: **Business** (não Consumer — Business dá acesso a Pages + Instagram Graph API)
+     - Nome: "BestPriceToday" (ou "bestpricetoday-app")
+     - Email de contato: aletubegames@gmail.com
+     - Após criar, anotar:
+       - **App ID** (número novo, substitui `1321973835927912`)
+       - **App Secret** (App Settings → Basic → Show → copiar)
+     - Adicionar produto **Facebook Login**:
+       - Products → Add Product → Facebook Login → Set Up
+       - Settings → Valid OAuth Redirect URIs → adicionar:
+         `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook`
+       - **NÃO** adicionar a URI antiga errada
+     - Adicionar produto **Instagram Graph API** (opcional, para Reels):
+       - Products → Add Product → Instagram Graph API → Set Up
+     - Validar permissões (App Review → Permissions and Features):
+       - `pages_manage_posts`, `pages_read_engagement`,
+         `pages_manage_metadata`, `instagram_content_publish`,
+         `instagram_basic`, `pages_show_list`, `business_management`
+       - Em modo dev (Development) funcionam sem revisão para o admin do app
+   - **4f.** Atualizar `.env` no alaserver com o novo App ID + Secret:
+     - SSH: `ssh alessandro@192.168.100.30`
+     - Editar `/home/alessandro/backend/.env`:
+       ```
+       ID_APLICATIVO_FACEBOOK=<NOVO_APP_ID>
+       SECRET_KEY_FACEBOOK_APP=<NOVO_APP_SECRET>
+       FACEBOOK_APP_SECRET=<NOVO_APP_SECRET>
+       ```
+     - Reiniciar backend: `kill -9 $(pgrep -f 'uvicorn app.main') && sleep 2 && cd /home/alessandro/backend && source venv/bin/activate && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 >> backend.log 2>&1 &`
+     - Também atualizar `.env` local em `backend/.env` (para consistência)
    - **4g.** Refazer OAuth: acessar no navegador
      `https://api.alaserver.com.br:9443/api/v1/aletube/auth/facebook`
      → copiar a `auth_url` retornada → colar no navegador → autorizar
