@@ -16,22 +16,23 @@
 | Links Telegram | ✅ | Short links `:9443/r/{code}` → 302 redirect funcionando |
 | Métricas ML | ✅ | Scraping diário do portal de afiliados → `affiliate_metrics_snapshots` |
 | SSR SEO | ✅ | `/produto/[query]` server-rendered com JSON-LD `Product` + `AggregateOffer` |
-| Sitemap honesto | ✅ | **35 URLs** com conteúdo real (4 estáticas + 10 categorias + 21 produtos) |
+| Sitemap honesto | ✅ | **95 URLs** com conteúdo real (4 estáticas + 10 categorias + 81 produtos) |
 | Categorias | ✅ | 10 hubs `/categoria/[cat]` com SSR + JSON-LD `CollectionPage` |
 | Analytics | ✅ | GA4 (`G-D2J769S99H`) + Microsoft Clarity (`xd51oaxppe`) ativos |
 | Distribuição | ✅ | Orquestrador `distributor.py` + loop automático 5x/dia no Telegram |
 | IA legendas | ✅ | OpenRouter com fallback gracioso (postagem nunca falha) |
 | Dashboard | ✅ | `/admin/distribute/stats` tracking por canal/post |
-| Filtro de relevância | ✅ | Remove acessórios (capas, cases) de buscas de produtos principais |
+| Filtro de relevância | ✅ | Remove acessórios (capas, cases, joysticks, gift cards) de buscas de produtos principais |
 | Filtro Lomadee | ✅ | Remove resultados irrelevantes (ex: Dorflex para "iphone") |
+| **Amazon scraper** | ✅ | **1.084 produtos** coletados via Playwright (iPhone, Galaxy, notebook, TV, PS5, etc) |
+| **Provider Amazon 3 modos** | ✅ | PA-API → scraper local → fallback search link (sempre rastreia comissão) |
+| **Ranking com relevância** | ✅ | Boost por match do título + round-robin de providers (diversidade) |
 
-### ⚠️ Problema real (catálogo limitado)
-- **Testadas 6.759 queries:** só 21 têm ≥3 ofertas (todas airfryers)
-- **Nenhum provider tem eletrônicos reais** (iPhones, TVs, notebooks, etc.)
-- **ML:** tabela com 2.530 produtos aleatórios (orquídeas, móveis)
-- **AliExpress/Shopee:** só retornam acessórios (capas, cases) — filtrados
-- **Lomadee:** não tem eletrônicos no catálogo acessível
-- **Solução:** rodar scraper ML com queries de eletrônicos OU configurar Amazon Associates
+### Catálogo atual
+- **Amazon:** 1.084 produtos (scraper via Playwright, 64 queries)
+- **Mercado Livre:** 2.530 produtos (scraper portal afiliados)
+- **AliExpress/Shopee:** API ao vivo (acessórios filtrados)
+- **Queries válidas:** 81 (≥3 ofertas com preço real)
 
 ### ⬜ Pendente (ações do usuário)
 | Item | Ação |
@@ -45,8 +46,9 @@
 ### 📈 Métricas atuais
 - **Posts no Telegram:** 8 (5 testes + 3 automáticos)
 - **Cliques rastreados:** 0 (ofertas acabaram de ser postadas)
-- **Páginas indexáveis:** 35 (sitemap) — só URLs com ofertas reais
-- **Queries com produtos:** 21 (todas airfryers — único nicho com catálogo)
+- **Páginas indexáveis:** 95 (sitemap) — 4 estáticas + 10 categorias + 81 produtos
+- **Queries com produtos:** 81 (airfryers + iPhones + Galaxy + notebooks + TVs + PS5 + etc)
+- **Catálogo Amazon:** 1.084 produtos (scraper Playwright)
 - **Frequência de postagem:** 5x/dia (9h, 13h, 18h, 0h, 6h) — ~11 ofertas/dia
 
 ---
@@ -70,8 +72,9 @@
 - ✅ **GA4 ativo** (ID: `G-D2J769S99H`) — tráfego e conversões rastreados.
 - ✅ **Microsoft Clarity ativo** (ID: `xd51oaxppe`) — heatmaps + session replay.
 - ✅ **SSR ativo** em `/produto/[query]` — Google vê preços sem JS (ISR 30min).
-- ✅ **Sitemap com 35 URLs** (4 estáticas + 10 categorias + 21 produtos com ofertas reais).
+- ✅ **Sitemap com 95 URLs** (4 estáticas + 10 categorias + 81 produtos com ofertas reais).
 - ✅ **10 páginas de categoria** (`/categoria/[cat]`) com SSR + JSON-LD.
+- ✅ **Amazon scraper ativo** (1.084 produtos: iPhones, Galaxy, notebooks, TVs, PS5, etc).
 - ⚠️ **Páginas de marca** (`/marca/[slug]`) existem mas têm 0 ofertas — removidas do sitemap.
 - ✅ **Distributor automático** postando no Telegram 5x/dia (9h, 13h, 18h, 0h, 6h).
 - ✅ **Scraping de métricas ML** rodando diariamente (portal de afiliados).
@@ -91,9 +94,10 @@
    `scrape_metrics_summary()` no `ml_scraper.py` coleta métricas do portal
    de afiliados ML diariamente. Tabela `affiliate_metrics_snapshots` no banco.
 5. ~~**SEO inexistente em escala.**~~ → **CORRIGIDO**: SSR em `/produto/[query]`
-   com JSON-LD `Product` + `AggregateOffer`. Sitemap com **35 URLs com conteúdo
+   com JSON-LD `Product` + `AggregateOffer`. Sitemap com **95 URLs com conteúdo
    real** (antes 314, tentou 5.046 mas 99.7% estariam vazias). 10 páginas de
-   categoria com JSON-LD. Páginas de marca existem mas aguardam catálogo.
+   categoria com JSON-LD. Amazon scraper com 1.084 produtos. Páginas de marca
+   existem mas aguardam catálogo.
 6. ~~**Busca retornando acessórios irrelevantes.**~~ → **CORRIGIDO**: Filtro
    de acessórios no ranking engine (remove capas/cases de buscas por
    smartphones/notebooks/etc). Filtro de relevância no Lomadee (exige token
@@ -484,5 +488,5 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
 - ~~**Fase 3.2:** SEO em escala~~ ✅ CONCLUÍDO (sitemap honesto: 35 URLs com conteúdo real)
 - **Fase 3.3:** Tráfego pago com arbitragem (Meta Pixel + Conversion API)
 - **Fase 3.4:** Cortar perdedores, dobrar vencedores
-- **Fase 3.5:** **EXPANDIR CATÁLOGO** (scraper ML com eletrônicos + Amazon Associates)
-  — isto é o que vai permitir crescer o sitemap de 35 para centenas de URLs
+- **Fase 3.5:** ~~EXPANDIR CATÁLOGO~~ ✅ CONCLUÍDO (Amazon scraper: 1.084 produtos, 81 queries válidas)
+  — Para crescer mais: rodar scraper com mais queries, configurar PA-API após 3 vendas
