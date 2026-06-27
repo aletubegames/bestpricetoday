@@ -170,6 +170,58 @@ class InstagramFacebookClient:
             media_id = r2.json().get("id")
             return {"media_id": media_id, "container_id": container_id}
 
+    async def publish_photo_instagram(
+        self,
+        ig_account_id: str,
+        access_token: str,
+        image_url: str,
+        caption: str,
+    ) -> Dict[str, Any]:
+        """
+        Publica foto no feed do Instagram via Graph API.
+        A imagem deve estar em URL pública acessível.
+        Fluxo: create container → poll status → publish
+        """
+        import asyncio
+        async with httpx.AsyncClient(timeout=120) as client:
+            # Step 1: criar container (FEED com image_url)
+            r = await client.post(f"{GRAPH_API}/{ig_account_id}/media", params={
+                "image_url":    image_url,
+                "caption":      caption[:2200],
+                "access_token": access_token,
+            })
+            r.raise_for_status()
+            container_id = r.json().get("id")
+            if not container_id:
+                raise Exception("Instagram não retornou container_id")
+
+            # Step 2: polling até container estar FINISHED (máximo 60s)
+            for attempt in range(12):
+                await asyncio.sleep(5)
+                status_r = await client.get(f"{GRAPH_API}/{container_id}", params={
+                    "fields":       "status_code,status",
+                    "access_token": access_token,
+                })
+                status_r.raise_for_status()
+                status_data = status_r.json()
+                status_code = status_data.get("status_code", "")
+                log.info(f"IG photo container {container_id} status: {status_code} (attempt {attempt+1})")
+                if status_code == "FINISHED":
+                    break
+                if status_code in ("ERROR", "EXPIRED"):
+                    raise Exception(f"IG container falhou: {status_data.get('status', status_code)}")
+            else:
+                raise Exception("IG container não processou em 60s (timeout)")
+
+            # Step 3: publish
+            r2 = await client.post(f"{GRAPH_API}/{ig_account_id}/media_publish", params={
+                "creation_id":  container_id,
+                "access_token": access_token,
+            })
+            r2.raise_for_status()
+            media_id = r2.json().get("id")
+            return {"media_id": media_id, "container_id": container_id}
+
     async def publish_video_facebook(
         self,
         page_id: str,

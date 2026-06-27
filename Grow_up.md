@@ -380,10 +380,33 @@ Shopee") e adiciona vídeo conforme valida.
         3. **Flexibilidade**: troca o destino no banco sem mudar o post
         4. **Branding**: todo clique passa pelo domínio do projeto
         Fluxo: clique → ClickEvent → 302 redirect → loja com cookie de afiliado
-- [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
+- [x] **YouTube Shorts:** ✅ FUNCIONAL — OAuth Google + YouTube Data API v3.
+      Canal AleTubeGames conectado. `post_to_youtube()` gera vídeo Short
+      automaticamente (ffmpeg + PIL com foto do produto + preço + desconto)
+      e publica com descrição contendo disclosure FTC + link direto da loja +
+      short link para tracking. Política YouTube 2026 permite links de
+      afiliado na descrição (diferente Facebook/Instagram).
+      `delete_video()` + `update_video_description()` para auto-delete de
+      ofertas expiradas (vídeos perecíveis).
+- [x] **Instagram:** ✅ FUNCIONAL — `post_to_instagram()` via Graph API.
+      `publish_photo_instagram()` posta foto no feed. Caption sem link
+      (CTA "Link na bio"). Comentários via API precisam de
+      `instagram_manage_comments` (pendência futura).
+- [ ] **TikTok:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
       registrar na lista `channels` do `distribute_offer()`.
+
+      **Frequência otimizada (2026-06-27):**
+      - 2x/dia nos picos simultâneos: **12h** e **19h** (hora BR)
+      - 2 ofertas por horário = **4 ofertas/dia**
+      - 4 canais simultâneos: Telegram + Facebook (3 páginas) + Instagram + YouTube
+      - **28 posts/dia** total (4 ofertas × 7 destinos)
+      - Baseado em: Sprout Social (2B engajements), Hootsuite (1M posts),
+        Metricool, Emplifi 2026
+      - Facebook: 2 posts/dia por página (ideal — Meta penaliza >4)
+      - Instagram: 2 posts/dia (ideal — 1-2 Reels/dia > 5 medíocres)
+      - YouTube: 2 Shorts/dia (consistência > volume)
 
 ### 2.4 Tracking por conteúdo ✅ CONCLUÍDO (2026-06-26)
 - [x] Endpoint `GET /api/v1/admin/distribute/stats`: dashboard com:
