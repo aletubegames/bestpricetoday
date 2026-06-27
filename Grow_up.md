@@ -371,8 +371,8 @@ Shopee") e adiciona vídeo conforme valida.
         links de afiliado no corpo = risco de banimento
       - `build_caption_facebook()` — caption sem link (só oferta + CTA)
       - `post_comment_facebook()` + `pin_comment_facebook()` no instagram.py
-      - **PENDÊNCIA:** ativar `pages_manage_engagement` no dashboard +
-        refazer OAuth (comentários retornaram 403 — sem essa permissão)
+      - **FUNCIONAL** — `pages_manage_engagement` ativado + OAuth refeito.
+        Teste OK: posts + comentários com link fixados nas 3 páginas.
 - [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
