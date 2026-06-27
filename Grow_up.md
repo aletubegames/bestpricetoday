@@ -24,7 +24,7 @@
 | Dashboard | ✅ | `/admin/distribute/stats` tracking por canal/post |
 | Filtro de relevância | ✅ | Remove acessórios (capas, cases, joysticks, gift cards) de buscas de produtos principais |
 | Filtro Lomadee | ✅ | Remove resultados irrelevantes (ex: Dorflex para "iphone") |
-| **Amazon scraper** | ✅ | **1.084 produtos** coletados via Playwright (iPhone, Galaxy, notebook, TV, PS5, etc) |
+| **Amazon scraper** | ✅ | **1.084 produtos** via Playwright + **cron 3am diário** (atualiza preços/estoque) |
 | **Provider Amazon 3 modos** | ✅ | PA-API → scraper local → fallback search link (sempre rastreia comissão) |
 | **Ranking com relevância** | ✅ | Boost por match do título + round-robin de providers (diversidade) |
 
@@ -75,9 +75,18 @@
 - ✅ **Sitemap com 95 URLs** (4 estáticas + 10 categorias + 81 produtos com ofertas reais).
 - ✅ **10 páginas de categoria** (`/categoria/[cat]`) com SSR + JSON-LD.
 - ✅ **Amazon scraper ativo** (1.084 produtos: iPhones, Galaxy, notebooks, TVs, PS5, etc).
+- ✅ **Cron diário 3am** — scraper Amazon atualiza preços e remove produtos fora de estoque.
 - ⚠️ **Páginas de marca** (`/marca/[slug]`) existem mas têm 0 ofertas — removidas do sitemap.
 - ✅ **Distributor automático** postando no Telegram 5x/dia (9h, 13h, 18h, 0h, 6h).
 - ✅ **Scraping de métricas ML** rodando diariamente (portal de afiliados).
+
+### ⏰ Crons ativos no servidor
+| Horário | Script | O que faz |
+|---------|--------|-----------|
+| **3am** | `run_amazon_scraper.sh` | Desativa produtos Amazon antigos, roda scraper (64 queries), reativa encontrados |
+| **4am** | `run_ml_scraper.sh` | Scraper portal afiliados ML + métricas |
+| **a cada 25min** | `ml_refresh_cron` | Atualiza preços/métricas ML |
+| **a cada 1h** | `conversion_cron` | Tracking conversões |
 - ✅ **Filtro de acessórios** ativo no ranking (remove capas/cases de buscas de produtos).
 - ✅ **Filtro de relevância Lomadee** ativo (remove resultados sem token principal).
 
