@@ -22,6 +22,7 @@ FB_SCOPES = ",".join([
     "pages_read_engagement",
     "pages_manage_metadata",
     "pages_manage_posts",
+    "pages_manage_engagement",  # necessário para postar/pinar comentários com link
     "public_profile",
     "instagram_basic",
     "instagram_content_publish",
@@ -214,6 +215,44 @@ class InstagramFacebookClient:
             data = r.json()
             # Graph API retorna {"id": photo_id, "post_id": "page_id_post_id"}
             return data
+
+    async def post_comment_facebook(
+        self,
+        post_id: str,
+        page_token: str,
+        message: str,
+    ) -> Dict[str, Any]:
+        """Posta comentário em uma publicação de página Facebook via Graph API.
+
+        Usado para postar o short link como comentário (estratégia anti-banimento:
+        link de afiliado nunca vai no corpo do post, só nos comentários).
+        Retorna {"id": comment_id}.
+        """
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                f"{GRAPH_API}/{post_id}/comments",
+                params={"access_token": page_token},
+                data={"message": message},
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def pin_comment_facebook(
+        self,
+        comment_id: str,
+        page_token: str,
+    ) -> bool:
+        """Fixa um comentário no topo da publicação (Graph API).
+
+        Requer permissão pages_manage_posts + pages_read_engagement.
+        Retorna True se fixou com sucesso.
+        """
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                f"{GRAPH_API}/{comment_id}",
+                params={"access_token": page_token, "pinned": "true"},
+            )
+            return r.status_code == 200
 
 
 ig_fb_client = InstagramFacebookClient()

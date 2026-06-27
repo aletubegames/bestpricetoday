@@ -253,6 +253,55 @@ async def build_caption(offer: dict, short_url: str) -> str:
     return build_caption_fallback(offer, short_url)
 
 
+def build_caption_facebook(offer: dict) -> str:
+    """Legenda para Facebook/Instagram — SEM link no corpo do post.
+
+    Estratégia anti-banimento (política Meta 2026):
+    - Links no corpo do post = alcance limitado (2/mês para não-verificados)
+    - Links de afiliado no corpo = risco de banimento
+    - Solução: CTA 'Link nos comentários' + link fixado no 1º comentário
+
+    O short_url é postado separadamente como comentário fixado.
+    """
+    title = offer.get("title", "")[:80]
+    price = offer.get("final_price", 0)
+    original = offer.get("original_price", 0)
+    discount = offer.get("discount_percent", 0)
+    shipping_free = offer.get("shipping_free", False)
+    provider = offer.get("provider", "loja")
+    economy = offer.get("economy", 0)
+    score = offer.get("score", 0)
+    emoji = PROVIDER_EMOJI.get(provider, "🏪")
+    now = datetime.now().strftime("%d/%m %H:%M")
+
+    lines = [f"🔥 OFERTA — {now}\n"]
+
+    if discount >= 5 and not offer.get("is_fake_discount"):
+        lines.append(f"🏷️ -{discount:.0f}% de desconto!")
+
+    lines.append(f"📦 {title}")
+    lines.append("")
+
+    if original and original > price:
+        lines.append(f"De {fmt_brl(original)}")
+    lines.append(f"💵 {fmt_brl(price)}")
+
+    if shipping_free:
+        lines.append("✅ Frete grátis")
+    if economy > 10:
+        lines.append(f"💰 Economize {fmt_brl(economy)}")
+
+    lines.append(f"\n{emoji} Via {provider.upper()}")
+    if score >= 60:
+        lines.append(f"⭐ Score: {score:.0f}/100")
+
+    # CTA SEM link — direciona para os comentários
+    lines.append("\n👇 Link de compra nos comentários (fixado)")
+    lines.append(f"\n🛍️ BestPriceToday — Menor Preço do Brasil")
+
+    return "\n".join(lines)
+
+
 # ─── Telegram poster ──────────────────────────────────────────────────────────
 
 async def post_to_telegram(offer: dict, caption: str) -> dict:
@@ -348,8 +397,16 @@ async def _get_facebook_pages() -> list[dict]:
         return []
 
 
-async def _post_to_single_facebook_page(page: dict, offer: dict, caption: str) -> dict:
-    """Posta oferta em UMA página Facebook. Retorna dict com resultado."""
+async def _post_to_single_facebook_page(page: dict, offer: dict, caption: str, short_url: str) -> dict:
+    """Posta oferta em UMA página Facebook com estratégia anti-banimento.
+
+    Estratégia (política Meta 2026):
+    1. Posta foto + caption SEM link no corpo (evita limite de 2 links/mês + ban)
+    2. Posta comentário com o short link
+    3. Fixa o comentário no topo
+
+    Retorna dict com resultado.
+    """
     page_id = page["page_id"]
     page_token = page["access_token"]
     page_name = page.get("page_name") or page_id
@@ -359,8 +416,8 @@ async def _post_to_single_facebook_page(page: dict, offer: dict, caption: str) -
     try:
         from app.integrations.instagram import ig_fb_client
 
+        # 1. Postar foto + caption (SEM link no corpo)
         if image_url and image_url.startswith("http"):
-            # Foto do produto + legenda
             data = await ig_fb_client.publish_photo_facebook(
                 page_id=page_id,
                 page_token=page_token,
@@ -368,35 +425,71 @@ async def _post_to_single_facebook_page(page: dict, offer: dict, caption: str) -
                 caption=caption,
             )
             post_id = data.get("post_id") or data.get("id")
-            logger.info(f"Distributor: Facebook photo posted on '{page_name}' — post_id={post_id}")
-            return {"ok": True, "post_id": post_id, "method": "photo", "page_name": page_name}
-
-        # Sem imagem: posta texto no feed da página
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(
-                f"https://graph.facebook.com/v25.0/{page_id}/feed",
-                params={"access_token": page_token, "message": caption},
-            )
-            if r.status_code == 200:
+            method = "photo"
+        else:
+            # Sem imagem: posta texto no feed
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.post(
+                    f"https://graph.facebook.com/v25.0/{page_id}/feed",
+                    params={"access_token": page_token, "message": caption},
+                )
+                if r.status_code != 200:
+                    return {"ok": False, "error": f"Facebook feed API error: {r.status_code} {r.text[:200]}", "page_name": page_name}
                 post_id = r.json().get("id")
-                logger.info(f"Distributor: Facebook feed posted on '{page_name}' — post_id={post_id}")
-                return {"ok": True, "post_id": post_id, "method": "text", "page_name": page_name}
-            return {"ok": False, "error": f"Facebook feed API error: {r.status_code} {r.text[:200]}", "page_name": page_name}
+                method = "text"
+
+        logger.info(f"Distributor: Facebook {method} posted on '{page_name}' — post_id={post_id}")
+
+        # 2. Postar comentário com o short link
+        comment_text = f"🛒 Compre aqui: {short_url}"
+        comment_id = None
+        try:
+            comment_data = await ig_fb_client.post_comment_facebook(
+                post_id=post_id,
+                page_token=page_token,
+                message=comment_text,
+            )
+            comment_id = comment_data.get("id")
+            logger.info(f"Distributor: Comment with link posted on '{page_name}' — comment_id={comment_id}")
+
+            # 3. Fixar o comentário no topo
+            if comment_id:
+                pinned = await ig_fb_client.pin_comment_facebook(
+                    comment_id=comment_id,
+                    page_token=page_token,
+                )
+                if pinned:
+                    logger.info(f"Distributor: Comment pinned on '{page_name}'")
+                else:
+                    logger.warning(f"Distributor: Could not pin comment on '{page_name}' (non-critical)")
+        except Exception as comment_err:
+            logger.warning(f"Distributor: Failed to post/pin comment on '{page_name}': {comment_err} (post still live)")
+
+        return {
+            "ok": True,
+            "post_id": post_id,
+            "comment_id": comment_id,
+            "method": method,
+            "page_name": page_name,
+            "link_in_comment": comment_id is not None,
+        }
 
     except Exception as e:
         logger.error(f"Distributor: Facebook error on '{page_name}': {e}")
         return {"ok": False, "error": str(e), "page_name": page_name}
 
 
-async def post_to_facebook(offer: dict, caption: str) -> dict:
-    """Posta oferta em TODAS as páginas Facebook ativas com foto + legenda.
+async def post_to_facebook(offer: dict, caption: str, short_url: str = "") -> dict:
+    """Posta oferta em TODAS as páginas Facebook ativas com estratégia anti-banimento.
 
     Multi-página: posta na "bestpricetoday" E na antiga "Achados Shopee"
     (ou quaisquer outras páginas ativas no banco). Cada página recebe um post
     independente — se uma falhar, as outras ainda recebem.
 
-    Usa Graph API: POST /{page_id}/photos com URL da imagem + message.
-    Se não houver imagem, posta texto via /{page_id}/feed.
+    Estratégia anti-banimento (política Meta 2026):
+    - Caption NÃO contém link de afiliado (evita banimento + limite de 2 links/mês)
+    - Short link é postado como comentário fixado em cada post
+    - Usa Graph API: POST /{page_id}/photos + /{post_id}/comments + pin
     """
     pages = await _get_facebook_pages()
     if not pages:
@@ -407,7 +500,7 @@ async def post_to_facebook(offer: dict, caption: str) -> dict:
     ok_count = 0
 
     for page in pages:
-        result = await _post_to_single_facebook_page(page, offer, caption)
+        result = await _post_to_single_facebook_page(page, offer, caption, short_url)
         results.append(result)
         if result.get("ok"):
             ok_count += 1
@@ -492,8 +585,11 @@ async def distribute_offer(
             # Fallback: usa affiliate_url direto
             short_url = affiliate_url
 
-        # 2. Gerar legenda
-        if use_ai:
+        # 2. Gerar legenda (Facebook usa caption SEM link — estratégia anti-banimento)
+        if channel == "facebook":
+            # Facebook: caption sem link no corpo (link vai nos comentários)
+            caption = build_caption_facebook(offer)
+        elif use_ai:
             caption = await build_caption(offer, short_url)
         else:
             caption = build_caption_fallback(offer, short_url)
@@ -502,7 +598,7 @@ async def distribute_offer(
         if channel == "telegram":
             result = await post_to_telegram(offer, caption)
         elif channel == "facebook":
-            result = await post_to_facebook(offer, caption)
+            result = await post_to_facebook(offer, caption, short_url=short_url)
         else:
             result = {"ok": False, "error": f"Channel '{channel}' not implemented yet"}
 

@@ -357,13 +357,22 @@ Shopee") e adiciona vídeo conforme valida.
       `discount >= 15%` E `price >= R$ 20`. Posta foto + legenda + short link.
 - [x] Cada post = 1 short link `/r/{code}` único com `source = distributor_telegram`.
 - [x] Click tracking registrado no backend (`/admin/clicks`).
-- [x] **Facebook (multi-página):** `post_to_facebook()` implementado no
-      `distributor.py` (foto + legenda + short link via Graph API). Posta em
-      **TODAS as páginas ativas** no banco. **FUNCIONAL** — app Meta Business
-      `1555866299595457` (casos de uso: Pages + Instagram). 3 páginas
-      conectadas: Bestpricetoday + Achados Shoppee + Achados Shopee.
-      Instagram: @aletubegames. Post de teste OK nas 3 páginas (2026-06-27).
-      Loop automático posta em `["telegram", "facebook"]` 5x/dia.
+- [x] **Facebook (multi-página + anti-banimento):** `post_to_facebook()`
+      implementado no `distributor.py`. Posta em **TODAS as páginas ativas**
+      no banco. **FUNCIONAL** — app Meta Business `1555866299595457`.
+      3 páginas: Bestpricetoday + Achados Shoppee + Achados Shopee.
+      Instagram: @aletubegames. Loop 5x/dia em `["telegram", "facebook"]`.
+
+      **Estratégia anti-banimento (política Meta 2026):**
+      - Caption NÃO contém link de afiliado no corpo do post
+      - CTA: "👇 Link de compra nos comentários (fixado)"
+      - Short link postado como **comentário fixado** em cada post
+      - Motivo: Meta limita links no corpo a 2/mês (não-verificados) +
+        links de afiliado no corpo = risco de banimento
+      - `build_caption_facebook()` — caption sem link (só oferta + CTA)
+      - `post_comment_facebook()` + `pin_comment_facebook()` no instagram.py
+      - **PENDÊNCIA:** ativar `pages_manage_engagement` no dashboard +
+        refazer OAuth (comentários retornaram 403 — sem essa permissão)
 - [ ] **TikTok / YouTube Shorts:** sem access token — precisa OAuth login.
       TikTok exige aprovação do app na Content Posting API.
 - [x] **Arquitetura:** adicionar novo canal = 1 função `post_to_{channel}()` +
