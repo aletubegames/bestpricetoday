@@ -587,24 +587,29 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
 
 
 async def deactivate_all_products():
-    """Desativa todos os produtos existentes no início do scrape (sobrescrever)."""
+    """Desativa produtos ML existentes no início do scrape (sobrescrever).
+    NÃO desativa produtos da Amazon (notes contém 'amazon_scraper')."""
     try:
         from app.db.session import AsyncSessionLocal
         from app.models.models import AffiliateProduct
-        from sqlalchemy import select
+        from sqlalchemy import select, func
     except ImportError:
         return
 
     async with AsyncSessionLocal() as db:
+        # Só desativa produtos ML (não Amazon)
         result = await db.execute(
-            select(AffiliateProduct).where(AffiliateProduct.is_active == True)
+            select(AffiliateProduct).where(
+                AffiliateProduct.is_active == True,
+                func.lower(AffiliateProduct.notes).notlike("%amazon_scraper%"),
+            )
         )
         old = result.scalars().all()
         for p in old:
             p.is_active = False
         await db.commit()
         if old:
-            logger.info(f"{len(old)} produtos antigos desativados (serão sobrescritos)")
+            logger.info(f"{len(old)} produtos ML antigos desativados (Amazon preservado)")
 
 
 async def save_single_product(r: dict) -> bool:
