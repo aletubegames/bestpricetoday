@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
 import PriceHistory from "@/components/offers/PriceHistory"
@@ -92,18 +93,13 @@ export default function AfiliadosPage() {
 
   return (
     <div className={styles.root}>
-      {/* Header */}
-      <div className={styles.header}>
-        <div className={styles.headerTop}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span className={styles.headerTitle}>💰 Afiliados</span>
-          </div>
-          <div className={styles.headerActions}>
-            <button onClick={() => router.push("/")} className={styles.headerBtn}>← Home</button>
-            <button onClick={() => router.push("/dashboard")} className={styles.headerBtn}>📊 Dashboard</button>
-          </div>
+      <Header variant="admin" />
+
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <span className={styles.headerTitle}>💰 Afiliados</span>
+          <p className={styles.headerSubtitle}>Produtos afiliados por plataforma</p>
         </div>
-        <p className={styles.headerSubtitle}>Produtos afiliados por plataforma</p>
         <div className={styles.providerTabs}>
           {(["mercadolivre", "shopee", "aliexpress", "lomadee", "amazon"] as const).map(p => (
             <button
@@ -115,9 +111,6 @@ export default function AfiliadosPage() {
             </button>
           ))}
         </div>
-      </div>
-
-      <div className={styles.container}>
         <ProductsTab token={token} provider={provider} />
       </div>
     </div>

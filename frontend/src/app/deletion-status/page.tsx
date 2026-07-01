@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Header from "@/components/layout/Header";
 import { apiFetch } from "@/lib/api";
 import type { Metadata } from "next";
 
@@ -55,15 +56,13 @@ export default function DeletionStatusPage() {
     }
   };
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "60px 20px 80px" }}>
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "0 0 80px" }}>
+      <Header variant="default" />
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "60px 20px 0" }}>
         
         {/* Header */}
         <div style={{ marginBottom: 48 }}>
-          <a href="/" style={{ fontSize: 13, color: "var(--muted2)", textDecoration: "none" }}>
-            ← BestPriceToday
-          </a>
-          <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.5px", marginTop: 24, marginBottom: 8 }}>
+          <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.5px", marginBottom: 8 }}>
             Status de Exclusão de Dados
           </h1>
           <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 12, lineHeight: 1.7 }}>

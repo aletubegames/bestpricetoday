@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Header from "@/components/layout/Header";
 import { API_BASE as API, apiFetch } from "@/lib/api";
 import { isTokenExpired } from "@/lib/utils";
 
@@ -645,14 +646,12 @@ export default function AleTubeGamesPage() {
 
   return (
     <div style={s.page}>
-      {/* Header */}
+      <Header variant="admin" />
+
+      {/* Header da página */}
       <div style={s.header}>
         <div style={s.headerTop}>
           <h1 style={s.title}>🎥 AleTubeGames</h1>
-          <div style={s.navBtns}>
-            <button style={s.navBtn} onClick={() => router.push("/")}>← Home</button>
-            <button style={s.navBtn} onClick={() => router.push("/dashboard")}>📊 Dashboard</button>
-          </div>
         </div>
         <p style={s.subtitle}>Upload, análise e publicação multi-plataforma</p>
         <div style={s.tabs}>

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Header from "@/components/layout/Header";
 import { API_BASE as API, apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { isTokenExpired } from "@/lib/utils";
@@ -984,29 +985,18 @@ export default function AdminPage() {
   return (
     <div className={styles.root}>
 
-      {/* HEADER — responsivo: empilha no mobile */}
-      <div className={styles.header}>
-        <div className={styles.headerInner}>
-          <div className={styles.headerLeft}>
-            <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <span className={styles.headerLogo}>💹</span>
-              <span className={styles.headerBrand}>BestPriceToday</span>
-              <span style={{ color: "#6b6b8a", fontSize: 12, display: "none" }} className="admin-subtitle">Admin</span>
-            </a>
-          </div>
-          <div className={styles.headerActions}>
-            {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
-            {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
-            <a href="/aletubegames" style={{ textDecoration: "none" }}><button className={`${styles.headerBtn} ${styles.headerBtnPrimary}`}>🎥 AleTubeGames</button></a>
-            <a href="/dashboard" style={{ textDecoration: "none" }}><button className={styles.headerBtn} style={{ color: "#a78bfa" }}>📊 Dashboard</button></a>
-            <button onClick={() => fetchAll(key)} className={`${styles.headerBtn} ${styles.headerBtnDark}`}>↻</button>
-            <a href="/" style={{ textDecoration: "none" }}><button className={styles.headerBtn}>← Home</button></a>
-            <button onClick={handleLogout} className={styles.headerBtn}>Sair</button>
-          </div>
-        </div>
-      </div>
+      <Header variant="admin" onLogout={handleLogout} />
 
       <div className={styles.container}>
+
+        {/* Toolbar de refresh/lastUpdated */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 12 }}>
+          {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
+          {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
+          <button onClick={() => fetchAll(key)} className={`${styles.headerBtn} ${styles.headerBtnDark}`} aria-label="Atualizar dados">↻</button>
+        </div>
+
+        {/* FILTER BAR — flex-wrap para mobile */}
 
         {/* FILTER BAR — flex-wrap para mobile */}
         <div style={{ ...S.card, marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>

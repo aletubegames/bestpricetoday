@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
 import Link from "next/link"
@@ -87,21 +88,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
-      {/* Header */}
-      <header style={{ borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "14px 24px", background: "rgba(255,255,255,0.97)", position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 20 }}>🛍️</span>
-            <span style={{ fontWeight: 800, fontSize: 15, color: "#7c6aff" }}>BestPriceToday</span>
-          </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: "#6b6b8a", fontSize: 12 }}>Olá, {user?.name?.split(" ")[0]} 👋</span>
-            <button onClick={logout} style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(108,92,231,0.1)", border: "1px solid rgba(108,92,231,0.2)", color: "#4a4a6a", cursor: "pointer", fontSize: 12 }}>
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header variant="dashboard" onLogout={logout} />
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px" }}>
 

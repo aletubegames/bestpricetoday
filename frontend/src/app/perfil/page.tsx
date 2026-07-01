@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
 import Link from "next/link"
@@ -65,18 +66,7 @@ export default function PerfilPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", fontFamily: "system-ui, sans-serif", color: "#1a1a2e" }}>
-      {/* HEADER */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "12px 16px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <span style={{ fontSize: 22 }}>🛍️</span>
-            <span style={{ fontWeight: 800, fontSize: 16, color: "#1a1a2e" }}>BestPriceToday</span>
-          </a>
-          <button onClick={handleLogout} style={{ background: "transparent", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "6px 14px", color: "#6b6b8a", cursor: "pointer", fontSize: 13 }}>
-            ← Voltar
-          </button>
-        </div>
-      </div>
+      <Header variant="dashboard" onLogout={handleLogout} />
 
       {/* CONTENT */}
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px" }}>

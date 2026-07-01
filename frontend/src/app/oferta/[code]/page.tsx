@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
+import Header from "@/components/layout/Header"
 import { API_BASE, SITE_BASE } from "@/lib/api"
 import PriceHistoryPublic from "@/components/offers/PriceHistoryPublic"
 import styles from "./OfferPage.module.css"
@@ -189,14 +190,7 @@ export default function OfferPage() {
     const searchUrl = `${SITE_BASE}/?q=${encodeURIComponent(offer.product_title || "")}`
     return (
       <div className={styles.root}>
-        <header className={styles.header}>
-          <div className={styles.headerInner}>
-            <a href={SITE_BASE} className={styles.logo}>
-              <span className={styles.logoBest}>BestPrice</span>
-              <span className={styles.logoAccent}>Today</span>
-            </a>
-          </div>
-        </header>
+        <Header variant="minimal" />
         <main className={styles.main}>
           <div className={styles.card} style={{ textAlign: "center", padding: "48px 24px" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>⏰</div>
@@ -243,15 +237,7 @@ export default function OfferPage() {
 
   return (
     <div className={styles.root}>
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <a href={SITE_BASE} className={styles.logo}>
-            <span className={styles.logoBest}>BestPrice</span>
-            <span className={styles.logoAccent}>Today</span>
-          </a>
-          <span className={styles.safeBadge}>🔒 Redirecionamento seguro</span>
-        </div>
-      </header>
+      <Header variant="minimal" safeBadge="🔒 Redirecionamento seguro" />
 
       <main className={styles.main}>
         <div className={styles.redirectNotice}>

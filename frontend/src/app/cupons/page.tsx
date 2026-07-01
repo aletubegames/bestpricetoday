@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import Header from "@/components/layout/Header"
 import { API_BASE } from "@/lib/api"
 import styles from "./cupons.module.css"
 
@@ -157,14 +158,11 @@ export default function CuponsPage() {
   const hasMore = products.length < total
 
   return (
-    <div className={styles.container}>
-      {/* Botão voltar */}
-      <a href="/" className={styles.backBtn}>
-        ← Voltar para BestPriceToday
-      </a>
-
-      {/* Header */}
-      <div className={styles.header}>
+    <>
+      <Header variant="default" />
+      <div className={styles.container}>
+        {/* Header */}
+        <div className={styles.header}>
         <h1 className={styles.title}>
           <span className={styles.titleIcon}>🏷️</span>
           Produtos com Cupom
@@ -452,5 +450,6 @@ export default function CuponsPage() {
         </div>
       )}
     </div>
+    </>
   )
 }

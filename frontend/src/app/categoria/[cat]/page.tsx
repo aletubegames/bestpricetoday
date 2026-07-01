@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import Header from "@/components/layout/Header"
 import { API_BASE as API, SITE_BASE } from "@/lib/api"
 import { CATEGORIES, getCategory, getAllCategorySlugs } from "@/lib/categories"
 import type { Offer } from "@/types"
@@ -105,19 +106,16 @@ export default async function CategoryPage({ params }: Props) {
         {JSON.stringify(jsonLd)}
       </script>
 
-      {/* Header */}
-      <header style={{ borderBottom: "1px solid rgba(108,92,231,0.2)", padding: "16px 24px", background: "rgba(255,255,255,0.97)" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 24 }}>🛍️</span>
-            <span style={{ fontWeight: 800, fontSize: 17, color: "#7c6aff" }}>BestPriceToday</span>
-          </a>
-          <span style={{ color: "#4a4a6a", fontSize: 14 }}>›</span>
-          <span style={{ fontSize: 16 }}>{cat.icon} {cat.name}</span>
-        </div>
-      </header>
+      <Header variant="default" />
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 16px" }}>
+        {/* Breadcrumb */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontSize: 14, color: "#4a4a6a" }}>
+          <a href="/" style={{ textDecoration: "none", color: "#7c6aff", fontWeight: 600 }}>Home</a>
+          <span>›</span>
+          <span>{cat.icon} {cat.name}</span>
+        </div>
+
         {/* Hero da categoria */}
         <h1 style={{ fontSize: "clamp(1.5rem,4vw,2.5rem)", fontWeight: 900, marginBottom: 8 }}>
           {cat.icon} {cat.name}

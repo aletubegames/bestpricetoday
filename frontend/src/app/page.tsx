@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import type { MouseEvent } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import Header from "@/components/layout/Header";
 import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
 import { openTrackedOffer } from "@/lib/tracking";
@@ -26,74 +27,6 @@ import { getChartData } from "@/lib/mockData";
 import { API_BASE, apiFetch } from "@/lib/api";
 import type { ChartDay } from "@/components/home/SearchesChart";
 import styles from "./page.module.css";
-
-type StoredUser = { name: string; is_admin: boolean };
-
-function readStoredUser(): StoredUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem("bpt_user");
-    if (!stored) return null;
-    const parsed = JSON.parse(stored) as Partial<StoredUser>;
-    if (parsed && typeof parsed === "object" && typeof parsed.name === "string" && typeof parsed.is_admin === "boolean") {
-      return parsed as StoredUser;
-    }
-  } catch (error: unknown) {
-    console.warn("Stored user could not be read:", error);
-  }
-  return null;
-}
-
-function AuthButton() {
-  const [user, setUser] = useState<StoredUser | null>(null);
-  useEffect(() => {
-    setUser(readStoredUser());
-  }, []);
-  if (user) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {user.is_admin && (
-          <a href="/afiliados" style={{
-            display: "flex", alignItems: "center", gap: 5,
-            fontSize: 12, fontWeight: 700, color: "#00e5a0",
-            background: "rgba(0,229,160,0.1)", border: "1px solid rgba(0,229,160,0.3)",
-            padding: "4px 12px", borderRadius: 99, textDecoration: "none",
-          }}>
-            💰 Afiliados
-          </a>
-        )}
-        {user.is_admin && (
-          <a href="/aletubegames" style={{
-            display: "flex", alignItems: "center", gap: 5,
-            fontSize: 12, fontWeight: 700, color: "#facc15",
-            background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.3)",
-            padding: "4px 12px", borderRadius: 99, textDecoration: "none",
-          }}>
-            🎥 AleTubeGames
-          </a>
-        )}
-        <a href={user.is_admin ? "/admin" : "/dashboard"} style={{
-          display: "flex", alignItems: "center", gap: 5,
-          fontSize: 12, fontWeight: 700, color: "#a78bfa",
-          background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.25)",
-          padding: "4px 12px", borderRadius: 99, textDecoration: "none",
-        }}>
-          {user.is_admin ? "📊" : "👤"} {user.is_admin ? "Painel" : user.name.split(" ")[0]}
-        </a>
-      </div>
-    );
-  }
-  return (
-    <a href="/login" style={{
-      display: "flex", alignItems: "center", gap: 5,
-      fontSize: 12, fontWeight: 600, color: "var(--muted)",
-      background: "var(--s2)", border: "1px solid var(--bd)",
-      padding: "4px 12px", borderRadius: 99, textDecoration: "none",
-    }}>
-      Entrar
-    </a>
-  );
-}
 
 const PROVIDER_LABELS: Record<string, string> = {
   mercadolivre: "Mercado Livre",
@@ -244,38 +177,9 @@ export default function HomePage() {
         }
       `}</style>
 
-      <main>
-      {/* ── HEADER ── */}
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <div className={styles.headerLeft}>
-            <div className={styles.logoWrap}>
-              <img
-                src="/favicon-192.png"
-                alt="BestPriceToday"
-                width={124}
-                height={124}
-                className={styles.logoImg}
-              />
-              <div className={styles.logoText}>
-                <span className={styles.logoBest}>BestPrice</span>
-                <span className={styles.logoToday}>Today</span>
-              </div>
-            </div>
-          </div>
-          <div className={styles.headerRight}>
-            <div className={styles.headerBadge}>
-              <span className={styles.pulseDot} />
-              Busca multi-loja
-            </div>
-            <a href="/alertas" className={styles.headerLink}>
-              🔔 <span>Alertas</span>
-            </a>
-            <AuthButton />
-          </div>
-        </div>
-      </header>
+      <Header variant="default" />
 
+      <main>
       {/* ── HERO ── */}
       <section className={styles.hero}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>

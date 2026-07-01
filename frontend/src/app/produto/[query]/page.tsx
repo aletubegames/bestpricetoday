@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Header from "@/components/layout/Header"
 import ProductSearchClient from "./ProductSearchClient"
 import { API_BASE as API, SITE_BASE } from "@/lib/api"
 import type { Offer } from "@/types"
@@ -91,15 +92,7 @@ export default async function ProductPage({ params }: Props) {
         {JSON.stringify(jsonLd)}
       </script>
 
-      {/* Header */}
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <a href="/" className={styles.headerLink}>
-            <span className={styles.headerLogo}>🛍️</span>
-            <span className={styles.headerBrand}>BestPriceToday</span>
-          </a>
-        </div>
-      </header>
+      <Header variant="default" />
 
       <div className={styles.container}>
         <h1 className={styles.title}>

@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { logger } from "@/lib/logger"
 import Link from "next/link"
@@ -43,15 +44,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 400 }}>
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <span style={{ fontSize: 32 }}>🛍️</span>
-            <p style={{ color: "#7c6aff", fontWeight: 800, fontSize: 20, margin: "8px 0 0" }}>BestPriceToday</p>
-          </Link>
-        </div>
+    <div style={{ minHeight: "100vh", background: "#f0f4ff" }}>
+      <Header variant="minimal" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          {/* Logo */}
+          <div style={{ textAlign: "center", marginBottom: 32, marginTop: 32 }}>
+            <Link href="/" style={{ textDecoration: "none" }}>
+              <span style={{ fontSize: 32 }}>🛍️</span>
+              <p style={{ color: "#7c6aff", fontWeight: 800, fontSize: 20, margin: "8px 0 0" }}>BestPriceToday</p>
+            </Link>
+          </div>
 
         <div style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 20, padding: 32 }}>
           <h1 style={{ color: "#1a1a2e", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Entrar</h1>
@@ -97,6 +100,7 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  </div>
   )
 }
 
