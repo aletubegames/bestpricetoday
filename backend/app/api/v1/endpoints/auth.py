@@ -34,7 +34,7 @@ import bcrypt as _bcrypt
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
-REDIRECT_URI = os.getenv("ML_REDIRECT_URI", "https://bestpricetoday.alaserver.com.br:9443/auth/callback")
+REDIRECT_URI = os.getenv("ML_REDIRECT_URI", "https://bestpricetoday.alaserver.com.br/auth/callback")
 
 
 

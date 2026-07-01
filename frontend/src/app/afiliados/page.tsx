@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
+import PriceHistory from "@/components/offers/PriceHistory"
 import styles from "./page.module.css"
 
 interface Offer {
@@ -50,7 +51,7 @@ function CopyBtn({ text }: { text: string }) {
 export default function AfiliadosPage() {
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
-  const [provider, setProvider] = useState<"mercadolivre" | "shopee" | "aliexpress" | "lomadee">("mercadolivre")
+  const [provider, setProvider] = useState<"mercadolivre" | "shopee" | "aliexpress" | "lomadee" | "amazon">("mercadolivre")
 
   // Auth
   useEffect(() => {
@@ -104,13 +105,13 @@ export default function AfiliadosPage() {
         </div>
         <p className={styles.headerSubtitle}>Produtos afiliados por plataforma</p>
         <div className={styles.providerTabs}>
-          {(["mercadolivre", "shopee", "aliexpress", "lomadee"] as const).map(p => (
+          {(["mercadolivre", "shopee", "aliexpress", "lomadee", "amazon"] as const).map(p => (
             <button
               key={p}
               onClick={() => setProvider(p)}
               className={`${styles.providerTab} ${provider === p ? styles.providerTabActive : ""}`}
             >
-              {p === "mercadolivre" ? "🟡 Mercado Livre" : p === "shopee" ? "🟠 Shopee" : p === "aliexpress" ? "🔴 AliExpress" : "🟣 Lomadee"}
+              {p === "mercadolivre" ? "🟡 Mercado Livre" : p === "shopee" ? "🟠 Shopee" : p === "aliexpress" ? "🔴 AliExpress" : p === "lomadee" ? "🟣 Lomadee" : "🔵 Amazon"}
             </button>
           ))}
         </div>
@@ -126,11 +127,11 @@ export default function AfiliadosPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ABA PRODUTOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function ProductsTab({ token, provider }: { token: string; provider: "mercadolivre" | "shopee" | "aliexpress" | "lomadee" }) {
+function ProductsTab({ token, provider }: { token: string; provider: "mercadolivre" | "shopee" | "aliexpress" | "lomadee" | "amazon" }) {
   const [products, setProducts] = useState<Offer[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const [perPage, setPerPage] = useState(24)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [sort, setSort] = useState<"relevance" | "price_asc" | "price_desc">("relevance")
@@ -188,7 +189,7 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
       {/* Filters */}
       <div className={styles.filters}>
         <span className={styles.filterLabel}>Produtos por página:</span>
-        {[20, 40, 60, 80, 100].map(p => (
+        {[24, 48, 72, 96].map(p => (
           <button
             key={p}
             onClick={() => { setPerPage(p); setPage(1) }}
@@ -245,6 +246,9 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
                 Ver oferta
               </a>
             </div>
+            {(offer.provider === "mercadolivre" || offer.provider === "amazon") && offer.id && (
+              <PriceHistory productId={offer.id} />
+            )}
           </div>
         ))}
       </div>

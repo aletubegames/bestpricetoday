@@ -623,6 +623,7 @@
   object-fit: contain;
   border-radius: 8px;
   margin-bottom: 12px;
+  position: relative;
 }
 
 .compareItemTitle {

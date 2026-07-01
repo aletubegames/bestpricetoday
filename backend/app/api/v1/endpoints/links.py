@@ -142,6 +142,7 @@ async def get_link_info(
         "affiliate_url": link.affiliate_url,
         "source": link.source,
         "clicks": link.clicks,
+        "is_dead": link.is_dead or False,
         "created_at": link.created_at.isoformat() if link.created_at else None,
     }
 
@@ -156,6 +157,7 @@ async def redirect_to_store(
     Redireciona para a loja (afiliado).
     Usado quando o usuário clica em "VER OFERTA" na página /oferta/{code}.
     Registra o clique e faz 302 redirect para o affiliate_url.
+    Se o link estiver marcado como morto (is_dead), redireciona para a home.
     """
     try:
         result = await db.execute(select(ShortLink).where(ShortLink.code == code))
@@ -163,6 +165,13 @@ async def redirect_to_store(
 
         if not link:
             return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
+
+        # Link quebrado — não redireciona para loja morta
+        if link.is_dead:
+            return RedirectResponse(
+                url=f"{settings.PUBLIC_SITE_URL}/oferta/{code}?expired=1",
+                status_code=302,
+            )
 
         # Register click
         click = ClickEvent(
@@ -191,6 +200,29 @@ async def redirect_to_store(
         )
     except Exception:
         return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
+
+
+@router.post("/r/{code}/report-dead")
+async def report_dead_link(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Marca um short link como quebrado (produto removido da loja).
+    Usado pelo botão 'Link quebrado?' na página /oferta/{code}.
+    """
+    result = await db.execute(select(ShortLink).where(ShortLink.code == code))
+    link = result.scalar()
+
+    if not link:
+        return JSONResponse(status_code=404, content={"error": "Link not found"})
+
+    if not link.is_dead:
+        link.is_dead = True
+        link.dead_reported_at = datetime.now(timezone.utc)
+        await db.commit()
+
+    return {"ok": True, "code": code, "is_dead": True}
 
 
 @router.get("/img/proxy/{encoded}")

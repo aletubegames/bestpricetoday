@@ -62,9 +62,9 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
           }}
         />
         {value && (
-          <button type="button" onClick={() => { setValue(""); onSearch(""); inputRef.current?.focus(); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", padding: 4, borderRadius: 8, display: "flex", flexShrink: 0 }}>
-            <X size={16} />
+          <button type="button" aria-label="Limpar busca" onClick={() => { setValue(""); onSearch(""); inputRef.current?.focus(); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", padding: 8, borderRadius: 8, display: "flex", flexShrink: 0, minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" }}>
+            <X size={18} />
           </button>
         )}
       </motion.form>

@@ -1,13 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "http2.mlstatic.com" },
       { protocol: "https", hostname: "images-na.ssl-images-amazon.com" },
+      { protocol: "https", hostname: "m.media-amazon.com" },
       { protocol: "https", hostname: "cf.shopee.com.br" },
       { protocol: "https", hostname: "images.kabum.com.br" },
       { protocol: "https", hostname: "ae01.alicdn.com" },
+      { protocol: "https", hostname: "**.alicdn.com" },
+      { protocol: "https", hostname: "**.aliexpress-media.com" },
+      { protocol: "https", hostname: "**.vteximg.com.br" },
+      { protocol: "https", hostname: "**.vtex.com.br" },
+      { protocol: "https", hostname: "shopinfo.vteximg.com.br" },
+      { protocol: "https", hostname: "api.alaserver.com.br" },
     ],
   },
   async headers() {
@@ -19,11 +25,11 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' https: data: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' http://localhost:8000 http://localhost:8765 https://api.alaserver.com.br:9443 https://api.alaserver.com.br:8080 http://api.alaserver.com.br https://sacrament-subduing-confined.ngrok-free.dev https://*.ngrok-free.app https://*.ngrok-free.dev wss://*.ngrok-free.app wss://*.ngrok-free.dev",
+              "connect-src 'self' https://api.alaserver.com.br https://www.googletagmanager.com https://www.clarity.ms https://i.clarity.ms https://www.google-analytics.com https://www.google-analytics.com https://www.google.com https://cloudflareinsights.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

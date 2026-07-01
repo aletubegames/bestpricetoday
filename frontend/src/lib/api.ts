@@ -11,12 +11,12 @@ import axios from "axios";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.alaserver.com.br:9443";
+  "https://api.alaserver.com.br";
 
 /** URL pública do site (para canonical, redirects, OpenGraph) */
 export const SITE_BASE =
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://bestpricetoday.alaserver.com.br:9443";
+  "https://bestpricetoday.alaserver.com.br";
 
 /**
  * Wrapper sobre fetch() que adiciona headers comuns.

@@ -26,6 +26,7 @@ FB_SCOPES = ",".join([
     "public_profile",
     "instagram_basic",
     "instagram_content_publish",
+    "instagram_manage_comments",  # postar/pinar comentários no Instagram
     "business_management",
 ])
 

@@ -17,9 +17,10 @@ const STORES: Store[] = [
 function FaviconImg({ domain }: { domain: string }) {
   const url = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
-      alt=""
+      alt={`Favicon ${domain}`}
       width={16}
       height={16}
       style={{ borderRadius: 3, flexShrink: 0 }}

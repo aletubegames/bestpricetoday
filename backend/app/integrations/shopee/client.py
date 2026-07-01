@@ -133,7 +133,7 @@ class ShopeeClient(MarketplaceClient):
 
             # Validar se o link do produto é válido
             product_link = item.get("productLink", item.get("offerLink", ""))
-            if not product_link or "shopee.com.br/product/" not in product_link:
+            if not product_link or "shopee.com.br" not in product_link:
                 logger.warning(f"Shopee: link inválido ou ausente para produto {item.get('itemId')}")
                 continue
 

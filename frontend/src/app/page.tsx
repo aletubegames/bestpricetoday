@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { MouseEvent } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
@@ -19,6 +20,7 @@ import Testimonials from "@/components/home/Testimonials";
 import FAQ from "@/components/home/FAQ";
 import HowItWorks from "@/components/home/HowItWorks";
 import FeaturedOffers from "@/components/home/FeaturedOffers";
+import WhyUs from "@/components/home/WhyUs";
 import { CATEGORIES } from "@/lib/categories";
 import { getChartData } from "@/lib/mockData";
 import { API_BASE, apiFetch } from "@/lib/api";
@@ -28,6 +30,7 @@ import styles from "./page.module.css";
 type StoredUser = { name: string; is_admin: boolean };
 
 function readStoredUser(): StoredUser | null {
+  if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem("bpt_user");
     if (!stored) return null;
@@ -233,8 +236,7 @@ export default function HomePage() {
       {/* Animações do logo */}
       <style>{`
         @keyframes logoFloat {
-          0%, 100% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(0px); }
-          50% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(-10px); }
+          0%, 100% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(0px); }          50% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(-10px); }
         }
         @keyframes pulseGlow {
           0%, 100% { opacity: 0.6; transform: scale(1); }
@@ -242,6 +244,7 @@ export default function HomePage() {
         }
       `}</style>
 
+      <main>
       {/* ── HEADER ── */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
@@ -286,7 +289,7 @@ export default function HomePage() {
               <div className={styles.heroGlow} />
               <div className={styles.heroRing} />
               <img
-                src="/logo.png"
+                src="/logo.webp"
                 alt="BestPriceToday"
                 width={157}
                 height={157}
@@ -302,7 +305,7 @@ export default function HomePage() {
 
               <p className={styles.heroSubtitle}>
                 Busca automática em Mercado Livre, Amazon, Shopee e mais.
-                Cupons aplicados na hora. Score de oferta real.
+                Histórico de preços e alertas de queda. Score de oferta real.
               </p>
             </div>
           </div>
@@ -381,6 +384,11 @@ export default function HomePage() {
                 </a>
               ))}
             </div>
+          </section>
+
+          {/* ── WHY US (histórico de preços como diferencial) ── */}
+          <section className={styles.section}>
+            <WhyUs />
           </section>
 
           {/* ── HOW IT WORKS ── */}
@@ -494,7 +502,7 @@ export default function HomePage() {
           {compareList.map(o => (
             <span key={o.affiliate_url} className={styles.compareChip}>
               {o.provider} — R${o.final_price?.toFixed(2)}
-              <button onClick={() => handleCompare(o)} className={styles.compareChipBtn}>×</button>
+              <button onClick={() => handleCompare(o)} className={styles.compareChipBtn} aria-label="Remover da comparação">×</button>
             </span>
           ))}
           {compareList.length >= 2 && (
@@ -520,13 +528,18 @@ export default function HomePage() {
               <h2 className={styles.compareModalTitle}>
                 Comparar ofertas
               </h2>
-              <button onClick={() => setShowCompare(false)} className={styles.compareModalClose}>✕</button>
+              <button onClick={() => setShowCompare(false)} className={styles.compareModalClose} aria-label="Fechar modal">✕</button>
             </div>
             <div className={styles.compareModalGrid}>
               {compareList.map((offer, i) => (
                 <div key={offer.affiliate_url} className={styles.compareItem}>
                   {offer.image_url && (
-                    <img src={offer.image_url} alt="" className={styles.compareItemImg} />
+                    <div className={styles.compareItemImg}>
+                      <Image src={offer.image_url} alt={offer.title} fill
+                        sizes="200px"
+                        style={{ objectFit: "contain" }}
+                      />
+                    </div>
                   )}
                   <p className={styles.compareItemTitle}>
                     {offer.title}
@@ -559,6 +572,7 @@ export default function HomePage() {
           </motion.div>
         </div>
       )}
+      </main>
     </div>
   );
 }

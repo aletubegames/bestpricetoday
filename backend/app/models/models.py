@@ -68,6 +68,7 @@ class Product(Base):
     normalized_title = Column(String, nullable=True)
     category = Column(String, nullable=True)
     brand = Column(String, nullable=True)
+    seller_name = Column(String, nullable=True)  # nome do vendedor/loja (ML: "Anker_br", Amazon: nome do seller)
     image_url = Column(String, nullable=True)
     url = Column(String, nullable=False)
     affiliate_url = Column(String, nullable=True)
@@ -104,7 +105,7 @@ class Offer(Base):
     product = relationship("Product", back_populates="offers")
 
 
-class Coupon(Base):
+class CouponLegacy(Base):
     __tablename__ = "cupons"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -357,8 +358,55 @@ class ShortLink(Base):
     source = Column(String, default="video")  # video, telegram, youtube, tiktok, web
     campaign = Column(String, nullable=True)  # e.g. "smartwatch_07h_seg"
     clicks = Column(Integer, default=0)
+    is_dead = Column(Boolean, default=False)  # link quebrado (produto removido da loja)
+    dead_reported_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     last_clicked_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class Coupon(Base):
+    """Cupons de desconto coletados do ML (portal de afiliados) e Amazon (página do produto).
+    ML: códigos gerados manualmente via /afiliados/coupons#hub
+    Amazon: códigos detectados na página do produto ('com o cupom XXXXXX')
+    """
+    __tablename__ = "coupons"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider = Column(String, nullable=False)  # mercadolivre, amazon
+    store_name = Column(String, nullable=True)  # loja/seller (ML: "Darklab", Amazon: nome do vendedor)
+    coupon_code = Column(String, nullable=False)  # código do cupom (ex: ALETUBEB5VOH0)
+    discount_text = Column(String, nullable=True)  # "21% OFF", "R$ 80 OFF"
+    discount_percent = Column(Float, nullable=True)  # 21.0
+    discount_value = Column(Float, nullable=True)  # 80.0 (em reais, se aplicável)
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # data de vencimento
+    budget_remaining = Column(String, nullable=True)  # "R$ 12.774,13" (orçamento restante)
+    conditions = Column(Text, nullable=True)  # condições do cupom
+    product_url = Column(String, nullable=True)  # URL da loja/produto (Amazon: link do produto)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    products = relationship("CouponProduct", back_populates="coupon", cascade="all, delete-orphan")
+
+
+class CouponProduct(Base):
+    """Produtos que aceitam um cupom específico (coletados via 'Ver produtos' no portal ML).
+    Estes produtos NÃO aparecem no catálogo de afiliados — são da loja específica do cupom.
+    """
+    __tablename__ = "coupon_products"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    coupon_id = Column(UUID(as_uuid=True), ForeignKey("coupons.id"), nullable=False)
+    title = Column(String, nullable=False)  # título do produto
+    product_url = Column(String, nullable=False)  # URL do produto no ML
+    image_url = Column(String, nullable=True)  # URL da imagem
+    price = Column(Float, nullable=True)  # preço atual
+    ml_code = Column(String, nullable=True)  # MLB123456789
+    is_available = Column(Boolean, default=True)  # produto ainda disponível?
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    coupon = relationship("Coupon", back_populates="products")
 
 
 class AdminVideo(Base):
@@ -426,11 +474,31 @@ class AffiliateProduct(Base):
     price             = Column(Float, nullable=True)             # R$ manual
     commission_pct    = Column(Float, nullable=True)             # % ex: 12.0
     category          = Column(String, nullable=True)            # ex: "Eletrônicos"
+    seller_name       = Column(String, nullable=True)            # nome do vendedor/loja (ML: "Anker_br")
     image_url         = Column(String, nullable=True)
     notes             = Column(Text, nullable=True)
     is_active         = Column(Boolean, default=True)
     created_at        = Column(DateTime(timezone=True), default=_utcnow)
     updated_at        = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    price_history     = relationship("AffiliatePriceHistory", back_populates="product", cascade="all, delete-orphan")
+
+
+class AffiliatePriceHistory(Base):
+    """
+    Histórico de preços de produtos afiliados (ML + Amazon).
+    Cada execução do scraper salva um snapshot do preço aqui.
+    Retenção: 2 anos (~150MB para 2.500 produtos/dia).
+    """
+    __tablename__ = "affiliate_price_history"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id   = Column(UUID(as_uuid=True), ForeignKey("affiliate_products.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider     = Column(String, nullable=False, index=True)    # "mercadolivre", "amazon"
+    price        = Column(Float, nullable=False)
+    recorded_at  = Column(DateTime(timezone=True), default=_utcnow, index=True)
+
+    product      = relationship("AffiliateProduct", back_populates="price_history")
 
 
 class DataDeletionRequest(Base):

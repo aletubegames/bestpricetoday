@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.models.models import AffiliateProduct, ShortLink
+from app.models.models import AffiliateProduct, ShortLink, Coupon, CouponProduct
 from app.core.config import settings
 from app.api.v1.endpoints.admin import require_admin
 
@@ -118,16 +118,78 @@ def _parse_json(raw: str) -> dict:
 
 @router.get("/products")
 async def list_products(
+    provider: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+    sort: str = "relevance",
+    search: Optional[str] = None,
     _:  str          = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(AffiliateProduct)
-        .where(AffiliateProduct.is_active == True)
-        .order_by(AffiliateProduct.created_at.desc())
-    )
+    """Lista produtos afiliados com paginação, busca e filtros."""
+    from sqlalchemy import func, or_
+
+    # Query base
+    query = select(AffiliateProduct).where(AffiliateProduct.is_active == True)
+    
+    # Busca por texto
+    if search:
+        query = query.where(
+            or_(
+                AffiliateProduct.title.ilike(f"%{search}%"),
+                AffiliateProduct.category.ilike(f"%{search}%"),
+            )
+        )
+    
+    # Count separado (sem order_by/offset/limit)
+    count_q = select(func.count(AffiliateProduct.id)).where(AffiliateProduct.is_active == True)
+    if search:
+        count_q = count_q.where(
+            or_(
+                AffiliateProduct.title.ilike(f"%{search}%"),
+                AffiliateProduct.category.ilike(f"%{search}%"),
+            )
+        )
+    total_result = await db.execute(count_q)
+    total = total_result.scalar() or 0
+    
+    # Ordenação
+    if sort == "price_asc":
+        query = query.order_by(AffiliateProduct.price.asc())
+    elif sort == "price_desc":
+        query = query.order_by(AffiliateProduct.price.desc())
+    else:
+        query = query.order_by(AffiliateProduct.created_at.desc())
+    
+    # Paginação
+    offset = (page - 1) * per_page
+    query = query.offset(offset).limit(per_page)
+    
+    result = await db.execute(query)
     products = result.scalars().all()
-    return {"total": len(products), "products": [_calc(p) for p in products]}
+
+    items = []
+    for p in products:
+        items.append({
+            "id": str(p.id),
+            "title": p.title,
+            "price": float(p.price) if p.price else 0,
+            "affiliate_url": p.affiliate_url,
+            "image_url": p.image_url,
+            "category": p.category,
+            "commission_pct": float(p.commission_pct) if p.commission_pct else 0,
+            "provider": "mercadolivre",
+            "store": "mercadolivre",
+            "ml_code": p.ml_code,
+        })
+    
+    return {
+        "offers": items,
+        "total": total,
+        "total_pages": (total + per_page - 1) // per_page if per_page > 0 else 0,
+        "page": page,
+        "per_page": per_page,
+    }
 
 
 @router.post("/products", status_code=201)
@@ -490,4 +552,394 @@ async def create_shortlink(
         "code":      code,
         "short_url": f"{settings.PUBLIC_SITE_URL}/r/{code}",
         "product":   p.title or p.ml_code,
+    }
+
+
+# ─── Histórico de Preços ────────────────────────────────────────────────────
+
+@router.get("/products/{product_id}/history")
+async def get_price_history(
+    product_id: uuid.UUID,
+    days: int = 365,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna histórico de preços de um produto afiliado.
+
+    Query params:
+        days: número de dias para olhar atrás (default 365, max 730)
+
+    Returns:
+        Lista de {price, recorded_at, provider} ordenada por data ascendente.
+    """
+    from app.models.models import AffiliatePriceHistory
+    from datetime import timedelta
+    from sqlalchemy import select, and_
+
+    days = min(days, 730)  # max 2 anos
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    result = await db.execute(
+        select(AffiliatePriceHistory)
+        .where(and_(
+            AffiliatePriceHistory.product_id == product_id,
+            AffiliatePriceHistory.recorded_at >= cutoff,
+        ))
+        .order_by(AffiliatePriceHistory.recorded_at.asc())
+        .limit(2000)
+    )
+    rows = result.scalars().all()
+
+    return [
+        {
+            "price": r.price,
+            "recorded_at": r.recorded_at.isoformat(),
+            "provider": r.provider,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/history-by-url")
+async def get_price_history_by_url(
+    url: str,
+    days: int = 365,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna histórico de preços buscando por affiliate_url.
+
+    Usado pelo frontend público (página de produto) onde só temos a URL,
+    não o UUID do produto no banco.
+    """
+    from app.models.models import AffiliatePriceHistory, AffiliateProduct
+    from datetime import timedelta
+    from sqlalchemy import select, and_
+
+    days = min(days, 730)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # Busca produto pela URL exata
+    product = (await db.execute(
+        select(AffiliateProduct).where(AffiliateProduct.affiliate_url == url)
+    )).scalar_one_or_none()
+
+    if not product:
+        return {"history": [], "stats": None}
+
+    result = await db.execute(
+        select(AffiliatePriceHistory)
+        .where(and_(
+            AffiliatePriceHistory.product_id == product.id,
+            AffiliatePriceHistory.recorded_at >= cutoff,
+        ))
+        .order_by(AffiliatePriceHistory.recorded_at.asc())
+        .limit(2000)
+    )
+    rows = result.scalars().all()
+
+    history = [
+        {"price": r.price, "recorded_at": r.recorded_at.isoformat(), "provider": r.provider}
+        for r in rows
+    ]
+
+    # Stats
+    prices = [r.price for r in rows]
+    current = product.price or 0
+    stats = {
+        "current_price": current,
+        "min_price": min(prices) if prices else current,
+        "max_price": max(prices) if prices else current,
+        "avg_price": round(sum(prices) / len(prices), 2) if prices else current,
+        "history_count": len(prices),
+        "is_best_price": len(prices) > 0 and current <= min(prices),
+        "title": product.title or "",
+    }
+
+    return {"history": history, "stats": stats}
+
+
+@router.get("/products/{product_id}/stats")
+async def get_price_stats(
+    product_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna estatísticas de preço de um produto (mín, máx, médio, atual)."""
+    from app.models.models import AffiliatePriceHistory, AffiliateProduct
+    from sqlalchemy import select, func, and_
+
+    # Preço atual
+    product = (await db.execute(
+        select(AffiliateProduct).where(AffiliateProduct.id == product_id)
+    )).scalar()
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+
+    # Estatísticas do histórico
+    result = await db.execute(
+        select(
+            func.min(AffiliatePriceHistory.price).label("min"),
+            func.max(AffiliatePriceHistory.price).label("max"),
+            func.avg(AffiliatePriceHistory.price).label("avg"),
+            func.count(AffiliatePriceHistory.id).label("count"),
+        ).where(AffiliatePriceHistory.product_id == product_id)
+    )
+    row = result.one()
+
+    current = product.price or 0
+    min_price = float(row.min or current)
+    max_price = float(row.max or current)
+    avg_price = float(row.avg or current)
+    count = int(row.count or 0)
+
+    # Melhor preço histórico
+    best_price = min(current, min_price) if count > 0 else current
+    is_best = count > 0 and current <= min_price
+
+    return {
+        "current_price": current,
+        "min_price": min_price,
+        "max_price": max_price,
+        "avg_price": round(avg_price, 2),
+        "history_count": count,
+        "is_best_price": is_best,
+        "best_price": best_price,
+        "provider": product.category or "",
+        "title": product.title or "",
+    }
+
+
+# ─── Coupons ───────────────────────────────────────────────────────────────────
+
+@router.get("/coupons")
+async def list_coupons(
+    provider: Optional[str] = None,
+    store_name: Optional[str] = None,
+    active_only: bool = True,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista cupons ativos. Filtra por provider (mercadolivre, amazon) e/ou loja."""
+    from sqlalchemy import func
+
+    # Query base (sem limit) pra contar
+    base_query = select(Coupon)
+    if active_only:
+        base_query = base_query.where(Coupon.is_active == True)
+    if provider:
+        base_query = base_query.where(Coupon.provider == provider)
+    if store_name:
+        base_query = base_query.where(Coupon.store_name.ilike(f"%{store_name}%"))
+
+    # Busca todos pra dedup (sem limit no count)
+    all_result = await db.execute(base_query.order_by(Coupon.expires_at.asc()))
+    all_coupons = all_result.scalars().all()
+
+    # Dedup por coupon_code
+    seen = set()
+    unique = []
+    for c in all_coupons:
+        if c.coupon_code not in seen:
+            seen.add(c.coupon_code)
+            unique.append(c)
+
+    # Total real (após dedup)
+    total = len(unique)
+
+    # Aplica limit
+    unique = unique[:limit]
+
+    return {
+        "total": total,
+        "coupons": [
+            {
+                "id": str(c.id),
+                "provider": c.provider,
+                "store_name": c.store_name,
+                "coupon_code": c.coupon_code,
+                "discount_text": c.discount_text,
+                "discount_percent": c.discount_percent,
+                "discount_value": c.discount_value,
+                "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+                "budget_remaining": c.budget_remaining,
+                "conditions": c.conditions,
+                "product_url": c.product_url,
+                "is_active": c.is_active,
+            }
+            for c in unique
+        ],
+    }
+
+
+@router.get("/coupons/products")
+async def list_coupon_products(
+    limit: int = 100,
+    offset: int = 0,
+    store: Optional[str] = None,
+    min_discount: Optional[float] = None,
+    max_discount: Optional[float] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    sort: str = "expires_soon",  # expires_soon, biggest_discount, lowest_price, highest_price, newest
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista produtos que têm cupom associado (coletados via 'Ver produtos' no portal ML).
+    Filtros: store, min/max_discount (percentual), min/max_price, sort.
+    """
+    from sqlalchemy import func, desc, asc
+
+    # Query base — only show products with a valid price
+    query = (
+        select(CouponProduct, Coupon)
+        .join(Coupon, CouponProduct.coupon_id == Coupon.id)
+        .where(
+            Coupon.is_active == True,
+            CouponProduct.is_available == True,
+            CouponProduct.price.isnot(None),
+            CouponProduct.price > 0,
+        )
+    )
+
+    # Filtros
+    if store:
+        query = query.where(Coupon.store_name.ilike(f"%{store}%"))
+    if min_discount is not None:
+        query = query.where(Coupon.discount_percent >= min_discount)
+    if max_discount is not None:
+        query = query.where(Coupon.discount_percent <= max_discount)
+    if min_price is not None:
+        query = query.where(CouponProduct.price >= min_price)
+    if max_price is not None:
+        query = query.where(CouponProduct.price <= max_price)
+
+    # Ordenação
+    if sort == "biggest_discount":
+        query = query.order_by(desc(Coupon.discount_percent))
+    elif sort == "lowest_price":
+        query = query.order_by(asc(CouponProduct.price))
+    elif sort == "highest_price":
+        query = query.order_by(desc(CouponProduct.price))
+    elif sort == "newest":
+        query = query.order_by(desc(CouponProduct.created_at))
+    else:  # expires_soon (default)
+        query = query.order_by(asc(Coupon.expires_at))
+
+    # Count query (sem limit/offset)
+    count_query = (
+        select(func.count(CouponProduct.id))
+        .join(Coupon, CouponProduct.coupon_id == Coupon.id)
+        .where(
+            Coupon.is_active == True,
+            CouponProduct.is_available == True,
+            CouponProduct.price.isnot(None),
+            CouponProduct.price > 0,
+        )
+    )
+    if store:
+        count_query = count_query.where(Coupon.store_name.ilike(f"%{store}%"))
+    if min_discount is not None:
+        count_query = count_query.where(Coupon.discount_percent >= min_discount)
+    if max_discount is not None:
+        count_query = count_query.where(Coupon.discount_percent <= max_discount)
+    if min_price is not None:
+        count_query = count_query.where(CouponProduct.price >= min_price)
+    if max_price is not None:
+        count_query = count_query.where(CouponProduct.price <= max_price)
+
+    total = await db.scalar(count_query)
+
+    # Aplica limit/offset
+    query = query.limit(limit).offset(offset)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    products = []
+    for cp, coupon in rows:
+        products.append({
+            "id": str(cp.id),
+            "title": cp.title,
+            "product_url": cp.product_url,
+            "image_url": cp.image_url,
+            "price": cp.price,
+            "ml_code": cp.ml_code,
+            "coupon": {
+                "code": coupon.coupon_code,
+                "discount_text": coupon.discount_text,
+                "discount_percent": coupon.discount_percent,
+                "discount_value": coupon.discount_value,
+                "store_name": coupon.store_name,
+                "expires_at": coupon.expires_at.isoformat() if coupon.expires_at else None,
+                "conditions": coupon.conditions,
+            },
+        })
+
+    return {"total": total, "products": products}
+
+
+@router.get("/coupons/stores")
+async def list_coupon_stores(
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista lojas que têm cupom, com contagem de produtos."""
+    from sqlalchemy import func, desc
+
+    query = (
+        select(
+            Coupon.store_name,
+            func.count(CouponProduct.id).label("product_count"),
+            func.max(Coupon.discount_percent).label("max_discount"),
+            func.min(Coupon.expires_at).label("expires_soonest"),
+        )
+        .join(CouponProduct, Coupon.id == CouponProduct.coupon_id)
+        .where(Coupon.is_active == True, CouponProduct.is_available == True)
+        .where(Coupon.store_name.isnot(None))
+        .group_by(Coupon.store_name)
+        .order_by(desc("product_count"))
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    stores = []
+    for row in rows:
+        stores.append({
+            "store_name": row[0],
+            "product_count": row[1],
+            "max_discount": row[2],
+            "expires_soonest": row[3].isoformat() if row[3] else None,
+        })
+
+    return {"total": len(stores), "stores": stores}
+
+
+@router.get("/coupons/by-provider/{provider}")
+async def list_coupons_by_provider(
+    provider: str,
+    active_only: bool = True,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista cupons ativos de um provider específico (mercadolivre, amazon)."""
+    query = select(Coupon).where(Coupon.provider == provider)
+    if active_only:
+        query = query.where(Coupon.is_active == True)
+    query = query.order_by(Coupon.expires_at.asc()).limit(limit)
+
+    result = await db.execute(query)
+    coupons = result.scalars().all()
+
+    return {
+        "provider": provider,
+        "total": len(coupons),
+        "coupons": [
+            {
+                "coupon_code": c.coupon_code,
+                "store_name": c.store_name,
+                "discount_text": c.discount_text,
+                "discount_percent": c.discount_percent,
+                "discount_value": c.discount_value,
+                "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+                "budget_remaining": c.budget_remaining,
+            }
+            for c in coupons
+        ],
     }

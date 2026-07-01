@@ -1,0 +1,205 @@
+.wrapper {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: #f8f9fc;
+  border: 1px solid #e0e0f0;
+  border-radius: 10px;
+  color: #1a1a2e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle:hover {
+  background: #f0f2f8;
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.icon {
+  font-size: 18px;
+}
+
+.chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: #6b6b8a;
+}
+
+.panel {
+  margin-top: 8px;
+  padding: 16px;
+  background: #f8f9fc;
+  border: 1px solid #e0e0f0;
+  border-radius: 12px;
+}
+
+.loading,
+.error {
+  padding: 24px;
+  text-align: center;
+  color: #6b6b8a;
+  font-size: 14px;
+}
+
+.error {
+  color: #dc2626;
+}
+
+.empty {
+  padding: 20px;
+  text-align: center;
+}
+
+.empty p {
+  margin: 4px 0;
+  color: #4a4a6a;
+  font-size: 14px;
+}
+
+.hint {
+  font-size: 12px !important;
+  color: #8a8aaa !important;
+}
+
+/* Stats */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e0e0f0;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.bestPrice {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.statLabel {
+  font-size: 11px;
+  color: #6b6b8a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.badge {
+  font-size: 10px;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+/* Chart */
+.chartContainer {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+}
+
+.point {
+  transition: r 0.15s;
+  cursor: pointer;
+}
+
+.point:hover {
+  r: 5;
+}
+
+/* Table */
+.details {
+  margin-top: 8px;
+}
+
+.summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #6b6b8a;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.summary:hover {
+  color: #1a1a2e;
+}
+
+.table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  padding: 6px 10px;
+  color: #6b6b8a;
+  font-weight: 600;
+  border-bottom: 1px solid #e0e0f0;
+}
+
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f0f0f4;
+  color: #4a4a6a;
+}
+
+.priceCell {
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.down {
+  color: #16a34a;
+}
+
+.up {
+  color: #dc2626;
+}
+
+.neutral {
+  color: #8a8aaa;
+}
+
+.disclaimer {
+  font-size: 11px;
+  color: #8a8aaa;
+  margin: 10px 0 4px;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .statsRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

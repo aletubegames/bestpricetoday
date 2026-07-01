@@ -184,6 +184,7 @@ export default function Testimonials() {
           <>
             <button
               onClick={() => paginate(-1)}
+              aria-label="Depoimento anterior"
               style={{
                 position: "absolute",
                 left: -16,
@@ -217,6 +218,7 @@ export default function Testimonials() {
             </button>
             <button
               onClick={() => paginate(1)}
+              aria-label="Próximo depoimento"
               style={{
                 position: "absolute",
                 right: -16,
@@ -284,6 +286,7 @@ export default function Testimonials() {
             {Array.from({ length: totalPages }).map((_, i) => (
               <button
                 key={i}
+                aria-label={`Ir para depoimento ${i + 1}`}
                 onClick={() => {
                   setDirection(i > page ? 1 : -1);
                   setPage(i);

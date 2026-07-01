@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${brand.name} — Menores Preços | BestPriceToday`,
     description: brand.description,
-    keywords: [brand.name, "ofertas", "menor preço", "cupom", "desconto", ...brand.queries.slice(0, 8)],
+    keywords: [brand.name, "ofertas", "menor preço", "histórico de preços", "desconto", ...brand.queries.slice(0, 8)],
     openGraph: {
       title: `${brand.name} — Menores Preços Garantidos`,
       description: brand.description,

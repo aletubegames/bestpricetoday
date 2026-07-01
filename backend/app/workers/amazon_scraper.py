@@ -294,6 +294,34 @@ async def scrape_search(page, query: str, partner_tag: str, dry_run: bool = Fals
             if prime_el:
                 is_prime = True
 
+            # Cupom — Amazon mostra "com o cupom XXXXXX" ou badge de cupom no card
+            coupon_code = None
+            coupon_text = None
+            try:
+                # Procura por texto de cupom no card
+                card_text = await card.inner_text()
+                # Padrão: "com o cupom ABC123" — código deve ter pelo menos 1 dígito
+                # (evita pegar palavras como "ENTREGA", "FRETE", etc)
+                m = re.search(r"(?:com o cupom|Cupom de)\s+([A-Z0-9]{6,20})", card_text, re.I)
+                if m:
+                    code = m.group(1).upper()
+                    # Só aceita se tiver pelo menos 1 dígito (códigos reais têm números)
+                    if re.search(r'\d', code):
+                        coupon_code = code
+                        coupon_text = m.group(0)
+                # Se não encontrou código, procura badge de cupom (sem código, auto-aplicado)
+                if not coupon_code:
+                    coupon_badge = await card.query_selector(
+                        '[id*="coupon"], [class*="coupon"], a[href*="/promotion/psp/"]'
+                    )
+                    if coupon_badge:
+                        badge_text = await coupon_badge.inner_text()
+                        # Só registra se tiver desconto real (X% OFF ou R$ X OFF)
+                        if re.search(r'\d+\s*%\s*OFF|R\$\s*\d+\s*OFF', badge_text, re.I):
+                            coupon_text = badge_text.strip()
+            except Exception:
+                pass
+
             # Gera link de afiliado
             affiliate_url = build_affiliate_url(product_url, partner_tag)
 
@@ -309,6 +337,8 @@ async def scrape_search(page, query: str, partner_tag: str, dry_run: bool = Fals
                 notes_parts.append(f"reviews={review_count}")
             if is_prime:
                 notes_parts.append("prime=true")
+            if coupon_code:
+                notes_parts.append(f"coupon={coupon_code}")
             notes_parts.append(f"source=amazon_scraper")
             notes = " | ".join(notes_parts)
 
@@ -321,6 +351,22 @@ async def scrape_search(page, query: str, partner_tag: str, dry_run: bool = Fals
                 "image_url": image_url,
                 "notes": notes,
             }
+
+            # Se detectou cupom, salva na tabela coupons
+            if coupon_code or coupon_text:
+                try:
+                    await save_amazon_coupon(
+                        code=coupon_code,
+                        discount_text=coupon_text,
+                        product_url=product_url,
+                        title=title,
+                    )
+                    if coupon_code:
+                        logger.info(f"    🏷️ Cupom detectado: {coupon_code}")
+                    else:
+                        logger.info(f"    🏷️ Cupom (auto): {coupon_text[:40]}")
+                except Exception as e:
+                    logger.debug(f"    Erro ao salvar cupom: {e}")
 
             count += 1
             logger.info(f"    [{count}] R$ {price:>10.2f}  {title[:60]}")
@@ -336,11 +382,61 @@ async def scrape_search(page, query: str, partner_tag: str, dry_run: bool = Fals
     return count
 
 
+async def save_amazon_coupon(code: str = None, discount_text: str = None,
+                              product_url: str = None, title: str = None):
+    """Salva cupom da Amazon detectado na página do produto."""
+    from app.db.session import AsyncSessionLocal
+    from app.models.models import Coupon
+    from sqlalchemy import select
+    from datetime import datetime, timezone
+    import re as _re
+
+    # Se não tem código, gera um identificador único baseado na URL
+    coupon_code = code or f"AUTO_{_re.search(r'/dp/([A-Z0-9]+)', product_url or '').group(1) if _re.search(r'/dp/([A-Z0-9]+)', product_url or '') else 'UNKNOWN'}"
+
+    # Parse desconto do texto
+    discount_percent = None
+    discount_value = None
+    if discount_text:
+        m = _re.search(r"(\d+(?:[.,]\d+)?)\s*%", discount_text)
+        if m:
+            discount_percent = float(m.group(1).replace(",", "."))
+        m = _re.search(r"R\$\s*(\d+(?:[.,]\d+)?)", discount_text)
+        if m:
+            discount_value = float(m.group(1).replace(".", "").replace(",", "."))
+
+    async with AsyncSessionLocal() as db:
+        existing = await db.execute(
+            select(Coupon).where(Coupon.coupon_code == coupon_code)
+        )
+        existing = existing.scalar()
+        if existing:
+            existing.discount_text = discount_text
+            existing.discount_percent = discount_percent
+            existing.discount_value = discount_value
+            existing.product_url = product_url
+            existing.is_active = True
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            coupon = Coupon(
+                provider="amazon",
+                store_name="Amazon",
+                coupon_code=coupon_code,
+                discount_text=discount_text,
+                discount_percent=discount_percent,
+                discount_value=discount_value,
+                product_url=product_url,
+                is_active=True,
+            )
+            db.add(coupon)
+        await db.commit()
+
+
 async def save_single_product(r: dict, provider: str = "amazon") -> bool:
     """Salva UM produto no banco (upsert). Retorna True se salvou."""
     try:
         from app.db.session import AsyncSessionLocal
-        from app.models.models import AffiliateProduct
+        from app.models.models import AffiliateProduct, AffiliatePriceHistory
         from sqlalchemy import select
     except ImportError as e:
         logger.error(f"Erro ao importar banco: {e}")
@@ -362,6 +458,22 @@ async def save_single_product(r: dict, provider: str = "amazon") -> bool:
             existing = result.scalar_one_or_none()
 
             if existing:
+                # Salva snapshot do preço a cada execução do scraper (diária)
+                # Mas só 1 por dia por produto (evita duplicatas se o scraper rodar 2x)
+                if price is not None and price > 0:
+                    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                    already_today = await db.execute(
+                        select(AffiliatePriceHistory).where(
+                            AffiliatePriceHistory.product_id == existing.id,
+                            AffiliatePriceHistory.recorded_at >= today_start,
+                        ).limit(1)
+                    )
+                    if not already_today.scalar_one_or_none():
+                        db.add(AffiliatePriceHistory(
+                            product_id=existing.id,
+                            provider="amazon",
+                            price=price,
+                        ))
                 existing.title = r.get("nome", "")
                 existing.price = price
                 existing.category = r.get("categoria", "")
@@ -382,12 +494,67 @@ async def save_single_product(r: dict, provider: str = "amazon") -> bool:
                     is_active=True,
                 )
                 db.add(product)
+                await db.flush()  # precisa do ID
+                # Snapshot inicial do preço
+                if price is not None:
+                    db.add(AffiliatePriceHistory(
+                        product_id=product.id,
+                        provider="amazon",
+                        price=price,
+                    ))
 
             await db.commit()
             return True
     except Exception as e:
         logger.warning(f"  Erro ao salvar produto: {e}")
         return False
+
+
+async def deactivate_amazon_products():
+    """Desativa produtos Amazon existentes no início do scrape (sobrescrever).
+    NÃO desativa produtos do ML (notes sem 'amazon_scraper').
+    Também deleta produtos inativos com >30 dias (auto-cleanup)."""
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.models.models import AffiliateProduct
+        from sqlalchemy import select, func, delete
+        from datetime import datetime, timezone, timedelta
+    except ImportError:
+        return
+
+    async with AsyncSessionLocal() as db:
+        # Auto-cleanup: deleta produtos inativos há mais de 30 dias
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        old_inactive = await db.execute(
+            select(func.count()).select_from(AffiliateProduct).where(
+                AffiliateProduct.is_active == False,
+                AffiliateProduct.updated_at < cutoff,
+            )
+        )
+        old_count = old_inactive.scalar() or 0
+        if old_count > 0:
+            await db.execute(
+                delete(AffiliateProduct).where(
+                    AffiliateProduct.is_active == False,
+                    AffiliateProduct.updated_at < cutoff,
+                )
+            )
+            await db.commit()
+            logger.info(f"{old_count} produtos inativos (>30 dias) deletados (auto-cleanup)")
+
+        # Só desativa produtos Amazon (não ML)
+        result = await db.execute(
+            select(AffiliateProduct).where(
+                AffiliateProduct.is_active == True,
+                func.lower(AffiliateProduct.notes).like("%amazon_scraper%"),
+            )
+        )
+        old = result.scalars().all()
+        for p in old:
+            p.is_active = False
+        await db.commit()
+        if old:
+            logger.info(f"{len(old)} produtos Amazon antigos desativados (ML preservado)")
 
 
 async def run_scraper(queries: list[str] = None, dry_run: bool = False, headless: bool = True):
@@ -409,6 +576,10 @@ async def run_scraper(queries: list[str] = None, dry_run: bool = False, headless
     logger.info(f"Queries: {len(queries)}")
     logger.info(f"Dry run: {dry_run}")
     logger.info(f"Headless: {headless}")
+
+    # Desativa produtos Amazon antigos + auto-cleanup de inativos >30 dias
+    if not dry_run:
+        await deactivate_amazon_products()
 
     total = 0
     async with async_playwright() as p:

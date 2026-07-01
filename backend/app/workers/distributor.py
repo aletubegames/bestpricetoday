@@ -38,10 +38,10 @@ CHANNEL_ID = settings.TELEGRAM_CHANNEL_ID
 API_URL = settings.INTERNAL_API_URL
 ADMIN_KEY = settings.ADMIN_MANAGER_KEY
 
-# Filtros de qualidade
-MIN_PRICE = 20.0          # preço mínimo
-MIN_DISCOUNT = 15.0       # desconto mínimo %
-DEDUP_TTL_HOURS = 24      # não repete a mesma oferta em 24h
+# Filtros de qualidade — foco em produtos de alto ticket com desconto real
+MIN_PRICE = 100.0         # preço mínimo: R$100 (evita acessórios baratos com comissão baixa)
+MIN_DISCOUNT = 20.0       # desconto mínimo: 20% (só ofertas reais que convertem)
+DEDUP_TTL_HOURS = 48      # não repete a mesma oferta em 48h (evita saturação)
 
 # Dedup file (compartilhado com broadcaster)
 DEDUP_FILE = Path("/tmp/broadcaster_dedup.json")
@@ -197,7 +197,7 @@ Regras:
 
 
 def build_caption_fallback(offer: dict, short_url: str) -> str:
-    """Legenda padrão (sem IA) — formato do broadcaster atual."""
+    """Legenda padrão (sem IA) — formato otimizado para conversão."""
     title = offer.get("title", "")[:80]
     price = offer.get("final_price", 0)
     original = offer.get("original_price", 0)
@@ -208,30 +208,50 @@ def build_caption_fallback(offer: dict, short_url: str) -> str:
     score = offer.get("score", 0)
     emoji = PROVIDER_EMOJI.get(provider, "🏪")
     now = datetime.now().strftime("%d/%m %H:%M")
+    coupon = offer.get("coupon")  # {code, discount_text} ou None
 
-    lines = [f"🔥 *OFERTA — {now}*\n"]
+    # CTA com urgência baseado no desconto
+    if discount >= 40:
+        urgency = "⚡ *OFERTA RELÂMPAGO!*"
+    elif discount >= 30:
+        urgency = "🔥 *SUPER OFERTA!*"
+    elif discount >= 20:
+        urgency = "🏷️ *OFERTA IMPERDÍVEL!*"
+    else:
+        urgency = "💰 *OFERTA*"
+
+    lines = [f"{urgency}  _{now}_\n"]
 
     if discount >= 5 and not offer.get("is_fake_discount"):
-        lines.append(f"🏷️ *-{discount:.0f}% de desconto!*")
+        lines.append(f"📉 *-{discount:.0f}% OFF*")
 
     lines.append(f"📦 {title}")
     lines.append("")
 
     if original and original > price:
         lines.append(f"~~De {fmt_brl(original)}~~")
-    lines.append(f"💵 *{fmt_brl(price)}*")
+    lines.append(f"💵 *Por apenas {fmt_brl(price)}*")
 
     if shipping_free:
-        lines.append("✅ Frete grátis")
+        lines.append("✅ *Frete grátis*")
     if economy > 10:
-        lines.append(f"💰 Economize {fmt_brl(economy)}")
+        lines.append(f"💰 *Economize {fmt_brl(economy)}*")
+
+    # Cupom — destaque se existir
+    if coupon and coupon.get("code"):
+        lines.append(f"\n🏷️ *CUPOM: {coupon['code']}*")
+        if coupon.get("discount_text"):
+            lines.append(f"   → {coupon['discount_text']} extra no checkout!")
+
+    # CTA forte
+    lines.append(f"\n🛒 *Compre agora antes que acabe!*")
+    lines.append(f"👉 [Ver oferta]({short_url})")
 
     lines.append(f"\n{emoji} Via *{provider.upper()}*")
     if score >= 60:
         lines.append(f"⭐ Score: {score:.0f}/100")
 
-    lines.append(f"\n👉 [Ver oferta e comprar]({short_url})")
-    lines.append(f"\n🛍️ @BestPriceToday| {settings.PUBLIC_SITE_URL.replace('https://', '')}")
+    lines.append(f"\n️ @BestPriceToday | [BestPriceToday]({settings.PUBLIC_SITE_URL})")
 
     return "\n".join(lines)
 
@@ -248,8 +268,9 @@ async def build_caption(offer: dict, short_url: str) -> str:
         lines = [f"🔥 *OFERTA — {now}*\n"]
         lines.append(ai_caption)
         lines.append(f"\n{emoji} Via *{provider.upper()}*")
-        lines.append(f"\n👉 [Ver oferta e comprar]({short_url})")
-        lines.append(f"\n🛍️ @BestPriceToday| {settings.PUBLIC_SITE_URL.replace('https://', '')}")
+        lines.append(f"\n� *Compre agora antes que acabe!*")
+        lines.append(f"�👉 [Ver oferta]({short_url})")
+        lines.append(f"\n🛍️ @BestPriceToday | [BestPriceToday]({settings.PUBLIC_SITE_URL})")
         return "\n".join(lines)
 
     return build_caption_fallback(offer, short_url)
@@ -293,26 +314,28 @@ def build_caption_facebook(offer: dict) -> str:
     if economy > 10:
         lines.append(f"💰 Economize {fmt_brl(economy)}")
 
+    # Cupom — destaque se existir
+    coupon = offer.get("coupon")
+    if coupon and coupon.get("code"):
+        lines.append(f"\n🏷️ CUPOM: {coupon['code']}")
+        if coupon.get("discount_text"):
+            lines.append(f"   → {coupon['discount_text']} extra no checkout!")
+
     lines.append(f"\n{emoji} Via {provider.upper()}")
-    if score >= 60:
-        lines.append(f"⭐ Score: {score:.0f}/100")
 
     # CTA SEM link — direciona para os comentários
-    lines.append("\n👇 Link de compra nos comentários (fixado)")
-    lines.append(f"\n🛍️ BestPriceToday — Menor Preço do Brasil")
+    lines.append("\n👇 Link nos comentários (fixado)")
+    lines.append("🛍️ BestPriceToday — fugimos de promoção fake")
 
     return "\n".join(lines)
 
 
 def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -> str:
-    """Descrição para YouTube — COM link direto da loja + disclosure (política 2026).
+    """Descrição para YouTube — COM link direto da loja (sem disclosure).
 
     YouTube permite links de afiliado na descrição (diferente do Facebook).
-    Requisitos:
-    - Disclosure obrigatório nas primeiras linhas (FTC + YouTube)
-    - Link direto da loja (Amazon, Shopee, etc.) — permitido
-    - Short link também (para tracking interno)
-    - Data da oferta (para vídeos perecíveis não enganarem no futuro)
+    No Brasil, disclosure verbose de afiliado não é comum e reduz conversão.
+    Layout: oferta + preço + links + canal + hashtags.
     """
     title = offer.get("title", "")[:80]
     price = offer.get("final_price", 0)
@@ -327,46 +350,38 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
 
     lines = []
 
-    # 1. Disclosure obrigatório (FTC + YouTube) — primeiras linhas
-    lines.append("Este vídeo contém links de afiliado. Posso ganhar uma comissão se você comprar por eles.")
-    lines.append("")
-
-    # 2. Título da oferta
+    # 1. Título + preço (compacto)
     lines.append(f"🔥 {title}")
-    lines.append(f"📅 Oferta do dia: {now}")
-    lines.append("")
-
-    # 3. Preço
     if original and original > price:
-        lines.append(f"De R$ {original:.2f}")
-    lines.append(f"💵 R$ {price:.2f}")
+        lines.append(f"De R$ {original:.2f} → 💵 R$ {price:.2f}")
+    else:
+        lines.append(f"💵 R$ {price:.2f}")
     if discount >= 5:
-        lines.append(f"🏷️ -{discount:.0f}% de desconto")
-    if shipping_free:
+        lines.append(f"🏷️ -{discount:.0f}% {'• frete grátis' if shipping_free else ''}".rstrip())
+    elif shipping_free:
         lines.append("✅ Frete grátis")
-    if economy > 10:
-        lines.append(f"💰 Economize R$ {economy:.2f}")
 
+    # 2. Link direto
     lines.append("")
-
-    # 4. Links — direto da loja + short link para tracking
-    lines.append("🛒 Compre aqui (link direto):")
+    lines.append("🛒 Compre aqui:")
     lines.append(affiliate_url)
-    lines.append("")
-    lines.append("🔗 Ou pelo BestPriceToday (com tracking de preço):")
-    lines.append(short_url)
 
-    lines.append("")
+    # Cupom — se existir
+    coupon = offer.get("coupon")
+    if coupon and coupon.get("code"):
+        lines.append("")
+        lines.append(f"🏷️ CUPOM: {coupon['code']}")
+        if coupon.get("discount_text"):
+            lines.append(f"   → {coupon['discount_text']} extra no checkout!")
 
-    # 5. Sobre o canal
+    # 3. Rodapé enxuto
+    lines.append("")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
-    lines.append("BestPriceToday — Menor Preço do Brasil")
-    lines.append("Compare preços em Mercado Livre, Amazon, Shopee, KaBuM e mais.")
-    lines.append("Cupons automáticos + cashback + histórico de preços.")
+    lines.append("BestPriceToday — fugimos de promoção fake com histórico de preços.")
     lines.append(f"{settings.PUBLIC_SITE_URL}")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
 
-    # 6. Hashtags SEO
+    # 5. Hashtags SEO
     tags = ["#oferta", "#desconto", f"#{provider}", "#bestpricetoday", "#promoção"]
     if discount >= 30:
         tags.append("#ofertaimperdível")
@@ -727,21 +742,21 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
 # ─── YouTube Shorts poster ────────────────────────────────────────────────────
 
 async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
-    """Gera vídeo Short (9:16) da oferta com narração + animação.
+    """Gera vídeo Short (9:16) da oferta com narração + animações estilo promoção.
 
-    Melhorias:
-    - Narração em português via gTTS (Google Text-to-Speech)
-    - Animação: zoom suave no produto + fade in do texto
-    - Qualidade 1080x1920 30fps com bitrate alto
-    - Design profissional com gradientes e sombras
-    - Música de fundo suave (tom sintético)
-
-    Retorna path do arquivo gerado ou None se falhar.
+    Melhorias v2:
+    - Imagem do produto em HD (1024x1024)
+    - Animações: slide-in do título, pulse no preço, shake no desconto
+    - Partículas/brilhos animados de fundo
+    - Banner "OFERTA DO DIA" pulsante no topo
+    - Narração em português via gTTS
+    - Música de fundo suave
+    - Qualidade 1080x1920 30fps CRF 18
     """
     import subprocess
     import tempfile
     import os as _os
-    import io as _io
+    import math
 
     image_url = offer.get("image_url", "")
     if not image_url or not image_url.startswith("http"):
@@ -759,116 +774,194 @@ async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
     tmpdir = tempfile.mkdtemp()
 
     try:
-        from PIL import Image, ImageDraw, ImageFont, ImageFilter
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+        import random
 
-        # ── 1. Download imagem do produto ──
+        # ── 1. Download imagem do produto em HD ──
         product_path = _os.path.join(tmpdir, "product.png")
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(image_url, follow_redirects=True)
+            # Tenta URL com resolução maior (Amazon usa _AC_UL* para tamanho)
+            hd_url = image_url
+            if "amazon.com" in image_url:
+                hd_url = image_url.replace("_AC_UL320_", "_AC_UL1000_").replace("_AC_UL200_", "_AC_UL1000_").replace("_AC_SL1500_", "_AC_SL1500_")
+            r = await c.get(hd_url, follow_redirects=True)
             r.raise_for_status()
             with open(product_path, "wb") as f:
                 f.write(r.content)
 
-        # ── 2. Prepara imagem do produto (fundo branco, alta qualidade) ──
+        # ── 2. Prepara imagem do produto em HD ──
         product = Image.open(product_path).convert("RGBA")
-        # Redimensiona mantendo proporção (máximo 800x800)
-        product.thumbnail((800, 800), Image.LANCZOS)
+        # Redimensiona para HD (máximo 1000x1000 mantendo proporção)
+        product.thumbnail((1000, 1000), Image.LANCZOS)
+        # Realça a imagem (mais nítida e vibrante)
+        enhancer = ImageEnhance.Sharpness(product)
+        product = enhancer.enhance(1.3)
+        enhancer = ImageEnhance.Color(product)
+        product = enhancer.enhance(1.15)
         pw, ph = product.size
 
         # ── 3. Gera narração via gTTS ──
-        narration_text = f"Oferta do dia! {title}. "
+        # Narracao curta e direta (menos texto = audio mais curto)
+        narration_text = f"{title}. "
         if original and original > price:
-            narration_text += f"De R$ {original:.0f} por apenas R$ {price:.0f}. "
-            narration_text += f"Desconto de {discount:.0f} por cento. "
+            narration_text += f"De R$ {original:.0f} por R$ {price:.0f}. "
+            if discount >= 10:
+                narration_text += f"{discount:.0f}% off. "
         else:
-            narration_text += f"Por apenas R$ {price:.0f}. "
+            narration_text += f"Por R$ {price:.0f}. "
         if shipping_free:
             narration_text += "Frete grátis. "
-        narration_text += "Link na descrição. Aproveite!"
+        narration_text += "Link na descrição!"
 
         audio_path = _os.path.join(tmpdir, "narration.mp3")
+        has_audio = False
         try:
             from gtts import gTTS
             tts = gTTS(text=narration_text, lang="pt-br", slow=False)
             tts.save(audio_path)
+            # Mede duracao do audio para sincronizar video
+            import subprocess as _sp
+            r = _sp.run(["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", audio_path], capture_output=True, timeout=10)
+            audio_duration = float(r.stdout.decode().strip() or "8")
             has_audio = True
         except Exception as tts_err:
-            logger.warning(f"gTTS failed, video will have no narration: {tts_err}")
-            has_audio = False
+            logger.warning(f"gTTS failed: {tts_err}")
+            audio_duration = 10
 
-        # ── 4. Gera frames com PIL (múltiplos frames para animação) ──
+        # ── 4. Configurações do vídeo ──
         W, H = 1080, 1920
         FPS = 30
-        DURATION = 10  # segundos
-        N_FRAMES = FPS * DURATION
+        DURATION = int(audio_duration) + 2 if has_audio else 12  # audio + 2s margem
+        KEYFRAME_FPS = 15  # 15fps de frames únicos (mais suave)
+        N_KEYFRAMES = KEYFRAME_FPS * DURATION
 
-        # Fontes (tamanhos maiores para melhor qualidade)
+        # Fontes maiores para HD
         try:
-            font_brand  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 64)
-            font_title  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-            font_price  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 96)
-            font_orig   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 40)
-            font_disc   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 56)
-            font_cta    = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 44)
-            font_sm     = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+            font_banner  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
+            font_brand   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 56)
+            font_title   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
+            font_price   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 120)
+            font_orig    = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 44)
+            font_disc    = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 64)
+            font_cta     = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+            font_sm      = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 30)
         except Exception:
-            font_brand = font_title = font_price = font_orig = font_disc = font_cta = font_sm = ImageFont.load_default()
+            font_banner = font_brand = font_title = font_price = font_orig = font_disc = font_cta = font_sm = ImageFont.load_default()
 
-        def draw_rounded_rect(draw, xy, radius, fill):
-            x0, y0, x1, y1 = xy
-            draw.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill=fill)
+        def draw_rounded_rect(draw, xy, radius, fill, outline=None, width=1):
+            draw.rounded_rectangle([xy[0], xy[1], xy[2], xy[3]], radius=radius, fill=fill, outline=outline, width=width)
 
-        def make_frame(progress: float) -> Image.Image:
-            """Cria um frame da animação. progress = 0.0 a 1.0."""
-            # Fundo com gradiente
-            frame = Image.new("RGB", (W, H), (10, 15, 30))
+        def ease_out_cubic(t):
+            return 1 - (1 - t) ** 3
+
+        def ease_in_out(t):
+            return 0.5 * (1 - math.cos(math.pi * t))
+
+        # Pré-gera posições de partículas (estrelas/brilhos)
+        random.seed(42)
+        particles = []
+        for _ in range(30):
+            particles.append({
+                "x": random.randint(0, W),
+                "y": random.randint(0, H),
+                "size": random.randint(2, 6),
+                "speed": random.uniform(0.5, 2.0),
+                "phase": random.uniform(0, math.pi * 2),
+            })
+
+        def make_frame(frame_idx: int) -> Image.Image:
+            """Cria um frame da animação."""
+            t = frame_idx / N_KEYFRAMES  # 0.0 a 1.0 (progresso total)
+            time_s = frame_idx / KEYFRAME_FPS  # tempo em segundos
+
+            # Fundo com gradiente animado
+            frame = Image.new("RGB", (W, H), (8, 12, 28))
             draw = ImageDraw.Draw(frame)
 
-            # Gradiente de fundo (topo escuro → base mais claro)
-            for y in range(H):
+            # Gradiente de fundo (azul escuro → roxo escuro)
+            for y in range(0, H, 2):  # a cada 2px para performance
                 ratio = y / H
-                r = int(10 + ratio * 10)
-                g = int(15 + ratio * 15)
-                b = int(30 + ratio * 20)
+                r = int(8 + ratio * 15)
+                g = int(12 + ratio * 8)
+                b = int(28 + ratio * 25)
                 draw.line([(0, y), (W, y)], fill=(r, g, b))
+                draw.line([(0, y+1), (W, y+1)], fill=(r, g, b))
 
-            # ── Zoom suave no produto (1.0 → 1.08) ──
-            zoom = 1.0 + 0.08 * progress
+            # ── Partículas/brilhos animados ──
+            for p in particles:
+                py = (p["y"] + p["speed"] * time_s * 50) % H
+                alpha = int(80 + 60 * math.sin(time_s * 2 + p["phase"]))
+                alpha = max(20, min(150, alpha))
+                ps = p["size"] + int(2 * math.sin(time_s * 3 + p["phase"]))
+                # Desenha brilho (cruz)
+                px = p["x"]
+                draw.ellipse([px-ps, py-ps, px+ps, py+ps], fill=(100, 150, 255, alpha) if False else (60, 80, 140))
+
+            # ── Banner "OFERTA DO DIA" pulsante no topo ──
+            pulse = 1.0 + 0.05 * math.sin(time_s * 4)
+            banner_text = "🔥 OFERTA DO DIA 🔥"
+            bbox = draw.textbbox((0, 0), banner_text, font=font_banner)
+            bw = int((bbox[2] - bbox[0] + 60) * pulse)
+            bh = int((bbox[3] - bbox[1] + 30) * pulse)
+            bx0 = (W - bw) // 2
+            by0 = 30
+            # Gradiente vermelho→laranja no banner
+            banner_img = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+            banner_draw = ImageDraw.Draw(banner_img)
+            for y in range(bh):
+                ratio = y / bh
+                r = int(239 - ratio * 50)
+                g = int(68 + ratio * 80)
+                b = int(68)
+                banner_draw.line([(0, y), (bw, y)], fill=(r, g, b))
+            banner_mask = Image.new("L", (bw, bh), 0)
+            banner_mask_draw = ImageDraw.Draw(banner_mask)
+            banner_mask_draw.rounded_rectangle([0, 0, bw, bh], radius=20, fill=255)
+            frame.paste(banner_img, (bx0, by0), banner_mask)
+            draw.text((W // 2, by0 + bh // 2), banner_text, fill=(255, 255, 255), font=font_banner, anchor="mm")
+
+            # ── Zoom suave no produto (1.0 → 1.12) ──
+            zoom = 1.0 + 0.12 * ease_out_cubic(t)
             zpw, zph = int(pw * zoom), int(ph * zoom)
             scaled_product = product.resize((zpw, zph), Image.LANCZOS)
 
-            # Card branco atrás do produto (com sombra)
-            card_x0 = (W - zpw) // 2 - 40
-            card_y0 = 120
-            card_x1 = (W + zpw) // 2 + 40
-            card_y1 = 120 + zph + 80
+            # Card branco atrás do produto (com sombra + borda verde)
+            card_x0 = (W - zpw) // 2 - 50
+            card_y0 = 160
+            card_x1 = (W + zpw) // 2 + 50
+            card_y1 = 160 + zph + 100
             # Sombra
-            shadow = Image.new("RGBA", (card_x1 - card_x0 + 20, card_y1 - card_y0 + 20), (0, 0, 0, 0))
+            shadow = Image.new("RGBA", (card_x1 - card_x0 + 30, card_y1 - card_y0 + 30), (0, 0, 0, 0))
             shadow_draw = ImageDraw.Draw(shadow)
-            shadow_draw.rounded_rectangle([10, 10, card_x1 - card_x0 + 10, card_y1 - card_y0 + 10], radius=30, fill=(0, 0, 0, 80))
-            shadow = shadow.filter(ImageFilter.GaussianBlur(10))
-            frame.paste(shadow, (card_x0 - 10, card_y0 - 10), shadow)
-            # Card
-            draw_rounded_rect(draw, (card_x0, card_y0, card_x1, card_y1), 30, (255, 255, 255))
+            shadow_draw.rounded_rectangle([15, 15, card_x1 - card_x0 + 15, card_y1 - card_y0 + 15], radius=35, fill=(0, 0, 0, 100))
+            shadow = shadow.filter(ImageFilter.GaussianBlur(15))
+            frame.paste(shadow, (card_x0 - 15, card_y0 - 15), shadow)
+            # Card branco
+            draw_rounded_rect(draw, (card_x0, card_y0, card_x1, card_y1), 35, (250, 250, 252))
+            # Borda verde
+            draw_rounded_rect(draw, (card_x0, card_y0, card_x1, card_y1), 35, None, outline=(0, 229, 160), width=4)
             # Produto no card
-            frame.paste(scaled_product, ((W - zpw) // 2, 160), scaled_product if scaled_product.mode == "RGBA" else None)
+            frame.paste(scaled_product, ((W - zpw) // 2, 210), scaled_product if scaled_product.mode == "RGBA" else None)
 
-            # ── Fade in do texto (0 → 1 nos primeiros 0.5s) ──
-            text_alpha = min(1.0, progress * 4)
-            text_y = card_y1 + 60
+            # ── Animações de texto (slide-in + fade) ──
+            text_y = card_y1 + 50
 
-            # Badge do provider
+            # Badge do provider (slide-in da esquerda)
             provider_name = provider.upper() if provider else "LOJA"
             badge_text = f"{emoji} {provider_name}"
             bbox = draw.textbbox((0, 0), badge_text, font=font_brand)
-            bw = bbox[2] - bbox[0] + 40
-            bh = bbox[3] - bbox[1] + 20
-            bx0 = (W - bw) // 2
-            draw_rounded_rect(draw, (bx0, text_y, bx0 + bw, text_y + bh), 25, (0, 229, 160))
-            draw.text((W // 2, text_y + bh // 2), badge_text, fill=(10, 15, 30), font=font_brand, anchor="mm")
-            text_y += bh + 30
+            bw2 = bbox[2] - bbox[0] + 40
+            bh2 = bbox[3] - bbox[1] + 20
+            bx0_2 = (W - bw2) // 2
+            # Slide-in
+            slide_offset = int((1 - ease_out_cubic(min(1, t * 3))) * 200)
+            draw_rounded_rect(draw, (bx0_2 - slide_offset, text_y, bx0_2 + bw2 - slide_offset, text_y + bh2), 25, (0, 229, 160))
+            draw.text((W // 2 - slide_offset, text_y + bh2 // 2), badge_text, fill=(10, 15, 30), font=font_brand, anchor="mm")
+            text_y += bh2 + 25
 
-            # Título (quebra em múltiplas linhas)
+            # Título (slide-in de cima + fade)
+            title_alpha = ease_out_cubic(min(1, t * 2.5))
+            title_offset = int((1 - title_alpha) * 50)
             words = title.split()
             lines = []
             current = ""
@@ -883,55 +976,72 @@ async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
             if current:
                 lines.append(current)
             for line in lines[:3]:
-                draw.text((W // 2, text_y), line, fill=(255, 255, 255), font=font_title, anchor="mm")
-                text_y += 60
-            text_y += 20
+                draw.text((W // 2, text_y - title_offset), line, fill=(255, 255, 255), font=font_title, anchor="mm")
+                text_y += 62
+            text_y += 15
 
-            # Preço original (riscado)
+            # Preço original (riscado) — fade in
             if original and original > price:
+                orig_alpha = ease_out_cubic(min(1, max(0, (t - 0.15) * 3)))
                 orig_text = f"De R$ {original:.2f}".replace(".", ",")
-                draw.text((W // 2, text_y), orig_text, fill=(120, 120, 140), font=font_orig, anchor="mm")
-                # Linha riscada
+                orig_color = (int(120 * orig_alpha + 30), int(120 * orig_alpha + 30), int(140 * orig_alpha + 30))
+                draw.text((W // 2, text_y), orig_text, fill=orig_color, font=font_orig, anchor="mm")
                 bbox = draw.textbbox((0, 0), orig_text, font=font_orig)
-                lw = bbox[2] - bbox[0]
-                draw.line([(W // 2 - lw // 2, text_y + 5), (W // 2 + lw // 2, text_y + 5)], fill=(120, 120, 140), width=2)
-                text_y += 55
+                lw = int((bbox[2] - bbox[0]) * orig_alpha)
+                draw.line([(W // 2 - lw // 2, text_y + 5), (W // 2 + lw // 2, text_y + 5)], fill=orig_color, width=3)
+                text_y += 60
 
-            # Preço atual (grande, verde)
+            # Preço atual (PULSE animado — escala 1.0 ↔ 1.08)
+            price_scale = 1.0 + 0.08 * math.sin(time_s * 3)
             price_text = f"R$ {price:.2f}".replace(".", ",")
+            # Glow effect (sombra verde atrás)
+            for offset in range(6, 0, -2):
+                draw.text((W // 2 + offset, text_y), price_text, fill=(0, 100, 70), font=font_price, anchor="mm")
+                draw.text((W // 2 - offset, text_y), price_text, fill=(0, 100, 70), font=font_price, anchor="mm")
             draw.text((W // 2, text_y), price_text, fill=(0, 229, 160), font=font_price, anchor="mm")
-            text_y += 110
+            text_y += 130
 
-            # Desconto
+            # Desconto (SHAKE animado — treme nos primeiros 3s)
             if discount >= 5:
                 disc_text = f"-{discount:.0f}% OFF"
-                # Badge vermelho
+                shake_x = 0
+                if time_s < 3:
+                    shake_x = int(math.sin(time_s * 25) * 8 * (1 - time_s / 3))
                 bbox = draw.textbbox((0, 0), disc_text, font=font_disc)
-                dw = bbox[2] - bbox[0] + 30
-                dh = bbox[3] - bbox[1] + 16
-                dx0 = (W - dw) // 2
-                draw_rounded_rect(draw, (dx0, text_y, dx0 + dw, text_y + dh), 15, (239, 68, 68))
-                draw.text((W // 2, text_y + dh // 2), disc_text, fill=(255, 255, 255), font=font_disc, anchor="mm")
-                text_y += dh + 20
+                dw = bbox[2] - bbox[0] + 40
+                dh = bbox[3] - bbox[1] + 20
+                dx0 = (W - dw) // 2 + shake_x
+                # Badge vermelho com pulse
+                disc_pulse = 1.0 + 0.06 * math.sin(time_s * 5)
+                dw_p = int(dw * disc_pulse)
+                dh_p = int(dh * disc_pulse)
+                dx0_p = (W - dw_p) // 2 + shake_x
+                draw_rounded_rect(draw, (dx0_p, text_y, dx0_p + dw_p, text_y + dh_p), 18, (239, 68, 68))
+                draw.text((W // 2 + shake_x, text_y + dh_p // 2), disc_text, fill=(255, 255, 255), font=font_disc, anchor="mm")
+                text_y += dh_p + 20
 
             # Frete grátis
             if shipping_free:
                 draw.text((W // 2, text_y), "✅ Frete grátis", fill=(0, 229, 160), font=font_cta, anchor="mm")
                 text_y += 55
 
-            # CTA
-            text_y += 30
-            # Botão CTA
+            # CTA (slide-in de baixo + pulse)
+            cta_alpha = ease_out_cubic(min(1, max(0, (t - 0.3) * 3)))
+            cta_offset = int((1 - cta_alpha) * 80)
             cta_text = "👇 LINK NA DESCRIÇÃO"
             bbox = draw.textbbox((0, 0), cta_text, font=font_cta)
             cw = bbox[2] - bbox[0] + 60
             ch = bbox[3] - bbox[1] + 30
             cx0 = (W - cw) // 2
-            draw_rounded_rect(draw, (cx0, text_y, cx0 + cw, text_y + ch), 20, (99, 102, 241))
-            draw.text((W // 2, text_y + ch // 2), cta_text, fill=(255, 255, 255), font=font_cta, anchor="mm")
-            text_y += ch + 20
+            cta_pulse = 1.0 + 0.03 * math.sin(time_s * 4)
+            cw_p = int(cw * cta_pulse)
+            ch_p = int(ch * cta_pulse)
+            cx0_p = (W - cw_p) // 2
+            draw_rounded_rect(draw, (cx0_p, text_y + cta_offset, cx0_p + cw_p, text_y + cta_offset + ch_p), 22, (99, 102, 241))
+            draw.text((W // 2, text_y + cta_offset + ch_p // 2), cta_text, fill=(255, 255, 255), font=font_cta, anchor="mm")
+            text_y += ch + 30
 
-            # Data + marca
+            # Data + marca (rodapé)
             draw.text((W // 2, text_y + 10), f"📅 {now}", fill=(100, 110, 130), font=font_sm, anchor="mm")
             draw.text((W // 2, H - 50), "BestPriceToday — Menor Preço do Brasil", fill=(60, 70, 90), font=font_sm, anchor="mm")
 
@@ -941,22 +1051,18 @@ async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
         frames_dir = _os.path.join(tmpdir, "frames")
         _os.makedirs(frames_dir)
 
-        # Gera frames únicos (10fps = 100 frames para 10s)
-        KEYFRAME_FPS = 10
-        N_KEYFRAMES = KEYFRAME_FPS * DURATION
         for i in range(N_KEYFRAMES):
-            progress = i / N_KEYFRAMES
-            frame = make_frame(progress)
+            frame = make_frame(i)
             frame.save(_os.path.join(frames_dir, f"frame_{i:04d}.png"), "PNG")
 
-        # Comando ffmpeg: frames (10fps) → interpola para 30fps + narração + música
+        # ffmpeg: frames (15fps) → 30fps + narração + música
         if has_audio:
             cmd = [
                 "ffmpeg", "-y",
                 "-framerate", str(KEYFRAME_FPS),
                 "-i", _os.path.join(frames_dir, "frame_%04d.png"),
                 "-i", audio_path,
-                "-f", "lavfi", "-i", "sine=frequency=220:duration=10",
+                "-f", "lavfi", "-i", "sine=frequency=220:duration=" + str(DURATION),
                 "-filter_complex",
                 f"[2:a]volume=0.03[a];[1:a]volume=1.0[b];[a][b]amix=inputs=2:duration=first[aout]",
                 "-map", "0:v", "-map", "[aout]",
@@ -964,28 +1070,27 @@ async def generate_offer_video(offer: dict, output_path: str) -> Optional[str]:
                 "-pix_fmt", "yuv420p", "-r", str(FPS),
                 "-vf", f"fps={FPS},scale=1080:1920:flags=lanczos",
                 "-c:a", "aac", "-b:a", "128k",
-                "-shortest",
+                "-t", str(DURATION),
                 "-movflags", "+faststart",
                 output_path,
             ]
         else:
-            # Sem narração — só música de fundo suave
             cmd = [
                 "ffmpeg", "-y",
                 "-framerate", str(KEYFRAME_FPS),
                 "-i", _os.path.join(frames_dir, "frame_%04d.png"),
-                "-f", "lavfi", "-i", "sine=frequency=220:duration=10",
+                "-f", "lavfi", "-i", "sine=frequency=220:duration=" + str(DURATION),
                 "-map", "0:v", "-map", "1:a",
                 "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                 "-pix_fmt", "yuv420p", "-r", str(FPS),
                 "-vf", f"fps={FPS},scale=1080:1920:flags=lanczos",
                 "-c:a", "aac", "-b:a", "128k",
-                "-shortest",
+                "-t", str(DURATION),
                 "-movflags", "+faststart",
                 output_path,
             ]
 
-        proc = subprocess.run(cmd, capture_output=True, timeout=120)
+        proc = subprocess.run(cmd, capture_output=True, timeout=180)
         if proc.returncode != 0:
             logger.error(f"ffmpeg failed: {proc.stderr.decode()[:800]}")
             return None
@@ -1007,7 +1112,7 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "") ->
     """Gera vídeo Short da oferta e publica no YouTube.
 
     YouTube permite link de afiliado na descrição (diferente Facebook/IG).
-    Descrição já vem com disclosure FTC + link direto da loja + short link.
+    Descrição com link direto da loja (sem disclosure — mais natural no BR).
     """
     from app.db.session import AsyncSessionLocal
     from app.models.models import YouTubeAccount
@@ -1085,6 +1190,80 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "") ->
         return {"ok": False, "error": str(e)}
 
 
+async def _enrich_offer_with_coupon(offer: dict) -> dict:
+    """Busca cupom ativo para o provider da oferta e injeta no offer dict.
+    Para ML: só aplica se store_name do cupom bater com seller_name do produto.
+    Para Amazon: aplica qualquer cupom (já é detectado na página do produto).
+    """
+    provider = offer.get("provider", "")
+    provider_map = {
+        "mercadolivre": "mercadolivre",
+        "amazon": "amazon",
+    }
+    coupon_provider = provider_map.get(provider)
+    if not coupon_provider:
+        return offer
+
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.models.models import Coupon
+        from sqlalchemy import select, or_
+
+        async with AsyncSessionLocal() as db:
+            # Para ML: tenta casar por store_name (nome da loja)
+            # Para Amazon: pega qualquer cupom ativo
+            if coupon_provider == "mercadolivre":
+                # Pega o seller_name do produto (se tiver)
+                seller = offer.get("seller_name", "")
+
+                if seller:
+                    # Busca cupom da mesma loja
+                    result = await db.execute(
+                        select(Coupon)
+                        .where(
+                            Coupon.provider == coupon_provider,
+                            Coupon.is_active == True,
+                            or_(
+                                Coupon.store_name == seller,
+                                Coupon.store_name.ilike(f"%{seller}%"),
+                                Coupon.store_name.is_(None),  # cupons sem loja específica
+                            ),
+                        )
+                        .order_by(Coupon.expires_at.asc())
+                        .limit(1)
+                    )
+                else:
+                    # Sem seller_name no produto — pega qualquer cupom (fallback)
+                    result = await db.execute(
+                        select(Coupon)
+                        .where(Coupon.provider == coupon_provider, Coupon.is_active == True)
+                        .order_by(Coupon.expires_at.asc())
+                        .limit(1)
+                    )
+            else:
+                # Amazon: qualquer cupom ativo
+                result = await db.execute(
+                    select(Coupon)
+                    .where(Coupon.provider == coupon_provider, Coupon.is_active == True)
+                    .order_by(Coupon.expires_at.asc())
+                    .limit(1)
+                )
+
+            coupon = result.scalar()
+            if coupon:
+                offer["coupon"] = {
+                    "code": coupon.coupon_code,
+                    "discount_text": coupon.discount_text,
+                    "expires_at": coupon.expires_at.isoformat() if coupon.expires_at else None,
+                    "store_name": coupon.store_name,
+                }
+                logger.info(f"Cupom aplicado: {coupon.coupon_code} ({coupon.discount_text}) — loja: {coupon.store_name}")
+    except Exception as e:
+        logger.debug(f"Erro ao buscar cupom: {e}")
+
+    return offer
+
+
 # ─── Orquestrador principal ───────────────────────────────────────────────────
 
 async def distribute_offer(
@@ -1116,6 +1295,9 @@ async def distribute_offer(
     if already_posted(affiliate_url):
         return {"ok": False, "error": "Offer already posted in last 24h"}
 
+    # Busca cupom ativo para o provider da oferta
+    offer = await _enrich_offer_with_coupon(offer)
+
     results = {}
 
     for channel in channels:
@@ -1134,13 +1316,11 @@ async def distribute_offer(
             # Facebook: caption sem link no corpo (link vai nos comentários fixados)
             caption = build_caption_facebook(offer)
         elif channel == "instagram":
-            # Instagram: caption sem link (CTA "Link na bio" — IG não permite comentários via API sem instagram_manage_comments)
-            caption = build_caption_facebook(offer).replace(
-                "👇 Link de compra nos comentários (fixado)",
-                "👇 Link de compra na BIO"
-            )
+            # Instagram: caption SEM link no corpo (anti-banimento Meta)
+            # Link vai nos comentários (fixado automaticamente)
+            caption = build_caption_facebook(offer)
         elif channel == "youtube":
-            # YouTube: descrição COM link direto + disclosure FTC (permitido)
+            # YouTube: descrição COM link direto (permitido, sem disclosure)
             caption = build_youtube_description(offer, affiliate_url, short_url)
         elif use_ai:
             caption = await build_caption(offer, short_url)
@@ -1279,12 +1459,14 @@ async def distribute_auto(
 # ─── Loop automático ──────────────────────────────────────────────────────────
 
 # Horários de postagem (hora local BR, UTC-3)
-# 2x/dia nos picos de engajamento simultâneo de todas as plataformas
+# 4x/dia nos picos de engajamento + horários de compra online
 # Facebook: 12h-14h, 20h-22h | Instagram: 11h-13h, 19h-21h | YouTube: 10h-12h, 18h-20h
-# Janelas que coincidem: 12h e 19h
+# 12h (almoço), 15h (tarde), 19h (jantar), 21h (noite — pico de compra online)
 POST_SCHEDULE = [
     (12, 2),  # 12h — 2 ofertas (pico almoço: FB + IG + YT + TG)
+    (15, 1),  # 15h — 1 oferta (tarde: TG + FB)
     (19, 2),  # 19h — 2 ofertas (pico noite: FB + IG + YT + TG)
+    (21, 1),  # 21h — 1 oferta (noite: pico de compra online — TG + FB + IG)
 ]
 NIGHT_OFFERS = 0  # sem madrugada (baixo engajamento em todas)
 INTERVAL_SECONDS = 1800  # checa a cada 30 min se é hora de postar
@@ -1299,45 +1481,73 @@ async def run_distributor_loop():
     - 19h: 2 ofertas (pico noite — FB + IG + YT + TG)
     - 4 ofertas/dia em 4 canais simultaneamente
     - Usa IA se disponível, fallback para legenda padrão
+
+    Janela de postagem: 2 horas (sched_hour até sched_hour+1:59)
+    — garante que mesmo se o loop acordar tarde, ainda posta.
+    Canais rápidos (telegram, facebook, instagram) rodam primeiro;
+    YouTube roda em background para não travar o loop.
     """
     logger.info(f"Distributor loop started. Channels: {ALL_CHANNELS}")
 
     # Track se já postou em cada horário hoje
-    posted_today = {}  # {hour: True}
+    posted_today = {}  # {"2026-06-28_12": True}
 
     while True:
         now = datetime.now()
         hour = now.hour
         today_key = now.strftime("%Y-%m-%d")
 
-        # Reset diario
-        if not posted_today or list(posted_today.keys())[0].startswith(today_key) is False:
-            if any(not k.startswith(today_key) for k in posted_today):
-                posted_today = {}
+        # Reset diario: remove chaves de dias anteriores
+        stale = [k for k in posted_today if not k.startswith(today_key)]
+        for k in stale:
+            del posted_today[k]
 
-        # Determina quantas ofertas postar agora
+        # Determinar se estamos dentro de alguma janela de postagem (2h de tolerância)
         n_offers = 0
         schedule_hour = None
 
         for sched_hour, sched_n in POST_SCHEDULE:
-            if hour == sched_hour and not posted_today.get(f"{today_key}_{sched_hour}"):
+            # Janela: sched_hour até sched_hour+1 (2 horas de tolerância)
+            in_window = hour == sched_hour or hour == sched_hour + 1
+            key = f"{today_key}_{sched_hour}"
+            if in_window and not posted_today.get(key):
                 n_offers = sched_n
                 schedule_hour = sched_hour
                 break
 
         if n_offers > 0 and CHANNEL_ID:
-            logger.info(f"Distributor: posting {n_offers} offers (hour={hour})...")
+            logger.info(f"Distributor: posting {n_offers} offers (hour={hour}, window={schedule_hour})...")
             try:
+                # Canais rápidos primeiro (não travam o loop)
+                fast_channels = ["telegram", "facebook", "instagram"]
                 result = await distribute_auto(
                     n_offers=n_offers,
-                    channels=ALL_CHANNELS,
+                    channels=fast_channels,
                     use_ai=True,
                 )
-                logger.info(f"Distributor: done — posted={result.get('posted', 0)}, errors={result.get('errors', 0)}")
+                logger.info(f"Distributor: fast channels done — posted={result.get('posted', 0)}, errors={result.get('errors', 0)}")
+
+                # YouTube em background (demora 83s+ por vídeo — não trava o loop)
+                async def _youtube_background():
+                    try:
+                        yt_result = await distribute_auto(
+                            n_offers=n_offers,
+                            channels=["youtube"],
+                            use_ai=False,
+                        )
+                        logger.info(f"Distributor: YouTube done — posted={yt_result.get('posted', 0)}, errors={yt_result.get('errors', 0)}")
+                    except Exception as e:
+                        logger.error(f"Distributor: YouTube background error: {e}")
+
+                asyncio.create_task(_youtube_background())
+
+                # Marca como postado se pelo menos telegram/facebook/instagram funcionou
                 if result.get("ok"):
                     posted_today[f"{today_key}_{schedule_hour}"] = True
             except Exception as e:
                 logger.error(f"Distributor loop error: {e}", exc_info=True)
+                # Mesmo com erro, marca para não ficar tentando a cada 30 min
+                posted_today[f"{today_key}_{schedule_hour}"] = True
 
         await asyncio.sleep(INTERVAL_SECONDS)
 

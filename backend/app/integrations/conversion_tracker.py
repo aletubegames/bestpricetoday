@@ -312,7 +312,7 @@ async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[di
 
     saved = []
     try:
-        url = f"https://api.lomadee.com/v3/{settings.LOMADEE_SOURCE_ID}/report/commission"
+        url = f"https://api.lomadee.com.br/v3/{settings.LOMADEE_SOURCE_ID}/report/commission"
         params = {
             "startDate": since.strftime("%Y-%m-%d"),
             "endDate": now.strftime("%Y-%m-%d"),

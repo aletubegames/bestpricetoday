@@ -104,7 +104,7 @@
 
 /* ─── Container ──────────────────────────────────────────────────────────── */
 .container {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 28px 24px;
 }
@@ -114,7 +114,7 @@
 }
 
 @media (min-width: 1920px) {
-  .container { max-width: 1600px; padding: 32px 32px; }
+  .container { max-width: 1900px; padding: 32px 32px; }
 }
 
 /* ─── Search row ─────────────────────────────────────────────────────────── */
@@ -184,24 +184,27 @@
   color: #fff;
 }
 
-/* ─── Products grid (container queries) ──────────────────────────────────── */
+/* ─── Products grid ──────────────────────────────────────────────────────── */
 .grid {
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr;
 }
 
-@container bp (min-width: 480px) {
+@media (min-width: 480px) {
   .grid { grid-template-columns: repeat(2, 1fr); }
 }
-@container bp (min-width: 900px) {
+@media (min-width: 768px) {
   .grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
 }
-@container bp (min-width: 1280px) {
+@media (min-width: 1024px) {
   .grid { grid-template-columns: repeat(4, 1fr); }
 }
-@container bp (min-width: 1800px) {
+@media (min-width: 1280px) {
   .grid { grid-template-columns: repeat(5, 1fr); }
+}
+@media (min-width: 1600px) {
+  .grid { grid-template-columns: repeat(6, 1fr); }
 }
 
 .card {

@@ -41,7 +41,14 @@ export default function DashboardPage() {
       router.push("/login"); return
     }
 
-    const u = JSON.parse(stored) as User
+    let u: User;
+    try {
+      u = JSON.parse(stored) as User;
+    } catch {
+      localStorage.removeItem("bpt_token")
+      localStorage.removeItem("bpt_user")
+      router.push("/login"); return
+    }
     setUser(u)
 
     // Busca alertas do usuário logado

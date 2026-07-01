@@ -23,7 +23,6 @@ function FacebookCallbackContent() {
           return res.json();
         })
         .then(data => {
-          console.log('Facebook callback success:', data);
           if (window.opener) {
             window.opener.postMessage({ type: 'FACEBOOK_AUTH_SUCCESS', data }, '*');
             setTimeout(() => window.close(), 1500);

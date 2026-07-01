@@ -290,8 +290,17 @@ class MercadoLivreProvider(BaseProvider):
                             f"&matt_tool={settings.ML_AFFILIATE_MATT_TOOL}"
                             f"{fragment}"
                         )
+                # Detecta o provider real pela URL (tabela pode ter produtos Amazon)
+                if "amazon.com" in aff_url:
+                    real_provider = ProviderEnum.amazon
+                elif "shopee.com" in aff_url:
+                    real_provider = ProviderEnum.shopee
+                elif "aliexpress" in aff_url:
+                    real_provider = ProviderEnum.aliexpress
+                else:
+                    real_provider = ProviderEnum.mercadolivre
                 offers.append(OfferSchema(
-                    provider=ProviderEnum.mercadolivre,
+                    provider=real_provider,
                     title=p.title or p.ml_code or "",
                     price=price,
                     original_price=price,

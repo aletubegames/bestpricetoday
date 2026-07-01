@@ -27,12 +27,12 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "BestPriceToday — Menor Preço do Brasil",
   description:
-    "Compare preços em Mercado Livre, Amazon, Shopee, KaBuM e mais. Cupons automáticos, cashback e histórico de preços. Economize na hora!",
+    "Compare preços em Mercado Livre, Amazon, Shopee, KaBuM e mais. Histórico de preços, alertas de queda e melhores ofertas. Economize na hora!",
   keywords: [
     "comparador de preços",
     "menor preço",
-    "cupom",
-    "cashback",
+    "histórico de preços",
+    "alerta de preço",
     "mercado livre",
     "amazon",
     "shopee",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     url: SITE_BASE,
     title: "BestPriceToday — Menor Preço do Brasil",
     description:
-      "Busca automática do menor preço em todas as lojas. Cupons aplicados na hora.",
+      "Busca automática do menor preço em todas as lojas. Histórico de preços e alertas de queda.",
     siteName: "BestPriceToday",
     images: [
       { url: "/og-image.png", width: 1200, height: 630, alt: "BestPriceToday" },
@@ -66,6 +66,11 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
+  verification: {
+    other: {
+      "msvalidate.01": "7DD0E45802E8267028890F5130C9326E",
+    },
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },

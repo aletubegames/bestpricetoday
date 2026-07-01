@@ -145,23 +145,9 @@ class LomadeeProvider(BaseProvider):
                     # Custom falhou — marca para pular nas próximas
                     self._custom_failed_orgs.add(organization_id)
 
-                # Fallback: BrandPage com cache
-                if organization_id in self._brand_link_cache:
-                    return self._brand_link_cache[organization_id]
-
-                resp2 = await client.post(
-                    f"{self.BASE_URL}/shortener/url",
-                    headers={"x-api-key": settings.LOMADEE_API_KEY, "Content-Type": "application/json"},
-                    json={"organizationId": organization_id, "type": "BrandPage"},
-                    timeout=5,
-                )
-                if resp2.status_code in (200, 201):
-                    data = resp2.json()
-                    if isinstance(data, list) and data:
-                        short_urls = data[0].get("shortUrls", [])
-                        if short_urls:
-                            self._brand_link_cache[organization_id] = short_urls[0]
-                            return short_urls[0]
+                # Fallback: NAO usa BrandPage (leva pra homepage, nao pro produto)
+                # Usa o link direto do produto com sourceId (deeplink manual)
+                return self._build_affiliate_url(product_url)
         except Exception as exc:
             logger.debug(f"Lomadee shortener failed: {type(exc).__name__}: {exc}")
         return None
@@ -252,6 +238,14 @@ class LomadeeProvider(BaseProvider):
                     )
                     return []
 
+            # Filtra produtos cujo título já foi reportado como quebrado
+            product_names = [p.get("name", "") for p in products if p.get("name")]
+            dead_titles = await self._get_dead_titles(product_names) if product_names else set()
+            if dead_titles:
+                before = len(products)
+                products = [p for p in products if p.get("name", "") not in dead_titles]
+                logger.info(f"Lomadee: filtrou {before - len(products)} produto(s) com link quebrado")
+
             # Gera links afiliados em paralelo (max 5 por vez)
             offers = await self._parse_with_links(products[:limit])
             valid_offers = [o for o in offers if o.price]
@@ -282,6 +276,28 @@ class LomadeeProvider(BaseProvider):
             if isinstance(r, OfferSchema):
                 offers.append(r)
         return offers
+
+    async def _get_dead_titles(self, titles: list) -> set:
+        """Consulta short_links marcados como is_dead cujo product_title
+        corresponde a algum dos produtos. Evita reexibir produtos já reportados."""
+        try:
+            from app.db.session import AsyncSessionLocal
+            from app.models.models import ShortLink
+            from sqlalchemy import select, func
+
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(ShortLink.product_title).where(
+                        ShortLink.is_dead == True,
+                        func.lower(ShortLink.product_title).in_(
+                            [t.lower() for t in titles]
+                        ),
+                    )
+                )
+                return {r[0] for r in result.fetchall()}
+        except Exception as e:
+            logger.debug(f"Lomadee: erro ao consultar dead_titles: {e}")
+            return set()
 
     async def _parse_product(self, item: dict) -> Optional[OfferSchema]:
         try:

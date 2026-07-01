@@ -1,9 +1,11 @@
 "use client"
 import { useCallback, useState } from "react"
 import type { MouseEvent } from "react"
+import Image from "next/image"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { openTrackedOffer } from "@/lib/tracking"
 import type { Offer } from "@/types"
+import PriceHistoryPublic from "@/components/offers/PriceHistoryPublic"
 import styles from "./ProductSearch.module.css"
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -105,11 +107,13 @@ export default function ProductSearchClient({ query, initialOffers, initialTotal
                   )}
                 </div>
                 {offer.image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={offer.image_url} alt={offer.title} loading="lazy" fetchPriority="low"
-                    className={styles.cardImage}
-                    onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
-                  />
+                  <div className={styles.cardImage}>
+                    <Image src={offer.image_url} alt={offer.title} fill
+                      sizes="(max-width: 479px) 50vw, (max-width: 768px) 33vw, 25vw"
+                      style={{ objectFit: "contain" }}
+                      loading="lazy"
+                    />
+                  </div>
                 )}
                 <p className={styles.cardTitle}>
                   {offer.title?.slice(0, 80)}...
@@ -130,6 +134,9 @@ export default function ProductSearchClient({ query, initialOffers, initialTotal
                 >
                   {openingOfferKey === key ? "Abrindo..." : "Ver oferta →"}
                 </a>
+                {(offer.provider === "mercadolivre" || offer.provider === "amazon") && offer.affiliate_url && (
+                  <PriceHistoryPublic affiliateUrl={offer.affiliate_url} compact />
+                )}
               </div>
             </div>
           )

@@ -182,6 +182,7 @@ async def scrape_category(page, category_name: str, dry_run: bool = False) -> in
                 # Pega link direto do produto (href do <a> do título)
                 link_prod = ""
                 codigo_ml = ""
+                seller_name = ""
                 if nome_el:
                     href = await nome_el.get_attribute("href") or ""
                     if href:
@@ -192,6 +193,24 @@ async def scrape_category(page, category_name: str, dry_run: bool = False) -> in
                         m = re.search(r"(MLB\d+)", href)
                         if m:
                             codigo_ml = m.group(1)
+
+                # Tenta pegar o nome do vendedor/loja do card
+                # ML mostra "por {NOME_LOJA}" ou link da loja no card
+                try:
+                    seller_el = await card.query_selector("a.poly-component__seller, [class*=seller], .poly-component__store")
+                    if seller_el:
+                        seller_name = (await seller_el.inner_text()).strip()
+                        # Remove "por " ou "Loja " do início
+                        seller_name = re.sub(r"^(por\s+|Loja\s+|Vendido por\s+)", "", seller_name, flags=re.I)
+                except Exception:
+                    pass
+
+                # Se não achou no card, tenta extrair da URL do produto
+                if not seller_name and link_prod:
+                    # ML às vezes tem /loja/{NOME}/ na URL do produto
+                    m_seller = re.search(r"/loja/([^/]+)/?", link_prod)
+                    if m_seller:
+                        seller_name = m_seller.group(1)
 
                 # Scrolla até o card
                 await card.scroll_into_view_if_needed()
@@ -281,6 +300,7 @@ async def scrape_category(page, category_name: str, dry_run: bool = False) -> in
                     "Codigo_ML": codigo_ml,
                     "categoria": category_name,
                     "image_url": image_url,
+                    "seller_name": seller_name,
                 }
 
                 count += 1
@@ -574,6 +594,19 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
         if not dry_run:
             await save_metrics_snapshot(metrics)
 
+        # Scrape de cupons (após produtos, reusa mesma sessão/logada)
+        if not dry_run:
+            try:
+                logger.info("\n=== INICIANDO SCRAPE DE CUPONS ===")
+                from app.workers.ml_coupon_scraper import scrape_ml_coupons, save_coupons, deactivate_expired_coupons
+                coupons = await scrape_ml_coupons(page, max_pages=0)
+                if coupons:
+                    await save_coupons(coupons)
+                await deactivate_expired_coupons()
+                logger.info(f"=== CUPONS: {len(coupons)} coletados ===\n")
+            except Exception as e:
+                logger.warning(f"Erro no scrape de cupons: {e}")
+
         await browser.close()
 
     # Limpa checkpoint após concluir tudo
@@ -588,15 +621,54 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
 
 async def deactivate_all_products():
     """Desativa produtos ML existentes no início do scrape (sobrescrever).
-    NÃO desativa produtos da Amazon (notes contém 'amazon_scraper')."""
+    NÃO desativa produtos da Amazon (notes contém 'amazon_scraper').
+    Também deleta produtos inativos com >30 dias (auto-cleanup)."""
     try:
         from app.db.session import AsyncSessionLocal
         from app.models.models import AffiliateProduct
-        from sqlalchemy import select, func
+        from sqlalchemy import select, func, delete
+        from datetime import datetime, timezone, timedelta
     except ImportError:
         return
 
     async with AsyncSessionLocal() as db:
+        # Auto-cleanup: deleta produtos inativos há mais de 30 dias
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        old_inactive = await db.execute(
+            select(func.count()).select_from(AffiliateProduct).where(
+                AffiliateProduct.is_active == False,
+                AffiliateProduct.updated_at < cutoff,
+            )
+        )
+        old_count = old_inactive.scalar() or 0
+        if old_count > 0:
+            await db.execute(
+                delete(AffiliateProduct).where(
+                    AffiliateProduct.is_active == False,
+                    AffiliateProduct.updated_at < cutoff,
+                )
+            )
+            await db.commit()
+            logger.info(f"{old_count} produtos inativos (>30 dias) deletados (auto-cleanup)")
+
+        # Cleanup histórico: deleta registros com mais de 2 anos
+        from app.models.models import AffiliatePriceHistory
+        hist_cutoff = datetime.now(timezone.utc) - timedelta(days=730)
+        old_hist = await db.execute(
+            select(func.count()).select_from(AffiliatePriceHistory).where(
+                AffiliatePriceHistory.recorded_at < hist_cutoff,
+            )
+        )
+        hist_count = old_hist.scalar() or 0
+        if hist_count > 0:
+            await db.execute(
+                delete(AffiliatePriceHistory).where(
+                    AffiliatePriceHistory.recorded_at < hist_cutoff,
+                )
+            )
+            await db.commit()
+            logger.info(f"{hist_count} registros de histórico (>2 anos) deletados (auto-cleanup)")
+
         # Só desativa produtos ML (não Amazon)
         result = await db.execute(
             select(AffiliateProduct).where(
@@ -616,7 +688,7 @@ async def save_single_product(r: dict) -> bool:
     """Salva UM produto no banco imediatamente (upsert). Retorna True se salvou."""
     try:
         from app.db.session import AsyncSessionLocal
-        from app.models.models import AffiliateProduct
+        from app.models.models import AffiliateProduct, AffiliatePriceHistory
         from sqlalchemy import select
     except ImportError as e:
         logger.error(f"Erro ao importar banco: {e}")
@@ -652,10 +724,27 @@ async def save_single_product(r: dict) -> bool:
             existing = result.scalar_one_or_none()
 
             if existing:
+                # Salva snapshot do preço a cada execução do scraper (diária)
+                # Mas só 1 por dia por produto (evita duplicatas se o scraper rodar 2x)
+                if price is not None and price > 0:
+                    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                    already_today = await db.execute(
+                        select(AffiliatePriceHistory).where(
+                            AffiliatePriceHistory.product_id == existing.id,
+                            AffiliatePriceHistory.recorded_at >= today_start,
+                        ).limit(1)
+                    )
+                    if not already_today.scalar_one_or_none():
+                        db.add(AffiliatePriceHistory(
+                            product_id=existing.id,
+                            provider="mercadolivre",
+                            price=price,
+                        ))
                 existing.title = r.get("nome", "")
                 existing.price = price
                 existing.commission_pct = commission
                 existing.category = r.get("categoria", "")
+                existing.seller_name = r.get("seller_name") or existing.seller_name
                 existing.image_url = image_url or existing.image_url
                 existing.notes = notes
                 existing.is_active = True
@@ -668,11 +757,20 @@ async def save_single_product(r: dict) -> bool:
                     price=price,
                     commission_pct=commission,
                     category=r.get("categoria", ""),
+                    seller_name=r.get("seller_name"),
                     image_url=image_url,
                     notes=notes,
                     is_active=True,
                 )
                 db.add(product)
+                await db.flush()  # precisa do ID
+                # Snapshot inicial do preço
+                if price is not None:
+                    db.add(AffiliatePriceHistory(
+                        product_id=product.id,
+                        provider="mercadolivre",
+                        price=price,
+                    ))
 
             await db.commit()
             return True

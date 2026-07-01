@@ -12,7 +12,7 @@ const STEPS = [
   {
     emoji: "⚖️",
     title: "Compare",
-    text: "Veja lado a lado preços, cupons, frete e score de oferta. Tudo em segundos, sem abrir 10 abas.",
+    text: "Veja lado a lado preços, frete, histórico e score de oferta. Tudo em segundos, sem abrir 10 abas.",
     color: "#f97316",
   },
   {

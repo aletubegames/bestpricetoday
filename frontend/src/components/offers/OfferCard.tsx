@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
 import { openTrackedOffer } from "@/lib/tracking";
@@ -87,12 +88,6 @@ function computeBadges(offer: Offer): BadgeConfig[] {
   if (offer.shipping_free) {
     badges.push({ id: "free_ship", label: "🚚 Frete Grátis", color: "#60a5fa", bg: "rgba(96,165,250,.1)", border: "rgba(96,165,250,.25)", priority: 4 });
   }
-  if (offer.cashback_percent > 0) {
-    badges.push({ id: "cashback", label: `💰 ${offer.cashback_percent}% Cashback`, color: "#a78bfa", bg: "rgba(167,139,250,.1)", border: "rgba(167,139,250,.25)", priority: 5 });
-  }
-  if (offer.coupon_code) {
-    badges.push({ id: "coupon", label: `🏷️ ${offer.coupon_code}`, color: "#e879f9", bg: "rgba(232,121,249,.1)", border: "rgba(232,121,249,.25)", priority: 6 });
-  }
 
   return badges.sort((a, b) => a.priority - b.priority).slice(0, 3);
 }
@@ -127,9 +122,11 @@ interface Props {
   onCompare?: (offer: Offer) => void;
   compareMode?: boolean;
   isSelected?: boolean;
+  hasCoupon?: boolean;
+  couponText?: string;
 }
 
-export default function OfferCard({ offer, rank, onCompare, compareMode, isSelected }: Props) {
+export default function OfferCard({ offer, rank, onCompare, compareMode, isSelected, hasCoupon, couponText }: Props) {
   const p = PROVIDERS[offer.provider] ?? { name: offer.provider, color: "#a78bfa" };
   const logo = PROVIDER_LOGOS[offer.provider];
   const best = rank === 0;
@@ -138,6 +135,12 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
   const [buyUrl, setBuyUrl] = useState<string>(offer.affiliate_url?.includes("/r/") ? offer.affiliate_url : offer.affiliate_url || "#");
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [buyError, setBuyError] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  // Adiciona badge de cupom se houver
+  if (hasCoupon) {
+    badges.push({ id: "coupon", label: `🏷️ Cupom ${couponText || ""}`.trim(), color: "#e11d48", bg: "rgba(225,29,72,.12)", border: "rgba(225,29,72,.3)", priority: 0.5 });
+  }
 
   const handleBuy = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -186,6 +189,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             <button
               onClick={(e) => { e.preventDefault(); onCompare(offer); }}
               title="Comparar"
+              aria-label="Adicionar à comparação"
               className={`${styles.compareBtn} ${isSelected ? styles.compareBtnSelected : ""}`}
             >
               ⊕
@@ -203,9 +207,12 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         {/* Product image + title */}
         <div className={styles.productSection}>
           <div className={styles.imageWrap}>
-            {offer.image_url && offer.image_url.startsWith("http") ? (
-              <img src={offer.image_url} alt={offer.title} loading="lazy" fetchPriority="low"
-                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+            {offer.image_url && offer.image_url.startsWith("http") && !imgError ? (
+              <Image src={offer.image_url} alt={offer.title} fill
+                sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                style={{ objectFit: "contain", padding: 8 }}
+                loading="lazy"
+                onError={() => setImgError(true)}
               />
             ) : (
               <span className={styles.imagePlaceholder}>🛍️</span>

@@ -7,13 +7,13 @@
 
 ---
 
-## 📊 Resumo executivo (atualizado 2026-06-27)
+## 📊 Resumo executivo (atualizado 2026-06-30)
 
 ### ✅ Implementado (Fase 0, 1, 2 e 3.2 — SEO em escala)
 | Área | Status | Detalhe |
 |---|---|---|
-| URLs consistentes | ✅ | `PUBLIC_SITE_URL` + `INTERNAL_API_URL` centralizados, ngrok removido |
-| Links Telegram | ✅ | Short links `:9443/r/{code}` → 302 redirect funcionando |
+| URLs consistentes | ✅ | `PUBLIC_SITE_URL` + `INTERNAL_API_URL` centralizados, ngrok removido, Cloudflare Tunnel ativo |
+| Links Telegram | ✅ | Short links `/r/{code}` → 302 redirect funcionando (sem :9443) |
 | Métricas ML | ✅ | Scraping diário do portal de afiliados → `affiliate_metrics_snapshots` |
 | SSR SEO | ✅ | `/produto/[query]` server-rendered com JSON-LD `Product` + `AggregateOffer` |
 | Sitemap honesto | ✅ | **95 URLs** com conteúdo real (4 estáticas + 10 categorias + 81 produtos) |
@@ -24,26 +24,33 @@
 | Dashboard | ✅ | `/admin/distribute/stats` tracking por canal/post |
 | Filtro de relevância | ✅ | Remove acessórios (capas, cases, joysticks, gift cards) de buscas de produtos principais |
 | Filtro Lomadee | ✅ | Remove resultados irrelevantes (ex: Dorflex para "iphone") |
-| **Amazon scraper** | ✅ | **1.084 produtos** via Playwright + **cron 3am diário** (atualiza preços/estoque) |
+| **Amazon scraper** | ✅ | **1.066 produtos ativos** via Playwright + **cron 3am diário** (atualiza preços/estoque) |
 | **Provider Amazon 3 modos** | ✅ | PA-API → scraper local → fallback search link (sempre rastreia comissão) |
 | **Ranking com relevância** | ✅ | Boost por match do título + round-robin de providers (diversidade) |
+| **Dashboard Afiliados** | ✅ | `/afiliados` com 5 providers (ML + Amazon + Shopee + AliExpress + Lomadee), grid 6 colunas, paginação múltiplos de 24 |
+| **Histórico de Preços** | ✅ | Tabela `affiliate_price_history` + scrapers salvam snapshot diário (1 por dia/produto) + gráfico SVG no dashboard + página pública `/produto` e `/oferta` + disclaimer sobre período monitorado |
+| **Lomadee DeepLink** | ✅ | Fallback Custom → deeplink manual com sourceId (não usa BrandPage que leva à homepage) |
+| **Bing Webmaster** | ✅ | Site verificado + sitemap enviado |
 
 ### Catálogo atual
-- **Amazon:** 1.084 produtos (scraper via Playwright, 64 queries)
-- **Mercado Livre:** 2.530 produtos (scraper portal afiliados)
-- **AliExpress/Shopee:** API ao vivo (acessórios filtrados)
+- **Amazon:** 1.066 produtos ativos (scraper via Playwright, 64 queries)
+- **Mercado Livre:** 1.466 produtos ativos (scraper portal afiliados)
+- **AliExpress:** 50 hot products (API ao vivo)
+- **Shopee:** 48 hot products (API ao vivo, listType=2 Top performance)
+- **Lomadee:** ~24 produtos (API ao vivo, catálogo sem search)
 - **Queries válidas:** 81 (≥3 ofertas com preço real)
 
 ### ⬜ Pendente (ações do usuário)
 | Item | Ação |
 |---|---|
 | **GATE: compra teste** | Comprar R$ 15-30 via link afiliado → aguardar 24-48h → scrape métricas |
-| **Google Search Console** | Reenviar sitemap manualmente |
-| **OpenRouter créditos** | $5 para IA ativa permanente (sem fallback) |
+| **Google Search Console** | Adicionar `https://bestpricetoday.alaserver.com.br` + enviar sitemap |
+| **Redirect URIs** | Atualizar YouTube, Facebook, TikTok, Mercado Livre nos consoles de desenvolvedor (sem :9443) |
 | ~~Criar App Meta novo~~ | ✅ FEITO — app Business `1555866299595457` (casos de uso: Pages + Instagram) |
 | ~~Criar Página FB + IG Business~~ | ✅ FEITO — 3 páginas conectadas: Bestpricetoday + Achados Shoppee + Achados Shopee |
 | ~~OAuth Facebook~~ | ✅ FEITO — 3 páginas + 1 Instagram (@aletubegames) salvos no banco, post de teste OK |
-| **OAuth TikTok/YouTube** | Refazer login + aprovação Content Posting API |
+| ~~OAuth TikTok/YouTube~~ | ✅ YouTube FEITO — postando Shorts automaticamente. TikTok pendente |
+| ~~Bing Webmaster~~ | ✅ FEITO — verificado via XML, sitemap enviado |
 
 ### 📈 Métricas atuais
 - **Posts no Telegram:** 31 (cliques: 6)
@@ -52,25 +59,34 @@
 - **Posts no YouTube:** 6 (cliques: 1)
 - **Páginas indexáveis:** 95 (sitemap) — 4 estáticas + 10 categorias + 81 produtos
 - **Queries com produtos:** 81 (airfryers + iPhones + Galaxy + notebooks + TVs + PS5 + etc)
-- **Catálogo Amazon:** 1.084 produtos (scraper Playwright)
+- **Catálogo total:** 2.532 produtos ativos (1.466 ML + 1.066 Amazon) + AliExpress/Shopee/Lomadee ao vivo
+- **Dashboard afiliados:** 5 providers funcionando (ML 1466, Amazon 1066, Shopee 48, Lomadee 24, AliExpress 50)
 - **Frequência de postagem:** 2x/dia (12h, 19h) em 4 canais simultaneamente
 
 ---
 
-## Realidade verificada em 2026-06-27 (atualizada pós-implementação)
+## Realidade verificada em 2026-06-30 (atualizada pós-implementação)
 
 ### O que está NO AR (verificado por curl + SSH)
-- ✅ **Frontend HTTPS** `https://bestpricetoday.alaserver.com.br:9443/` —
+- ✅ **Frontend HTTPS** `https://bestpricetoday.alaserver.com.br/` —
   HTTP 200, título "BestPriceToday — Menor Preço do Brasil", ISR ativo.
   Serviço `bestprice-frontend.service` active running (next-server v14.2.3).
-- ✅ **API HTTPS** `https://api.alaserver.com.br:9443` — nginx + uvicorn,
+  Cloudflare Tunnel (porta 443 padrão) + nginx backup na porta 9443.
+- ✅ **API HTTPS** `https://api.alaserver.com.br/` — nginx + uvicorn,
   `/health` 200. Serviço `bestprice-backend.service` active running.
+  Cloudflare Tunnel (porta 443 padrão) + nginx backup na porta 9443.
 - ✅ Backend na máquina alaserver (`192.168.100.30:8000`), DB Neon, Redis Upstash.
-- ✅ nginx com 4 vhosts: `bestprice-frontend` (:8080), `bestprice-frontend-ssl`
-  (:9443), `bestprice-api` (http), `bestprice-api-ssl` (:9443). Cert Let's Encrypt
-  `alaserver.com.br` válido.
-- ✅ **ngrok removido** — todos os workers agora usam `https://api.alaserver.com.br:9443`.
-- ✅ 2 serviços systemd: `bestprice-frontend.service`, `bestprice-backend.service`.
+- ✅ nginx com vhosts: `bestprice-frontend-ssl` (:443+:9443+:8443+:2053),
+  `bestprice-api-ssl` (:443+:9443+:8443+:2053), `bestprice-redirect` (:80→HTTPS).
+  Cert Let's Encrypt `alaserver.com.br` válido. `error_page 497` redireciona
+  HTTP→HTTPS na porta 9443 (resolve erro 400 no 4G/5G).
+- ✅ **Cloudflare Tunnel ativo** — `cloudflared` service (systemd, enabled no boot).
+  Tunnel ID: `52eea050-68dc-4cf4-9c96-f114d501cc53`.
+  DNS gerenciado pelo Cloudflare (nameservers: leonidas + tia.ns.cloudflare.com).
+  SSL/TLS mode: Full. Universal SSL ativo (Google Trust Services).
+  Worker `bestpricetoday-facebook-proxy` intacto (não mexer).
+- ✅ **ngrok removido** — todos os workers agora usam `https://api.alaserver.com.br` (sem porta).
+- ✅ 3 serviços systemd: `bestprice-frontend.service`, `bestprice-backend.service`, `cloudflared.service`.
 - ✅ Arsenal completo: OAuth ML, Shopee, AliExpress, TikTok, YouTube, Facebook,
   Instagram, Telegram + OpenRouter LLM + GPU vídeo local (via ngrok — só vídeo).
 - ✅ **GA4 ativo** (ID: `G-D2J769S99H`) — tráfego e conversões rastreados.
@@ -91,14 +107,22 @@
 |---------|--------|-----------|
 | **3am** | `run_amazon_scraper.sh` | Desativa produtos Amazon antigos, roda scraper (64 queries), reativa encontrados |
 | **4am** | `run_ml_scraper.sh` | Scraper portal afiliados ML + métricas |
-| **a cada 25min** | `ml_refresh_cron` | Atualiza preços/métricas ML |
-| **a cada 1h** | `conversion_cron` | Tracking conversões |
+
+> **Nota:** `conversion_cron` e `ml_refresh_cron` foram removidos do crontab
+> (2026-06-28) — ambos rodam como background tasks no `bestprice-backend.service`
+> (main.py). Os cron jobs não tinham `__main__` e nunca executaram nada (logs 0 bytes).
 - ✅ **Filtro de acessórios** ativo no ranking (remove capas/cases de buscas de produtos).
 - ✅ **Filtro de relevância Lomadee** ativo (remove resultados sem token principal).
 
 ### O que estava QUEBRADO e FOI CORRIGIDO
-1. ~~**Nada escuta na porta 443.**~~ → **DECIDIDO manter 9443** (443 ocupado
-   por Nextcloud snap). URL com `:9443` funciona perfeitamente para tudo.
+
+> **NOTA (2026-06-29):** Todas as URLs migraram de `:9443` para porta 443 padrão
+> via Cloudflare Tunnel. As referências a `:9443` no histórico abaixo são registros
+> da época — a porta 9443 continua como backup mas a URL oficial é sem porta.
+
+1. ~~**Nada escuta na porta 443.**~~ → **CORRIGIDO (2026-06-28)**: Nextcloud
+   removido. Nginx agora escuta em 443 (rede local) e 9443 (externo).
+   Operadora bloqueia 80/443 inbound, então 9443 é a porta oficial.
 2. ~~**Links do Telegram quebrados.**~~ → **CORRIGIDO**: `PUBLIC_SITE_URL`
    centralizado em `config.py`, todas as URLs hardcoded substituídas em
    12+ arquivos (backend + frontend). Short links gerados com `:9443`.
@@ -119,7 +143,7 @@
    principal no título). Filtro AND no ML local fallback (todos os tokens
    devem aparecer, não apenas um).
 7. **`bestpricetoday.com.br`** (domínio próprio real) — ainda não configurado.
-   Futuro: apontar para 443 quando Nextcloud for migrado.
+   Futuro: apontar para 9443 (Nextcloud já removido, porta 443 livre na LAN).
 8. ~~**Redirect URIs OAuth apontando para o frontend (404 no callback).**~~ →
    **CORRIGIDO (2026-06-27)**: Todos os redirect URIs (Facebook, YouTube,
    TikTok) apontavam para `bestpricetoday.alaserver.com.br:9443/aletube/...`
@@ -128,7 +152,38 @@
    `api.alaserver.com.br:9443/api/v1/aletube/callback/...` (host da API).
    Escopo `pages_manage_posts` adicionado ao fluxo OAuth Facebook.
    `post_to_facebook()` implementado no distributor (Graph API photos/feed).
-   Loop automático agora posta em `["telegram", "facebook"]`.
+   Loop automático agora posta em `["telegram", "facebook", "instagram", "youtube"]`.
+9. ~~**Erro 400 "plain HTTP request sent to HTTPS port" no celular 4G/5G.**~~ →
+   **CORRIGIDO (2026-06-28)**: Operadora bloqueia portas 80/443 inbound.
+   Acesso externo só funciona na porta 9443. Quando o Telegram abria
+   `http://...:9443` (sem https), o nginx devolvia 400. Corrigido com
+   `error_page 497 =301 https://$host:$server_port$request_uri` no nginx.
+   Redirect da porta 80 simplificado para `https://...:9443`.
+10. ~~**Links do Telegram sem `https://` no rodapé.**~~ → **CORRIGIDO
+    (2026-06-28)**: Rodapé da legenda usava `.replace('https://', '')`
+    deixando o domínio como texto puro não-clicável. Corrigido para
+    `[BestPriceToday](https://bestpricetoday.alaserver.com.br:9443)`.
+11. ~~**Instagram com link na legenda (risco de banimento).**~~ → **CORRIGIDO
+    (2026-06-28)**: Link estava sendo colocado direto na legenda do Instagram.
+    Revertido para legenda sem link + comentário fixado com o link.
+    Permissão `instagram_manage_comments` adicionada ao escopo OAuth.
+    Reautenticação feita — comentários com link agora funcionam.
+12. ~~**Processos órfãos no servidor.**~~ → **CORRIGIDO (2026-06-28)**:
+    2 processos `ml_scraper` + 18 Chromium/Playwright travados desde Jun 26.
+    Mortos. ml_scraper reiniciado (roda via cron 4h, NÃO é órfão).
+13. ~~**Cron jobs redundantes.**~~ → **CORRIGIDO (2026-06-28)**:
+    `conversion_cron` e `ml_refresh_cron` removidos do crontab — ambos
+    rodam como background tasks no main.py. Cron jobs não tinham `__main__`
+    e logs estavam vazios (0 bytes).
+14. ~~**.env com regressões.**~~ → **CORRIGIDO (2026-06-28)**:
+    `ALLOWED_ORIGINS` duplicado e sem `:9443`. Redirect URIs (YouTube,
+    Facebook, TikTok) sem `:9443`. `ML_AFFILIATE_EMAIL` com espaço à
+    esquerda. Todos corrigidos.
+15. ~~**Resíduos no servidor.**~~ → **CORRIGIDO (2026-06-28)**: Removidos:
+    apache2 fantasma (masked), services antigos (.service, install_bot.sh,
+    sync_*.sh), .env.bak antigos, SQLite antigos (bestprice.db,
+    bestpricetoday.db), .vercel, hf_deploy, .venv antigo (294MB liberados),
+    nginx configs antigos. Frontend `output: standalone` removido (warning).
 
 ### Conclusão honesta (pós-implementação)
 O sistema estava **quase todo no ar** com 6 defeitos que zeravam a receita.
@@ -172,23 +227,32 @@ Cada fase tem **critério de saída verificável**. Não pular.
 **Sem isso, tudo o resto é perda de tempo.** Meta: frontend na 443 (URL limpa),
 links do Telegram funcionando, workers no alaserver, 1 comissão ML confirmada.
 
-> O frontend **já está no ar** em `https://bestpricetoday.alaserver.com.br:9443/`
-> e `http://...:8080/` (serviço `bestprice-frontend.service` active). A API em
-> `https://api.alaserver.com.br:9443` (active). Então a Fase 0 é só consertar
-> os 4 defeitos que zeram a receita — não subir nada do zero.
+> O frontend **já está no ar** em `https://bestpricetoday.alaserver.com.br/`
+> (Cloudflare Tunnel, porta 443 padrão) e backup em `https://...:9443/`.
+> A API em `https://api.alaserver.com.br/` (active). Então a Fase 0 está
+> completa — URL limpa sem :9443, Cloudflare Tunnel ativo.
 
-### 0.1 Frontend na porta 443 (URL limpa, sem :9443)
-- [x] **DECIDIDO (2026-06-26):** Manter porta 9443. A porta 443 está ocupada
-      pelo Nextcloud snap (httpd embutido), e mover o Nextcloud para 4443 +
-      habilitar main-proxy nginx tem risco de quebrar CalDAV/CardDAV/uploads.
-      O bestprice já funciona perfeitamente na 9443 com HTTPS. A porta na URL
-      é estética — não afeta rastreamento de afiliados (cookie-based).
-- [x] Alternativa para URL limpa no futuro: domínio próprio (ex: bestprice.com.br)
-      que aponta direto para o servidor na 443, sem conflitar com Nextcloud.
+### 0.1 Frontend na porta 443 (URL limpa, sem :9443) ✅ CONCLUÍDO (2026-06-29)
+- [x] **Cloudflare Tunnel instalado e ativo** — `cloudflared` service (systemd).
+      Tunnel ID: `52eea050-68dc-4cf4-9c96-f114d501cc53`.
+      DNS no Cloudflare (nameservers: leonidas + tia.ns.cloudflare.com).
+      SSL/TLS mode: Full. Universal SSL (Google Trust Services).
+- [x] **Porta 9443 mantida como backup** — nginx direto + port forwarding roteador.
+      Portas 443, 8443, 2053 também escutando no nginx (alternativas).
+- [x] **robots.txt** — Cloudflare robots.txt management desativado (usa o nosso).
+- [x] Todas as URLs no código atualizadas para sem `:9443`:
+      `api.ts`, `config.py`, `auth.py`, `next.config.mjs`, `robots.txt`, `.env`.
+- [x] **PENDÊNCIA:** Atualizar redirect URIs nos painéis:
+      - YouTube Studio → `https://bestpricetoday.alaserver.com.br/aletube/callback/youtube`
+      - Facebook Developers → `https://api.alaserver.com.br/api/v1/aletube/callback/facebook`
+      - TikTok Developers → `https://api.alaserver.com.br/api/v1/tiktok/callback`
+      - Mercado Livre Apps → `https://bestpricetoday.alaserver.com.br/auth/callback`
+      (As URLs antigas com :9443 ainda funcionam via backup, mas as novas sem porta
+      devem ser registradas para OAuth funcionar pelo Cloudflare Tunnel.)
 
 ### 0.2 Migrar workers Telegram de ngrok → alaserver ✅ CONCLUÍDO (2026-06-26)
-- [x] `backend/.env`: `INTERNAL_API_URL=https://api.alaserver.com.br:9443`
-- [x] `config.py`: default alterado de ngrok para `https://api.alaserver.com.br:9443`
+- [x] `backend/.env`: `INTERNAL_API_URL=https://api.alaserver.com.br`
+- [x] `config.py`: default alterado de ngrok para `https://api.alaserver.com.br`
 - [x] `bestprice_bot.py:119`: removido fallback ngrok, usa `settings.INTERNAL_API_URL`
 - [x] `alert_checker.py:30`: removido fallback, usa `settings.INTERNAL_API_URL`
 - [x] `aletube.py:49`: removido fallback ngrok hardcoded, usa `settings.INTERNAL_API_URL`
@@ -625,3 +689,13 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
 - **Fase 3.4:** Cortar perdedores, dobrar vencedores
 - **Fase 3.5:** ~~EXPANDIR CATÁLOGO~~ ✅ CONCLUÍDO (Amazon scraper: 1.084 produtos, 81 queries válidas)
   — Para crescer mais: rodar scraper com mais queries, configurar PA-API após 3 vendas
+- **Fase 3.6:** ~~CUPONS ML~~ ✅ CONCLUÍDO (141 cupons ativos, 3.733 produtos com preço+imagem)
+  — Scraper gera cupons no Portal do Afiliado, coleta produtos da loja
+  — Frontend `/cupons` com grid, filtros, copiar cupom, link "Ver na loja"
+  — Comissão: 3% (maioria) / 5% (moda/esportes) — rastreio permanente
+  — vs Link de afiliado: até 16% mas cookie expira em 24-48h
+  — **Estratégia:** usar AMBOS nas postagens (link + cupom como fallback)
+- **Fase 3.7:** Postagem de cupons no distributor (telegram/facebook/instagram)
+  — Postar produto + cupom + link de afiliado juntos
+  — Cupom como incentivo de compra (desconto) + rastreio permanente
+  — Link como comissão primária (até 16% se comprar em 48h)

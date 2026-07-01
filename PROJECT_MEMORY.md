@@ -551,7 +551,7 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 ```typescript
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.alaserver.com.br:9443";
+  "https://api.alaserver.com.br";
 ```
 
 Todos os arquivos importam `{ API_BASE }` dali. Nenhum fallback inline ou `localhost` restante.
@@ -1215,7 +1215,7 @@ O código está correto — problema é credencial errada.
 
 **Webhook ML para registrar no portal:**
 ```
-POST https://api.alaserver.com.br:9443/api/v1/admin/webhooks/mercadolivre
+POST https://api.alaserver.com.br/api/v1/admin/webhooks/mercadolivre
 ```
 
 **Features do dashboard:**
@@ -1414,6 +1414,67 @@ VIDEO_API_PORT = 8765                   # porta da Video API
 ### Status wan2 repo
 - `~/wan2` é local sem remote git
 - Alterações em `traffic_machine.py`, `hybrid_pipeline.py`, `video_engine_v3.py` não versionadas remotamente
+
+---
+
+## Sistema de Cupons ML (2026-06-30)
+
+### O que é
+Scraper que gera e coleta cupons de afiliado do Mercado Livre via Portal do Afiliado.
+Cada cupom é específico de uma loja (vendedor) e dá desconto ao comprador + comissão ao afiliado.
+
+### Monetização: Cupom vs Link de afiliado
+
+| Método | Comissão | Rastreio | Vantagem |
+|--------|----------|----------|----------|
+| **Link de afiliado** | até **16%** (direta) / metade (indireta) | Cookie 24-48h | Comissão alta |
+| **Cupom personalizado** | **3%** (maioria) / **5%** (moda/esportes) | Permanente (cupom = tracking) | Rastreio não expira |
+
+- Cupom: cliente ganha desconto (5% OFF, R$ 10 OFF), você ganha 3-5% da venda
+- Link: sem desconto ao cliente, mas comissão até 16%
+- **Estratégia ideal:** usar AMBOS — link para comissão alta + cupom como fallback de rastreio permanente
+
+### Cupom vale para QUALQUER produto da loja
+O cupom não é limitado ao catálogo de afiliados. Quando o cliente usa o cupom, pode comprar
+qualquer produto da loja. Por isso o scraper coleta produtos via "Ver produtos" (URL da loja),
+não via catálogo de afiliados.
+
+### Arquitetura
+
+**Tabelas:**
+- `coupons` — cupons gerados (code, discount, expires_at, store_name, product_url, conditions, budget_remaining)
+- `coupon_products` — produtos elegíveis por cupom (title, price, image_url, ml_code, product_url)
+
+**Scraper (`ml_coupon_scraper.py`):**
+- Fase 1: gera cupons no Portal do Afiliado (click botão "Gerar código")
+- Fase 2: coleta cupons já gerados + navega "Ver produtos" → scrape produtos da loja
+- Modo `--collect-only`: só coleta, não gera novos
+- Usa Playwright + cookies manuais (.ml_cookies.json) — login bloqueado por reCAPTCHA
+- Seletores de preço: `.poly-price__amount` (preço real, não parcela nem preço+desconto colado)
+- Parser BR: "." = separador de milhar, "," = decimal (ex: "R$1.670" = 1670, "R$630,33" = 630.33)
+
+**API (`/api/v1/affiliate/coupons/products`):**
+- Lista produtos com cupom ativo
+- Filtros: store, min/max_discount, min/max_price, sort (expires_soon, biggest_discount, lowest_price, highest_price, newest)
+- Só mostra produtos com `price IS NOT NULL AND price > 0`
+
+**Frontend (`/cupons`):**
+- Grid de produtos com imagem, preço, desconto, cupom (copiar), link "Ver na loja"
+- Filtros: ordenação, desconto mínimo, preço máximo, loja
+- Fallback de imagem: letra inicial do produto em gradiente
+- Botão "Voltar para BestPriceToday"
+
+### Status atual (2026-06-30)
+- 141 cupons ativos
+- 13.808 produtos coletados (3.733 com preço+imagem válidos)
+- 129 lojas distintas
+- Script `rescrape_prices.py` re-coleta preços das lojas periodicamente
+- Preços válidos: R$ 10,90 a R$ 10.646 (sem absurdos)
+
+### Distribuição (distributor.py)
+- Distributor usa `store_name` para matching cupom→produto
+- Cupons vencidos são DELETADOS (não só desativados)
+- Postagem às 12h e 19h nos canais: telegram, facebook, instagram, youtube
 
 ---
 

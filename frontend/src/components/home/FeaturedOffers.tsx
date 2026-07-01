@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import { useTrendingSearches } from "@/hooks/useTrendingSearches";
+import { API_BASE } from "@/lib/api";
 
 const CATEGORIES = [
   { label: "📱 Celulares", query: "celular", color: "#f97316" },
@@ -30,6 +31,71 @@ const FALLBACK_PRODUCTS = [
   { emoji: "🖨️", query: "impressora multifuncional" },
 ];
 
+// Mapeia palavras-chave → emoji. Ordem importa: primeira match vence.
+const EMOJI_RULES: { keywords: string[]; emoji: string }[] = [
+  { keywords: ["iphone", "celular", "smartphone", "redmi", "galaxy", "motorola", "poco", "xiaomi phone"], emoji: "📱" },
+  { keywords: ["air fryer", "airfryer", "fritadeira"], emoji: "🍟" },
+  { keywords: ["fone", "headphone", "earbud", "tws", "bluetooth fone", "jbl", "airpod"], emoji: "🎧" },
+  { keywords: ["smartwatch", "relogio", "relógio", "band", "watch"], emoji: "⌚" },
+  { keywords: ["teclado", "keyboard"], emoji: "⌨️" },
+  { keywords: ["mouse"], emoji: "🖱️" },
+  { keywords: ["monitor", "tela", "display"], emoji: "🖥️" },
+  { keywords: ["notebook", "laptop", "ultrabook", "chromebook"], emoji: "💻" },
+  { keywords: ["ps5", "playstation", "controle", "xbox", "nintendo", "switch", "game", "jogo", "gamer"], emoji: "🎮" },
+  { keywords: ["aspirador", "robô", "robo"], emoji: "🤖" },
+  { keywords: ["lâmpada", "lampada", "smart light", "luz smart"], emoji: "💡" },
+  { keywords: ["câmera", "camera", "segurança", "security", "dvr"], emoji: "📷" },
+  { keywords: ["caixa de som", "caixa som", "speaker", "soundbar", "jbl"], emoji: "🔊" },
+  { keywords: ["impressora", "printer", "multifuncional"], emoji: "🖨️" },
+  { keywords: ["tv", "smart tv", "led", "oled", "qled"], emoji: "📺" },
+  { keywords: ["tablet", "ipad", "kindle"], emoji: "📋" },
+  { keywords: ["drone"], emoji: "🚁" },
+  { keywords: ["bike", "bicicleta", "mtb", "caloi", "monark"], emoji: "🚲" },
+  { keywords: ["pelicula", "película", "tempered", "capa", "case", "cover"], emoji: "🛡️" },
+  { keywords: ["carregador", "charger", "cabo", "usb", "fonte"], emoji: "🔌" },
+  { keywords: ["ssd", "hd", "disco", "armazenamento", "pendrive", "memoria"], emoji: "💾" },
+  { keywords: ["rtx", "placa de video", "gpu", "geforce", "radeon"], emoji: "🎮" },
+  { keywords: ["processador", "ryzen", "intel", "cpu"], emoji: "⚙️" },
+  { keywords: ["cadeira", "chair", "gamer cadeira"], emoji: "🪑" },
+  { keywords: ["café", "cafe", "cafeteira", "expresso"], emoji: "☕" },
+  { keywords: ["ventilador", "ar condicionado", "climatizador"], emoji: "🌀" },
+  { keywords: ["geladeira", "refrigerador", "freezer", "frigobar"], emoji: "🧊" },
+  { keywords: ["lava", "maquina de lavar", "lavadora", "secadora"], emoji: "🧺" },
+  { keywords: ["microondas", "forno"], emoji: "🔥" },
+  { keywords: ["bicicleta", "bike"], emoji: "🚲" },
+  { keywords: ["ferramenta", "martelo", "furadeira", "parafusadeira", "serra"], emoji: "🔧" },
+  { keywords: ["batedeira", "liquidificador", "mixer"], emoji: "🥤" },
+  { keywords: ["cama", "colchão", "colchonete", "travesseiro"], emoji: "🛏️" },
+  { keywords: ["mesa", "mesa escritorio", "escrivaninha"], emoji: "🪵" },
+  { keywords: ["câmera foto", "dslr", "mirrorless", "gopro"], emoji: "📸" },
+  { keywords: ["power bank", "powerbank", "bateria portatil"], emoji: "🔋" },
+  { keywords: ["roteador", "router", "wifi", "mesh"], emoji: "📡" },
+  { keywords: ["hdmi", "cabo hdmi", "adaptador"], emoji: "🔌" },
+  { keywords: ["suporte", "suporte tv", "suporte celular", "mochila", "bag"], emoji: "🎒" },
+  { keywords: ["shaver", "barbeador", "depilador", "cuidado pessoal"], emoji: "🪒" },
+  { keywords: ["perfume", "fragrância", "colonha"], emoji: "🌸" },
+  { keywords: ["tênis", "tenis", "sapato", "calça", "camisa", "roupa"], emoji: "👟" },
+  { keywords: ["livro", "book", "kindle book"], emoji: "📚" },
+  { keywords: ["pet", "cachorro", "gato", "ração", "cama pet"], emoji: "🐾" },
+  { keywords: ["brinquedo", "toy", "lego", "boneco", "carrinho"], emoji: "🧸" },
+  { keywords: ["bebe", "bebê", "fralda", "chupeta", "mamadeira"], emoji: "🍼" },
+  { keywords: ["suplemento", "whey", "creatina", "proteina", "vitamina"], emoji: "💊" },
+  { keywords: ["raquete", "tenis mesa", "ping pong", "futebol", "bola"], emoji: "⚽" },
+  { keywords: ["violão", "violao", "guitarra", "teclado musical", "instrumento"], emoji: "🎸" },
+  { keywords: ["pneu", "roda", "automotivo", "óleo motor", "oleo motor"], emoji: "🚗" },
+  { keywords: ["capacete", "moto", "motocicleta"], emoji: "🏍️" },
+];
+
+function inferEmoji(query: string): string {
+  const q = query.toLowerCase();
+  for (const rule of EMOJI_RULES) {
+    if (rule.keywords.some((kw) => q.includes(kw))) {
+      return rule.emoji;
+    }
+  }
+  return "🏷️"; // emoji genérico de oferta
+}
+
 const BRAND_COLORS = ["#7c3aed", "#f97316", "#1a1a2e", "#ec7000", "#8b5cf6", "#ea580c"];
 
 interface ProductItem {
@@ -42,13 +108,21 @@ interface ProductItem {
 export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => void }) {
   const [hoveredChip, setHoveredChip] = useState<string | null>(null);
   const { data: trendingData } = useTrendingSearches(20);
+  const [couponCount, setCouponCount] = useState(0);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/v1/affiliate/coupons?active_only=true&limit=1`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d?.total ? setCouponCount(d.total) : null)
+      .catch(() => {});
+  }, []);
 
   const products: ProductItem[] = useMemo(() => {
     const items = trendingData?.items ?? [];
     if (items.length >= 6) {
-      // Use trending items dynamically
+      // Use trending items dynamically — emoji inferido pelo título/query
       return items.slice(0, 12).map((item, i) => ({
-        emoji: FALLBACK_PRODUCTS[i % FALLBACK_PRODUCTS.length].emoji,
+        emoji: inferEmoji(item.query),
         query: item.query,
         label: item.query.length > 28 ? item.query.slice(0, 28) + "…" : item.query,
         color: BRAND_COLORS[i % BRAND_COLORS.length],
@@ -64,49 +138,6 @@ export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => 
 
   return (
     <div style={{ textAlign: "center" }}>
-      {/* ── Category Chips ── */}
-      <div style={{ marginBottom: 32 }}>
-        <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 12 }}>
-          Ou escolha uma categoria:
-        </p>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            justifyContent: "center",
-            maxWidth: 720,
-            margin: "0 auto",
-          }}
-        >
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.query}
-              onClick={() => onSearch(cat.query)}
-              onMouseEnter={() => setHoveredChip(cat.query)}
-              onMouseLeave={() => setHoveredChip(null)}
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                padding: "8px 16px",
-                borderRadius: 99,
-                border: hoveredChip === cat.query
-                  ? "1px solid #f97316"
-                  : "1px solid #e0e0f0",
-                background: hoveredChip === cat.query
-                  ? "rgba(249,115,22,0.08)"
-                  : "#fff",
-                color: hoveredChip === cat.query ? "#f97316" : "var(--muted)",
-                cursor: "pointer",
-                transition: "all .15s",
-              }}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* ── Featured Products ── */}
       <h2
         style={{
@@ -122,6 +153,25 @@ export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => 
       <p style={{ fontSize: 13, color: "rgba(26,26,46,0.45)", marginBottom: 24 }}>
         Produtos com maior economia agora. Clique pra ver o preço em tempo real.
       </p>
+
+      {couponCount > 0 && (
+        <a href="/cupons" style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          background: "linear-gradient(135deg, rgba(225,29,72,.1), rgba(225,29,72,.05))",
+          border: "1px solid rgba(225,29,72,.2)",
+          borderRadius: 20, padding: "8px 16px", marginBottom: 20,
+          textDecoration: "none", cursor: "pointer", transition: "all 0.15s",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "linear-gradient(135deg, rgba(225,29,72,.18), rgba(225,29,72,.08))"; e.currentTarget.style.borderColor = "rgba(225,29,72,.4)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "linear-gradient(135deg, rgba(225,29,72,.1), rgba(225,29,72,.05))"; e.currentTarget.style.borderColor = "rgba(225,29,72,.2)"; }}
+        >
+          <span style={{ fontSize: 18 }}>🏷️</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#e11d48" }}>
+            {couponCount} cupom{couponCount > 1 ? "s" : ""} ativo{couponCount > 1 ? "s" : ""} agora — ver produtos com desconto!
+          </span>
+          <span style={{ fontSize: 13, color: "#e11d48" }}>→</span>
+        </a>
+      )}
 
       <div
         style={{

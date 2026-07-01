@@ -78,8 +78,8 @@
 }
 
 .compareBtn {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: 6px;
   background: rgba(124, 106, 255, 0.15);
   border: 1px solid rgba(124, 106, 255, 0.3);
@@ -91,6 +91,8 @@
   justify-content: center;
   transition: all 0.2s;
   flex-shrink: 0;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .compareBtnSelected {
@@ -130,6 +132,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .imageWrap img {

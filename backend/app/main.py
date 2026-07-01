@@ -45,6 +45,10 @@ async def lifespan(app: FastAPI):
     from app.workers.ml_refresh_cron import start_ml_refresh_cron
     ml_refresh_task = asyncio.create_task(start_ml_refresh_cron())
 
+    # Start coupon distributor (2x/dia — separado do distributor principal)
+    from app.workers.coupon_distributor import coupon_distributor_loop
+    coupon_task = asyncio.create_task(coupon_distributor_loop())
+
     yield
 
     cron_task.cancel()
@@ -53,7 +57,8 @@ async def lifespan(app: FastAPI):
     bot_task.cancel()
     alert_task.cancel()
     ml_refresh_task.cancel()
-    for task in [cron_task, broadcast_task, distributor_task, bot_task, alert_task, ml_refresh_task]:
+    coupon_task.cancel()
+    for task in [cron_task, broadcast_task, distributor_task, bot_task, alert_task, ml_refresh_task, coupon_task]:
         try:
             await task
         except asyncio.CancelledError:

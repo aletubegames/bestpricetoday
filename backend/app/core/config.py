@@ -79,7 +79,6 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://bestpricetoday.alaserver.com.br",
-        "https://bestpricetoday.alaserver.com.br:9443",
         "https://bestpricetoday.com.br",
     ]
 
@@ -88,12 +87,12 @@ class Settings(BaseSettings):
     # TikTok API
     TIKTOK_CLIENT_KEY: str = ""
     TIKTOK_CLIENT_SECRET: str = ""
-    TIKTOK_REDIRECT_URI: str = os.getenv("TIKTOK_REDIRECT_URI", "https://api.alaserver.com.br:9443/api/v1/tiktok/callback")
+    TIKTOK_REDIRECT_URI: str = os.getenv("TIKTOK_REDIRECT_URI", "https://api.alaserver.com.br/api/v1/tiktok/callback")
 
     # YouTube
     YOUTUBE_CLIENT_ID: str = ""
     YOUTUBE_CLIENT_SECRET: str = ""
-    YOUTUBE_REDIRECT_URI: str = os.getenv("YOUTUBE_REDIRECT_URI", "https://api.alaserver.com.br:9443/api/v1/aletube/callback/youtube")
+    YOUTUBE_REDIRECT_URI: str = os.getenv("YOUTUBE_REDIRECT_URI", "https://api.alaserver.com.br/api/v1/aletube/callback/youtube")
 
     # Instagram / Facebook
     INSTAGRAM_APP_ID: str = ""  # Legacy - use ID_APLICATIVO_INSTAGRAM
@@ -103,7 +102,7 @@ class Settings(BaseSettings):
     ID_APLICATIVO_FACEBOOK: str = ""
     FACEBOOK_APP_SECRET: str = ""  # Para validar signed requests do Data Deletion Callback
     FACEBOOK_PAGE_ACCESS_TOKEN: str = ""
-    FACEBOOK_REDIRECT_URI: str = os.getenv("FACEBOOK_REDIRECT_URI", "https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook")
+    FACEBOOK_REDIRECT_URI: str = os.getenv("FACEBOOK_REDIRECT_URI", "https://api.alaserver.com.br/api/v1/aletube/callback/facebook")
 
     # Claude API (para análise de vídeo) — direto, opcional
     ANTHROPIC_API_KEY: str = ""
@@ -117,12 +116,12 @@ class Settings(BaseSettings):
     VIDEO_API_KEY: str = ""
 
     # URL interna usada por workers para se comunicar com a própria API
-    # Em produção: https://api.alaserver.com.br:9443 (nginx proxy para backend na 8000)
-    INTERNAL_API_URL: str = "https://api.alaserver.com.br:9443"
+    # Em produção: https://api.alaserver.com.br (Cloudflare Tunnel → backend na 8000)
+    INTERNAL_API_URL: str = "https://api.alaserver.com.br"
 
     # URL pública do frontend (usada em short links, mensagens Telegram, etc.)
-    # Em produção: https://bestpricetoday.alaserver.com.br:9443 (nginx proxy para frontend na 3000)
-    PUBLIC_SITE_URL: str = "https://bestpricetoday.alaserver.com.br:9443"
+    # Em produção: https://bestpricetoday.alaserver.com.br (Cloudflare Tunnel → frontend na 3000)
+    PUBLIC_SITE_URL: str = "https://bestpricetoday.alaserver.com.br"
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 5
