@@ -1106,7 +1106,7 @@ _BRAND_NAMES = {
     "watch": "uótchi", "ipod": "aipod", "homepod": "roumpod",
     "magSafe": "megue seife",
     # ── Áudio ──
-    "jbl": "jota bê éli", "akg": "a ke ge", "marshall": "marchal",
+    "jbl": "jótabêéli", "akg": "a ke ge", "marshall": "marchal",
     "sennheiser": "zenaizer", "beyerdynamic": "baierdinamic",
     "audio-technica": "audio tecnica", "technics": "téknics",
     "bang & olufsen": "bang olufsen", "b&o": "bang olufsen",
