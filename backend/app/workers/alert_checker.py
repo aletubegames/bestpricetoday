@@ -17,21 +17,18 @@ import httpx
 import os
 import logging
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
 from app.core.config import settings
+from app.db.session import AsyncSessionLocal as SessionLocal
 
 logger = logging.getLogger("alert_checker")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
-DATABASE_URL = settings.DATABASE_URL
 TELEGRAM_TOKEN = settings.TELEGRAM_BOT_TOKEN
 API_BASE = settings.INTERNAL_API_URL
 CHECK_INTERVAL_SECONDS = int(os.getenv("ALERT_CHECK_INTERVAL", "1800"))  # 30 min
-
-engine = create_async_engine(DATABASE_URL, echo=False)
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def send_telegram_message(chat_id: str, text: str) -> bool:
@@ -165,6 +162,14 @@ async def run_checker_loop():
                 await check_and_notify(db)
         except Exception as e:
             logger.error(f"Erro no ciclo de verificação: {e}", exc_info=True)
+            # Retry rápido após 60s se o ciclo falhou (ex: DB reiniciou)
+            await asyncio.sleep(60)
+            try:
+                async with SessionLocal() as db:
+                    await check_and_notify(db)
+                    logger.info("Retry do ciclo de verificação: OK")
+            except Exception as e2:
+                logger.error(f"Retry falhou: {e2}", exc_info=False)
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
 
