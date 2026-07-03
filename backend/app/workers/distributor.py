@@ -880,10 +880,13 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         _OPENING_VARIATIONS,
         _OPENING_HISTORY_FILE,
         fmt_brl,
+        _clean_title_for_narration,
     )
 
     image_url = offer.get("image_url", "")
     title = offer.get("title", "")[:80]
+    # Título limpo para narração (sem códigos, specs, cores, armazenamento)
+    title_clean = _clean_title_for_narration(title)
     price = offer.get("final_price", 0) or offer.get("price", 0)
     original = offer.get("original_price", 0) or 0
     discount = offer.get("discount_percent", 0) or 0
@@ -931,13 +934,13 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             if original and original > price and discount > 0:
                 economy = original - price
                 narration = (
-                    f"{title} por apenas {speak_brl(price)}! "
+                    f"{title_clean} por apenas {speak_brl(price)}! "
                     f"De {speak_brl(original)} por {speak_brl(price)}, "
                     f"você economiza {speak_brl(economy)}. "
                 )
             else:
                 narration = (
-                    f"{title} por apenas {speak_brl(price)}! "
+                    f"{title_clean} por apenas {speak_brl(price)}! "
                     f"É uma ótima opção pra quem busca qualidade. "
                 )
 

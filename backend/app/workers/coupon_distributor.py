@@ -938,12 +938,14 @@ def generate_review_script(offer: dict, title: str, price: float, final_price: f
     price_speak = speak_brl(price)
     final_speak = speak_brl(final_price)
     economy_speak = speak_brl(economy)
+    # Limpa título para narração (remove códigos, specs, cores)
+    title_clean = _clean_title_for_narration(title)
     use_phrase = _product_use_phrase(title)
 
     opening = _get_random_opening()
 
     script = (
-        f"{opening}, {title}. "
+        f"{opening}, {title_clean}. "
         f"Serve para {use_phrase}. "
         f"O preço original é {price_speak}, mas com o cupom sai por {final_speak}, "
         f"você economiza {economy_speak}, é desconto real. "
@@ -1059,7 +1061,7 @@ _BRAND_NAMES = {
     "new balance": "niu balenssi", "under armour": "ander armor",
     "ferrero rocher": "ferrero rocher",
     # Marcas com pronúncia diferente da escrita
-    "samsung": "samsungi", "apple": "epou", "iphone": "aifone", "ipad": "aipad",
+    "samsung": "sansunki", "apple": "epou", "iphone": "aifone", "ipad": "aipad",
     "philips": "filips", "philco": "filco", "brastemp": "brástemp",
     "electrolux": "eletrólux", "cadence": "cadenssi", "britania": "britânia",
     "makita": "makíta", "dewalt": "diuólt", "stihl": "chitil",
@@ -1087,6 +1089,158 @@ _BRAND_NAMES = {
     "4k": "quatro kai", "8k": "oito kai", "2k": "dois kai",
     "5g": "cinco ge", "4g": "quatro ge", "3g": "três ge",
     "lte": "ele te e", "cdma": "ce de eme a",
+    # ── Smartphones / Android ──
+    "galaxy": "galaksi", "redmi": "rédmi", "realme": "ríolmi",
+    "xiaomi": "chiaomi", "huawei": "uáuei", "oneplus": "uán plus",
+    "motorola": "motorola", "nokia": "nokia", "asus": "assus",
+    "tcl": "te ce ele", "zte": "ze te e", "meizu": "meizu",
+    "oppo": "ópo", "vivo": "vivo", "honor": "anor",
+    "poco": "póco", "infinix": "infinix", "itel": "aitel",
+    # Linhas Galaxy
+    "galaxy a": "galaksi a", "galaxy s": "galaksi esse",
+    "galaxy m": "galaksi eme", "galaxy z": "galaksi ze",
+    "galaxy note": "galaksi nóti",
+    # ── Apple ──
+    "macbook": "macbouque", "airpods": "er pods", "airpod": "er pod",
+    "imac": "aimac", "mac mini": "mac mini", "mac": "mac",
+    "watch": "uótchi", "ipod": "aipod", "homepod": "roumpod",
+    "magSafe": "megue seife",
+    # ── Áudio ──
+    "jbl": "jota be ele", "akg": "a ke ge", "marshall": "marchal",
+    "sennheiser": "zenaizer", "beyerdynamic": "baierdinamic",
+    "audio-technica": "audio tecnica", "technics": "téknics",
+    "bang & olufsen": "bang olufsen", "b&o": "bang olufsen",
+    "tcl": "te ce ele", "polk": "polk", "klipsch": "clipsch",
+    "edifier": "edifaier", "creative": "crieitiv",
+    "harman kardon": "árman kárdon", "harman": "árman",
+    "kardon": "kárdon", "dolby": "dólbi", "atmos": "átmos",
+    "dts": "de te esse", "thx": "te age xis",
+    "tws": "te dabliu esse", "ticking": "ticking",
+    "jvc": "jota ve ce", "kenwood": "kenuód",
+    "pioneer": "pionír", "onkyo": "onkio", "denon": "dínon",
+    "yamaha": "iamaá",
+    # ── Gaming ──
+    "nintendo": "nintento", "switch": "suítchi",
+    "wii": "uí", "gameboy": "geimei boi",
+    "razer": "reizer", "logitech": "loguitech",
+    "corsair": "corsér", "steelseries": "stil séris",
+    "hyperx": "haiper xis", "roccat": "rócat",
+    "turtle beach": "turtol bítchi",
+    "nacon": "nácón", "thrustmaster": "thrustmaster",
+    # ── Hardware/PC ──
+    "intel": "intel", "core": "cor",
+    "pentium": "pentium", "celeron": "celeron",
+    "xeon": "xion", "arc": "arc",
+    "amd": "a eme de", "radeon": "rádeon",
+    "epyc": "epic", "threadripper": "threadripper",
+    "nvidia": "envídia", "geforce": "guiforce",
+    "quadro": "quádro", "tesla": "tesla",
+    "msi": "eme esse i", "gigabyte": "gigabaite",
+    "asrock": "asrock", "biostar": "baistar",
+    "crucial": "crúcial", "kingston": "kingston",
+    "corsair": "corsér", "g.skill": "gi skil",
+    "western digital": "uésten digital", "wd": "dabliu de",
+    "seagate": "seigueite", "toshiba": "toshíba",
+    "nvme": "envi eme e", "sata": "sata",
+    "ddr3": "de de erre três", "ddr4": "de de erre quatro",
+    "ddr5": "de de erre cinco", "ddr2": "de de erre dois",
+    # ── Eletrodomésticos ──
+    "consul": "cónsul", "midea": "midea", "mondial": "mondial",
+    "arno": "árno", "luminair": "luminair",
+    "black decker": "blék dequer",
+    "walmart": "uólmart",
+    # ── Telecom/Redes ──
+    "qualcomm": "quálcom", "snapdragon": "snapdragon",
+    "mediatek": "media tek", "helio": "helio",
+    "exynos": "exinos", "bionic": "bionic",
+    "broadcom": "brodcom", "realtek": "realtek",
+    # ── Display/Camera ──
+    "amoled": "amoled", "super amoled": "super amoled",
+    "retina": "retina", "oled": "óled",
+    "uhd": "u age de", "fhd": "efe age de",
+    "qhd": "qu age de", "wqhd": "dabliu qu age de",
+    "hdr10": "age de erre dez", "dolby vision": "dólbi vision",
+    "leica": "laica", "zeiss": "tsais",
+    "tamron": "tâmnron", "sigma": "sigma",
+    "gopro": "gou pro", "insta360": "insta trezentos e sessenta",
+    "dji": "de jota i", "phantom": "phantom",
+    # ── Wearables ──
+    "garmin": "garmin", "fitbit": "fitbit",
+    "suunto": "suunto", "polar": "polar",
+    "amazfit": "amazfit", "mobvoi": "mobvoi",
+    "withings": "uithings", "fossil": "fossil",
+    "skagen": "skágen", "michael kors": "maicol cors",
+    # ── Diversos ──
+    "lego": "lego", "playmobil": "pleimobil",
+    "nerf": "nerf", "hot wheels": "rot uíls",
+    "barbie": "barbie", "fisher-price": "fisher price",
+    "little tikes": "litol taiks",
+    # ── Beleza/Perfumaria ──
+    "l'oreal": "loréal", "loreal": "loréal",
+    "nivea": "nivéa", "garnier": "garniér",
+    "avon": "avon", "natura": "natura",
+    "chanel": "chanel", "dior": "dior",
+    "calvin klein": "calvin clain",
+    "tommy hilfiger": "tomi hilfiger",
+    "ralph lauren": "ralf loren",
+    # ── Moda/Têxtil ──
+    "levi's": "levais", "levis": "levais",
+    "wrangler": "urángler", "lee": "li",
+    "gap": "gep", "zara": "zara",
+    "h&m": "age e eme", "forever 21": "forever tuenti uán",
+    # ── Alimentos/Bebidas ──
+    "nestle": "nestlé", "kraft": "kraft",
+    "heinz": "heinz", "unilever": "unilever",
+    "pepsi": "pépsi", "dr pepper": "di pepper",
+    "sprite": "spraite", "fanta": "fanta",
+    "guarana": "guaraná", "antarctica": "antártica",
+    # ── RAM/ROM (pronúncia especial) ──
+    "ram": "rã", "rom": "róm",
+    "ddr": "de de erre",
+    # ── Conectores ──
+    "usb-c": "usbe ce", "type-c": "taipi ce", "usb type-c": "usbe taipi ce",
+    "thunderbolt": "thunderbolt", "lightning": "laitning",
+    "pd": "pe de", "qc": "qu ce",
+    "quick charge": "quick charge", "fast charge": "fast charge",
+    # ── Certificações ──
+    "ip67": "i pe sessenta e sete", "ip68": "i pe sessenta e oito",
+    "ipx7": "i pe xis sete", "ipx8": "i pe xis oito",
+    "ip44": "i pe quarenta e quatro",
+    # ── Realidade virtual ──
+    "vr": "ve erre", "ar": "a erre",
+    "oculus": "óculus", "quest": "quest",
+    "hololens": "ololens",
+    # ── Diversos tech ──
+    "ai": "a i", "iot": "i o te",
+    "qi": "tchi", "pogopin": "pogopin",
+    "nfc": "ene efe ce",
+    " esim": "e sim", "esim": "e sim",
+    # ── Marcas BR ──
+    "positivo": "positivo", "cce": "ce ce e",
+    "megaware": "megauare", "neologic": "neologic",
+    "winca": "uínca", "h-buster": "age buster",
+    "multilaser": "multilaser", "dl": "de ele",
+    "lenovo": "lenovo", "hp": "age pe",
+    "dell": "dél", "alienware": "alienuear",
+    "trendnet": "trendnet", "tp-link": "te pi link",
+    "netgear": "netguir", "d-link": "de link",
+    # ── E-commerce/Lojas ──
+    "mercadolivre": "mercado livre", "mercadolivre.com": "mercado livre",
+    "shopee": "chopi", "aliexpress": "aliexpress",
+    "amazon": "amazon", "magalu": "magalu",
+    "magazine luiza": "magazine luiza",
+    # ── Automotivo ──
+    "pioneer": "pionír", "pioneer": "pionír",
+    "volvo": "volvo", "honda": "ronda",
+    "toyota": "toióta", "nissan": "nissan",
+    "hyundai": "iúndai", "kia": "kia",
+    "volkswagen": "volkswagen", "vw": "ve dabliu",
+    "audi": "audi", "bmw": "be eme dabliu",
+    "mercedes": "mercedes", "mercedes-benz": "mercedes benz",
+    "ferrari": "ferrari", "lamborghini": "lamborguini",
+    "porsche": "porche", "mclaren": "mac laren",
+    "bugatti": "bugatti", "maserati": "maserati",
+    "bentley": "bentley", "rolls-royce": "rols roice",
 }
 
 # Siglas de 2-5 letras maiúsculas que devem ser soletradas automaticamente
@@ -1184,6 +1338,133 @@ def _spell_acronym(word: str) -> str:
     return " ".join(_LETTER_NAMES.get(c.upper(), c) for c in word)
 
 
+# ─── Limpeza de título para narração ──────────────────────────────────────────
+
+# Palavras que NÃO são spec e devem ser mantidas mesmo se pareçam códigos
+_NARRATION_KEEP_WORDS = {
+    # Palavras de linha de modelo (ficam depois da marca)
+    'ultra', 'pro', 'max', 'mini', 'plus', 'lite', 'air', 'note', 'edge',
+    'flip', 'fold', 'tab', 'book', 'watch', 'buds', 'fe', 'se', 'neo',
+    'sport', 'active', 'classic', 'essential', 'go',
+    # Tipos de produto (PT-BR)
+    'gamer', 'headset', 'fone', 'mouse', 'teclado', 'monitor', 'notebook',
+    'smartphone', 'celular', 'tablet', 'camera', 'caneca', 'garrafa',
+    'relogio', 'smartwatch', 'caixa', 'som', 'microfone', 'cadeira',
+    'mesa', 'luminaria', 'lampada', 'carregador', 'cabo', 'fones',
+    'caixas', 'relogios', 'pelicula', 'capa', 'suporte', 'base',
+    'peliculas', 'capas', 'suportes', 'bases', 'controle', 'controles',
+    # Tipos de produto (EN)
+    'earbuds', 'speaker', 'keyboard', 'laptop', 'phone', 'headphone',
+    'earphone', 'webcam', 'microphone', 'chair', 'desk', 'lamp',
+    'charger', 'cable', 'dock', 'hub', 'stand', 'case', 'cover',
+    'screen', 'display', 'screen', 'protector', 'film', 'glass',
+    # Palavras de automotivo
+    'car', 'rear', 'view', 'front', 'dash', 'backup', 'camera',
+    # Conectores
+    'com', 'sem', 'para', 'pra', 'pro', 'com', 'e',
+}
+
+# Specs que devem ser removidas do final do título
+_NARRATION_SPEC_EXACT = {
+    # Cores
+    'preto', 'branco', 'azul', 'vermelho', 'verde', 'rosa', 'roxo', 'cinza',
+    'grafite', 'prata', 'dourado', 'amarelo', 'laranja', 'marrom', 'bege',
+    'violeta', 'turquesa', 'midnight', 'starlight', 'titanium',
+    'black', 'white', 'blue', 'red', 'green', 'pink', 'purple', 'gray',
+    'grey', 'silver', 'gold', 'yellow', 'orange', 'brown', 'beige',
+    'dark', 'light', 'coral', 'indigo',
+    # Condição/origem
+    'original', 'novo', 'nova', 'usado', 'lacrado', 'recondicionado',
+    'factory', 'unlocked', 'nacional', 'importado', 'oficial',
+    # Tamanhos
+    'm', 'l', 's', 'xl', 'xxl', 'unico', 'único', 'tamanho',
+    # Conectividade
+    '5g', '4g', '3g', 'lte', 'wifi', 'wi-fi', 'dual', 'sim', 'dual-sim',
+    'esim', 'nano-sim', 'gsm',
+    # Specs técnicas (quando isoladas no final)
+    'rgb', 'hdr', 'oled', 'lcd', 'led', 'qled', 'amoled',
+    # Selos/categorias
+    'premium', 'special', 'edition', 'limited',
+}
+
+# Padrões regex de spec (número + unidade)
+_NARRATION_SPEC_PATTERNS = [
+    re.compile(r'\d+\s*gb\b', re.IGNORECASE),
+    re.compile(r'\d+\s*tb\b', re.IGNORECASE),
+    re.compile(r'\d+\s*mp\b', re.IGNORECASE),
+    re.compile(r'\d+\s*mah\b', re.IGNORECASE),
+    re.compile(r'\d+["p]\b'),  # 6.5" / 6p
+    re.compile(r'\d+\s*polegadas?\b', re.IGNORECASE),
+    re.compile(r'\d+\s*ghz\b', re.IGNORECASE),
+    re.compile(r'\d+\s*mhz\b', re.IGNORECASE),
+    re.compile(r'\d+\s*ram\b', re.IGNORECASE),
+    re.compile(r'\d+\s*w\b', re.IGNORECASE),
+    re.compile(r'\d+\s*v\b', re.IGNORECASE),
+    re.compile(r'\d+\s*db\b', re.IGNORECASE),
+]
+
+
+def _clean_title_for_narration(title: str) -> str:
+    """Limpa título para narração: remove códigos, specs, cores, armazenamento.
+
+    Exemplos:
+      '31445951 Car Rear View Camera For Volvo S90 V90 2017...' → 'Car Rear View Camera'
+      'Headset Gamer Neologic Ngx Dark, RGB, Preto, NGXDA' → 'Headset Gamer Neologic'
+      'Samsung Galaxy S22 Ultra 5g Preto 256gb Original M' → 'Samsung Galaxy S22 Ultra'
+    """
+    t = title.strip()
+
+    # 1. Remove códigos numéricos leading (31445951, 12345678)
+    t = re.sub(r'^\d{4,}\s+', '', t)
+
+    # 2. Corta em " For " (compatibilidade — tudo depois é spec de carro/modelo)
+    t = re.split(r'\s+for\s+', t, flags=re.IGNORECASE)[0]
+
+    # 3. Corta em " Para " (compatibilidade em PT)
+    t = re.split(r'\s+para\s+', t, flags=re.IGNORECASE)[0]
+
+    # 4. Corta na primeira vírgula (specs separadas por vírgula)
+    t = t.split(',')[0]
+
+    # 5. Corta em " - " (separador de spec com hífen)
+    t = t.split(' - ')[0].split(' – ')[0]
+
+    tokens = t.split()
+
+    # 6. Remove tokens de spec do final (cores, armazenamento, condição, etc)
+    def _is_spec(tok):
+        low = tok.lower().strip('.,;:!')
+        if low in _NARRATION_SPEC_EXACT:
+            return True
+        for pat in _NARRATION_SPEC_PATTERNS:
+            if pat.fullmatch(low):
+                return True
+        return False
+
+    while tokens and _is_spec(tokens[-1]):
+        tokens.pop()
+
+    # 7. Remove trailing model codes (tokens curtos não-dicionário após a marca)
+    # Ex: "Neologic Ngx" → strip "Ngs" (não é palavra comum)
+    # Para: "Galaxy S22 Ultra" → "Ultra" está no keep-words → mantém
+    while len(tokens) > 3:
+        last = tokens[-1]
+        low = last.lower().strip('.,;:!')
+        if low in _NARRATION_KEEP_WORDS:
+            break
+        # Model code: ≤6 chars, mixed case ou all caps, não é palavra comum
+        if len(last) <= 6 and last != last.lower() and not low.isdigit():
+            tokens.pop()
+        else:
+            break
+
+    # 8. Limita a 5 tokens no máximo (evita nomes muito longos)
+    if len(tokens) > 5:
+        tokens = tokens[:5]
+
+    return ' '.join(tokens).strip()
+
+
 def expand_units_for_tts(text: str) -> str:
     """Expande abreviações de unidades, marcas, siglas e números para extenso (XTTS lê melhor).
 
@@ -1200,6 +1481,17 @@ def expand_units_for_tts(text: str) -> str:
     for brand, spoken in sorted(_BRAND_NAMES.items(), key=lambda x: len(x[0]), reverse=True):
         pattern = r'\b' + re.escape(brand) + r'\b'
         text = re.sub(pattern, spoken, text, flags=re.IGNORECASE)
+
+    # 1b. Model codes: 1 letra maiúscula + número (A12, S22, V90, M11, P40)
+    # XTTS lê "A12" como "a doze" errado; forçamos "a doze", "esse vinte e dois", etc
+    def _model_code_to_spoken(m):
+        letter = m.group(1).upper()
+        num = int(m.group(2))
+        letter_spoken = _LETTER_NAMES.get(letter, letter)
+        num_spoken = num2words_pt(num)
+        return f"{letter_spoken} {num_spoken}"
+
+    text = re.sub(r'\b([A-Z])(\d{1,2})\b', _model_code_to_spoken, text)
 
     # 2. Soletra siglas maiúsculas 2-5 letras, opcionalmente seguidas de número (ABNT2, DDR4)
     def spell_if_acronym(m):
