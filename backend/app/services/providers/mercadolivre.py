@@ -21,6 +21,40 @@ from app.core.logging import logger
 _STOPWORDS = {"de", "da", "do", "para", "com", "em", "e", "o", "a", "os", "as", "um", "uma"}
 
 
+def _parse_notes(notes: str) -> tuple[Optional[int], Optional[float]]:
+    """Extrai (sold_count, rating) do campo notes do AffiliateProduct.
+
+    Formatos guardados pelos scrapers:
+      ML:     "avaliacao=4.8 | vendidos=1234 | badge=..."
+      Amazon: "rating=4.5 | reviews=200 | prime=true | source=amazon_scraper"
+    """
+    if not notes:
+        return None, None
+    sold = None
+    rating = None
+    import re as _re
+    m = _re.search(r"vendidos=(\d+)", notes)
+    if m:
+        sold = int(m.group(1))
+    m = _re.search(r"avaliacao=([\d.,]+)", notes)
+    if m:
+        try:
+            rating = float(m.group(1).replace(",", "."))
+        except ValueError:
+            pass
+    m = _re.search(r"rating=([\d.,]+)", notes)
+    if m and rating is None:
+        try:
+            rating = float(m.group(1).replace(",", "."))
+        except ValueError:
+            pass
+    m = _re.search(r"reviews=(\d+)", notes)
+    if m and sold is None:
+        # Amazon não tem "vendidos" mas tem "reviews" — usa como proxy de demanda
+        sold = int(m.group(1))
+    return sold, rating
+
+
 def _normalize(text: str) -> str:
     text = text.lower().strip()
     text = unicodedata.normalize("NFKD", text)
@@ -177,6 +211,20 @@ class MercadoLivreProvider(BaseProvider):
                     shipping = item.get("shipping", {})
                     free_shipping = shipping.get("free_shipping", False)
                     title = item.get("title") or prod.get("name", "")
+                    # ML API: sold_quantity vem no item, rating em reviews
+                    sold_qty = item.get("sold_quantity")
+                    if sold_qty is not None:
+                        try:
+                            sold_qty = int(sold_qty)
+                        except (ValueError, TypeError):
+                            sold_qty = None
+                    reviews = item.get("reviews", {})
+                    rating_val = None
+                    if reviews and reviews.get("rating_average"):
+                        try:
+                            rating_val = float(reviews["rating_average"])
+                        except (ValueError, TypeError):
+                            rating_val = None
                     return OfferSchema(
                         provider=ProviderEnum.mercadolivre,
                         title=title,
@@ -192,6 +240,8 @@ class MercadoLivreProvider(BaseProvider):
                         affiliate_url=permalink,
                         image_url=image_url,
                         economy=round((original_price or price) - price, 2),
+                        sales_count=sold_qty,
+                        rating=rating_val,
                     )
                 except Exception as e:
                     logger.warning(f"ML item fetch failed for {pid}: {e}")
@@ -299,6 +349,8 @@ class MercadoLivreProvider(BaseProvider):
                     real_provider = ProviderEnum.aliexpress
                 else:
                     real_provider = ProviderEnum.mercadolivre
+                # Extrai demanda (sold/rating) do campo notes (ML + Amazon scrapers)
+                sold_count, rating_val = _parse_notes(p.notes or "")
                 offers.append(OfferSchema(
                     provider=real_provider,
                     title=p.title or p.ml_code or "",
@@ -314,6 +366,8 @@ class MercadoLivreProvider(BaseProvider):
                     affiliate_url=aff_url,
                     image_url=p.image_url or "",
                     economy=0.0,
+                    sales_count=sold_count,
+                    rating=rating_val,
                 ))
 
             self.set_status(

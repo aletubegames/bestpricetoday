@@ -48,6 +48,8 @@ class AliExpressProvider(BaseProvider):
             image_url=p.image_url,
             economy=p.economy,
             is_fake_discount=p.discount_pct > 80,
+            sales_count=p.sales_count,
+            rating=p.rating,
         )
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:

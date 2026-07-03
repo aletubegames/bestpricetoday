@@ -44,6 +44,10 @@ class OfferSchema(BaseModel):
     image_url: Optional[str] = None
     is_fake_discount: bool = False
     economy: float = 0
+    # Demanda real do produto (para filtro de qualidade no distributor)
+    sales_count: Optional[int] = None      # unidades vendidas (Shopee/AliExpress/ML)
+    rating: Optional[float] = None         # nota 0-5 (AliExpress) ou 0-100 (ML)
+    reviews_count: Optional[int] = None    # número de avaliações
 
     class Config:
         from_attributes = True

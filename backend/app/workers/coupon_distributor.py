@@ -158,7 +158,11 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
                 Coupon.expires_at > datetime.now(timezone.utc),
                 or_(*conditions),
             )
-            .order_by(desc(CouponProduct.price))
+            # Ordena por maior desconto efetivo (economia em R$), não por preço
+            .order_by(
+                desc(Coupon.discount_percent * CouponProduct.price / 100.0
+                     + Coupon.discount_value)
+            )
             .limit(limit)
         )
         r = await db.execute(query)
@@ -213,7 +217,8 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
         if len(all_offers) >= num:
             break
 
-    # 3. Fallback: cupons vencendo primeiro (query simples e rápida)
+    # 3. Fallback: maiores descontos efetivos primeiro (não vencendo primeiro)
+    # Ordena por desconto efetivo (maior economia em R$) × preço mais competitivo
     if len(all_offers) < num:
         async with AsyncSessionLocal() as db:
             r = await db.execute(text("""
@@ -225,7 +230,10 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
                 WHERE c.is_active = true AND cp.is_available = true
                   AND cp.price IS NOT NULL AND cp.price > 0
                   AND c.expires_at > NOW()
-                ORDER BY c.expires_at ASC
+                ORDER BY (
+                    GREATEST(c.discount_percent, 0) * cp.price / 100.0
+                    + COALESCE(c.discount_value, 0)
+                ) DESC, cp.price ASC
                 LIMIT :limit
             """), {"limit": num * 3})
             seen_codes = {o["coupon_code"] for o in all_offers}

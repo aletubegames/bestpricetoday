@@ -41,6 +41,8 @@ class ShopeeProvider(BaseProvider):
             image_url=p.image_url,
             economy=p.economy,
             is_fake_discount=False,
+            sales_count=p.sales_count,
+            rating=p.rating,
         )
 
     async def search(self, query: str, limit: int = 10) -> List[OfferSchema]:
