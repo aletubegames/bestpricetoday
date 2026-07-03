@@ -145,7 +145,7 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
         return []
 
     async with AsyncSessionLocal() as db:
-        from sqlalchemy import or_
+        from sqlalchemy import or_, func
         conditions = [CouponProduct.title.ilike(f"%{kw}%") for kw in keywords]
         query = (
             select(CouponProduct, Coupon)
@@ -159,9 +159,13 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
                 or_(*conditions),
             )
             # Ordena por maior desconto efetivo (economia em R$), não por preço
+            # coalesce: discount_percent e discount_value são mutuamente exclusivos (um é NULL)
+            # NULL * x = NULL → sem coalesce a ordenação quebra para 100% das linhas
             .order_by(
-                desc(Coupon.discount_percent * CouponProduct.price / 100.0
-                     + Coupon.discount_value)
+                desc(
+                    func.coalesce(Coupon.discount_percent, 0) * CouponProduct.price / 100.0
+                    + func.coalesce(Coupon.discount_value, 0)
+                )
             )
             .limit(limit)
         )

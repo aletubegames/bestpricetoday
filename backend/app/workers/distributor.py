@@ -347,7 +347,7 @@ def build_caption_fallback(offer: dict, short_url: str) -> str:
         hook = "💰 *PREÇO BOM*"
 
     lines = [f"{hook}\n"]
-    lines.append(f"� *{title}*")
+    lines.append(f"📦 *{title}*")
     lines.append("")
 
     if original and original > price:
@@ -383,8 +383,8 @@ async def build_caption(offer: dict, short_url: str) -> str:
         lines = [f"🔥 *OFERTA — {now}*\n"]
         lines.append(ai_caption)
         lines.append(f"\n{emoji} Via *{provider.upper()}*")
-        lines.append(f"\n� *Compre agora antes que acabe!*")
-        lines.append(f"�👉 [Ver oferta]({short_url})")
+        lines.append(f"\n🛒 *Compre agora antes que acabe!*")
+        lines.append(f"👉 [Ver oferta]({short_url})")
         lines.append(f"\n🛍️ @BestPriceToday | [BestPriceToday]({settings.PUBLIC_SITE_URL})")
         return "\n".join(lines)
 
@@ -1215,9 +1215,16 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
     try:
         from app.db.session import AsyncSessionLocal
         from app.models.models import Coupon
-        from sqlalchemy import select, or_
+        from sqlalchemy import select, or_, and_, func
 
         async with AsyncSessionLocal() as db:
+            # Filtro comum: cupom deve ter desconto definido (percent OU valor fixo)
+            # Ignora cupons lixo (#ENTREGA, etc.) sem desconto real
+            has_discount = or_(
+                and_(Coupon.discount_percent.isnot(None), Coupon.discount_percent > 0),
+                and_(Coupon.discount_value.isnot(None), Coupon.discount_value > 0),
+            )
+
             # Para ML: tenta casar por store_name (nome da loja)
             # Para Amazon: pega qualquer cupom ativo
             if coupon_provider == "mercadolivre":
@@ -1231,6 +1238,7 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
                         .where(
                             Coupon.provider == coupon_provider,
                             Coupon.is_active == True,
+                            has_discount,
                             or_(
                                 Coupon.store_name == seller,
                                 Coupon.store_name.ilike(f"%{seller}%"),
@@ -1244,15 +1252,23 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
                     # Sem seller_name no produto — pega qualquer cupom (fallback)
                     result = await db.execute(
                         select(Coupon)
-                        .where(Coupon.provider == coupon_provider, Coupon.is_active == True)
+                        .where(
+                            Coupon.provider == coupon_provider,
+                            Coupon.is_active == True,
+                            has_discount,
+                        )
                         .order_by(Coupon.expires_at.asc())
                         .limit(1)
                     )
             else:
-                # Amazon: qualquer cupom ativo
+                # Amazon: qualquer cupom ativo COM desconto definido
                 result = await db.execute(
                     select(Coupon)
-                    .where(Coupon.provider == coupon_provider, Coupon.is_active == True)
+                    .where(
+                        Coupon.provider == coupon_provider,
+                        Coupon.is_active == True,
+                        has_discount,
+                    )
                     .order_by(Coupon.expires_at.asc())
                     .limit(1)
                 )
