@@ -1241,6 +1241,71 @@ _BRAND_NAMES = {
     "porsche": "porche", "mclaren": "mac laren",
     "bugatti": "bugatti", "maserati": "maserati",
     "bentley": "bentley", "rolls-royce": "rols roice",
+    # ── Tipos de produto (XTTS lê errado em PT-BR) ──
+    "smartwatch": "smartuótchi", "smartwatch": "smartuótchi",
+    "powerbank": "pouer banque", "power bank": "pouer banque",
+    "powerbank": "pouer banque",
+    "webcam": "uebecam", "earbuds": "ir bóds",
+    "notebook": "notebuque", "mousepad": "mause pad",
+    "smartphone": "smartufone", "smartband": "smart band",
+    "smarttv": "smart te ve", "smart tv": "smart te ve",
+    "streamdeck": "strim dec", "joystick": "joístique",
+    "gamepad": "geime pad", "headset": "edseti",
+    "headphone": "ed fone", "earphone": "ir fone",
+    "keyboard": "quibórd", "speaker": "espíquer",
+    "laptop": "laptop", "display": "displêi",
+    "charger": "tchárger", "cable": "keibou",
+    "microphone": "maicrofone", "microfone": "maicrofone",
+    "webcam hd": "uebecam age de",
+    # ── Gaming marcas ──
+    "redragon": "redragon", "cougar": "cúgar",
+    "genesis": "guênesis", "deathadder": "deft ader",
+    "arctis": "ártics", "cloud": "cláud",
+    # ── Smartphones linhas ──
+    "moto g": "moto ge", "moto edge": "moto edge",
+    "pixel": "pixou", "nord": "nórd",
+    "magic": "magic",
+    # ── Eletro domésticos ──
+    "lg": "ele ge", "panasonic": "panasonic",
+    "bosch": "bósh", "siemens": "símens",
+    "miele": "míle", "smeg": "smég",
+    # ── Automotivo áudio ──
+    "alpine": "álpain", "blaupunkt": "bláupunt",
+    "clarion": "clárian",
+    # ── Beleza/perfumaria ──
+    "victoria's secret": "victória secret",
+    "maybelline": "meibelin", "boticário": "boticário",
+    "eudora": "eudora", "jequiti": "jequiti",
+    # ── Calçados ──
+    "reebok": "ríboc", "vans": "vans",
+    "converse": "converse", "all star": "ol star",
+    "olympikus": "olimpikus", "mizuno": "mizuno",
+    "fila": "fila", "skechers": "skéchers",
+    "crocs": "crócs", "havaianas": "avaiânas",
+    "rider": "raider", "melissa": "melissa",
+    # ── Moda/luxo ──
+    "gucci": "gúci", "louis vuitton": "luí vuitôn",
+    "prada": "prada", "burberry": "búrberri",
+    "coach": "couch", "kate spade": "keit speid",
+    "tory burch": "tori burch", "lacoste": "lacóst",
+    "hugo boss": "iugo boss", "versace": "versáchi",
+    "armani": "armáni", "diesel": "dizel",
+    "oakley": "óukli", "ray-ban": "rei ban",
+    # ── Alimentos ──
+    "lacta": "lacta", "garoto": "garoto",
+    "danone": "danone", "yoplait": "ioplê",
+    "activia": "activia", "nestea": "nestea",
+    "tang": "tang", "mucilon": "mucilon",
+    "nescau": "nescau", "nesquik": "nesquic",
+    # ── Tech geral ──
+    "google": "gugle", "microsoft": "maicrossóft",
+    "windows": "uindous", "android": "andróid",
+    "chromebook": "croumboque", "firefox": "fáierfócs",
+    "tiktok": "tictoc", "instagram": "instagran",
+    "whatsapp": "uátsap", "telegram": "telegram",
+    "spotify": "spotifaí", "netflix": "netflix",
+    "youtube": "ioutube", "twitch": "tuítchi",
+    "discord": "discórd", "reddit": "réddit",
 }
 
 # Siglas de 2-5 letras maiúsculas que devem ser soletradas automaticamente
