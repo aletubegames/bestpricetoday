@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import {
@@ -147,14 +147,11 @@ function DefaultNav() {
 function HeaderSearch() {
   const router = useRouter()
   const [value, setValue] = useState("")
-  const [focused, setFocused] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const submit = (v: string) => {
     const q = v.trim()
     if (q.length >= 2) {
       router.push(`/produto/${encodeURIComponent(q)}`)
-      setFocused(false)
       setValue("")
     }
   }
@@ -166,12 +163,9 @@ function HeaderSearch() {
     >
       <Search size={16} className={styles.headerSearchIcon} />
       <input
-        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 200)}
         placeholder="Buscar produto..."
         className={styles.headerSearchInput}
         aria-label="Buscar produto"
