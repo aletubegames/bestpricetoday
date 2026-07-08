@@ -24,11 +24,35 @@ from app.models.models import ConversionEvent, ClickEvent, ConversionRetryQueue
 
 
 async def _sign_top(method: str, params: dict, app_key: str, app_secret: str) -> dict:
-    """Sign AliExpress TOP request."""
-    ts = str(int(time.time() * 1000))
-    all_params = {"app_key": app_key, "sign_method": "sha256", "timestamp": ts, "method": method, **params}
+    """Sign AliExpress Affiliate API request.
+
+    Docs: https://open.alitrip.com/docs/doc.htm?articleId=45802
+    Guide: https://vandevliet.me/how-to-make-aliexpress-affiliate-api-call/
+
+    Algoritmo (MD5):
+      1. Juntar todos params (exceto sign) ordenados por key: key1value1key2value2...
+      2. Envolver com secret: SECRET + sorted_params + SECRET
+      3. MD5 → hex → uppercase
+    """
+    from datetime import timedelta
+    import hashlib as _hl
+    # AliExpress exige GMT+8 (China time)
+    gmt8 = timezone(timedelta(hours=8))
+    ts = datetime.now(gmt8).strftime("%Y-%m-%d %H:%M:%S")
+    all_params = {
+        "app_key": app_key,
+        "sign_method": "md5",
+        "timestamp": ts,
+        "method": method,
+        "format": "json",
+        "v": "2.0",
+        **params,
+    }
+    # Concatena key+value ordenado
     msg = "".join(f"{k}{v}" for k, v in sorted(all_params.items()))
-    sig = hmac.new(app_secret.encode(), msg.encode(), hashlib.sha256).hexdigest().upper()
+    # MD5 com secret como "bookends": SECRET + msg + SECRET
+    bookend = f"{app_secret}{msg}{app_secret}"
+    sig = _hl.md5(bookend.encode()).hexdigest().upper()
     all_params["sign"] = sig
     return all_params
 
@@ -238,26 +262,36 @@ async def process_retry_queue(db: AsyncSession) -> int:
     return processed
 
 
-async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 2) -> list[dict]:
-    """Poll AliExpress affiliate orders via aliexpress.affiliate.order.list.by.index."""
+async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 6) -> list[dict]:
+    """Poll AliExpress affiliate orders via aliexpress.affiliate.order.list.
+
+    Docs: https://open.alitrip.com/docs/doc.htm?articleId=45802
+    Endpoint: https://api-sg.aliexpress.com/sync
+    Method: aliexpress.affiliate.order.list
+    Required: start_time, end_time (PST timezone), status
+    """
     if not settings.ALIEXPRESS_APP_KEY or not settings.ALIEXPRESS_APP_SECRET:
         return []
 
-    now = datetime.now(timezone.utc)
-    since = now - timedelta(hours=since_hours)
+    # AliExpress usa PST para start_time/end_time
+    from datetime import timedelta
+    pst = timezone(timedelta(hours=-8))
+    now_pst = datetime.now(pst)
+    since_pst = now_pst - timedelta(hours=since_hours)
     fmt = "%Y-%m-%d %H:%M:%S"
 
     params = {
-        "start_time": since.strftime(fmt),
-        "end_time": now.strftime(fmt),
+        "start_time": since_pst.strftime(fmt),
+        "end_time": now_pst.strftime(fmt),
         "page_no": "1",
         "page_size": "50",
+        "status": "Payment Completed",  # status é obrigatório
     }
     if settings.ALIEXPRESS_TRACKING_ID:
         params["tracking_id"] = settings.ALIEXPRESS_TRACKING_ID
 
     signed = await _sign_top(
-        "aliexpress.affiliate.order.list.by.index", params,
+        "aliexpress.affiliate.order.list", params,
         settings.ALIEXPRESS_APP_KEY, settings.ALIEXPRESS_APP_SECRET
     )
 
@@ -265,9 +299,12 @@ async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 2) -> list
     try:
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.post("https://api-sg.aliexpress.com/sync", data=signed)
+            r.raise_for_status()
             data = r.json()
 
-        resp = data.get("aliexpress_affiliate_order_list_by_index_response", {}).get("resp_result", {})
+        # Resposta: aliexpress_affiliate_order_list_response
+        resp_key = "aliexpress_affiliate_order_list_response"
+        resp = data.get(resp_key, {}).get("resp_result", {})
         if resp.get("resp_code") != 200:
             logger.warning(f"AliExpress orders: {resp.get('resp_msg')}")
             return []
@@ -302,9 +339,13 @@ async def poll_aliexpress_orders(db: AsyncSession, since_hours: int = 2) -> list
     return saved
 
 
-async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[dict]:
-    """Poll Lomadee commission report."""
-    if not settings.LOMADEE_API_KEY or not settings.LOMADEE_SOURCE_ID:
+async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 6) -> list[dict]:
+    """Poll Lomadee orders via new API (api.lomadee.com.br/affiliate/orders).
+
+    API nova (2025+): autenticação via header x-api-key, não mais token na URL.
+    Docs: https://docs.lomadee.com.br/api-reference/affiliate/orders/all
+    """
+    if not settings.LOMADEE_API_KEY:
         return []
 
     now = datetime.now(timezone.utc)
@@ -312,29 +353,37 @@ async def poll_lomadee_orders(db: AsyncSession, since_hours: int = 2) -> list[di
 
     saved = []
     try:
-        url = f"https://api.lomadee.com.br/v3/{settings.LOMADEE_SOURCE_ID}/report/commission"
+        url = "https://api.lomadee.com.br/affiliate/orders"
         params = {
-            "startDate": since.strftime("%Y-%m-%d"),
-            "endDate": now.strftime("%Y-%m-%d"),
-            "token": settings.LOMADEE_API_KEY,
+            "page": 1,
+            "limit": 100,
+            "from": since.strftime("%Y-%m-%d"),
+            "to": now.strftime("%Y-%m-%d"),
         }
+        headers = {"x-api-key": settings.LOMADEE_API_KEY}
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(url, params=params)
+            r = await c.get(url, params=params, headers=headers)
+            r.raise_for_status()
             data = r.json()
 
-        commissions = data.get("commissions", []) or []
-        for item in commissions:
-            order_id = str(item.get("orderId", item.get("id", "")))
+        orders = data.get("data", []) or []
+        for item in orders:
+            order_data = item.get("data", item)  # compatibilidade
+            order_id = str(order_data.get("orderId", order_data.get("id", "")))
             if not order_id:
                 continue
-            sale_price = float(item.get("saleValue", 0) or 0)
-            commission_value = float(item.get("commissionValue", 0) or 0)
+            sale_price = float(order_data.get("value", 0) or 0)
+            commission_value = float(order_data.get("commission", 0) or 0)
             commission_rate = (commission_value / sale_price * 100) if sale_price else 0
-            title = (item.get("productName", item.get("offerName", "")) or "")[:200]
-            status_raw = str(item.get("status", "pending")).lower()
+            # Tenta extrair título do primeiro item
+            items_list = order_data.get("items", order_data.get("items  ", [])) or []
+            title = ""
+            if items_list:
+                title = (items_list[0].get("name", "") or "")[:200]
+            status_raw = str(order_data.get("status", "pending")).lower()
             status = (
-                "confirmed" if "approv" in status_raw or "paid" in status_raw else
-                "rejected" if "reject" in status_raw or "cancel" in status_raw else
+                "confirmed" if "approv" in status_raw else
+                "rejected" if "reject" in status_raw or "repprov" in status_raw or "cancel" in status_raw else
                 "pending"
             )
 
@@ -384,7 +433,7 @@ async def poll_all_conversions(db: AsyncSession) -> dict:
 
 # ─── Shopee conversion polling ────────────────────────────────────────────────
 
-async def poll_shopee_conversions(db: AsyncSession, since_hours: int = 2) -> list[dict]:
+async def poll_shopee_conversions(db: AsyncSession, since_hours: int = 6) -> list[dict]:
     """
     Busca conversões da Shopee via GraphQL Affiliate API.
     Retorna lista de conversões novas salvas.
@@ -445,6 +494,7 @@ async def poll_shopee_conversions(db: AsyncSession, since_hours: int = 2) -> lis
                 "https://open-api.affiliate.shopee.com.br/graphql",
                 content=body, headers=headers
             )
+        r.raise_for_status()
         d = r.json()
         errors = d.get("errors", [])
         if errors:

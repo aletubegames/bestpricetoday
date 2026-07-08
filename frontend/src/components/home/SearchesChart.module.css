@@ -1,0 +1,70 @@
+.root {
+  background: #fff;
+  border: 1px solid #e0e0f0;
+  border-radius: 16px;
+  padding: 24px 16px;
+}
+
+.title {
+  font-family: var(--font-syne), "Syne", system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: rgba(26, 26, 46, 0.45);
+  margin-bottom: 20px;
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px;
+  height: 160px;
+}
+
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.value {
+  font-size: 10px;
+  font-weight: 600;
+  color: #7c3aed;
+  margin-bottom: 2px;
+}
+
+.barWrap {
+  width: 100%;
+  max-width: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  flex: 1;
+}
+
+.bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%);
+  border-radius: 8px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(26, 26, 46, 0.45);
+  margin-top: 4px;
+}

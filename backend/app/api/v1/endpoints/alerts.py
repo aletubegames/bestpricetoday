@@ -57,8 +57,6 @@ async def list_alerts(
     result = await db.execute(stmt)
     alerts = result.scalars().all()
     return {"items": [AlertResponse.from_orm(a) for a in alerts]}
-    result = await db.execute(stmt)
-    return result.scalars().all()
 
 
 @router.delete("/alerts/{alert_id}", status_code=200)

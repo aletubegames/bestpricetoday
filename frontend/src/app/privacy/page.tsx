@@ -63,28 +63,30 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="3. Como Usamos seus Dados">
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--bd)" }}>
-                <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--txt)", fontWeight: 700 }}>Finalidade</th>
-                <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--txt)", fontWeight: 700 }}>Base Legal (LGPD)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ["Enviar notificações de alerta de preço", "Consentimento (art. 7º, I)"],
-                ["Melhorar os resultados de busca", "Legítimo interesse (art. 7º, IX)"],
-                ["Registrar cliques em links de afiliados", "Legítimo interesse (art. 7º, IX)"],
-                ["Prevenção de fraude e abuso da API", "Legítimo interesse (art. 7º, IX)"],
-                ["Cumprimento de obrigações legais", "Obrigação legal (art. 7º, II)"],
-              ].map(([fin, base], i) => (
-                <tr key={i} style={{ borderBottom: "1px solid rgba(108,92,231,0.1)" }}>
-                  <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.75)" }}>{fin}</td>
-                  <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.55)", fontSize: 13 }}>{base}</td>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", minWidth: 360, borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--bd)" }}>
+                  <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--txt)", fontWeight: 700 }}>Finalidade</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--txt)", fontWeight: 700 }}>Base Legal (LGPD)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[
+                  ["Enviar notificações de alerta de preço", "Consentimento (art. 7º, I)"],
+                  ["Melhorar os resultados de busca", "Legítimo interesse (art. 7º, IX)"],
+                  ["Registrar cliques em links de afiliados", "Legítimo interesse (art. 7º, IX)"],
+                  ["Prevenção de fraude e abuso da API", "Legítimo interesse (art. 7º, IX)"],
+                  ["Cumprimento de obrigações legais", "Obrigação legal (art. 7º, II)"],
+                ].map(([fin, base], i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid rgba(108,92,231,0.1)" }}>
+                    <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.75)" }}>{fin}</td>
+                    <td style={{ padding: "10px 12px 10px 0", color: "rgba(26,26,46,0.55)", fontSize: 13 }}>{base}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
 
         <Section title="4. Compartilhamento de Dados">
@@ -214,7 +216,7 @@ export default function PrivacyPage() {
           </a>
         </Section>
 
-        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid var(--bd)", display: "flex", gap: 24 }}>
+        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid var(--bd)", display: "flex", gap: 24, flexWrap: "wrap" }}>
           <a href="/terms" style={{ fontSize: 13, color: "var(--muted2)", textDecoration: "none" }}>
             Termos de Uso →
           </a>

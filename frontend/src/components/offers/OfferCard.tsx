@@ -4,62 +4,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import type { Offer } from "@/types";
 import { openTrackedOffer } from "@/lib/tracking";
+import { ProviderLogo, getProviderName, getProviderColor } from "@/lib/providers";
 import styles from "./OfferCard.module.css";
-
-const PROVIDER_LOGOS: Record<string, React.ReactNode> = {
-  aliexpress: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FF4747"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">AE</text>
-    </svg>
-  ),
-  shopee: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#EE4D2D"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">S</text>
-    </svg>
-  ),
-  mercadolivre: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FFE600"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="#333" fontSize="14" fontWeight="bold">ML</text>
-    </svg>
-  ),
-  amazon: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FF9900"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">amz</text>
-    </svg>
-  ),
-  lomadee: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#7C3AED"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">L</text>
-    </svg>
-  ),
-  kabum: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#FF6B00"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">K</text>
-    </svg>
-  ),
-  awin: (
-    <svg width="20" height="20" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="8" fill="#60A5FA"/>
-      <text x="50%" y="65%" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">AW</text>
-    </svg>
-  ),
-};
-
-const PROVIDERS: Record<string, { name: string; color: string }> = {
-  mercadolivre: { name: "Mercado Livre", color: "#FACC15" },
-  amazon:       { name: "Amazon",        color: "#FB923C" },
-  shopee:       { name: "Shopee",        color: "#F87171" },
-  kabum:        { name: "KaBuM",         color: "#4ADE80" },
-  aliexpress:   { name: "AliExpress",    color: "#F43F5E" },
-  lomadee:      { name: "Lomadee",       color: "#C084FC" },
-  awin:         { name: "Awin",          color: "#60A5FA" },
-};
 
 interface BadgeConfig {
   id: string;
@@ -68,6 +14,10 @@ interface BadgeConfig {
   bg: string;
   border: string;
   priority: number;
+}
+
+function hasRealPrice(offer: Offer): boolean {
+  return typeof offer.final_price === "number" && offer.final_price > 0.02;
 }
 
 function computeBadges(offer: Offer): BadgeConfig[] {
@@ -79,7 +29,7 @@ function computeBadges(offer: Offer): BadgeConfig[] {
   if (offer.discount_percent >= 30 && !offer.is_fake_discount) {
     badges.push({ id: "hot", label: "🔥 Oferta Quente", color: "#ff6b6b", bg: "rgba(255,107,107,.12)", border: "rgba(255,107,107,.3)", priority: 1 });
   }
-  if (offer.score >= 80) {
+  if (offer.score >= 80 && hasRealPrice(offer)) {
     badges.push({ id: "best", label: "⭐ Melhor Preço", color: "#fbbf24", bg: "rgba(251,191,36,.12)", border: "rgba(251,191,36,.3)", priority: 2 });
   }
   if (offer.discount_percent > 0 && !offer.is_fake_discount) {
@@ -127,8 +77,8 @@ interface Props {
 }
 
 export default function OfferCard({ offer, rank, onCompare, compareMode, isSelected, hasCoupon, couponText }: Props) {
-  const p = PROVIDERS[offer.provider] ?? { name: offer.provider, color: "#a78bfa" };
-  const logo = PROVIDER_LOGOS[offer.provider];
+  const pName = getProviderName(offer.provider);
+  const pColor = getProviderColor(offer.provider);
   const best = rank === 0;
   const badges = computeBadges(offer);
   const fmtPrice = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
@@ -155,6 +105,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
         return;
       }
       setBuyUrl(url);
+      setLoadingUrl(false);
     } catch {
       setBuyError(true);
       setLoadingUrl(false);
@@ -175,16 +126,18 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
     >
       {best && <div className={styles.bestBorder} />}
 
+      {/* Provider chip — canto superior direito */}
+      <div className={styles.providerChip}>
+        <ProviderLogo provider={offer.provider} size={20} />
+        <span className={styles.providerName} style={{ color: pColor }}>
+          {pName}
+        </span>
+      </div>
+
       <div className={styles.body}>
-        {/* Top bar: provider logo + compare button */}
+        {/* Top bar: compare button */}
         <div className={styles.topBar}>
-          <div className={styles.providerGroup}>
-            {logo && <div style={{ flexShrink: 0 }}>{logo}</div>}
-            <span className={styles.providerName} style={{ color: p.color }}>
-              {p.name}
-            </span>
-            {best && <span className={styles.bestBadge}>⚡ Melhor</span>}
-          </div>
+          {best && hasRealPrice(offer) && <span className={styles.bestBadge}>🏆 Menor preço</span>}
           {onCompare && (
             <button
               onClick={(e) => { e.preventDefault(); onCompare(offer); }}
@@ -210,7 +163,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
             {offer.image_url && offer.image_url.startsWith("http") && !imgError ? (
               <Image src={offer.image_url} alt={offer.title} fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                style={{ objectFit: "contain", padding: 8 }}
+                style={{ objectFit: "contain" }}
                 loading="lazy"
                 onError={() => setImgError(true)}
               />
@@ -235,7 +188,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
               {offer.final_price && offer.final_price > 0.02 ? (
                 <>
                   <span className={styles.currency}>R$</span>
-                  <span className={styles.priceValue}>
+                  <span className={`${styles.priceValue} ${best ? styles.priceValueBest : ""}`}>
                     {fmtPrice(offer.final_price)}
                   </span>
                 </>
@@ -249,7 +202,7 @@ export default function OfferCard({ offer, rank, onCompare, compareMode, isSelec
               </div>
             )}
           </div>
-          <ScoreRing score={offer.score} />
+          {hasRealPrice(offer) && <ScoreRing score={offer.score} />}
         </div>
       </div>
 

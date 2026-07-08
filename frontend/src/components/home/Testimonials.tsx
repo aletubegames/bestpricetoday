@@ -3,15 +3,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getTestimonials, type Review } from "@/lib/mockData";
+import styles from "./Testimonials.module.css";
 
 function StarRating({ count }: { count: number }) {
   return (
-    <div style={{ display: "flex", gap: 2 }}>
+    <div className={styles.stars}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <span
-          key={i}
-          style={{ fontSize: 14, color: i < count ? "#f59e0b" : "#ddd" }}
-        >
+        <span key={i} className={`${styles.star} ${i < count ? styles.starFilled : styles.starEmpty}`}>
           ★
         </span>
       ))}
@@ -21,85 +19,28 @@ function StarRating({ count }: { count: number }) {
 
 function ReviewCard({ review }: { review: Review }) {
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: "1px solid #e0e0f0",
-        borderRadius: 16,
-        padding: "20px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        height: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            background: review.avatarColor,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
-            flexShrink: 0,
-          }}
-        >
+    <div className={styles.card}>
+      <div className={styles.cardHeader}>
+        <div className={styles.avatar} style={{ background: review.avatarColor }}>
           {review.initials}
         </div>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>
-            {review.name}
-          </div>
-          <div style={{ fontSize: 12, color: "rgba(26,26,46,0.45)" }}>
-            {review.state}
-          </div>
+          <div className={styles.name}>{review.name}</div>
+          <div className={styles.state}>{review.state}</div>
         </div>
       </div>
 
       <StarRating count={review.stars} />
 
-      <p
-        style={{
-          fontSize: 13,
-          lineHeight: 1.6,
-          color: "#3a3a5c",
-          margin: 0,
-          fontStyle: "italic",
-          flex: 1,
-        }}
-      >
+      <p className={styles.text}>
         &ldquo;{review.text}&rdquo;
       </p>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: "#00b894",
-            background: "rgba(0,184,148,0.1)",
-            border: "1px solid rgba(0,184,148,0.25)",
-            borderRadius: 99,
-            padding: "3px 10px",
-          }}
-        >
+      <div className={styles.tags}>
+        <span className={styles.savingsTag}>
           💰 Economizou {review.savings}
         </span>
-        <span
-          style={{
-            fontSize: 11,
-            color: "rgba(26,26,46,0.4)",
-            background: "#f5f5ff",
-            borderRadius: 99,
-            padding: "3px 10px",
-          }}
-        >
+        <span className={styles.productTag}>
           {review.productTag}
         </span>
       </div>
@@ -141,42 +82,24 @@ export default function Testimonials() {
   );
 
   return (
-    <div>
-      <div style={{ textAlign: "center", marginBottom: 28 }}>
-        <h2
-          style={{
-            fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-            fontSize: 28,
-            fontWeight: 800,
-            color: "#1a1a2e",
-            marginBottom: 6,
-          }}
-        >
+    <div className={styles.root}>
+      <div className={styles.header}>
+        <h2 className={styles.title}>
           O que dizem nossos usuários
         </h2>
-        <p style={{ fontSize: 14, color: "rgba(26,26,46,0.5)", marginBottom: 10 }}>
-          Pessoas reais economizando de verdade
+        <p className={styles.subtitle}>
+          Depoimentos ilustrativos de economias reais
         </p>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            background: "#fff",
-            border: "1px solid #e0e0f0",
-            borderRadius: 99,
-            padding: "6px 16px",
-          }}
-        >
+        <div className={styles.ratingPill}>
           <StarRating count={5} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e" }}>
+          <span className={styles.ratingValue}>
             4.9
           </span>
         </div>
       </div>
 
       {/* Carousel */}
-      <div style={{ position: "relative" }}
+      <div className={styles.carousel}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}>
         {/* Nav buttons */}
@@ -185,68 +108,14 @@ export default function Testimonials() {
             <button
               onClick={() => paginate(-1)}
               aria-label="Depoimento anterior"
-              style={{
-                position: "absolute",
-                left: -16,
-                top: "50%",
-                transform: "translateY(-50%)",
-                zIndex: 2,
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                border: "1px solid #e0e0f0",
-                background: "#fff",
-                fontSize: 16,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#7c3aed",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                transition: "all .15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#7c3aed";
-                e.currentTarget.style.boxShadow = "0 4px 16px rgba(124,58,237,0.15)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "#e0e0f0";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
-              }}
+              className={`${styles.navBtn} ${styles.navBtnPrev}`}
             >
               ←
             </button>
             <button
               onClick={() => paginate(1)}
               aria-label="Próximo depoimento"
-              style={{
-                position: "absolute",
-                right: -16,
-                top: "50%",
-                transform: "translateY(-50%)",
-                zIndex: 2,
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                border: "1px solid #e0e0f0",
-                background: "#fff",
-                fontSize: 16,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#7c3aed",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                transition: "all .15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#7c3aed";
-                e.currentTarget.style.boxShadow = "0 4px 16px rgba(124,58,237,0.15)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "#e0e0f0";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
-              }}
+              className={`${styles.navBtn} ${styles.navBtnNext}`}
             >
               →
             </button>
@@ -261,11 +130,8 @@ export default function Testimonials() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: direction > 0 ? -60 : 60 }}
             transition={{ duration: 0.3 }}
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${Math.min(itemsPerPage, visible.length)}, 1fr)`,
-              gap: 16,
-            }}
+            className={styles.grid}
+            style={{ gridTemplateColumns: `repeat(${Math.min(itemsPerPage, visible.length)}, 1fr)` }}
           >
             {visible.map((review) => (
               <ReviewCard key={review.name} review={review} />
@@ -275,14 +141,7 @@ export default function Testimonials() {
 
         {/* Dots */}
         {totalPages > 1 && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 8,
-              marginTop: 16,
-            }}
-          >
+          <div className={styles.dots}>
             {Array.from({ length: totalPages }).map((_, i) => (
               <button
                 key={i}
@@ -291,30 +150,15 @@ export default function Testimonials() {
                   setDirection(i > page ? 1 : -1);
                   setPage(i);
                 }}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  border: "none",
-                  background: i === page ? "#7c3aed" : "#e0e0f0",
-                  cursor: "pointer",
-                  transition: "background .2s",
-                }}
+                className={`${styles.dot} ${i === page ? styles.dotActive : ""}`}
               />
             ))}
           </div>
         )}
       </div>
 
-      <p
-        style={{
-          textAlign: "center",
-          fontSize: 11,
-          color: "rgba(26,26,46,0.35)",
-          marginTop: 16,
-        }}
-      >
-        * Depoimentos representativos de usuários reais da plataforma
+      <p className={styles.disclaimer}>
+        * Depoimentos ilustrativos baseados em economias típicas dos usuários
       </p>
     </div>
   );

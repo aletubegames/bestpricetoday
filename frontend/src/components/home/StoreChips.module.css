@@ -1,0 +1,50 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.rootCompact {
+  gap: 6px;
+}
+
+.rootNormal {
+  gap: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e0e0f0;
+  border-radius: 99px;
+  font-weight: 500;
+  color: #3a3a5c;
+}
+
+.chipCompact {
+  gap: 6px;
+  padding: 4px 12px 4px 8px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border-color: #e8e8f0;
+}
+
+.chipNormal {
+  gap: 8px;
+  padding: 8px 18px 8px 12px;
+  font-size: 14px;
+}
+
+.favicon {
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pulseDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00b894;
+  flex-shrink: 0;
+}

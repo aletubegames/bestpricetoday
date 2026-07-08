@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Bell, Plus, Trash2, TrendingDown, RefreshCw } from "lucide-react";
 import Header from "@/components/layout/Header";
 import { API_BASE as API, apiFetch } from "@/lib/api";
+import { trackCreateAlert } from "@/lib/analytics";
 
 interface Alert {
   id: string;
@@ -112,6 +113,7 @@ export default function AlertasPage() {
         setAlerts(prev => [data, ...prev]);
         setQuery(""); setPrice("");
         setMsg("✅ Alerta criado! Você será notificado quando o preço cair.");
+        trackCreateAlert({ product: query.trim(), target_price: parseFloat(price) });
         setTimeout(() => setMsg(""), 4000);
       } else {
         const err = await r.json().catch(() => ({}));
@@ -173,8 +175,8 @@ export default function AlertasPage() {
                 padding: "13px 16px", fontSize: 15, color: "var(--txt)", outline: "none", width: "100%",
               }}
             />
-            <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ position: "relative", flex: 1 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", flex: "1 1 140px", minWidth: 140 }}>
                 <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "var(--muted2)", fontWeight: 600 }}>R$</span>
                 <input
                   type="number" value={price} onChange={e => setPrice(e.target.value)} min="0" step="0.01"
@@ -194,6 +196,7 @@ export default function AlertasPage() {
                   color: query.trim() && price ? "#fff" : "rgba(26,26,46,0.45)",
                   fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", transition: "all .2s",
                   opacity: loading ? 0.7 : 1,
+                  flex: "0 0 auto",
                 }}>
                 {loading ? <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Plus size={16} />}
                 Criar

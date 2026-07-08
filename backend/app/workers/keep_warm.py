@@ -10,7 +10,7 @@ import httpx
 from app.core.logging import logger
 
 INTERVAL_SECONDS = 4 * 60   # 4 minutos
-SELF_URL         = "http://localhost:7860/health"  # porta padrão HF Space (Docker)
+SELF_URL         = "http://localhost:8000/health"  # backend uvicorn porta 8000
 
 
 async def start_keep_warm():

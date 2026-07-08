@@ -1,5 +1,5 @@
 """Histórico de preços + rastreamento de cliques em afiliados."""
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
@@ -7,9 +7,7 @@ from app.core.logging import logger
 from app.models.models import PriceHistory, AffiliateClick, Offer
 from app.schemas.schemas import PriceHistoryPoint, ClickTrack, ClickTrackResponse
 from uuid import UUID
-from typing import Optional
 import uuid
-import hashlib
 
 router = APIRouter()
 
@@ -37,15 +35,25 @@ async def track_click(
     db: AsyncSession = Depends(get_db),
 ):
     """Registra clique num link de afiliado para analytics."""
+    from sqlalchemy.exc import IntegrityError
+    real_ip = (
+        request.headers.get("cf-connecting-ip")
+        or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (request.client.host if request.client else None)
+    )
     click = AffiliateClick(
         id=uuid.uuid4(),
         offer_id=body.offer_id,
         provider=body.provider,
-        ip_address=request.client.host if request.client else None,
+        ip_address=real_ip,
         user_agent=request.headers.get("user-agent"),
     )
     db.add(click)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail="Offer not found")
     return ClickTrackResponse(ok=True, click_id=click.id)
 
 
@@ -89,10 +97,10 @@ async def get_price_history(
 ):
     """Returns price history for a product. Returns empty list if no history."""
     try:
-        from sqlalchemy import text
         result = await db.execute(
             select(PriceHistory)
-            .where(PriceHistory.provider == provider)
+            .join(Product, PriceHistory.product_id == Product.id)
+            .where(PriceHistory.provider == provider, Product.external_id == external_id)
             .order_by(PriceHistory.recorded_at.desc())
             .limit(days)
         )

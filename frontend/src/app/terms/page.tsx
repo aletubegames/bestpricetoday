@@ -101,7 +101,7 @@ export default function TermsPage() {
           </a>
         </Section>
 
-        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid var(--bd)", display: "flex", gap: 24 }}>
+        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid var(--bd)", display: "flex", gap: 24, flexWrap: "wrap" }}>
           <a href="/privacy" style={{ fontSize: 13, color: "var(--muted2)", textDecoration: "none" }}>
             Política de Privacidade →
           </a>

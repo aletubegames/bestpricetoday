@@ -6,6 +6,7 @@ import { API_BASE as API, apiFetch } from "@/lib/api"
 import { openTrackedOffer } from "@/lib/tracking"
 import type { Offer } from "@/types"
 import PriceHistoryPublic from "@/components/offers/PriceHistoryPublic"
+import CouponBanner from "@/components/offers/CouponBanner"
 import styles from "./ProductSearch.module.css"
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -69,6 +70,7 @@ export default function ProductSearchClient({ query, initialOffers, initialTotal
 
   return (
     <div>
+      <CouponBanner provider="mercadolivre" />
       <p className={styles.meta}>
         <span>
           <strong className={styles.metaCount}>{total}</strong> oferta{total !== 1 ? "s" : ""} encontrada{total !== 1 ? "s" : ""}
@@ -87,12 +89,12 @@ export default function ProductSearchClient({ query, initialOffers, initialTotal
           const logo = PROVIDER_LOGOS[offer.provider] || "🏪"
           const key = offerKey(offer, i)
           return (
-            <div key={key} className={`${styles.card} ${isFirst ? styles.cardBest : ""}`}>
+            <div key={key} className={`${styles.card} ${isFirst ? styles.cardBest : ""}`} data-offer-card={isFirst ? "1" : undefined}>
               {isFirst && <div className={styles.cardBestBar} />}
               <div className={styles.cardBody}>
                 {isFirst && (
                   <div className={styles.cardBestLabel}>
-                    ✓ MENOR PREÇO
+                    🏆 Menor preço
                   </div>
                 )}
                 <div className={styles.cardHeader}>

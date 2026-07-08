@@ -42,9 +42,20 @@
 ## Scrapers (NAO sao orfaos — manter rodando)
 - `ml_scraper` — roda via cron 4h diario (`run_ml_scraper.sh`), usa Playwright/Chromium
 - `amazon_scraper` — roda via cron 3h diario (`run_amazon_scraper.sh`)
-- `ml_coupon_scraper` — gera/coleta cupons de afiliado ML via Portal do Afiliado (Playwright + cookies manuais)
-- Processos Chromium/Playwright sao do ml_scraper — NAO matar
+- `ml_coupon_scraper` — coleta cupons de afiliado ML via Portal do Afiliado (Playwright + cookies manuais), cron 5h diario
+- `ml_coupon_scraper --cleanup-only` — deleta cupons vencidos, cron 2h diario
+- `ml_session_keeper` — mantém sessão ML viva renovando cookies, cron **a cada 2h** (playwright-stealth + múltiplas URLs do portal)
+- Processos Chromium/Playwright sao do ml_scraper / ml_coupon_scraper — NAO matar
 - Se ml_scraper travar (rodando >24h), pode reiniciar com `cd /home/alessandro/backend && setsid bash run_ml_scraper.sh < /dev/null > /dev/null 2>&1 &`
+
+## Sessão ML Afiliados (login + renovação)
+- Login manual via VNC (porta 5900): `cd /home/alessandro/backend && DISPLAY=:99 venv/bin/python -m app.workers.ml_scraper --login`
+- ML usa reCAPTCHA Enterprise v2 (desafio de imagem) — bloqueia login programático
+- `ml_session_keeper` roda a cada 2h e renova cookies automaticamente enquanto sessão for válida
+- Quando sessão expira (~7-30 dias), só login manual via VNC renova
+- Timestamp da última renovação OK: `.ml_session_last_ok`
+- Cookies: `.ml_cookies.json` + storage state: `.ml_storage_state.json`
+- Chromium de login manual (tem `--login` ou `login_profile` nos args) NÃO é morto pelo session_keeper
 
 ## Cupons ML
 - Cupom = rastreio permanente (não expira em 48h como cookie do link)
@@ -63,3 +74,53 @@
 - Canais: telegram, facebook, instagram, youtube
 - YouTube roda em background (asyncio.create_task) para não travar o loop
 - Links sempre sem porta (https://bestpricetoday.alaserver.com.br/r/{code})
+
+## Frontend
+
+### Design system
+- Cores principais definidas em `globals.css` via tokens CSS:
+  - `--bg: #eeeef8` — fundo da página
+  - `--s1: #ffffff` — superfície primária
+  - `--s2: #f5f7ff` — superfície secundária
+  - `--s3: #eef0ff` — superfície terciária
+  - `--s4: #e4e8ff` — superfície quaternária
+  - `--txt: #1a1a2e` — texto principal
+  - `--muted: rgba(26,26,46,0.70)` — texto secundário
+  - `--muted2: rgba(26,26,46,0.60)` — texto terciário
+  - `--bd: #e0e0f0` — bordas
+  - `--bdhov: rgba(100,80,255,0.25)` — borda hover
+  - `--acc: #7c3aed` — roxo primário
+  - `--acc2: #8b7cf8` — roxo secundário
+  - `--grn: #00b894` — verde
+  - `--org: #f97316` — laranja
+  - `--ylw: #f59e0b` — amarelo
+  - `--red: #e74c3c` — vermelho
+- Logo: imagem `/logo-header.png` + texto "BestPrice" em `#820AD1` (Nubank blue) e "Today" em `#FF6200` (Itaú orange)
+
+### Header
+- Componente compartilhado em `src/components/layout/Header.tsx`
+- Ícones via `lucide-react` (não emojis)
+- Página atual destacada com gradiente roxo
+- Área de clique dos botões: `8px 14px` mínimo
+- Menu hambúrguer abaixo de 480px; ícones-only entre 480px e 680px
+- Padding otimizado abaixo de 520px
+
+### Responsividade
+- Mobile-first com CSS Modules e container queries
+- Grid de produtos varia por página: 6 colunas em `/produto/[query]` (>=1400px), 6 colunas em `/afiliados` (>=1600px), 5 colunas na classe global `.grid-products` (>=1800px)
+- Páginas com muitos inline styles ainda precisam de refatoração futura (`admin`, `aletubegames`, `alertas`, `dashboard`, `perfil`) — baixa prioridade
+
+### Build
+- `npx next build` (gera estáticos e server)
+- Após deploy: `sudo systemctl restart bestprice-frontend`
+- Para enviar apenas arquivos alterados, usar `rsync` por pasta; nunca passar dois paths locais para um path remoto (pode apagar arquivos do servidor)
+
+### Alterações recentes (2026-07-01)
+- Logo padronizado no header, footer, login e registro
+- Grid de produtos responsivo (varia por página: 6 colunas em `/produto/[query]` >=1400px, 6 colunas em `/afiliados` >=1600px, 5 colunas na classe global `.grid-products` >=1800px)
+- Auditados e removidos CSS classes não usadas em várias páginas
+- Header refatorado: ícones Lucide, estado ativo, botões maiores, padding otimizado abaixo de 520px
+- Página `/cupons` alinhada à paleta do site
+- Corrigidas quebras de responsividade em `/alertas`, `/privacy`, `/terms`, `/deletion-status`, `/dashboard`, `/perfil`, `/categoria/[cat]`, `/marca/[marca]`
+- Dependências não usadas removidas do `package.json`
+- `coupon_distributor.py` corrigido: timezone UTC, AsyncClient para imagens, cleanup de tmpdir, frases de utilidade ampliadas com fallback por substantivo, vídeo de teste validado

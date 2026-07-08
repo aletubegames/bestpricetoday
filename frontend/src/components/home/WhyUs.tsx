@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { IconChartLine, IconBell, IconShieldCheck, IconBolt } from "@tabler/icons-react";
+import styles from "./WhyUs.module.css";
 
 const REASONS = [
   {
@@ -32,78 +33,30 @@ const REASONS = [
 
 export default function WhyUs() {
   return (
-    <div style={{ textAlign: "center" }}>
-      <h2
-        style={{
-          fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-          fontSize: 26,
-          fontWeight: 800,
-          color: "#1a1a2e",
-          marginBottom: 6,
-        }}
-      >
+    <div className={styles.root}>
+      <h2 className={styles.title}>
         Por que usar o BestPriceToday?
       </h2>
-      <p style={{ fontSize: 14, color: "rgba(26,26,46,0.5)", marginBottom: 32 }}>
+      <p className={styles.subtitle}>
         Economia de verdade — não &quot;metade do dobro&quot;
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 20,
-        }}
-      >
+      <div className={styles.grid}>
         {REASONS.map((r, i) => (
           <motion.div
             key={r.title}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + i * 0.1, duration: 0.4 }}
-            style={{
-              background: "#fff",
-              border: "1px solid #e0e0f0",
-              borderRadius: 16,
-              padding: "28px 22px",
-              textAlign: "left",
-            }}
+            className={styles.card}
           >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                background: `${r.color}15`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: r.color,
-                margin: "0 auto 16px",
-              }}
-            >
+            <div className={styles.iconWrap} style={{ background: `${r.color}15`, color: r.color }}>
               {r.icon}
             </div>
-            <div
-              style={{
-                fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-                fontSize: 17,
-                fontWeight: 800,
-                color: r.color,
-                marginBottom: 8,
-                textAlign: "center",
-              }}
-            >
+            <div className={styles.cardTitle} style={{ color: r.color }}>
               {r.title}
             </div>
-            <p
-              style={{
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: "rgba(26,26,46,0.6)",
-                margin: 0,
-              }}
-            >
+            <p className={styles.text}>
               {r.text}
             </p>
           </motion.div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import styles from "./HowItWorks.module.css";
 
 const STEPS = [
   {
@@ -25,77 +26,30 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <div style={{ textAlign: "center" }}>
-      <h2
-        style={{
-          fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-          fontSize: 26,
-          fontWeight: 800,
-          color: "#1a1a2e",
-          marginBottom: 6,
-        }}
-      >
+    <div className={styles.root}>
+      <h2 className={styles.title}>
         Como funciona
       </h2>
-      <p style={{ fontSize: 14, color: "rgba(26,26,46,0.5)", marginBottom: 32 }}>
+      <p className={styles.subtitle}>
         Menos de 5 segundos pra achar o menor preço do Brasil
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 20,
-        }}
-      >
+      <div className={styles.grid}>
         {STEPS.map((step, i) => (
           <motion.div
             key={step.title}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + i * 0.1, duration: 0.4 }}
-            style={{
-              background: "#fff",
-              border: "1px solid #e0e0f0",
-              borderRadius: 16,
-              padding: "28px 20px",
-              textAlign: "center",
-            }}
+            className={styles.card}
           >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                background: `${step.color}15`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 26,
-                margin: "0 auto 16px",
-              }}
-            >
+            <div className={styles.iconWrap} style={{ background: `${step.color}15` }}>
               {step.emoji}
             </div>
-            <div
-              style={{
-                fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-                fontSize: 18,
-                fontWeight: 800,
-                color: step.color,
-                marginBottom: 6,
-              }}
-            >
+            <div className={styles.stepTitle} style={{ color: step.color }}>
               {step.title}
             </div>
-            <p
-              style={{
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: "rgba(26,26,46,0.55)",
-                margin: 0,
-              }}
-            >
+            <p className={styles.text}>
               {step.text}
             </p>
           </motion.div>

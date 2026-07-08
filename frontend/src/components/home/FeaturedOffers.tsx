@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import { useTrendingSearches } from "@/hooks/useTrendingSearches";
 import { API_BASE } from "@/lib/api";
+import styles from "./FeaturedOffers.module.css";
 
 const CATEGORIES = [
   { label: "📱 Celulares", query: "celular", color: "#f97316" },
@@ -106,7 +107,6 @@ interface ProductItem {
 }
 
 export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => void }) {
-  const [hoveredChip, setHoveredChip] = useState<string | null>(null);
   const { data: trendingData } = useTrendingSearches(20);
   const [couponCount, setCouponCount] = useState(0);
 
@@ -137,49 +137,26 @@ export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => 
   }, [trendingData]);
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div className={styles.root}>
       {/* ── Featured Products ── */}
-      <h2
-        style={{
-          fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-          fontSize: 22,
-          fontWeight: 800,
-          color: "#1a1a2e",
-          marginBottom: 4,
-        }}
-      >
-        <span style={{ color: "#f97316" }}>Ofertas</span> em destaque
+      <h2 className={styles.title}>
+        <span className={styles.titleAccent}>Ofertas</span> em destaque
       </h2>
-      <p style={{ fontSize: 13, color: "rgba(26,26,46,0.45)", marginBottom: 24 }}>
+      <p className={styles.subtitle}>
         Produtos com maior economia agora. Clique pra ver o preço em tempo real.
       </p>
 
       {couponCount > 0 && (
-        <a href="/cupons" style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          background: "linear-gradient(135deg, rgba(225,29,72,.1), rgba(225,29,72,.05))",
-          border: "1px solid rgba(225,29,72,.2)",
-          borderRadius: 20, padding: "8px 16px", marginBottom: 20,
-          textDecoration: "none", cursor: "pointer", transition: "all 0.15s",
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "linear-gradient(135deg, rgba(225,29,72,.18), rgba(225,29,72,.08))"; e.currentTarget.style.borderColor = "rgba(225,29,72,.4)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "linear-gradient(135deg, rgba(225,29,72,.1), rgba(225,29,72,.05))"; e.currentTarget.style.borderColor = "rgba(225,29,72,.2)"; }}
-        >
-          <span style={{ fontSize: 18 }}>🏷️</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#e11d48" }}>
+        <a href="/cupons" className={styles.couponBanner}>
+          <span className={styles.couponIcon}>🏷️</span>
+          <span className={styles.couponText}>
             {couponCount} cupom{couponCount > 1 ? "s" : ""} ativo{couponCount > 1 ? "s" : ""} agora — ver produtos com desconto!
           </span>
-          <span style={{ fontSize: 13, color: "#e11d48" }}>→</span>
+          <span className={styles.couponArrow}>→</span>
         </a>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-          gap: 10,
-        }}
-      >
+      <div className={styles.grid}>
         {products.map((product, i) => (
           <motion.button
             key={product.query + i}
@@ -187,42 +164,11 @@ export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => 
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.04 + i * 0.04, duration: 0.3 }}
             onClick={() => onSearch(product.query)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 6,
-              padding: "16px 10px",
-              borderRadius: 14,
-              border: "1px solid #e0e0f0",
-              background: "#fff",
-              cursor: "pointer",
-              transition: "all .15s",
-              textAlign: "center",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#f9731660";
-              e.currentTarget.style.background = "#f9731608";
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(249,115,22,0.10)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "#e0e0f0";
-              e.currentTarget.style.background = "#fff";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
+            className={styles.card}
           >
-            <span style={{ fontSize: 24 }}>{product.emoji}</span>
-            <div>
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: "#1a1a2e",
-                lineHeight: 1.3, maxWidth: 140,
-                overflow: "hidden", textOverflow: "ellipsis",
-                display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-              }}>
-                {product.label}
-              </div>
+            <span className={styles.cardEmoji}>{product.emoji}</span>
+            <div className={styles.cardLabel}>
+              {product.label}
             </div>
           </motion.button>
         ))}

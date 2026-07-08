@@ -20,6 +20,20 @@
   --muted:     rgba(26,26,46,0.70);
   --muted2:    rgba(26,26,46,0.60);
   --r:         16px;
+
+  /* Design tokens */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+  --shadow-sm: 0 2px 8px rgba(26, 26, 46, 0.04);
+  --shadow-md: 0 8px 24px rgba(26, 26, 46, 0.08);
+  --shadow-lg: 0 16px 48px rgba(26, 26, 46, 0.12);
+  --shadow-hover: 0 12px 32px rgba(26, 26, 46, 0.14);
+  --spacing-section: 72px;
+  --spacing-card: 16px;
+  --header-height: 64px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -218,3 +232,57 @@ h1, h2, h3, h4, h5, h6 {
 @container bp (max-width: 599px) {
   .stack-narrow { flex-direction: column; gap: 12px; }
 }
+
+/* ─── Botões globais ─────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #7c6aff, #a78bfa);
+  color: #1a1a2e;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.15s, transform 0.15s;
+}
+.btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+.btn-provider {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  color: #1a1a2e;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.15s, transform 0.15s;
+}
+.btn-provider:hover { filter: brightness(1.05); transform: translateY(-1px); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+  border: 1px solid var(--bd);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { border-color: var(--bdhov); color: var(--txt); background: #ffffff; }

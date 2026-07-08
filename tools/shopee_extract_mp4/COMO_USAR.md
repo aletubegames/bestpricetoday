@@ -30,14 +30,13 @@ https://s.shopee.com.br/10zxusHSxq
 - `shopee_products.csv` - Dados de produtos (Item ID, Nome, Preço, Avaliação, Link de afiliado)
 - `shopee_videos.csv` - Dados para vídeos (slug, nome, preço, desconto, avaliação, URL, descrição)
 
-### 2. tiktok_post.js - Processador de Vídeos
-Script que processa os dados dos CSVs e cria vídeos para TikTok.
+### 2. Gerar script para TikTok
+Após gerar os CSVs, use o `tiktok_bot_fiel_completo.py` na pasta `tools/tiktok_post/` para criar o script Tampermonkey de postagem.
 
 #### Como usar
 ```bash
-# Execute via Node.js ou browser console
-node tiktok_post.js
-# ou cole no console do navegador
+cd ../tiktok_post
+python tiktok_bot_fiel_completo.py
 ```
 
 #### Entrada
@@ -45,12 +44,7 @@ node tiktok_post.js
 - `shopee_videos.csv` - Informações para legendas
 
 #### Saída
-- `videos/` - Pasta com vídeos MP4 gerados
-- Cada vídeo contém:
-  - Imagem do produto
-  - Preço e desconto
-  - Legenda personalizada
-  - QR Code para link curto
+- `tiktok_post.user.js` - Script Tampermonkey gerado
 
 ## Estrutura de dados
 
@@ -71,9 +65,8 @@ gN7WGIjdk,Produto XYZ,29.90,49.90,40%,4.8,500mil+,1932,true,https://...,"Descri�
 ```mermaid
 graph LR
     A["Links do Shopee"] -->|console_script.js| B["CSV de Produtos"]
-    B -->|Processamento| C["Videos MP4"]
-    C -->|Edição| D["Conteúdo para TikTok"]
-    D -->|Upload| E["TikTok/Reels"]
+    B -->|tiktok_bot_fiel_completo.py| C["Script Tampermonkey"]
+    C -->|Navegador| D["Postagem no TikTok"]
 ```
 
 ## Arquivos
@@ -81,10 +74,8 @@ graph LR
 | Arquivo | Descrição |
 |---------|-----------|
 | `console_script.js` | Script para extrair produtos |
-| `tiktok_post.js` | Processador de vídeos |
-| `shopee_productBatchProductLinks20260524142349-e67c6901b0e24c49af9176940b20537as.csv` | Dados dos produtos (gerado) |
+| `shopee_products.csv` | Dados dos produtos (gerado) |
 | `shopee_videos.csv` | Dados para vídeos (gerado) |
-| `videos/` | Vídeos MP4 gerados |
 | `product_images/` | Imagens dos produtos |
 
 ## Gerenciamento de URLs
@@ -113,17 +104,19 @@ grep -v "AUr3EKhIhb\|W3hJxJMzi\|902FRZn0kA" shopee_products.csv > temp.csv && mv
 
 ## Integração com TikTok
 
-Os vídeos gerados podem ser:
-- Enviados diretamente para TikTok
-- Editados em ferramentas como DaVinci Resolve
-- Adicionados a playlists automáticas
-- Processados pelo `tiktok_bot_fiel_completo.py`
+Após gerar os CSVs:
+1. Vá para `tools/tiktok_post/`
+2. Execute `python tiktok_bot_fiel_completo.py` para gerar `tiktok_post.user.js`
+3. Instale o script no Tampermonkey e use no TikTok Studio
 
 ## Problemas comuns
 
 | Problema | Solução |
 |----------|--------|
 | "CSV não encontrado" | Verifique se console_script.js rodou com sucesso |
-| Vídeos não geram | Verifique permissões da pasta `videos/` |
-| Imagens não carregam | Aguarde o download das imagens dos produtos |
+| Script do TikTok não gera | Verifique se os CSVs estão no caminho esperado pelo gerador |
 | Links quebrados | Remova links expirados do Shopee |
+
+---
+
+**Última atualização:** 1 de julho de 2026

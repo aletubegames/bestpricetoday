@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import Header from "@/components/layout/Header"
 import { API_BASE } from "@/lib/api"
+import { trackCopyCoupon } from "@/lib/analytics"
 import styles from "./cupons.module.css"
 
 interface CouponProduct {
@@ -120,9 +121,14 @@ export default function CuponsPage() {
     }
   }, [sort, selectedStore, minDiscount, maxPrice])
 
-  const handleCopy = (code: string) => {
+  const handleCopy = (code: string, product?: CouponProduct) => {
     navigator.clipboard.writeText(code)
     setCopiedCode(code)
+    trackCopyCoupon({
+      coupon_code: code,
+      discount_text: product?.coupon.discount_text || undefined,
+      store_name: product?.coupon.store_name || undefined,
+    })
     setTimeout(() => setCopiedCode(null), 2000)
   }
 
@@ -387,7 +393,7 @@ export default function CuponsPage() {
                   </div>
                   <button
                     className={styles.copyBtn}
-                    onClick={() => handleCopy(product.coupon.code)}
+                    onClick={() => handleCopy(product.coupon.code, product)}
                   >
                     {copiedCode === product.coupon.code ? "✓" : "Copiar"}
                   </button>

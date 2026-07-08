@@ -1,5 +1,4 @@
 """Cuponomia public API for coupon integration."""
-import httpx
 from typing import List, Dict
 from app.services.providers.base import BaseProvider
 from app.core.config import settings

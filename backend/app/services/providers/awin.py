@@ -1,5 +1,4 @@
 """Awin Affiliate Provider."""
-import httpx
 from typing import List
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
@@ -37,7 +36,7 @@ class AwinProvider(BaseProvider):
         offers = []
         items = data if isinstance(data, list) else data.get("data", [])
         for item in items:
-            price = float(item.get("displayPrice") or item.get("price", {}).get("amount", 0))
+            price = float(item.get("displayPrice") or (item.get("price") or {}).get("amount", 0))
             offers.append(OfferSchema(
                 provider=ProviderEnum.awin,
                 title=item.get("productName", ""),

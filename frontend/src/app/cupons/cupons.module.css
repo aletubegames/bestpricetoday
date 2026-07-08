@@ -5,27 +5,6 @@
   min-height: 80vh;
 }
 
-/* Botão voltar */
-.backBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #64748b;
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: #f1f5f9;
-  margin-bottom: 20px;
-  transition: all 0.15s;
-}
-
-.backBtn:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
 /* Header */
 .header {
   text-align: center;
@@ -35,7 +14,7 @@
 .title {
   font-size: 2rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--txt);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -49,7 +28,7 @@
 
 .subtitle {
   font-size: 1rem;
-  color: #64748b;
+  color: var(--muted);
   margin: 0;
 }
 
@@ -59,9 +38,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
   padding: 12px 16px;
   margin-bottom: 16px;
 }
@@ -75,64 +54,64 @@
 .filterLabel {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--muted);
   white-space: nowrap;
 }
 
 .select {
   padding: 6px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #1e293b;
-  background: #fff;
+  color: var(--txt);
+  background: var(--s1);
   cursor: pointer;
   transition: border-color 0.15s;
 }
 
 .select:hover {
-  border-color: #e11d48;
+  border-color: var(--acc);
 }
 
 .select:focus {
   outline: none;
-  border-color: #e11d48;
-  box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.15);
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px rgba(124, 106, 255, 0.15);
 }
 
 .filterToggle {
   margin-left: auto;
   background: none;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
   padding: 6px 12px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--muted);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .filterToggle:hover {
-  border-color: #e11d48;
-  color: #e11d48;
+  border-color: var(--acc);
+  color: var(--acc);
 }
 
 .clearBtn {
-  background: rgba(225, 29, 72, 0.08);
-  border: 1px solid rgba(225, 29, 72, 0.2);
-  border-radius: 8px;
+  background: rgba(124, 106, 255, 0.08);
+  border: 1px solid rgba(124, 106, 255, 0.2);
+  border-radius: 10px;
   padding: 6px 12px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #e11d48;
+  color: var(--acc);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .clearBtn:hover {
-  background: rgba(225, 29, 72, 0.15);
+  background: rgba(124, 106, 255, 0.15);
 }
 
 /* Filtros por loja (chips) */
@@ -142,17 +121,17 @@
   gap: 8px;
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
 }
 
 .storeChip {
   padding: 6px 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--bd);
   border-radius: 999px;
-  background: #fff;
-  color: #64748b;
+  background: var(--s1);
+  color: var(--muted);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -164,13 +143,13 @@
 }
 
 .storeChip:hover {
-  border-color: #e11d48;
-  color: #e11d48;
+  border-color: var(--acc);
+  color: var(--acc);
 }
 
 .storeChipActive {
-  background: #e11d48;
-  border-color: #e11d48;
+  background: var(--acc);
+  border-color: var(--acc);
   color: #fff;
 }
 
@@ -191,27 +170,27 @@
 .activeFilterLabel {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .activeFilterTag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(225, 29, 72, 0.08);
-  border: 1px solid rgba(225, 29, 72, 0.2);
+  background: rgba(124, 106, 255, 0.08);
+  border: 1px solid rgba(124, 106, 255, 0.2);
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #e11d48;
+  color: var(--acc);
   text-transform: capitalize;
 }
 
 .activeFilterTag button {
   background: none;
   border: none;
-  color: #e11d48;
+  color: var(--acc);
   cursor: pointer;
   font-size: 0.75rem;
   padding: 0;
@@ -231,9 +210,9 @@
 
 /* Card */
 .card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
   overflow: hidden;
   transition: box-shadow 0.2s, transform 0.2s;
   position: relative;
@@ -242,7 +221,7 @@
 }
 
 .card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-hover);
   transform: translateY(-2px);
 }
 
@@ -250,15 +229,15 @@
 .discountBadge {
   position: absolute;
   top: 10px;
-  left: 10px;
-  background: #e11d48;
+  right: 10px;
+  background: linear-gradient(135deg, var(--red), #c0392b);
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
   z-index: 1;
-  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.3);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
 }
 
 /* Imagem */
@@ -267,7 +246,7 @@
   width: 100%;
   height: 180px;
   overflow: hidden;
-  background: #f8fafc;
+  background: var(--s2);
 }
 
 .image {
@@ -288,14 +267,14 @@
   align-items: center;
   justify-content: center;
   font-size: 3rem;
-  color: #cbd5e1;
+  color: var(--muted2);
 }
 
 .imageFallback {
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  background: linear-gradient(135deg, var(--s2), var(--s3));
   font-size: 2.5rem !important;
   font-weight: 800;
-  color: #94a3b8 !important;
+  color: var(--muted2) !important;
   text-transform: uppercase;
 }
 
@@ -311,7 +290,7 @@
 .productTitle {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--txt);
   text-decoration: none;
   line-height: 1.35;
   display: -webkit-box;
@@ -322,17 +301,17 @@
 }
 
 .productTitle:hover {
-  color: #e11d48;
+  color: var(--acc);
 }
 
 .store {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--muted);
   text-transform: capitalize;
 }
 
 .store:hover {
-  color: #e11d48;
+  color: var(--acc);
 }
 
 /* Preço */
@@ -345,80 +324,82 @@
 
 .priceOriginal {
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--muted2);
   text-decoration: line-through;
 }
 
 .priceFinal {
   font-size: 1.1rem;
   font-weight: 800;
-  color: #e11d48;
+  color: var(--txt);
 }
 
 /* Cupom */
 .couponBox {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 8px;
-  background: linear-gradient(135deg, rgba(225, 29, 72, 0.06), rgba(225, 29, 72, 0.03));
-  border: 1px dashed rgba(225, 29, 72, 0.3);
-  border-radius: 8px;
-  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(124, 106, 255, 0.1), rgba(124, 106, 255, 0.04));
+  border: 1px solid rgba(124, 106, 255, 0.25);
+  border-radius: 12px;
+  padding: 10px 12px;
 }
 
 .couponInfo {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
 }
 
 .couponLabel {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--muted2);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .couponCode {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #e11d48;
-  font-family: monospace;
-  letter-spacing: 0.5px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--acc);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  letter-spacing: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .copyBtn {
-  background: #e11d48;
-  color: #fff;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  color: #1a1a2e;
   border: none;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 0.7rem;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s;
+  transition: filter 0.15s, transform 0.15s;
+  width: 100%;
+  text-align: center;
 }
 
 .copyBtn:hover {
-  background: #be123c;
+  filter: brightness(1.08);
+  transform: translateY(-1px);
 }
 
 /* Vencimento */
 .expires {
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--muted2);
   font-weight: 600;
 }
 
 .expiresSoon {
-  color: #f59e0b;
+  color: var(--org);
   font-weight: 700;
 }
 
@@ -426,19 +407,19 @@
 .cta {
   display: block;
   text-align: center;
-  background: #0f172a;
-  color: #fff;
+  background: var(--txt);
+  color: var(--s1);
   text-decoration: none;
   font-size: 0.85rem;
   font-weight: 700;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 10px;
   margin-top: auto;
-  transition: background 0.15s;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .cta:hover {
-  background: #1e293b;
+  opacity: 0.85;
 }
 
 /* Loading */
@@ -448,14 +429,14 @@
   align-items: center;
   gap: 16px;
   padding: 60px 0;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #e11d48;
+  border: 3px solid var(--bd);
+  border-top-color: var(--acc);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -471,27 +452,27 @@
 }
 
 .loadMoreBtn {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  color: var(--muted);
   font-size: 0.9rem;
   font-weight: 600;
   padding: 12px 32px;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .loadMoreBtn:hover {
-  border-color: #e11d48;
-  color: #e11d48;
+  border-color: var(--acc);
+  color: var(--acc);
 }
 
 /* Empty */
 .empty {
   text-align: center;
   padding: 80px 20px;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .emptyIcon {
@@ -502,7 +483,7 @@
 
 .empty h2 {
   font-size: 1.3rem;
-  color: #1e293b;
+  color: var(--txt);
   margin: 0 0 8px;
 }
 
@@ -557,6 +538,11 @@
   }
 
   .couponCode {
-    font-size: 0.72rem;
+    font-size: 0.92rem;
+  }
+
+  .copyBtn {
+    padding: 6px 10px;
+    font-size: 0.75rem;
   }
 }

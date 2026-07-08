@@ -132,14 +132,14 @@ export default function PerfilPage() {
               <div style={{ display: "grid", gap: 12 }}>
                 {alerts.map(a => (
                   <div key={a.id} style={{ background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{a.query}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: "#1a1a2e", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.query}</div>
                       <div style={{ fontSize: 12, color: "#6b6b8a" }}>
                         Alerta: R$ {a.target_price.toLocaleString("pt-BR")} • {fmtDate(a.created_at)}
                         {!a.is_active && " • ⏸️ Inativo"}
                       </div>
                     </div>
-                    <div style={{ fontSize: 14 }}>
+                    <div style={{ fontSize: 14, flexShrink: 0 }}>
                       {a.is_active ? "✅" : "⏸️"}
                     </div>
                   </div>

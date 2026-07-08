@@ -3,6 +3,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
+import { trackSignUp } from "@/lib/analytics"
 import Link from "next/link"
 
 type RegisterForm = { name: string; email: string; password: string; confirm: string }
@@ -43,6 +44,7 @@ export default function RegisterPage() {
 
       localStorage.setItem("bpt_token", data.access_token)
       localStorage.setItem("bpt_user", JSON.stringify(data.user))
+      trackSignUp("email")
       router.push("/")
     } catch {
       setError("Erro de conexão.")
@@ -56,10 +58,13 @@ export default function RegisterPage() {
       <Header variant="minimal" />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ width: "100%", maxWidth: 400 }}>
-          <div style={{ textAlign: "center", marginBottom: 32, marginTop: 32 }}>
-            <Link href="/" style={{ textDecoration: "none" }}>
-              <span style={{ fontSize: 32 }}>🛍️</span>
-              <p style={{ color: "#7c6aff", fontWeight: 800, fontSize: 20, margin: "8px 0 0" }}>BestPriceToday</p>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 32, marginTop: 32 }}>
+            <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
+              <img src="/logo-header.png" alt="BestPriceToday" width={50} height={50} style={{ borderRadius: 10, objectFit: "cover" }} />
+              <span style={{ display: "flex", flexDirection: "column", lineHeight: 0.9, textAlign: "center" }}>
+                <span style={{ fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif", fontWeight: 900, fontSize: 20, letterSpacing: -0.6, color: "#820AD1" }}>BestPrice</span>
+                <span style={{ fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif", fontWeight: 900, fontSize: 18, letterSpacing: -0.5, color: "#FF6200" }}>Today</span>
+              </span>
             </Link>
           </div>
 

@@ -492,13 +492,13 @@ async def get_coupons(
     try:
         from app.models.models import Coupon
         r = await db.execute(
-            select(Coupon.store, func.count().label("cnt"))
-            .group_by(Coupon.store)
+            select(Coupon.store_name, func.count().label("cnt"))
+            .group_by(Coupon.store_name)
             .order_by(func.count().desc())
             .limit(20)
         )
         rows = r.fetchall()
-        return [{"store": row.store, "count": row.cnt} for row in rows]
+        return [{"store": row.store_name, "count": row.cnt} for row in rows]
     except Exception:
         return []
 
@@ -891,7 +891,6 @@ async def trigger_metrics_scrape(
     Útil para testar ou atualizar métricas fora do cron das 4h.
     Requer cookies válidos (.ml_cookies.json).
     """
-    import asyncio as _asyncio
     from app.workers.ml_scraper import scrape_metrics_summary, save_metrics_snapshot
     from playwright.async_api import async_playwright
     import json
@@ -1092,47 +1091,163 @@ async def trigger_video_publish(
     _: str = Depends(require_admin),
 ):
     """
-    Dispara geração de vídeo delegando para a Video API local (porta 8765).
+    Dispara geração de vídeo curto (imagem + texto + áudio) no próprio servidor.
+    Substituiu o pipeline Wan2.1 local.
 
-    Arquitetura:
-      - Frontend → HF Space (/admin/video/publish)  → Video API local (localhost:8765)
-      - A Video API roda na máquina com GPU e executa o traffic_machine.py
-
-    Configurável via env:
-      VIDEO_API_URL  = URL da Video API local (default: http://localhost:8765)
-      VIDEO_API_KEY  = chave de auth da Video API (opcional)
+    - Busca oferta via API interna
+- Gera vídeo de 50-80s com imagem do produto + overlay + narração XTTS
+    - Publica nas plataformas selecionadas
     """
-    VIDEO_API_URL = settings.VIDEO_API_URL
-    VIDEO_API_KEY = settings.VIDEO_API_KEY
-
-    plats = [p for p in body.plataformas if p in {"telegram", "youtube", "tiktok"}]
+    plats = [p for p in body.plataformas if p in {"telegram", "facebook", "instagram", "youtube"}]
     if not plats:
         return {"ok": False, "error": "Nenhuma plataforma válida"}
 
-    headers: dict = {"Content-Type": "application/json", "ngrok-skip-browser-warning": "true"}
-    if VIDEO_API_KEY:
-        headers["x-video-key"] = VIDEO_API_KEY
+    # Pipeline Wan2.1 (catálogo) desativado — só permite geradores não-IA
+    if body.formato in {"wan21_cinematic", "hybrid_cinema"}:
+        return {"ok": False, "error": "Formato Wan2.1 desativado. Use os formatos com imagem + áudio."}
 
     try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.post(
-                f"{VIDEO_API_URL}/video/publish",
-                json={"query": body.query, "plataformas": plats, "formato": body.formato},
-                headers=headers,
+        # 1. Busca oferta via API interna (localhost para evitar Cloudflare)
+        from app.workers.distributor import (
+            create_short_link,
+            build_caption,
+            build_caption_facebook,
+            build_youtube_description,
+            post_to_telegram,
+            post_to_facebook,
+            post_to_instagram,
+            post_to_youtube,
+            generate_offer_video,
+        )
+
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(
+                f"{settings.INTERNAL_API_URL}/api/v1/search",
+                params={"q": body.query or "oferta", "limit": 10},
             )
-        if r.status_code == 200:
-            data = r.json()
-            return data
-        return {"ok": False, "error": f"Video API retornou {r.status_code}: {r.text[:200]}"}
-    except httpx.ConnectError:
+            offers = r.json().get("offers", [])
+
+        if not offers:
+            return {"ok": False, "error": "Nenhuma oferta encontrada para a query"}
+
+        # Pega a primeira oferta com affiliate_url
+        offer = next((o for o in offers if o.get("affiliate_url")), None)
+        if not offer:
+            return {"ok": False, "error": "Nenhuma oferta com link de afiliado encontrada"}
+
+        # 2. Cria short link
+        short_url = await create_short_link(offer, source="admin_video", campaign=body.formato)
+
+        # 3. Gera roteiro longo (50-80s)
+        title = offer.get("title", "")[:80]
+        price = offer.get("final_price", 0) or offer.get("price", 0)
+        original = offer.get("original_price", 0) or 0
+        discount = offer.get("discount_percent", 0) or 0
+        provider = offer.get("provider", "loja")
+        shipping_free = offer.get("shipping_free", False)
+        store = provider.replace("-", " ").title()
+
+        from app.workers.coupon_distributor import (
+            fmt_brl, expand_units_for_tts, num2words_pt,
+        )
+
+        def speak_brl(v: float) -> str:
+            reais = int(v)
+            centavos = int(round((v - reais) * 100))
+            real_word = "real" if reais == 1 else "reais"
+            centavo_word = "centavo" if centavos == 1 else "centavos"
+            if centavos > 0:
+                if reais == 0:
+                    return f"{num2words_pt(centavos)} {centavo_word}"
+                return f"{num2words_pt(reais)} {real_word} e {num2words_pt(centavos)} {centavo_word}"
+            return f"{num2words_pt(reais)} {real_word}"
+
+        price_text = fmt_brl(price)
+        original_text = fmt_brl(original) if original > price else ""
+
+        narration = f"Fala pessoal, se liga nessa oferta que acabei de encontrar. {title}. "
+        if original > price and discount > 0:
+            economy = original - price
+            narration += (
+                f"O produto custava {speak_brl(original)}, mas agora está saindo por apenas {speak_brl(price)}, "
+                f"você economiza {speak_brl(economy)}, é um desconto de {discount:.0f} por cento. "
+            )
+        else:
+            narration += f"Por apenas {speak_brl(price)} você leva esse produto. "
+
+        narration += (
+            f"Vendido pela {store}. "
+            "É uma excelente oportunidade pra quem quer pagar menos sem perder qualidade. "
+        )
+        if shipping_free:
+            narration += "E o melhor: ainda tem frete grátis. "
+        narration += (
+            "Não perde tempo, o preço pode mudar a qualquer momento. "
+            "Clica no link que está na descrição e aproveita antes que acabe. "
+            "Se gostou, deixa o like e ativa as notificações para não perder as próximas ofertas. "
+            "Valeu!"
+        )
+        narration = expand_units_for_tts(narration)
+        narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
+
+        # 4. Gera vídeo
+        import tempfile
+        tmp_video = tempfile.mktemp(suffix=".mp4")
+        video_path = await generate_offer_video(offer, tmp_video, custom_narration=narration)
+        if not video_path:
+            return {"ok": False, "error": "Falha ao gerar vídeo"}
+
+        # 5. Publica nas plataformas
+        results = {}
+        for plat in plats:
+            if plat == "youtube":
+                desc = build_youtube_description(offer, offer.get("affiliate_url", ""), short_url or "")
+                results[plat] = await post_to_youtube(offer, desc, short_url=short_url or "")
+            elif plat == "telegram":
+                caption = await build_caption(offer, short_url or "")
+                # Envia vídeo para Telegram se gerado com sucesso
+                if video_path and os.path.exists(video_path):
+                    try:
+                        from app.workers.distributor import BOT_TOKEN, CHANNEL_ID
+                        async with httpx.AsyncClient(timeout=60) as c:
+                            with open(video_path, "rb") as vf:
+                                r = await c.post(
+                                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo",
+                                    data={
+                                        "chat_id": CHANNEL_ID,
+                                        "caption": caption,
+                                        "parse_mode": "Markdown",
+                                        "supports_streaming": "true",
+                                    },
+                                    files={"video": ("video.mp4", vf, "video/mp4")},
+                                )
+                            if r.status_code == 200:
+                                msg_id = r.json().get("result", {}).get("message_id")
+                                results[plat] = {"ok": True, "message_id": msg_id, "method": "video"}
+                            else:
+                                logger.warning(f"Admin video: Telegram sendVideo failed {r.status_code}, fallback to photo")
+                                results[plat] = await post_to_telegram(offer, caption)
+                    except Exception as e:
+                        logger.error(f"Admin video: Telegram video error: {e}")
+                        results[plat] = await post_to_telegram(offer, caption)
+                else:
+                    results[plat] = await post_to_telegram(offer, caption)
+            elif plat == "facebook":
+                caption = build_caption_facebook(offer)
+                results[plat] = await post_to_facebook(offer, caption, short_url=short_url or "")
+            elif plat == "instagram":
+                caption = build_caption_facebook(offer)
+                results[plat] = await post_to_instagram(offer, caption, short_url=short_url or "")
+
         return {
-            "ok":    False,
-            "error": (
-                f"Video API não encontrada em {VIDEO_API_URL}. "
-                "Inicie o serviço na máquina local: cd ~/wan2 && python video_api.py"
-            )
+            "ok": any(r.get("ok") for r in results.values()),
+            "offer_title": offer.get("title", "")[:60],
+            "video_path": video_path,
+            "platforms": results,
         }
+
     except Exception as e:
+        logger.error(f"Admin video publish error: {e}", exc_info=True)
         return {"ok": False, "error": str(e)}
 
 
@@ -1202,7 +1317,7 @@ async def distribute_stats(
 
     Agrega cliques por source (canal) e mostra top posts por comissão/cliques.
     """
-    from sqlalchemy import func, case
+    from sqlalchemy import func
 
     try:
         # 1. Cliques por source (canal)

@@ -48,3 +48,7 @@ Clique em "Gerar JS final" para obter um script pronto para automação.
 - Gera XPath robusto e smart
 - Ideal para criar scripts de web scraping
 - Requer console do navegador (DevTools)
+
+---
+
+**Última atualização:** 1 de julho de 2026

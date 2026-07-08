@@ -1,0 +1,389 @@
+.root {
+  min-height: 100vh;
+  background: var(--bg, #eeeef8);
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--txt, #1a1a2e);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+@media (max-width: 768px) {
+  .container { padding: 16px 12px; }
+}
+
+/* ─── Welcome ────────────────────────────────────────────────────────────── */
+.welcome {
+  margin-bottom: 24px;
+}
+
+.welcomeTitle {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--txt);
+  margin: 0 0 4px;
+}
+
+.welcomeSub {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ─── Stats grid ─────────────────────────────────────────────────────────── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 600px) {
+  .statsGrid { grid-template-columns: 1fr; gap: 10px; }
+}
+
+.statCard {
+  background: var(--s1, #fff);
+  border: 1px solid var(--bd, #e0e0f0);
+  border-radius: 14px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.statCard::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--c, var(--acc));
+}
+
+.statIcon {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.statValue {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--c, var(--txt));
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+}
+
+/* ─── Actions ────────────────────────────────────────────────────────────── */
+.actionsRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.actionBtn {
+  padding: 11px 22px;
+  border-radius: 10px;
+  background: var(--acc, #7c3aed);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.15s;
+  border: none;
+  cursor: pointer;
+}
+
+.actionBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(124,58,237,0.25);
+}
+
+.actionBtnGreen { background: var(--grn, #00b894); }
+.actionBtnPurple { background: var(--acc, #7c3aed); }
+.actionBtnYellow { background: var(--ylw, #f59e0b); color: #1a1a2e; }
+.actionBtnRed { background: var(--red, #e74c3c); }
+
+/* ─── Card ───────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--s1, #fff);
+  border: 1px solid var(--bd, #e0e0f0);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--txt);
+}
+
+.cardLink {
+  font-size: 12px;
+  color: var(--acc, #7c3aed);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+/* ─── Two columns ────────────────────────────────────────────────────────── */
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 800px) {
+  .twoCol { grid-template-columns: 1fr; }
+}
+
+/* ─── List ───────────────────────────────────────────────────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.listSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.listSectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+/* ─── Alert row ──────────────────────────────────────────────────────────── */
+.alertRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--s2, #f5f7ff);
+  border: 1px solid var(--bd, #e0e0f0);
+  border-radius: 10px;
+}
+
+.alertRowTriggered {
+  border-color: rgba(0,184,148,0.25);
+  background: rgba(0,184,148,0.04);
+}
+
+.alertInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.alertQuery {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alertMeta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.alertDate {
+  color: var(--muted);
+}
+
+.alertDelete {
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(231,76,60,0.06);
+  border: 1px solid rgba(231,76,60,0.2);
+  color: var(--red, #e74c3c);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.alertDelete:hover {
+  background: rgba(231,76,60,0.12);
+}
+
+/* ─── Favorite row ───────────────────────────────────────────────────────── */
+.favRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--s2, #f5f7ff);
+  border: 1px solid var(--bd, #e0e0f0);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.favLink {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acc, #7c3aed);
+  text-decoration: none;
+}
+
+.favLink:hover {
+  text-decoration: underline;
+}
+
+.favDate {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.favRemove {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--bd, #e0e0f0);
+  background: var(--s1, #fff);
+  color: var(--red, #e74c3c);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.favRemove:hover {
+  background: rgba(231,76,60,0.08);
+  border-color: var(--red);
+}
+
+/* ─── Empty state ────────────────────────────────────────────────────────── */
+.emptyState {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.emptyIcon {
+  font-size: 36px;
+  margin-bottom: 10px;
+  opacity: 0.4;
+}
+
+.emptyText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--txt);
+  margin: 0 0 4px;
+}
+
+.emptySub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+
+.emptyBtn {
+  display: inline-block;
+  padding: 9px 20px;
+  border-radius: 10px;
+  background: var(--acc, #7c3aed);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.emptyBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124,58,237,0.2);
+}
+
+/* ─── Account ────────────────────────────────────────────────────────────── */
+.accountGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.accountField {
+  display: flex;
+  flex-direction: column;
+}
+
+.accountLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.accountValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--txt);
+}
+
+/* ─── Tags ───────────────────────────────────────────────────────────────── */
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tagPurple {
+  background: rgba(124,58,237,0.1);
+  color: var(--acc, #7c3aed);
+}
+
+.tagBlue {
+  background: rgba(96,165,250,0.1);
+  color: #60a5fa;
+}

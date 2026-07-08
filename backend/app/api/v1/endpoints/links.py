@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.core.config import settings
 from app.models.models import ShortLink, ClickEvent
+from app.services.affiliate_tracking import add_ml_affiliate_tracking
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -18,8 +19,10 @@ import secrets
 import string
 import base64
 import httpx
+import logging
 
 router = APIRouter()
+links_logger = logging.getLogger("links_create")
 
 
 def generate_code(length: int = 8) -> str:
@@ -50,6 +53,13 @@ async def create_short_link(
     """
     from app.core.rate_limit import check_rate_limit, get_client_ip
     ip = get_client_ip(request)
+    ua = request.headers.get("user-agent", "unknown")
+    ref = request.headers.get("referer", "unknown")
+    links_logger.info(
+        "CREATE_SHORT_LINK source=%s campaign=%s ip=%s ua=%s ref=%s provider=%s title=%s price=%s",
+        data.source, data.campaign, ip, ua, ref, data.provider,
+        (data.product_title or "")[:50], data.price,
+    )
     max_calls = settings.RATE_LIMIT_PER_MINUTE
     if not await check_rate_limit(ip, key="links_create", max_calls=max_calls, window_seconds=60):
         return JSONResponse(status_code=429, content={"error": f"Rate limit exceeded. Max {max_calls} links/min per IP."})
@@ -91,10 +101,9 @@ async def redirect_link(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Tracked redirect — agora vai para a página de oferta no frontend.
-    1. Find link by code
-    2. 302 redirect para /oferta/{code} (página com botão VER OFERTA)
-    O clique real é registrado em /r/{code}/go quando o usuário clica no botão.
+    Tracked redirect — vai direto para a loja (afiliado).
+    Registra o clique e faz 302 redirect para o affiliate_url.
+    Se o link estiver marcado como morto (is_dead), mostra página de expirado.
     """
     try:
         result = await db.execute(select(ShortLink).where(ShortLink.code == code))
@@ -103,12 +112,40 @@ async def redirect_link(
         if not link:
             return RedirectResponse(url=settings.PUBLIC_SITE_URL, status_code=302)
 
-        # Redirect para a página de oferta no frontend
+        # Link quebrado — mostra página de oferta expirada
+        if link.is_dead:
+            return RedirectResponse(
+                url=f"{settings.PUBLIC_SITE_URL}/oferta/{code}?expired=1",
+                status_code=302,
+            )
+
+        # Register click
+        click = ClickEvent(
+            offer_id=str(link.id),
+            provider=link.provider,
+            product_title=link.product_title,
+            price=link.price,
+            affiliate_url=link.affiliate_url,
+            ip_address=(
+                request.headers.get("cf-connecting-ip")
+                or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+                or (request.client.host if request.client else None)
+            ),
+            user_agent=request.headers.get("user-agent"),
+            referrer=request.headers.get("referer"),
+            source=link.source or "video",
+        )
+        db.add(click)
+        link.clicks += 1
+        link.last_clicked_at = datetime.now(timezone.utc)
+        await db.commit()
+
         return RedirectResponse(
-            url=f"{settings.PUBLIC_SITE_URL}/oferta/{code}",
+            url=add_ml_affiliate_tracking(link.affiliate_url),
             status_code=302,
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Redirect-To": link.provider or "affiliate",
             }
         )
 
@@ -139,7 +176,7 @@ async def get_link_info(
         "original_price": link.original_price,
         "image_url": link.image_url,
         "provider": link.provider,
-        "affiliate_url": link.affiliate_url,
+        "affiliate_url": add_ml_affiliate_tracking(link.affiliate_url),
         "source": link.source,
         "clicks": link.clicks,
         "is_dead": link.is_dead or False,
@@ -180,7 +217,11 @@ async def redirect_to_store(
             product_title=link.product_title,
             price=link.price,
             affiliate_url=link.affiliate_url,
-            ip_address=request.client.host if request.client else None,
+            ip_address=(
+                request.headers.get("cf-connecting-ip")
+                or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+                or (request.client.host if request.client else None)
+            ),
             user_agent=request.headers.get("user-agent"),
             referrer=request.headers.get("referer"),
             source=link.source or "video",
@@ -191,7 +232,7 @@ async def redirect_to_store(
         await db.commit()
 
         return RedirectResponse(
-            url=link.affiliate_url,
+            url=add_ml_affiliate_tracking(link.affiliate_url),
             status_code=302,
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",

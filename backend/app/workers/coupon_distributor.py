@@ -28,6 +28,7 @@ from app.models.models import (
 )
 from app.core.config import settings
 from app.core.logging import logger
+from app.workers.distributor import create_short_link as _create_short_link
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -36,8 +37,8 @@ TOLERANCE_HOURS = 2
 DEDUP_TTL_HOURS = 24  # não repetir mesmo cupom em 24h
 
 # Telegram
-BOT_TOKEN = settings.telegram_bot_token if hasattr(settings, 'telegram_bot_token') else os.environ.get("TELEGRAM_BOT_TOKEN", "")
-CHANNEL_ID = settings.telegram_channel_id if hasattr(settings, 'telegram_channel_id') else os.environ.get("TELEGRAM_CHANNEL_ID", "")
+BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
+CHANNEL_ID = settings.TELEGRAM_CHANNEL_ID
 
 # Facebook
 FB_API = "https://graph.facebook.com/v21.0"
@@ -323,7 +324,7 @@ def build_coupon_caption_telegram(offer: dict) -> str:
         elif delta.days <= 3:
             lines.append(f"⏰ Vence em {delta.days} dias")
 
-    lines.append(f"\n🛒 Comprar: {offer.get('product_url', '')}")
+    lines.append(f"\n🛒 Comprar: {offer.get('short_url') or offer.get('product_url', '')}")
     lines.append("\n🛍️ BestPriceToday — cupons de desconto")
 
     return "\n".join(lines)
@@ -372,7 +373,7 @@ def build_coupon_youtube_description(offer: dict) -> str:
     price = offer["price"]
     coupon_code = offer["coupon_code"]
     store = offer.get("store_name", "")
-    product_url = offer.get("product_url", "")
+    product_url = offer.get("short_url") or offer.get("product_url", "")
 
     final_price, economy, discount_pct = _coupon_discount_info(offer)
 
@@ -386,7 +387,7 @@ def build_coupon_youtube_description(offer: dict) -> str:
         lines.append(f"🏪 Loja: {store}")
     if product_url:
         lines.append(f"\n🛒 Comprar: {product_url}")
-    lines.append(f"\nMais cupons: https://bestpricetoday.alaserver.com.br/cupons")
+    lines.append(f"\nMais cupons: {settings.PUBLIC_SITE_URL}/cupons")
     lines.append("\n#cupom #desconto #mercadolivre #oferta #bestpricetoday #promoção")
 
     return "\n".join(lines)
@@ -473,7 +474,7 @@ async def post_coupon_facebook(offer: dict) -> dict:
 
     caption = build_coupon_caption_facebook(offer)
     image_url = offer.get("image_url", "")
-    product_url = offer.get("product_url", "")
+    product_url = offer.get("short_url") or offer.get("product_url", "")
     posted = 0
 
     async with httpx.AsyncClient(timeout=30) as c:
@@ -496,7 +497,7 @@ async def post_coupon_facebook(offer: dict) -> dict:
                             cr = await c.post(
                                 f"{FB_API}/{post_id}/comments",
                                 data={
-                                    "message": f"🛒 Comprar com cupom: {product_url}\n\nMais cupons: https://bestpricetoday.alaserver.com.br/cupons",
+                                    "message": f"🛒 Comprar com cupom: {product_url}\n\nMais cupons: {settings.PUBLIC_SITE_URL}/cupons",
                                     "access_token": page["access_token"],
                                 },
                             )
@@ -599,6 +600,8 @@ def generate_xtts_narration(text: str, output_path: str) -> bool:
 
     Usa split_text_for_tts() para dividir em frases e gerar cada uma separada,
     evitando que o XTTS v2 fale "ponto" literalmente.
+
+    Síncrono — bloqueia a thread. Use generate_xtts_narration_async() do event loop.
     """
     if not os.path.exists(VOICE_SAMPLE):
         logger.error(f"CouponDistributor: voice sample not found: {VOICE_SAMPLE}")
@@ -659,6 +662,12 @@ else:
     except Exception as e:
         logger.error(f"CouponDistributor: XTTS error: {e}")
         return False
+
+
+async def generate_xtts_narration_async(text: str, output_path: str) -> bool:
+    """Versão async — roda XTTS numa thread separada para não bloquear o event loop."""
+    import asyncio
+    return await asyncio.to_thread(generate_xtts_narration, text, output_path)
 
 
 # 25 variações de abertura — evita cara de IA, parece humano
@@ -1712,7 +1721,7 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
 
         audio_path = os.path.join(tmpdir, "narration.wav")
         logger.info("CouponDistributor: gerando narração XTTS (voz ElevenLabs)...")
-        if not generate_xtts_narration(narration, audio_path):
+        if not await generate_xtts_narration_async(narration, audio_path):
             logger.error("CouponDistributor: XTTS falhou, pulando vídeo")
             return None
 
@@ -1826,7 +1835,7 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
                 output_path
             ]
 
-        result = subprocess.run(cmd, capture_output=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if os.path.exists(output_path) and os.path.getsize(output_path) > 5000:
             logger.info(f"CouponDistributor: vídeo gerado ({os.path.getsize(output_path)} bytes)")
             return output_path
@@ -1936,6 +1945,20 @@ async def distribute_coupons():
 
     for offer in offers:
         logger.info(f"CouponDistributor: postando cupom {offer['coupon_code']} — {offer['title'][:40]}")
+
+        # Cria short link para o product_url (rastreia clique + passa pelo site)
+        product_url = offer.get("product_url", "")
+        short_url = None
+        if product_url:
+            short_link_offer = {
+                "affiliate_url": product_url,
+                "provider": "mercadolivre",
+                "title": offer.get("title", ""),
+                "final_price": offer.get("price", 0),
+                "image_url": offer.get("image_url", ""),
+            }
+            short_url = await _create_short_link(short_link_offer, source="coupon", campaign=offer.get("coupon_code"))
+        offer["short_url"] = short_url or product_url  # fallback: product_url direto
 
         # Telegram + Facebook (síncrono)
         tg = await post_coupon_telegram(offer)

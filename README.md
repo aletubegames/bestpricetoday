@@ -2,8 +2,8 @@
 
 Comparador de preços em tempo real com links afiliados rastreados, dashboard de monetização e geração de vídeos com IA.
 
-[![Deploy](https://img.shields.io/badge/frontend-alaserver-blue)(https://bestpricetoday.alaserver.com.br)
-[![API](https://img.shields.io/badge/backend-alaserver-green)](https://sacrament-subduing-confined.ngrok-free.dev/docs)
+[![Deploy](https://img.shields.io/badge/frontend-alaserver-blue)](https://bestpricetoday.alaserver.com.br)
+[![API](https://img.shields.io/badge/backend-alaserver-green)](https://api.alaserver.com.br/health)
 
 ---
 
@@ -17,12 +17,18 @@ BestPriceToday/
 │       │   ├── page.tsx         # Busca principal
 │       │   ├── admin/page.tsx   # Dashboard admin + gerador de vídeo
 │       │   ├── alertas/page.tsx # Alertas de preço (owner_id)
+│       │   ├── afiliados/page.tsx # Dashboard de afiliados (6 providers)
+│       │   ├── cupons/page.tsx  # Grid de produtos com cupom ML
+│       │   ├── oferta/[code]/   # Página de oferta profissional
 │       │   └── r/[code]/        # Redirect rastreado
-│       ├── components/offers/   # OfferCard com score IA + click tracking
+│       ├── components/
+│       │   ├── layout/Header.tsx   # Header compartilhado (Lucide icons, responsive)
+│       │   ├── layout/Section.tsx   # Wrapper de seção reutilizável
+│       │   └── offers/          # OfferCard com score IA + click tracking
 │       ├── hooks/               # useSearch, useTrendingSearches
 │       └── lib/api.ts           # ← Fonte única de API_BASE
 │
-├── backend/                     # FastAPI + SQLite — alaserver (ngrok)
+├── backend/                     # FastAPI + uvicorn — alaserver (Cloudflare Tunnel)
 │   ├── app/
 │   │   ├── api/v1/endpoints/
 │   │   │   ├── search.py        # Busca multi-provider + trending
@@ -30,22 +36,28 @@ BestPriceToday/
 │   │   │   ├── links.py         # POST /links/create + GET /r/{code}
 │   │   │   ├── alerts.py        # CRUD alertas (owner_id obrigatório)
 │   │   │   ├── favorites.py     # CRUD favoritos (owner_id obrigatório)
+│   │   │   ├── affiliate.py     # Seed de produtos afiliados ML
 │   │   │   └── auth.py          # OAuth Mercado Livre
 │   │   ├── integrations/
 │   │   │   ├── aliexpress/      # AliExpress TOP + GOP API
 │   │   │   ├── shopee/          # Shopee GraphQL Affiliate API
+│   │   │   ├── youtube.py       # Publicação de Shorts no YouTube
 │   │   │   └── conversion_tracker.py  # Poll orders AliExpress/Lomadee/Shopee/ML
 │   │   ├── services/providers/  # aliexpress, shopee, mercadolivre, amazon, lomadee, awin, kabum
 │   │   ├── workers/
-│   │   │   ├── alert_checker.py      # Verifica alertas a cada 30min, notifica via Telegram
-│   │   │   ├── bestprice_bot.py      # Telegram bot (/start /alertas /top /canal)
-│   │   │   ├── channel_broadcaster.py # Broadcast automático com dedup 24h
-│   │   │   └── conversion_cron.py    # Poll horário de conversões
+│   │   │   ├── distributor.py          # Orquestrador central (4x/dia: 12h, 15h, 19h, 21h)
+│   │   │   ├── coupon_distributor.py   # Cupons ML (2x/dia: 12h, 19h) + vídeo XTTS
+│   │   │   ├── ml_coupon_scraper.py    # Scraper de cupons do Portal do Afiliado ML
+│   │   │   ├── bestprice_bot.py        # Telegram bot (/start /alertas /top /canal)
+│   │   │   ├── alert_checker.py        # Verifica alertas a cada 30min, notifica via Telegram
+│   │   │   ├── conversion_cron.py      # Poll horário de conversões
+│   │   │   ├── ml_refresh_cron.py      # Renova token ML a cada 15-25min
+│   │   │   └── channel_broadcaster.py  # DEPRECATED (substituído por distributor.py)
 │   │   ├── models/models.py     # SQLAlchemy ORM
 │   │   └── core/config.py       # Variáveis de ambiente (pydantic-settings)
 │   ├── DEPRECATED/               # Espelho DEPRECATED (DEPRECATED - conta bloqueada)
 │   ├── tests/
-│   │   ├── test_integrity.py    # 16 testes estruturais (sem endpoint fake, ownership, etc.)
+│   │   ├── test_integrity.py    # 16 testes estruturais
 │   │   └── test_api.py          # 8 testes funcionais
 │   └── scripts/
 │       └── migration_owner_id.py # Migration owner_id (já aplicada em produção)
@@ -80,11 +92,21 @@ npm run dev
 
 ---
 
+## Tecnologias
+
+- **Backend:** Python 3.14 + FastAPI + SQLAlchemy async + Pydantic v2 + PostgreSQL (Neon)
+- **Frontend:** Next.js 14 (App Router) + React 18 + TypeScript + CSS Modules + Tailwind CSS + Lucide icons + Framer Motion
+- **Deploy:** Alaserver (192.168.100.30) + Cloudflare Tunnel
+- **Cache:** Redis (Upstash / localhost)
+- **Vídeo:** ffmpeg + XTTS v2 (voz clonada)
+
+---
+
 ## Variáveis de Ambiente
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DATABASE_URL` | ✅ | SQLite (alaserver) ou PostgreSQL async (ex: Neon) |
+| `DATABASE_URL` | ✅ | PostgreSQL async (ex: Neon) em produção; SQLite fallback local |
 | `ADMIN_MANAGER_KEY` | ✅ | Chave para endpoints `/admin` |
 | `ALIEXPRESS_APP_KEY` | Recomendado | Busca + rastreio AliExpress |
 | `ALIEXPRESS_APP_SECRET` | Recomendado | |
@@ -149,7 +171,7 @@ Auth: header `X-Admin-Key: <ADMIN_MANAGER_KEY>`
 - **Cliques e Conversões** recentes paginados
 - **Export CSV**
 
-### Gerador de Vídeo — Formatos
+### Gerador de Vídeo — Formatos e Narração
 | Formato | Quando usar (sugerido automaticamente) |
 |---|---|
 | 💥 Oferta Choque | Desconto ≥ 10% |
@@ -159,6 +181,12 @@ Auth: header `X-Admin-Key: <ADMIN_MANAGER_KEY>`
 | 🔔 Alerta de Preço | Desconto 5–20% |
 | ⏳ Última Chance | Preço < R$100 |
 | 🎥 WAN2.1 Cinemático | Produtos premium (≥ R$1.500) |
+
+**Narração:** XTTS v2 (voz clonada ElevenLabs — locutor "matheus")
+- Roteiro estruturado com aberturas aleatórias
+- Frase de utilidade extraída do título do produto
+- Preços por extenso (ex: "doze mil e quinhentos reais")
+- Expansão de marcas/unidades para TTS (ex: "Samsung Galaxy S24" em vez de "S24")
 
 ---
 
@@ -183,13 +211,29 @@ DELETE /api/v1/alerts/{id}   ?owner_id=...  (valida ownership)
 
 ---
 
-## Broadcaster Telegram
+## Distributor (Orquestrador Central)
 
-- Roda a cada hora (3 ofertas das 9h–23h, 1 fora do horário)
-- **Sem repetição:** deduplicação por URL nas últimas 24h
-- **Variedade:** sorteia categorias diferentes (smartphones, games, casa, audio…)
-- **Seleção ponderada:** score da oferta influencia mas não é determinístico
-- Disparo manual: `POST /api/v1/admin/broadcast/telegram?n=3`
+Roda continuamente dentro do `bestprice-backend`, postando ofertas em horários estratégicos:
+- **12h:** 2 ofertas (pico almoço)
+- **15h:** 1 oferta (tarde)
+- **19h:** 2 ofertas (pico noite)
+- **21h:** 1 oferta (noite — pico de compra online)
+
+Canais: Telegram, Facebook, Instagram, YouTube (simultâneos)
+- Janela de tolerância: 2 horas
+- Deduplicação: 48h (não repete mesma URL)
+- YouTube roda em background (`asyncio.create_task`)
+- Filtros: preço ≥ R$100, desconto ≥ 20%, comissão estimada ≥ R$8
+
+## Coupon Distributor (Separado)
+
+Sistema independente que posta cupons Mercado Livre 2x/dia:
+- **12h e 19h** (mesmos horários do distributor)
+- Canais: Telegram, Facebook, Instagram, YouTube
+- YouTube: imagem do produto + overlay de preço/cupom + narração XTTS v2 (voz clonada ElevenLabs)
+- Produtos: top clicados/convertidos do catálogo, combinados com cupons ML ativos
+- Cupom = rastreio permanente (não expira em 48h como cookie do link)
+- Cupons vencidos são DELETADOS
 
 ---
 
@@ -213,7 +257,22 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 
 ## Deploy
 
-### Video API local (GPU — obrigatório para geração de vídeo)
+### Infraestrutura
+
+- **Servidor:** `alaserver` (`192.168.100.30`, rede local)
+- **Proxy:** Cloudflare Tunnel (`cloudflared`) na porta 443
+- **Backup:** nginx nas portas 9443/8443/2053 (port forwarding roteador)
+
+### Serviços systemd
+
+```bash
+sudo systemctl restart bestprice-backend    # FastAPI + workers (porta 8000)
+sudo systemctl restart bestprice-frontend   # Next.js (porta 3000)
+sudo systemctl restart cloudflared          # Cloudflare Tunnel
+sudo systemctl reload nginx                 # Reverse proxy
+```
+
+### Video API local (GPU — usada pelo admin de vídeo)
 ```bash
 # Iniciar manualmente
 cd ~/wan2 && python video_api.py   # porta 8765
@@ -228,22 +287,20 @@ curl http://localhost:8765/health
 
 ### Frontend (Alaserver)
 ```bash
-cd frontend && next build && sudo systemctl restart bestprice-frontend
+ssh alessandro@192.168.100.30
+cd /home/alessandro/frontend
+npx next build
+sudo systemctl restart bestprice-frontend
 ```
 
-### Backend (DEPRECATED Space)
-Push para `master` em qualquer arquivo de `backend/` dispara o GitHub Action `deploy-hf.yml` automaticamente.
-
-Para deploy manual:
+### Backend (Alaserver)
 ```bash
-cd backend && bash sync_DEPRECATED.sh
+ssh alessandro@192.168.100.30
+cd /home/alessandro/backend
+sudo systemctl restart bestprice-backend
 ```
 
-### HF Deploy separado
-```bash
-cd backend/DEPRECATED
-git add -A && git commit -m "deploy: <desc>" && git push origin main
-```
+> **Nota:** Hugging Face deployment foi descontinuado (conta bloqueada). Não usar `deploy-hf.yml` nem `sync_DEPRECATED.sh`.
 
 ---
 

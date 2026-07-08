@@ -14,8 +14,7 @@ import json
 import re
 import unicodedata
 import urllib.parse
-from typing import List, Optional
-import httpx
+from typing import List
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings

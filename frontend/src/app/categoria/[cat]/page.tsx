@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import Header from "@/components/layout/Header"
 import { API_BASE as API, SITE_BASE } from "@/lib/api"
 import { CATEGORIES, getCategory, getAllCategorySlugs } from "@/lib/categories"
+import { ProviderLogo, getProviderName } from "@/lib/providers"
 import type { Offer } from "@/types"
 
 interface Props {
@@ -102,9 +103,10 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
-      <script type="application/ld+json">
-        {JSON.stringify(jsonLd)}
-      </script>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       <Header variant="default" />
 
@@ -128,13 +130,13 @@ export default async function CategoryPage({ params }: Props) {
         {Object.entries(offersByQuery).map(([query, offers]) => (
           offers.length > 0 && (
             <section key={query} style={{ marginBottom: 48 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: "#1a1a2e" }}>
                   {query.replace(/-/g, " ")}
                 </h2>
                 <a
                   href={`/produto/${encodeURIComponent(query)}`}
-                  style={{ color: "#7c6aff", fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+                  style={{ color: "#7c6aff", fontSize: 14, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}
                 >
                   Ver todas →
                 </a>
@@ -142,10 +144,7 @@ export default async function CategoryPage({ params }: Props) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
                 {offers.slice(0, 6).map((offer, i) => {
                   const isFirst = i === 0
-                  const logo = offer.provider === "aliexpress" ? "🔴"
-                    : offer.provider === "shopee" ? "🟠"
-                    : offer.provider === "mercadolivre" ? "🟡"
-                    : offer.provider === "amazon" ? "📦" : "🏪"
+                  const providerName = getProviderName(offer.provider)
                   return (
                     <div key={`${query}-${i}`} style={{
                       background: "#fff",
@@ -157,9 +156,9 @@ export default async function CategoryPage({ params }: Props) {
                       )}
                       <div style={{ padding: 14 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                          <span style={{ fontSize: 14 }}>{logo}</span>
+                          <ProviderLogo provider={offer.provider} size={18} />
                           <span style={{ fontSize: 11, fontWeight: 700, color: "#a78bfa", textTransform: "capitalize" }}>
-                            {offer.provider}
+                            {providerName}
                           </span>
                           {offer.discount_percent >= 5 && !offer.is_fake_discount && (
                             <span style={{ fontSize: 10, fontWeight: 700, color: "#ff6b6b", background: "rgba(255,107,107,.12)", padding: "2px 6px", borderRadius: 99 }}>

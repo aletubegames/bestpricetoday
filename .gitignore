@@ -23,3 +23,16 @@ backend/.venv312/
 Videos_Uploads/
 tools/shopee_extract_mp4/videos/
 .vscode/
+
+# Sensitive — cookies, sessions, screenshots
+backend/.ml_cookies.json
+backend/.ml_storage_state.json
+backend/.ml_scraper_debug.html
+backend/.quemfornece_cookies.json
+backend/.quemfornece_screenshots/
+backend/.test_modal.*
+backend/.ml_session_last_ok
+
+# Test/audit scripts (not part of the app)
+Pentest.py
+TesteCompleto.py

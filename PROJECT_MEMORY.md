@@ -4,6 +4,29 @@
 
 ---
 
+## Atualizações recentes (2026-07-01)
+
+### Coupon Distributor — Correções e Vídeo de Teste
+**Contexto:** Sistema separado do distributor principal que posta cupons ML em 4 canais (Telegram, Facebook, Instagram, YouTube).
+
+**Correções aplicadas:**
+- Timezone consistente: `datetime.now()` → `datetime.now(timezone.utc)` em todo o loop
+- Download de imagens com `httpx.AsyncClient` (não bloqueia o event loop)
+- Normalização robusta do campo `expires` via `_parse_expires` (string, None, datetime)
+- Cleanup garantido de `tmpdir` com `try...finally` + `shutil.rmtree`
+- Frases de utilidade (`_product_use_phrase`) ampliadas para ~100 categorias + fallback inteligente por substantivo principal
+- Roteiro de narração usa preços por extenso e expansão de marcas/unidades para TTS
+
+**Vídeo de teste:**
+- Produto: Colchão Queen Luuna Supreme Cooling
+- Cupom: `ALETUBEKHLKDF` (10% OFF)
+- Saída: `/home/alessandro/video_teste_coupon_v2.mp4` (1080x1920, 41s, H264+AAC)
+- Validação: frase "dormir com mais conforto" + narração XTTS gerada com sucesso
+
+**Arquivos:** `backend/app/workers/coupon_distributor.py`
+
+---
+
 ## Atualizações recentes (2026-06-25)
 
 ### Mercado Livre Token — Sistema de Renovação Automática Robusto
@@ -373,22 +396,22 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
-| Frontend      | https://bestpricetoday.alaserver.com.br (Next.js 14, Alaserver)                    |
-| Backend       | https://sacrament-subduing-confined.ngrok-free.dev (FastAPI, alaserver)   |
-| Banco         | SQLite local (alaserver) — string no `.env`                               |
-| Cache         | Redis local (alaserver) — string no `.env`                                |
+| Frontend      | https://bestpricetoday.alaserver.com.br (Next.js 14, Alaserver)             |
+| Backend       | https://api.alaserver.com.br (FastAPI, alaserver)                           |
+| Banco         | PostgreSQL (Neon) — string no `.env`                                       |
+| Cache         | Redis (Upstash) — string no `.env`                                         |
 | Repo          | https://github.com/aletubegames/bestpricetoday                            |
 
 ---
 
 ## Stack
 
-- **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
-- **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
+- **Backend:** Python 3.14 + FastAPI + SQLAlchemy async + Pydantic v2
+- **Frontend:** Next.js 14 + TypeScript + CSS Modules + Tailwind CSS + Lucide icons
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
-- **Deploy backend:** SSH manual para alaserver (ngrok já configurado)
+- **Deploy backend:** SSH manual para alaserver (Cloudflare Tunnel)
 - **Deploy frontend:** `next build && sudo systemctl restart bestprice-frontend` no alaserver
-- **Testes:** pytest + pytest-asyncio — **24 testes passando** (test_integrity.py:16 + test_api.py:8)
+- **Testes:** pytest + pytest-asyncio — 24+ testes passando
 
 ---
 
@@ -489,15 +512,15 @@ Busca → Ranking/Card → openTrackedOffer()
 
 ---
 
-## Providers — estado real (2026-05-16)
+## Providers — estado real (2026-07-01)
 
 | Provider       | Status prod | Detalhe |
 |----------------|-------------|----------|
 | **AliExpress** | ✅ Funciona | Retry sem tracking_id quando 402 |
 | **Lomadee**    | ✅ Funciona | Source ID: `6ff2699e-ceaa-4fad-a58a-8b91f885485f` |
-| **Mercado Livre** | ❌ 403  | `/sites/MLB/search` bloqueado por policy do app — não está no programa de afiliados ML. OAuth ✅, token no banco. `top_sales_mercadolivre` usa Lomadee como fallback. |
+| **Mercado Livre** | ✅ Funciona | Busca na tabela `affiliate_products` (token OAuth no banco). `/sites/MLB/search` bloqueado por policy, mas catálogo afiliado ML é fonte principal. |
 | **Shopee**     | ❌ Invalid Signature | Secret errado — precisa do portal affiliate.shopee.com.br |
-| **Amazon**     | ⚠️ sem ACCESS_KEY | Associate tag: `aletubegames-20` configurado |
+| **Amazon**     | ✅ Funciona | Scraper via Playwright ativo (1.066+ produtos); PA-API fallback; cron 3am diário |
 | KaBuM / Awin   | ⏸️ pendente | Código pronto, sem credenciais |
 
 ---
@@ -1066,20 +1089,20 @@ O usuário busca, vê os melhores preços rankeados, clica no link de afiliado e
 
 | Serviço       | URL / Detalhe                                                              |
 |---------------|----------------------------------------------------------------------------|
-| Frontend      | https://bestpricetoday.alaserver.com.br (Next.js 14, Alaserver)                    |
-| Backend       | https://sacrament-subduing-confined.ngrok-free.dev (FastAPI, alaserver)   |
-| Banco         | SQLite local (alaserver) — string no `.env`                               |
-| Cache         | Redis local (alaserver) — string no `.env`                                |
+| Frontend      | https://bestpricetoday.alaserver.com.br (Next.js 14, Alaserver)             |
+| Backend       | https://api.alaserver.com.br (FastAPI, alaserver)                           |
+| Banco         | PostgreSQL (Neon) — string no `.env`                                       |
+| Cache         | Redis (Upstash) — string no `.env`                                         |
 | Repo          | https://github.com/aletubegames/bestpricetoday                            |
 
 ---
 
 ## Stack
 
-- **Backend:** Python 3.12 + FastAPI + SQLAlchemy async + Pydantic v2
-- **Frontend:** Next.js 14 + TypeScript + inline styles (sem Tailwind classes)
+- **Backend:** Python 3.14 + FastAPI + SQLAlchemy async + Pydantic v2
+- **Frontend:** Next.js 14 + TypeScript + CSS Modules + Tailwind CSS + Lucide icons
 - **Camada de integração:** `backend/app/integrations/` — clientes independentes por marketplace
-- **Deploy backend:** SSH manual para alaserver (ngrok já configurado)
+- **Deploy backend:** SSH manual para alaserver (Cloudflare Tunnel)
 - **Deploy frontend:** `next build && sudo systemctl restart bestprice-frontend` no alaserver
 - **Testes:** pytest + pytest-asyncio — 35+ testes passando
 
@@ -1127,15 +1150,15 @@ backend/app/
 
 ---
 
-## Providers — estado real (2026-05-15)
+## Providers — estado real (2026-07-01)
 
 | Provider      | Status prod | Detalhe |
 |---------------|-------------|---------|
 | **AliExpress**| ✅ Funciona | Retorna produtos com filtro relevância + fallback sem tracking_id se 402 |
 | **Lomadee**   | ✅ Funciona | Source ID: `6ff2699e-ceaa-4fad-a58a-8b91f885485f` |
-| **Mercado Livre** | ❌ 403 | App não aprovado no Programa de Afiliados ML. OAuth token ✅ salvo no banco. |
+| **Mercado Livre** | ✅ Funciona | Catálogo afiliado ML (scraper + OAuth token no banco). `/sites/MLB/search` bloqueado por policy. |
 | **Shopee**    | ❌ Invalid Signature | Secret errado — precisa ser do portal affiliate.shopee.com.br |
-| **Amazon**    | ⚠️ sem ACCESS_KEY | Associate tag: `aletubegames-20` configurado, falta ACCESS_KEY |
+| **Amazon**    | ✅ Funciona | Scraper Playwright ativo (1.066+ produtos); cron 3am; PA-API fallback |
 | KaBuM / Awin | ⏸️ pendente | Código pronto, sem credenciais |
 
 ---
@@ -1471,11 +1494,14 @@ não via catálogo de afiliados.
 - Script `rescrape_prices.py` re-coleta preços das lojas periodicamente
 - Preços válidos: R$ 10,90 a R$ 10.646 (sem absurdos)
 
-### Distribuição (distributor.py)
-- Distributor usa `store_name` para matching cupom→produto
+### Distribuição (`coupon_distributor.py` — separado do distributor principal)
+- Sistema de cupons ML: seleciona produtos populares do catálogo e encontra cupons ativos similares
+- Postagem 2x/dia (12h e 19h) nos canais: telegram, facebook, instagram, youtube
+- YouTube: vídeo com imagem HD do produto + overlay preço/cupom + narração XTTS v2
+- Frases de utilidade geradas por padrões de categoria + fallback por substantivo principal
 - Cupons vencidos são DELETADOS (não só desativados)
-- Postagem às 12h e 19h nos canais: telegram, facebook, instagram, youtube
+- Arquivo: `backend/app/workers/coupon_distributor.py`
 
 ---
 
-_Atualizado: 2026-05-16 (21h50 BRT)_
+_Atualizado: 2026-07-01 (BRT)_

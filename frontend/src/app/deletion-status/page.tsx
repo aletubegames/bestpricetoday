@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
-import { apiFetch } from "@/lib/api";
-import type { Metadata } from "next";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 // Note: metadata not available in client components, removed
 
@@ -37,7 +36,7 @@ export default function DeletionStatusPage() {
 
     try {
       const response = await apiFetch(
-        `/api/v1/facebook/deletion-status/${encodeURIComponent(codeToSearch)}`
+        `${API_BASE}/api/v1/facebook/deletion-status/${encodeURIComponent(codeToSearch)}`
       );
       const data = await response.json();
 
@@ -294,7 +293,7 @@ export default function DeletionStatusPage() {
           Por favor, inclua seu código de confirmação no e-mail para que possamos ajudá-lo mais rapidamente.
         </Section>
 
-        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid var(--bd)", display: "flex", gap: 24 }}>
+        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid var(--bd)", display: "flex", gap: 24, flexWrap: "wrap" }}>
           <a href="/privacy" style={{ fontSize: 13, color: "var(--muted2)", textDecoration: "none" }}>
             ← Política de Privacidade
           </a>

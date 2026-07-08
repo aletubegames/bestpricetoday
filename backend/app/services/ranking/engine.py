@@ -77,7 +77,7 @@ def detect_fake_discount(offer: OfferSchema) -> bool:
         return False
     if offer.discount_percent > 80:
         return True
-    if offer.original_price > 0 and offer.price / offer.original_price < 0.10:
+    if offer.original_price and offer.original_price > 0 and offer.price and offer.price / offer.original_price < 0.10:
         return True
     return False
 
@@ -112,6 +112,11 @@ def rank_offers(offers: List[OfferSchema], query: str = "") -> List[OfferSchema]
     price_range = max_price - min_price or 1
 
     for offer in offers:
+        # Ofertas sem preço real (fallbacks) não entram como "melhor preço"
+        if offer.final_price <= 0:
+            offer.score = 0
+            continue
+
         # Price score: 0-30 (lower price = higher score, mas menos peso)
         price_norm = 1 - ((offer.final_price - min_price) / price_range)
         base = price_norm * 30

@@ -19,6 +19,7 @@ Variáveis no .env:
 """
 
 import asyncio
+import fcntl
 import os
 import re
 import sys
@@ -36,14 +37,61 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRIPT_DIR.parent.parent
 ENV_FILE = BACKEND_DIR / ".env"
 
-# Estado de sessão (cookies) — persiste entre execuções para evitar login toda vez
+# Estado de sessão (cookies) — backup/legado, mantido para compatibilidade
 COOKIES_FILE = BACKEND_DIR / ".ml_cookies.json"
+STORAGE_STATE_FILE = BACKEND_DIR / ".ml_storage_state.json"
+
+# Perfil persistente do Chromium — mantém TODO o estado do navegador entre
+# execuções (cookies, localStorage, IndexedDB, cache, histórico, service workers).
+# É como um Chrome normal que você usa todo dia — o ML não detecta como "perfil novo".
+# Substitui o approach de storage_state (cookies JSON) que durava ~7 dias.
+PROFILE_DIR = BACKEND_DIR / ".ml_chrome_profile"
+
+# Lock compartilhado entre scraper e session keeper (não podem usar o mesmo perfil ao mesmo tempo)
+PROFILE_LOCK_FILE = BACKEND_DIR / ".ml_chrome_profile.lock"
 
 # Checkpoint — salva progresso para retomar de onde parou
 CHECKPOINT_FILE = BACKEND_DIR / ".ml_scraper_checkpoint.json"
 
 PORTAL_URL = "https://www.mercadolivre.com.br/afiliados/hub#menu-lateral"
 LOGIN_URL = "https://www.mercadolivre.com.br/afiliados/hub#menu-lateral"
+
+
+# ── profile lock ──────────────────────────────────────────────────────────────
+class ProfileLock:
+    """Lock compartilhado entre scraper e session keeper.
+    Chromium não permite dois processos no mesmo user_data_dir."""
+    def __init__(self, path: Path):
+        self.path = path
+        self.fd = None
+
+    def acquire(self, timeout: int = 0) -> bool:
+        self.fd = open(self.path, "w")
+        try:
+            fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.fd.write(str(os.getpid()))
+            self.fd.flush()
+            return True
+        except (IOError, OSError):
+            self.fd.close()
+            self.fd = None
+            return False
+
+    def release(self):
+        if self.fd:
+            try:
+                fcntl.flock(self.fd.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                self.fd.close()
+            except Exception:
+                pass
+            try:
+                self.path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            self.fd = None
 
 
 # ── checkpoint ────────────────────────────────────────────────────────────────
@@ -475,6 +523,19 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
     if start_category == 0 and not dry_run:
         await deactivate_all_products()
 
+    # Adquire lock do perfil persistente (compartilhado com session keeper)
+    profile_lock = ProfileLock(PROFILE_LOCK_FILE)
+    if not profile_lock.acquire():
+        logger.error("Perfil Chromium em uso por outro processo (session keeper?). Tente novamente mais tarde.")
+        return 0
+
+    # Migração: se o perfil persistente não existe mas tem storage_state antigo,
+    # copia o storage_state para o perfil na primeira execução
+    if not PROFILE_DIR.exists() and STORAGE_STATE_FILE.exists():
+        logger.info("Migrando storage_state legado para perfil persistente...")
+
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
     async with async_playwright() as p:
         # Detecta chromium disponível: sistema (servidor) ou playwright (local)
         chromium_path = None
@@ -483,30 +544,42 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 chromium_path = path
                 break
 
-        launch_kwargs = {
+        # launch_persistent_context mantém TODO o estado do navegador em disco
+        # (cookies, localStorage, IndexedDB, cache, histórico, service workers).
+        # O ML vê um usuário estabelecido, não um "perfil novo" a cada execução.
+        persistent_kwargs = {
+            "user_data_dir": str(PROFILE_DIR),
             "headless": headless,
-            "args": ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+            "viewport": {"width": 1280, "height": 800},
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "locale": "pt-BR",
+            "timezone_id": "America/Sao_Paulo",
+            "args": [
+                "--no-sandbox",
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+            ],
         }
         if chromium_path:
-            launch_kwargs["executable_path"] = chromium_path
+            persistent_kwargs["executable_path"] = chromium_path
             logger.info(f"Usando chromium do sistema: {chromium_path}")
         else:
             logger.info("Usando chromium do playwright")
 
-        browser = await p.chromium.launch(**launch_kwargs)
-        context = await browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        )
+        logger.info(f"Perfil persistente: {PROFILE_DIR}")
+        context = await p.chromium.launch_persistent_context(**persistent_kwargs)
 
-        # Carrega cookies salvos se existirem
-        if COOKIES_FILE.exists():
+        # Migração: se é primeira execução do perfil e tem storage_state legado,
+        # carrega os cookies antigos no perfil novo
+        if STORAGE_STATE_FILE.exists() and not (PROFILE_DIR / "Default" / "Cookies").exists():
             try:
-                cookies = json.loads(COOKIES_FILE.read_text())
-                await context.add_cookies(cookies)
-                logger.info(f"Cookies carregados: {len(cookies)} cookies")
+                cookies = json.loads(COOKIES_FILE.read_text()) if COOKIES_FILE.exists() else []
+                if cookies:
+                    await context.add_cookies(cookies)
+                    logger.info(f"Migração: {len(cookies)} cookies legados carregados no perfil persistente")
             except Exception as e:
-                logger.warning(f"Erro ao carregar cookies: {e}")
+                logger.warning(f"Migração: erro ao carregar cookies legados: {e}")
 
         page = await context.new_page()
 
@@ -537,10 +610,16 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
         # Login
         ok = await login(page, email, password, headless)
         if not ok:
-            await browser.close()
+            await context.close()
+            profile_lock.release()
             return 0
 
-        # Salva cookies para próximas execuções
+        # Salva storage state e cookies para próximas execuções
+        try:
+            await context.storage_state(path=str(STORAGE_STATE_FILE))
+            logger.info(f"Storage state salvo em {STORAGE_STATE_FILE}")
+        except Exception as e:
+            logger.warning(f"Erro ao salvar storage state: {e}")
         try:
             cookies = await context.cookies()
             COOKIES_FILE.write_text(json.dumps(cookies, indent=2))
@@ -596,6 +675,7 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
 
         # Scrape de cupons (após produtos, reusa mesma sessão/logada)
         if not dry_run:
+            coupons = []
             try:
                 logger.info("\n=== INICIANDO SCRAPE DE CUPONS ===")
                 from app.workers.ml_coupon_scraper import scrape_ml_coupons, save_coupons, deactivate_expired_coupons
@@ -607,7 +687,10 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
             except Exception as e:
                 logger.warning(f"Erro no scrape de cupons: {e}")
 
-        await browser.close()
+        await context.close()
+
+    # Libera lock do perfil persistente
+    profile_lock.release()
 
     # Limpa checkpoint após concluir tudo
     clear_checkpoint()
@@ -970,20 +1053,17 @@ def main():
     args = parser.parse_args()
 
     if args.login:
-        # Modo login: abre navegador visível, usuário faz login + 2FA, salva cookies
+        # Modo login: abre navegador visível com perfil persistente, usuário faz login + 2FA
+        # O perfil persistente mantém a sessão por semanas/meses (não precisa copiar cookies)
         print("=" * 60)
-        print("MODO LOGIN MANUAL")
-        print("1. O navegador vai abrir")
+        print("MODO LOGIN MANUAL — perfil persistente")
+        print("1. O navegador vai abrir com o perfil persistente")
         print("2. Faça login no ML e complete o 2FA")
-        print("3. Os cookies serão salvos automaticamente")
-        print("4. Depois copie .ml_cookies.json para o servidor")
+        print("3. A sessão será mantida no perfil (sem precisar copiar cookies)")
         print("=" * 60)
         total = asyncio.run(run_scraper(headless=False, dry_run=True))
-        cookies_path = COOKIES_FILE
-        print(f"\nCookies salvos em: {cookies_path}")
+        print(f"\nPerfil persistente: {PROFILE_DIR}")
         print(f"Total coletado no teste: {total}")
-        print("\nAgora copie para o servidor:")
-        print(f"  scp {cookies_path} alaserver:{cookies_path}")
         sys.exit(0 if total >= 0 else 1)
 
     headless = args.headless.lower() != "false"

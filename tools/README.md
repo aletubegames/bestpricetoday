@@ -17,35 +17,17 @@ Inspeciona e captura elementos DOM em qualquer página web, gerando seletores XP
 
 ---
 
-### 2. 📊 [ml_extract](./ml_extract/COMO_USAR.md)
-**Extrator de Afiliados Mercado Livre**
-
-Coleta automaticamente dados de produtos afiliados do Mercado Livre, incluindo preços, avaliações, links e códigos de afiliação.
-
-- Extração automática de dados
-- Exporta JSON com informações completas
-- Coleta links curtos e códigos de afiliação
-
-👉 [Leia o guia completo](./ml_extract/COMO_USAR.md)
-
-**Saída:**
-- `afiliados_ml_YYYY-MM-DD.json` - Dados dos produtos
-
----
-
-### 3. 🎬 [shopee_extract_mp4](./shopee_extract_mp4/COMO_USAR.md)
+### 2. 📊 [shopee_extract_mp4](./shopee_extract_mp4/COMO_USAR.md)
 **Extrator de Produtos Shopee com Conversão para Vídeo**
 
-Suite completa para extrair produtos do Shopee, converter em vídeos MP4 e preparar conteúdo para TikTok/Reels.
+Suite completa para extrair produtos do Shopee e preparar dados para vídeos TikTok/Reels.
 
 - Extração de dados do Shopee via links curtos
-- Conversão automática em vídeos
-- Geração de legendas e metadados
-- Integração com TikTok
+- Geração de CSVs com produtos e vídeos
+- Integração com o gerador de vídeos do `tiktok_post`
 
 **Arquivos principais:**
-- `console_script.js` - Extrator de produtos
-- `tiktok_post.js` - Processador de vídeos
+- `console_script.js` - Extrator de produtos (console do navegador)
 - `shopee_products.csv` - Dados dos produtos
 - `shopee_videos.csv` - Dados para vídeos
 
@@ -53,20 +35,18 @@ Suite completa para extrair produtos do Shopee, converter em vídeos MP4 e prepa
 
 ---
 
-### 4. 🎵 [tiktok_post](./tiktok_post/COMO_USAR.md)
-**Bot de Automação para TikTok**
+### 3. 🎵 [tiktok_post](./tiktok_post/COMO_USAR.md)
+**Gerador de Script Tampermonkey para TikTok**
 
-Automatiza a postagem de vídeos no TikTok com suporte a múltiplas contas, agendamento e integração com dados do Shopee.
+Lê os CSVs do `shopee_extract_mp4` e gera um script `tiktok_post.user.js` para postagem semi-automática no TikTok via navegador.
 
-- Bot Python com automação completa
-- Script Tampermonkey para navegador
-- Suporte a agendamento
-- Integração com Shopee Extract
+- Geração de script Tampermonkey
+- Leitura dos CSVs de produtos/vídeos
+- Não realiza postagem direta (depende do script no navegador)
 
 **Arquivos principais:**
-- `tiktok_bot_fiel_completo.py` - Bot Python
-- `tiktok_post.user.js` - Script Tampermonkey
-- `tiktop_post.py` - Versão alternativa
+- `tiktok_bot_fiel_completo.py` - Gera o script Tampermonkey
+- `tiktok_post.user.js` - Script de postagem (gerado)
 
 👉 [Leia o guia completo](./tiktok_post/COMO_USAR.md)
 
@@ -86,12 +66,12 @@ Automatiza a postagem de vídeos no TikTok com suporte a múltiplas contas, agen
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                  PROCESSAMENTO DE VÍDEOS                     │
+│                  GERAÇÃO DO SCRIPT TAMPERMONKEY              │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  Shopee Extract MP4 (tiktok_post.js)                        │
+│  TikTok Post (tiktok_bot_fiel_completo.py)                  │
 │  ↓                                                           │
-│  videos/ (MP4 gerados com legendas e metadados)             │
+│  tiktok_post.user.js                                        │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
                             ↓
@@ -99,9 +79,9 @@ Automatiza a postagem de vídeos no TikTok com suporte a múltiplas contas, agen
 │                  PUBLICAÇÃO NO TIKTOK                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  TikTok Post (tiktok_bot_fiel_completo.py)                  │
+│  Instale tiktok_post.user.js no Tampermonkey               │
 │  ↓                                                           │
-│  Vídeos publicados no TikTok com descrição e hashtags       │
+│  Vídeos publicados no TikTok via navegador                  │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -118,16 +98,17 @@ cd shopee_extract_mp4
 # Resultado: shopee_products.csv + shopee_videos.csv
 ```
 
-### 2. Gerar vídeos
+### 2. Gerar script Tampermonkey
 ```bash
-# Execute tiktok_post.js ou Python
-# Resultado: vídeos na pasta videos/
+cd ../tiktok_post
+python tiktok_bot_fiel_completo.py
+# Resultado: tiktok_post.user.js
 ```
 
 ### 3. Postar no TikTok
 ```bash
-cd ../tiktok_post
-python tiktok_bot_fiel_completo.py --post
+# Instale o tiktok_post.user.js gerado no Tampermonkey
+# Abra o TikTok Studio no navegador e execute o script
 ```
 
 ---
@@ -150,13 +131,9 @@ python tiktok_bot_fiel_completo.py --post
 - Console do navegador (DevTools)
 
 ### Para TikTok Post
-- Python 3.8+
-- Selenium, PyAutoGUI, Pillow
+- Python 3.9+
+- Dependências: `pandas`, `Pillow`
 - Conta TikTok para testes
-
-### Para Mercado Livre Extract
-- Navegador moderno
-- Acesso a afiliados.mercadolivre.com.br
 
 ---
 
@@ -181,6 +158,6 @@ Para problemas:
 
 ---
 
-**Última atualização:** 24 de maio de 2026
+**Última atualização:** 1 de julho de 2026
 
-Feito com ❤️ para automação de e-commerce
+Feito com amor para automação de e-commerce

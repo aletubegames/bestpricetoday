@@ -104,6 +104,7 @@ export default function AfiliadosPage() {
           {(["mercadolivre", "shopee", "aliexpress", "lomadee", "amazon"] as const).map(p => (
             <button
               key={p}
+              data-provider={p}
               onClick={() => setProvider(p)}
               className={`${styles.providerTab} ${provider === p ? styles.providerTabActive : ""}`}
             >
@@ -165,82 +166,93 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Search Input */}
-      <div className={styles.searchRow}>
-        <input
-          type="text"
-          placeholder="Buscar produto específico (ex: iphone x)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleSearch() }}
-          className={styles.searchInput}
-        />
-        <button onClick={handleSearch} className={styles.searchBtn}>Buscar</button>
-        <button onClick={handleClear} className={styles.searchBtn}>Limpar</button>
-      </div>
+      {/* Sticky filter bar */}
+      <div className={styles.stickyBar}>
+        <div className={styles.stickyBarInner}>
+          {/* Search Input */}
+          <div className={styles.searchRow}>
+            <input
+              type="text"
+              placeholder="Buscar produto específico (ex: iphone x)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSearch() }}
+              className={styles.searchInput}
+            />
+            <button onClick={handleSearch} className={styles.searchBtn}>Buscar</button>
+            <button onClick={handleClear} className={styles.searchBtn}>Limpar</button>
+          </div>
 
-      {/* Filters */}
-      <div className={styles.filters}>
-        <span className={styles.filterLabel}>Produtos por página:</span>
-        {[24, 48, 72, 96].map(p => (
-          <button
-            key={p}
-            onClick={() => { setPerPage(p); setPage(1) }}
-            className={`${styles.filterBtn} ${perPage === p ? styles.filterBtnActive : ""}`}
-          >
-            {p}
-          </button>
-        ))}
-        <span className={styles.filterLabel} style={{ marginLeft: 20 }}>Ordenar por:</span>
-        {[
-          { value: "relevance", label: "Relevância" },
-          { value: "price_asc", label: "Menor preço" },
-          { value: "price_desc", label: "Maior preço" },
-        ].map(s => (
-          <button
-            key={s.value}
-            onClick={() => setSort(s.value as any)}
-            className={`${styles.filterBtn} ${sort === s.value ? styles.filterBtnActive : ""}`}
-          >
-            {s.label}
-          </button>
-        ))}
+          {/* Filters */}
+          <div className={styles.filters}>
+            <span className={styles.filterLabel}>Produtos por página:</span>
+            {[24, 48, 72, 96].map(p => (
+              <button
+                key={p}
+                onClick={() => { setPerPage(p); setPage(1) }}
+                className={`${styles.filterBtn} ${perPage === p ? styles.filterBtnActive : ""}`}
+              >
+                {p}
+              </button>
+            ))}
+            <span className={styles.filterLabel} style={{ marginLeft: 20 }}>Ordenar por:</span>
+            {[
+              { value: "relevance", label: "Relevância" },
+              { value: "price_asc", label: "Menor preço" },
+              { value: "price_desc", label: "Maior preço" },
+            ].map(s => (
+              <button
+                key={s.value}
+                onClick={() => setSort(s.value as any)}
+                className={`${styles.filterBtn} ${sort === s.value ? styles.filterBtnActive : ""}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Products Grid */}
       <div className={`cq ${styles.grid}`}>
         {products.map((offer) => (
           <div key={offer.id} className={styles.card}>
-            <div className={styles.cardTop}>
-              {offer.image_url && (
+            <div className={styles.cardImgWrap}>
+              {offer.image_url ? (
                 <img
                   src={offer.image_url}
                   alt={offer.title}
                   className={styles.cardImg}
                 />
+              ) : (
+                <span style={{ fontSize: 40, opacity: 0.3 }}>🛍️</span>
               )}
-              <div className={styles.cardInfo}>
-                <div className={styles.cardTitle}>{offer.title}</div>
-                <div className={styles.cardStore}>{offer.store || offer.provider}</div>
+            </div>
+            <div className={styles.cardBody}>
+              <div className={styles.cardTitle}>{offer.title}</div>
+              <div className={styles.cardStore}>{offer.store || offer.provider}</div>
+              <div>
                 <div className={styles.cardPrice}>{fmt(offer.final_price)}</div>
                 {offer.original_price && offer.original_price > offer.final_price && (
                   <div className={styles.cardOriginalPrice}>{fmt(offer.original_price)}</div>
                 )}
               </div>
-            </div>
-            <div className={styles.cardActions}>
-              <CopyBtn text={offer.affiliate_url} />
-              <a
-                href={offer.affiliate_url}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-                className={styles.cardLink}
-              >
-                Ver oferta
-              </a>
+              <div className={styles.cardActions}>
+                <CopyBtn text={offer.affiliate_url} />
+                <a
+                  href={offer.affiliate_url}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  className={styles.cardLink}
+                >
+                  Ver oferta
+                </a>
+              </div>
             </div>
             {(offer.provider === "mercadolivre" || offer.provider === "amazon") && offer.id && (
-              <PriceHistory productId={offer.id} />
+              <div className={styles.historyWrap}>
+                <PriceHistory productId={offer.id} />
+              </div>
             )}
           </div>
         ))}

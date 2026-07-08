@@ -9,42 +9,6 @@
   font-family: system-ui, sans-serif;
 }
 
-/* ─── Header ─────────────────────────────────────────────────────────────── */
-.header {
-  border-bottom: 1px solid rgba(108, 92, 231, 0.2);
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.97);
-}
-
-@media (max-width: 768px) {
-  .header { padding: 12px 16px; }
-}
-
-.headerInner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.headerLink {
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headerLogo {
-  font-size: 24px;
-}
-
-.headerBrand {
-  font-weight: 800;
-  font-size: 17px;
-  color: #7c6aff;
-}
-
 /* ─── Container ──────────────────────────────────────────────────────────── */
 .container {
   max-width: 1600px;
@@ -117,8 +81,11 @@
 @container bp (min-width: 1280px) {
   .grid { grid-template-columns: repeat(4, 1fr); }
 }
-@container bp (min-width: 1800px) {
-  .grid { grid-template-columns: repeat(5, 1fr); }
+@container bp (min-width: 1400px) {
+  .grid { grid-template-columns: repeat(6, 1fr); gap: 16px; }
+}
+@container bp (min-width: 2200px) {
+  .grid { grid-template-columns: repeat(6, 1fr); gap: 20px; }
 }
 
 /* ─── Card de oferta ─────────────────────────────────────────────────────── */
@@ -131,6 +98,8 @@
 
 .cardBest {
   border-color: rgba(0, 229, 160, 0.4);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(0, 229, 160, 0.06) 100%);
+  box-shadow: 0 8px 24px rgba(0, 229, 160, 0.08);
 }
 
 .cardBestBar {
@@ -143,10 +112,17 @@
 }
 
 .cardBestLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 700;
-  color: #00e5a0;
-  margin-bottom: 8px;
+  color: #047857;
+  background: rgba(0, 229, 160, 0.12);
+  border: 1px solid rgba(0, 229, 160, 0.25);
+  padding: 4px 10px;
+  border-radius: 99px;
+  margin-bottom: 10px;
 }
 
 .cardHeader {
@@ -176,22 +152,22 @@
 
 .cardImage {
   width: 100%;
-  height: 160px;
-  object-fit: contain;
+  height: 180px;
   border-radius: 8px;
   background: #eef0ff;
   margin-bottom: 12px;
   position: relative;
+  padding: 8px;
 }
 
 /* Container estreito: imagem menor */
 @container bp (max-width: 479px) {
-  .cardImage { height: 130px; }
+  .cardImage { height: 150px; }
 }
 
 /* Container largo: imagem maior */
 @container bp (min-width: 1600px) {
-  .cardImage { height: 200px; }
+  .cardImage { height: 220px; }
 }
 
 .cardTitle {
@@ -246,8 +222,8 @@
 }
 
 .cardCtaBest {
-  background: linear-gradient(135deg, #00e5a0, #0ea5e9);
-  color: #000;
+  background: linear-gradient(135deg, #00b894, #10b981);
+  color: #fff;
 }
 
 /* ─── Empty state ────────────────────────────────────────────────────────── */

@@ -29,7 +29,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' https: data: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://api.alaserver.com.br https://www.googletagmanager.com https://www.clarity.ms https://i.clarity.ms https://www.google-analytics.com https://www.google-analytics.com https://www.google.com https://cloudflareinsights.com",
+              "connect-src 'self' https://api.alaserver.com.br https://www.googletagmanager.com https://www.clarity.ms https://i.clarity.ms https://www.google-analytics.com https://www.google.com https://cloudflareinsights.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

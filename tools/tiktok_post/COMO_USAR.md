@@ -1,57 +1,48 @@
-# 🎵 TikTok Post - Bot de Automação TikTok
+# 🎵 TikTok Post - Gerador de Script Tampermonkey
 
 ## O que é?
-Conjunto de ferramentas para automatizar a postagem de produtos em vídeos no TikTok e Reels, incluindo:
-- Bot Python para automação
-- Script Tampermonkey para browser
-- Integração com dados do Shopee
+
+Gera um script `tiktok_post.user.js` para ser usado no Tampermonkey (navegador) e facilitar a postagem semi-automática de produtos no TikTok.
+
+- Lê os CSVs gerados pelo `shopee_extract_mp4`
+- Gera um script Tampermonkey pronto para instalar
+- A postagem real acontece no navegador, via Tampermonkey
 
 ## Componentes
 
-### 1. tiktok_bot_fiel_completo.py - Bot Python
+### 1. tiktok_bot_fiel_completo.py - Gerador do Script
 
-Bot completo em Python que automatiza a postagem em TikTok.
+Script Python que lê os CSVs e escreve `tiktok_post.user.js`.
 
 #### Pré-requisitos
 ```bash
-# Instalar Python 3.8+
+# Python 3.9+
 python --version
 
 # Instalar dependências
-pip install selenium pyautogui pillow
-
-# Download WebDriver para Chrome
-# https://chromedriver.chromium.org
+pip install pandas pillow
 ```
 
 #### Como usar
 
 ```bash
-# 1. Navegar até a pasta
-cd /home/alessandro/bin/Git_Repo/BestPriceToday/tools/tiktok_post
+# 1. Navegue até a pasta
+# cd /caminho/do/repo/BestPriceToday/tools/tiktok_post
 
-# 2. Configurar dados
-# Edite o arquivo para adicionar:
-# - Credenciais do TikTok
-# - Links dos vídeos
-# - Hashtags e descrições
+# 2. Garanta que os CSVs do shopee_extract_mp4 estejam na pasta (ou no caminho esperado)
+#    shopee_products.csv
+#    shopee_videos.csv
 
-# 3. Executar bot
+# 3. Executar gerador
 python tiktok_bot_fiel_completo.py
 ```
 
-#### Funcionalidades
-- ✅ Login automático no TikTok
-- ✅ Upload de vídeos
-- ✅ Adiciona descrição e hashtags
-- ✅ Define privacidade (público/privado)
-- ✅ Agenda postagens
-- ✅ Gerencia múltiplas contas
-- ✅ Retry automático em caso de erro
+#### Saída
+- `tiktok_post.user.js` - Script para Tampermonkey
 
 ### 2. tiktok_post.user.js - Tampermonkey Script
 
-Script para automação via navegador (melhor para debugging).
+Script de navegador que automatiza a postagem no TikTok Studio.
 
 #### Como usar
 
@@ -59,167 +50,78 @@ Script para automação via navegador (melhor para debugging).
    - Chrome: https://chrome.google.com/webstore/detail/tampermonkey
    - Firefox: https://addons.mozilla.org/firefox/addon/tampermonkey
 
-2. **Instalar script**
+2. **Instalar o script gerado**
    - Abra `tiktok_post.user.js` no editor
    - Copie todo o conteúdo
-   - Crie novo script no Tampermonkey
-   - Cole o código
+   - Crie novo script no Tampermonkey e cole
 
-3. **Configurar**
-   - Edite as variáveis no início do script
-   - Configure tags, categorias, descrição
-
-4. **Usar**
-   - Vá para https://www.tiktok.com
-   - O script adiciona botões auxiliares
-   - Use os botões para automatizar
-
-### 3. tiktop_post.py - Versão Alternativa
-
-Script Python alternativo com diferentes abordagens.
-
-#### Como usar
-```bash
-python tiktop_post.py
-```
+3. **Usar**
+   - Acesse o TikTok Studio no navegador
+   - Execute o script via Tampermonkey
+   - Siga as instruções exibidas na página
 
 ## Fluxo de Trabalho
 
 ```mermaid
 graph LR
-    A["shopee_products.csv"] -->|Leitura| B["Bot Python"]
-    B -->|Login| C["TikTok.com"]
-    C -->|Upload vídeo| D["Processamento"]
-    D -->|Publicação| E["Vídeo no TikTok"]
-    F["Tampermonkey"] -.->|Alternativo| E
-```
-
-## Configuração
-
-### Credenciais
-```python
-# No código, configure:
-TIKTOK_USERNAME = "seu_usuario"
-TIKTOK_PASSWORD = "sua_senha"
-HASHTAGS = ["#trending", "#shopping", "#produtos"]
-DESCRICAO = "Confira os melhores produtos! 🛍️"
-```
-
-### Dados de entrada (Do Shopee Extract)
-O bot usa automaticamente:
-- `shopee_products.csv` - Informações dos produtos
-- `shopee_videos.csv` - Dados para legendas
-- `videos/` - Vídeos MP4 processados
-
-### Agendamento
-```python
-# Configurar horários de postagem
-SCHEDULE = [
-    {"time": "09:00", "video": "products_001.mp4"},
-    {"time": "14:00", "video": "products_002.mp4"},
-    {"time": "18:00", "video": "products_003.mp4"},
-]
+    A["shopee_products.csv"] -->|Leitura| B["tiktok_bot_fiel_completo.py"]
+    C["shopee_videos.csv"] -->|Leitura| B
+    B -->|Gera| D["tiktok_post.user.js"]
+    D -->|Instala no Tampermonkey| E["Navegador"]
+    E -->|Postagem| F["TikTok"]
 ```
 
 ## Arquivos
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `tiktok_bot_fiel_completo.py` | Bot Python completo |
-| `tiktok_post.user.js` | Script Tampermonkey |
-| `tiktop_post.py` | Versão alternativa Python |
+| `tiktok_bot_fiel_completo.py` | Gera o script Tampermonkey |
+| `tiktok_post.user.js` | Script de postagem (gerado) |
 
 ## Exemplo de Execução
 
 ```bash
 # 1. Extrair produtos do Shopee
 cd ../shopee_extract_mp4
-# ... execute console_script.js ...
+# ... execute console_script.js no navegador ...
 
-# 2. Gerar vídeos
-python tiktok_bot_fiel_completo.py --generate-videos
+# 2. Gerar o script Tampermonkey
+cd ../tiktok_post
+python tiktok_bot_fiel_completo.py
 
-# 3. Postar no TikTok
-python tiktok_bot_fiel_completo.py --post --schedule
-
-# Ver status
-python tiktok_bot_fiel_completo.py --status
-```
-
-## Recursos Avançados
-
-### Múltiplas contas
-```python
-CONTAS = [
-    {"user": "conta1", "pass": "senha1"},
-    {"user": "conta2", "pass": "senha2"},
-]
-# Bot distribui vídeos entre contas
-```
-
-### Filtros de produtos
-```python
-FILTROS = {
-    "preco_min": 10,
-    "preco_max": 500,
-    "avaliacao_min": 4.0,
-    "vendidos_min": 1000,
-}
-```
-
-### Geração de legendas
-```python
-LEGENDAS = {
-    "template": "Esse produto é INCRÍVEL! 🔥 Link na bio",
-    "incluir_preco": True,
-    "incluir_desconto": True,
-}
+# 3. Instalar tiktok_post.user.js no Tampermonkey e usar no TikTok Studio
 ```
 
 ## Dicas
 
 - ✅ Use contas de teste primeiro
-- ✅ Respeite o rate limit do TikTok (máx 10 posts/hora)
+- ✅ Respeite o rate limit do TikTok
 - ✅ Varie os horários de postagem
 - ✅ Monitore os vídeos para engajamento
 - ⚠️ Leia os termos de uso do TikTok
-- ⚠️ Não use bots excessivamente (pode resultar em ban)
+- ⚠️ Não use automação excessivamente (pode resultar em ban)
 - ⚠️ Mantenha conteúdo de qualidade
 
 ## Troubleshooting
 
 | Problema | Solução |
 |----------|--------|
-| "Login failed" | Verifique credenciais, ative 2FA se necessário |
-| "Video upload error" | Verifique formato MP4 e tamanho (<280MB) |
-| "Rate limit exceeded" | Aguarde 1 hora antes de novos posts |
-| Script não encontra elementos | TikTok atualizou interface, edite seletores CSS |
-| Chrome não abre | Instale ChromeDriver da versão do seu Chrome |
+| Script não gera | Verifique se `shopee_products.csv` e `shopee_videos.csv` existem |
+| Tampermonkey não executa | Verifique se o script está ativo e a URL do TikTok Studio está correta |
+| TikTok atualizou interface | Edite os seletores CSS no script gerado |
 
 ## Integração com Shopee Extract
 
 ```bash
 # Fluxo completo
 cd ../shopee_extract_mp4
-# ... extrair produtos ...
-cp shopee_*.csv ../tiktok_post/
+# ... extrair produtos com console_script.js ...
 
-# Voltar para tiktok_post
 cd ../tiktok_post
-python tiktok_bot_fiel_completo.py --auto-process
+python tiktok_bot_fiel_completo.py
+# Instale o tiktok_post.user.js gerado no Tampermonkey
 ```
 
-## Monitoramento
+---
 
-O bot gera logs em:
-- `logs/tiktok_bot.log` - Histórico de execução
-- `logs/errors.log` - Erros e problemas
-- `stats.json` - Estatísticas de postagem
-
-## Próximos passos
-
-1. Configure as credenciais
-2. Teste com um vídeo
-3. Configure agendamento
-4. Monitore engajamento
-5. Ajuste legendas e hashtags conforme necessário
+**Última atualização:** 1 de julho de 2026

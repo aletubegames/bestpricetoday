@@ -4,7 +4,7 @@ OAuth2 Google + YouTube Data API v3
 """
 import httpx
 import urllib.parse
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from app.core.config import settings
 
 YOUTUBE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"

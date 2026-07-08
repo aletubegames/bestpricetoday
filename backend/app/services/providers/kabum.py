@@ -1,5 +1,4 @@
 """KaBuM Affiliate Provider."""
-import httpx
 from typing import List
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState

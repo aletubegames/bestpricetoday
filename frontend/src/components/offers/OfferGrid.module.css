@@ -1,25 +1,21 @@
-/* OfferGrid — grid responsivo baseado em container queries.
-   O pai deve ter className="cq" para que @container funcione. */
+/* OfferGrid — 5 produtos por linha em telas grandes, responsivo via media queries. */
 .grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, 1fr);
 }
 
-@container bp (min-width: 360px) {
-  .grid { grid-template-columns: repeat(2, 1fr); }
-}
-@container bp (min-width: 720px) {
+@media (min-width: 640px) {
   .grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
 }
-@container bp (min-width: 1080px) {
+@media (min-width: 900px) {
   .grid { grid-template-columns: repeat(4, 1fr); }
 }
-@container bp (min-width: 1600px) {
-  .grid { grid-template-columns: repeat(5, 1fr); gap: 20px; }
+@media (min-width: 1200px) {
+  .grid { grid-template-columns: repeat(5, 1fr); gap: 16px; }
 }
-@container bp (min-width: 2200px) {
-  .grid { grid-template-columns: repeat(6, 1fr); }
+@media (min-width: 2200px) {
+  .grid { grid-template-columns: repeat(5, 1fr); gap: 20px; }
 }
 
 .empty {

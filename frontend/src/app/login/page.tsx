@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { logger } from "@/lib/logger"
+import { trackLogin } from "@/lib/analytics"
 import Link from "next/link"
 
 export default function LoginPage() {
@@ -33,6 +34,7 @@ export default function LoginPage() {
       
       localStorage.setItem("bpt_token", data.access_token)
       localStorage.setItem("bpt_user", JSON.stringify(data.user))
+      trackLogin("email")
 
       router.push("/")
     } catch (err) {
@@ -49,16 +51,19 @@ export default function LoginPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ width: "100%", maxWidth: 400 }}>
           {/* Logo */}
-          <div style={{ textAlign: "center", marginBottom: 32, marginTop: 32 }}>
-            <Link href="/" style={{ textDecoration: "none" }}>
-              <span style={{ fontSize: 32 }}>🛍️</span>
-              <p style={{ color: "#7c6aff", fontWeight: 800, fontSize: 20, margin: "8px 0 0" }}>BestPriceToday</p>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 32, marginTop: 32 }}>
+            <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
+              <img src="/logo-header.png" alt="BestPriceToday" width={50} height={50} style={{ borderRadius: 10, objectFit: "cover" }} />
+              <span style={{ display: "flex", flexDirection: "column", lineHeight: 0.9, textAlign: "center" }}>
+                <span style={{ fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif", fontWeight: 900, fontSize: 20, letterSpacing: -0.6, color: "#820AD1" }}>BestPrice</span>
+                <span style={{ fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif", fontWeight: 900, fontSize: 18, letterSpacing: -0.5, color: "#FF6200" }}>Today</span>
+              </span>
             </Link>
           </div>
 
         <div style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 20, padding: 32 }}>
-          <h1 style={{ color: "#1a1a2e", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Entrar</h1>
-          <p style={{ color: "#475569", fontSize: 13, marginBottom: 28 }}>Acesse alertas, histórico e mais.</p>
+          <h1 style={{ color: "#1a1a2e", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Entrar na sua conta</h1>
+          <p style={{ color: "#475569", fontSize: 13, marginBottom: 28 }}>Acesse alertas de preço e seu histórico de buscas.</p>
 
           <form onSubmit={submit}>
             <div style={{ marginBottom: 16 }}>

@@ -260,6 +260,9 @@ async def generate_caption_ai(offer: dict) -> Optional[str]:
     title = offer.get("title", "")[:100]
     price = offer.get("final_price", 0)
     original = offer.get("original_price", 0)
+    # Só mostra original se for maior que price (desconto real)
+    if original <= price:
+        original = 0
     discount = offer.get("discount_percent", 0)
     provider = offer.get("provider", "")
     shipping_free = offer.get("shipping_free", False)
@@ -303,12 +306,8 @@ Regras:
             if r.status_code == 200:
                 data = r.json()
                 msg = data["choices"][0]["message"]
-                # Alguns modelos free retornam content=None e usam reasoning
+                # Usa apenas content — NUNCA reasoning (vaza prompt interno)
                 caption = msg.get("content")
-                if not caption and msg.get("reasoning"):
-                    # Extrai ultima linha do reasoning como caption
-                    lines = [l.strip() for l in msg["reasoning"].split("\n") if l.strip() and not l.startswith("#")]
-                    caption = lines[-1] if lines else None
                 if caption:
                     caption = caption.strip()
                     if caption:
@@ -476,10 +475,10 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
     elif shipping_free:
         lines.append("✅ Frete grátis")
 
-    # 2. Link direto
+    # 2. Link — usa short_url (passa pelo site, rastreia clique)
     lines.append("")
     lines.append("🛒 Compre aqui:")
-    lines.append(affiliate_url)
+    lines.append(short_url)
 
     # Cupom — se existir
     coupon = offer.get("coupon")
@@ -873,12 +872,9 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
 
     # Importa funções compartilhadas do coupon_distributor
     from app.workers.coupon_distributor import (
-        generate_xtts_narration,
+        generate_xtts_narration_async,
         expand_units_for_tts,
         num2words_pt,
-        _get_random_opening,
-        _OPENING_VARIATIONS,
-        _OPENING_HISTORY_FILE,
         fmt_brl,
         _clean_title_for_narration,
     )
@@ -956,7 +952,7 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
 
         audio_path = _os.path.join(tmpdir, "narration.wav")
         logger.info("Distributor: gerando narração XTTS (voz ElevenLabs)...")
-        if not generate_xtts_narration(narration, audio_path):
+        if not await generate_xtts_narration_async(narration, audio_path):
             logger.error("Distributor: XTTS falhou, pulando vídeo")
             return None
 
@@ -1097,7 +1093,7 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                 output_path
             ]
 
-        result = subprocess.run(cmd, capture_output=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if _os.path.exists(output_path) and _os.path.getsize(output_path) > 5000:
             logger.info(f"Distributor: vídeo gerado ({_os.path.getsize(output_path)} bytes)")
             return output_path

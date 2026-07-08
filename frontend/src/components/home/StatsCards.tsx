@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getStats } from "@/lib/mockData";
 import { API_BASE, apiFetch } from "@/lib/api";
+import styles from "./StatsCards.module.css";
 
 interface Stats {
   productsMonitored: number;
@@ -73,46 +74,19 @@ export default function StatsCards() {
   ];
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: 16,
-      }}
-    >
+    <div className={styles.grid}>
       {cards.map((card, i) => (
         <motion.div
           key={card.label}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 + i * 0.1, duration: 0.4 }}
-          style={{
-            background: "#fff",
-            border: "1px solid #e0e0f0",
-            borderRadius: 16,
-            padding: "28px 20px",
-            textAlign: "center",
-          }}
+          className={styles.card}
         >
-          <div
-            style={{
-              fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-              fontSize: 36,
-              fontWeight: 800,
-              color: card.color,
-              lineHeight: 1.1,
-              marginBottom: 6,
-            }}
-          >
+          <div className={styles.value} style={{ color: card.color }}>
             {card.value}
           </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: "rgba(26,26,46,0.55)",
-              fontWeight: 500,
-            }}
-          >
+          <div className={styles.label}>
             {card.label}
           </div>
         </motion.div>

@@ -1,6 +1,6 @@
 # BestPriceToday — Documentacao Completa de Infraestrutura
 
-> **Ultima atualizacao:** 2026-06-30
+> **Ultima atualizacao:** 2026-07-01
 > **URL oficial:** `https://bestpricetoday.alaserver.com.br` (porta 443, sem :9443)
 
 ---
@@ -184,14 +184,31 @@ So a porta 9443 funciona de fora. O Cloudflare Tunnel resolve isso.
 
 | Servico | Funcao | Restart |
 |---|---|---|
-| `bestprice-backend` | FastAPI + uvicorn (porta 8000) | `sudo systemctl restart bestprice-backend` |
+| `bestprice-backend` | FastAPI + uvicorn (porta 8000) + workers (distributor, coupon_distributor, alert_checker, bot, crons) | `sudo systemctl restart bestprice-backend` |
 | `bestprice-frontend` | Next.js (porta 3000) | `sudo systemctl restart bestprice-frontend` |
 | `cloudflared` | Cloudflare Tunnel | `sudo systemctl restart cloudflared` |
 | `nginx` | Reverse proxy | `sudo systemctl reload nginx` |
+| `bestprice-video-api` | API local de geracao de video (GPU, porta 8765) | `sudo systemctl restart bestprice-video-api` |
+
+### Workers dentro do `bestprice-backend`
+- `distributor.py` — orquestrador de ofertas (4x/dia: 12h, 15h, 19h, 21h)
+- `coupon_distributor.py` — cupons ML (2x/dia: 12h, 19h) + geracao de video XTTS
+- `bestprice_bot.py` — Telegram bot
+- `alert_checker.py` — verificacao de alertas
+- `conversion_cron.py` — poll de conversões
+- `ml_refresh_cron.py` — renovacao de token ML
+
+### Crons (user `alessandro`)
+| Horario | Script | O que faz |
+|---|---|---|
+| 2h | `ml_coupon_scraper --cleanup-only` | Deleta cupons ML vencidos |
+| 3h | `run_amazon_scraper.sh` | Atualiza produtos Amazon |
+| 4h | `run_ml_scraper.sh` | Coleta produtos afiliados ML |
+| 5h | `ml_coupon_scraper --collect-only` | Coleta cupons ML ativos (requer cookies validos) |
 
 ### Servicos DESABILITADOS
 - `bestprice-bot` — desabilitado (bot roda dentro do backend)
-- `channel-broadcaster` — desabilitado
+- `channel-broadcaster` — desabilitado (substituido por distributor.py)
 - `alert-checker` — desabilitado (roda dentro do backend)
 
 ---

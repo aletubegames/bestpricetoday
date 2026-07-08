@@ -10,7 +10,6 @@ router = APIRouter()
 @router.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest, req: Request):
     from app.core.rate_limit import check_rate_limit
-    from fastapi.responses import JSONResponse
     ip = req.client.host if req.client else "unknown"
     if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
         raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")

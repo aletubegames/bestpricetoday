@@ -231,7 +231,7 @@ class AliExpressClient(MarketplaceClient):
     Usa o signer TOP/GOP para todos os endpoints.
     """
     marketplace_id = MarketplaceId.aliexpress
-    timeout = 12
+    timeout = 4
 
     def __init__(self) -> None:
         super().__init__()

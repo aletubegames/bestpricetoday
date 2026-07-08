@@ -24,8 +24,6 @@ Variáveis no .env:
 import asyncio
 import os
 import re
-import sys
-import json
 import logging
 import urllib.parse
 from datetime import datetime, timezone

@@ -31,7 +31,7 @@ def add_utm(url: str, provider: str, source: str = "web") -> str:
 class BaseProvider(ABC):
     name: str = ""
     timeout: int = 10
-    max_retries: int = 3
+    max_retries: int = 1
 
     def __init__(self):
         self._client: Optional[httpx.AsyncClient] = None

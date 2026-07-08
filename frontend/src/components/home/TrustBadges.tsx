@@ -1,5 +1,6 @@
 "use client";
 import { IconShieldCheck, IconRefresh, IconLockCheck, IconInfoCircle } from "@tabler/icons-react";
+import styles from "./TrustBadges.module.css";
 
 interface Badge {
   icon: React.ReactNode;
@@ -16,14 +17,11 @@ const BADGES: Badge[] = [
 
 export default function TrustBadges() {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+    <div className={styles.grid}>
       {BADGES.map((badge) => (
-        <div key={badge.text} style={{
-          display: "flex", alignItems: "center", gap: 10,
-          background: "#fff", border: "1px solid #e0e0f0", borderRadius: 14, padding: "14px 16px",
-        }}>
-          <span style={{ color: badge.iconColor, flexShrink: 0, display: "flex" }}>{badge.icon}</span>
-          <span style={{ fontSize: 13, fontWeight: 500, color: "#3a3a5c", lineHeight: 1.4 }}>
+        <div key={badge.text} className={styles.badge}>
+          <span className={styles.icon} style={{ color: badge.iconColor }}>{badge.icon}</span>
+          <span className={styles.text}>
             {badge.text}
           </span>
         </div>

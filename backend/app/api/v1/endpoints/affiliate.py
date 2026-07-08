@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.db.session import get_db
 from app.models.models import AffiliateProduct, ShortLink, Coupon, CouponProduct
 from app.core.config import settings
+from app.services.affiliate_tracking import add_ml_affiliate_tracking
 from app.api.v1.endpoints.admin import require_admin
 
 router = APIRouter(prefix="/affiliate", tags=["affiliate"])
@@ -101,16 +102,22 @@ async def _claude(prompt: str) -> str:
             },
         )
         r.raise_for_status()
-        return r.json()["content"][0]["text"].strip()
+        data = r.json()
+        content = data.get("content")
+        if not content or not isinstance(content, list):
+            return ""
+        return content[0].get("text", "").strip()
 
 def _parse_json(raw: str) -> dict:
     if not raw:
         raise ValueError("empty")
     text = raw
     if "```" in text:
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+        parts = text.split("```")
+        if len(parts) >= 2:
+            text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
     return json.loads(text.strip())
 
 
@@ -747,6 +754,9 @@ async def list_coupons(
     # Aplica limit
     unique = unique[:limit]
 
+    # Helper para adicionar tracking de afiliado ML na URL
+    _add_affiliate_tracking = add_ml_affiliate_tracking
+
     return {
         "total": total,
         "coupons": [
@@ -761,7 +771,7 @@ async def list_coupons(
                 "expires_at": c.expires_at.isoformat() if c.expires_at else None,
                 "budget_remaining": c.budget_remaining,
                 "conditions": c.conditions,
-                "product_url": c.product_url,
+                "product_url": _add_affiliate_tracking(c.product_url),
                 "is_active": c.is_active,
             }
             for c in unique
@@ -852,12 +862,15 @@ async def list_coupon_products(
     result = await db.execute(query)
     rows = result.all()
 
+    # Helper para adicionar tracking de afiliado ML na URL
+    _add_aff_tracking = add_ml_affiliate_tracking
+
     products = []
     for cp, coupon in rows:
         products.append({
             "id": str(cp.id),
             "title": cp.title,
-            "product_url": cp.product_url,
+            "product_url": _add_aff_tracking(cp.product_url),
             "image_url": cp.image_url,
             "price": cp.price,
             "ml_code": cp.ml_code,

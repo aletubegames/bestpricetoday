@@ -7,8 +7,6 @@
  * Nunca declare `process.env.NEXT_PUBLIC_API_URL || "..."` diretamente
  * em nenhuma outra página, hook ou componente.
  */
-import axios from "axios";
-
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://api.alaserver.com.br";

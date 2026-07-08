@@ -18,8 +18,8 @@
 
 .card:hover {
   border-color: rgba(108, 92, 231, 0.4);
-  box-shadow: 0 4px 24px rgba(108, 92, 231, 0.12);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px);
 }
 
 .cardSelected {
@@ -52,18 +52,28 @@
 .topBar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 12px;
+  min-height: 36px;
 }
 
-.providerGroup {
-  display: flex;
+.providerChip {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  box-shadow: var(--shadow-sm);
 }
 
 .providerName {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: capitalize;
 }
@@ -72,7 +82,7 @@
   font-size: 10px;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #6c5ce7, #8b7cf8);
+  background: linear-gradient(135deg, #00b894, #10b981);
   padding: 2px 8px;
   border-radius: 99px;
 }
@@ -133,13 +143,13 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  padding: 12px;
 }
 
 .imageWrap img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 8px;
 }
 
 .imagePlaceholder {
@@ -205,6 +215,10 @@
   letter-spacing: -1px;
   line-height: 1;
   color: #1a1a2e;
+}
+
+.priceValueBest {
+  color: var(--grn);
 }
 
 .priceHidden {

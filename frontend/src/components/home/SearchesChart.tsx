@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import styles from "./SearchesChart.module.css";
 
 export interface ChartDay {
   day: string;
@@ -32,95 +33,29 @@ export default function SearchesChart({ data }: Props) {
   }, []);
 
   return (
-    <div ref={ref} style={{ background: "#fff", border: "1px solid #e0e0f0", borderRadius: 16, padding: "24px 16px" }}>
-      <h3
-        style={{
-          fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-          fontSize: 18,
-          fontWeight: 800,
-          color: "#1a1a2e",
-          marginBottom: 4,
-        }}
-      >
+    <div ref={ref} className={styles.root}>
+      <h3 className={styles.title}>
         Buscas nos últimos 7 dias
       </h3>
-      <p style={{ fontSize: 12, color: "rgba(26,26,46,0.45)", marginBottom: 20 }}>
+      <p className={styles.subtitle}>
         Quantidade de pesquisas realizadas por dia
       </p>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          gap: 4,
-          height: 160,
-        }}
-      >
+      <div className={styles.chart}>
         {data.map((d, i) => {
           const pct = maxVal > 0 ? (d.value / maxVal) * 100 : 0;
           return (
-            <div
-              key={d.day}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                height: "100%",
-                justifyContent: "flex-end",
-              }}
-            >
-              {/* Valor acima — SEMPRE visível */}
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#7c3aed",
-                  marginBottom: 2,
-                }}
-              >
-                {d.value}
-              </span>
-
-              {/* Barra — animada */}
-              <div
-                style={{
-                  width: "100%",
-                  maxWidth: 48,
-                  borderRadius: 8,
-                  overflow: "hidden",
-                  position: "relative",
-                  flex: 1,
-                }}
-              >
+            <div key={d.day} className={styles.column}>
+              <span className={styles.value}>{d.value}</span>
+              <div className={styles.barWrap}>
                 <motion.div
                   initial={{ height: 0 }}
                   animate={visible ? { height: `${pct}%` } : { height: 0 }}
                   transition={{ delay: 0.1 + i * 0.08, duration: 0.6, ease: "easeOut" }}
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    background: "linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%)",
-                    borderRadius: 8,
-                  }}
+                  className={styles.bar}
                 />
               </div>
-
-              {/* Label abaixo */}
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "rgba(26,26,46,0.45)",
-                  marginTop: 4,
-                }}
-              >
-                {d.day}
-              </span>
+              <span className={styles.label}>{d.day}</span>
             </div>
           );
         })}

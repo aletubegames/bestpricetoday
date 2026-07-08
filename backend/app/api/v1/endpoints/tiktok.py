@@ -20,13 +20,13 @@ Notas:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
-from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
 from app.integrations.tiktok import tiktok_client
-from app.models.models import TikTokAccount, ShortLink, ClickEvent, User
+from app.models.models import TikTokAccount, ShortLink
 from app.core.config import settings
+from app.core.logging import logger
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone, timedelta

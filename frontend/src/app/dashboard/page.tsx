@@ -1,244 +1,233 @@
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
-import Link from "next/link"
+import styles from "./page.module.css"
 
-interface Alert {
-  id: string
-  query: string
-  target_price: number
-  is_active: boolean
-  created_at: string
-  triggered_at: string | null
-}
-
-interface User {
-  id: string
-  name: string
-  email: string
-  is_admin: boolean
-}
+interface User { id: string; name: string; email: string; is_admin: boolean }
+interface Alert { id: string; query: string; target_price: number; is_active: boolean; created_at: string; triggered_at: string | null }
+interface Favorite { id: string; product_id: string; owner_id: string; created_at: string }
 
 const fmt = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 })
-const fmtDate = (s: string) =>
-  s ? new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"
+const fmtDate = (s: string) => s ? new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [user, setUser]         = useState<User | null>(null)
-  const [alerts, setAlerts]     = useState<Alert[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [tab, setTab]           = useState<"overview" | "alerts" | "account">("overview")
+  const [user, setUser] = useState<User | null>(null)
+  const [alerts, setAlerts] = useState<Alert[]>([])
+  const [favorites, setFavorites] = useState<Favorite[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token  = localStorage.getItem("bpt_token")
+    const token = localStorage.getItem("bpt_token")
     const stored = localStorage.getItem("bpt_user")
     if (!token || !stored || isTokenExpired(token)) {
       localStorage.removeItem("bpt_token")
       localStorage.removeItem("bpt_user")
       router.push("/login"); return
     }
-
-    let u: User;
-    try {
-      u = JSON.parse(stored) as User;
-    } catch {
-      localStorage.removeItem("bpt_token")
-      localStorage.removeItem("bpt_user")
+    let u: User
+    try { u = JSON.parse(stored) as User } catch {
+      localStorage.removeItem("bpt_token"); localStorage.removeItem("bpt_user")
       router.push("/login"); return
     }
     setUser(u)
 
-    // Busca alertas do usuário logado
-    apiFetch(`${API}/api/v1/alerts?owner_id=${u.id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
-      .then(alertData => {
-        setAlerts(Array.isArray(alertData) ? alertData : [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
+    // Busca alertas e favoritos em paralelo
+    const anonId = typeof window !== "undefined" ? localStorage.getItem("bpt_anon_id") : null
+    const ownerId = u.id || anonId || ""
+
+    Promise.all([
+      apiFetch(`${API}/api/v1/alerts?owner_id=${u.id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : []).then(d => Array.isArray(d) ? d : d?.items || []).catch(() => []),
+      ownerId ? apiFetch(`${API}/api/v1/favorites?owner_id=${ownerId}`)
+        .then(r => r.ok ? r.json() : []).then(d => Array.isArray(d) ? d : []).catch(() => []) : Promise.resolve([]),
+    ]).then(([a, f]) => { setAlerts(a); setFavorites(f); setLoading(false) })
   }, [router])
 
   const deleteAlert = async (id: string) => {
     const token = localStorage.getItem("bpt_token")
     if (!user) return
-    await apiFetch(`${API}/api/v1/alerts/${id}?owner_id=${user.id}`, {
-      method: "DELETE", headers: { Authorization: `Bearer ${token ?? ""}` },
-    })
+    await apiFetch(`${API}/api/v1/alerts/${id}?owner_id=${user.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token ?? ""}` } })
     setAlerts(prev => (prev || []).filter(a => a.id !== id))
+  }
+
+  const removeFavorite = async (id: string) => {
+    if (!user) return
+    await apiFetch(`${API}/api/v1/favorites/${id}?owner_id=${user.id}`, { method: "DELETE" })
+    setFavorites(prev => (prev || []).filter(f => f.id !== id))
   }
 
   const logout = () => {
     localStorage.removeItem("bpt_token")
     localStorage.removeItem("bpt_user")
+    localStorage.removeItem("admin_key")
     router.push("/login")
   }
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#475569", fontSize: 14 }}>Carregando...</div>
+  if (loading || !user) return (
+    <div className={styles.root}>
+      <div className={styles.loading}>Carregando...</div>
     </div>
   )
 
-  const activeAlerts    = (alerts || []).filter(a => a.is_active)
+  const activeAlerts = (alerts || []).filter(a => a.is_active)
   const triggeredAlerts = (alerts || []).filter(a => !a.is_active && a.triggered_at)
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
+    <div className={styles.root}>
       <Header variant="dashboard" onLogout={logout} />
+      <div className={styles.container}>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px" }}>
-
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 28, flexWrap: "wrap" }}>
-          {([
-            ["overview", "📊 Visão geral"],
-            ["alerts",   `🔔 Alertas (${activeAlerts.length})`],
-            ["account",  "👤 Conta"],
-          ] as const).map(([t, label]) => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              padding: "9px 18px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600,
-              background: tab === t ? "#7c6aff" : "rgba(108,92,231,0.1)",
-              border: `1px solid ${tab === t ? "#7c6aff" : "rgba(108,92,231,0.2)"}`,
-              color: tab === t ? "#fff" : "#475569",
-            }}>
-              {label}
-            </button>
-          ))}
+        {/* Welcome */}
+        <div className={styles.welcome}>
+          <h1 className={styles.welcomeTitle}>Olá, {user.name.split(" ")[0]}! 👋</h1>
+          <p className={styles.welcomeSub}>Aqui está um resumo da sua atividade no BestPriceToday.</p>
         </div>
 
-        {/* ── OVERVIEW ── */}
-        {tab === "overview" && (
-          <div>
-            {/* Stats cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 14, marginBottom: 28 }}>
-              {[
-                { label: "Alertas ativos",     value: activeAlerts.length,   icon: "🔔", color: "#a78bfa" },
-                { label: "Alertas disparados", value: triggeredAlerts.length, icon: "✅", color: "#00e5a0" },
-              ].map(s => (
-                <div key={s.label} style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>{s.icon}</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: "#475569", marginTop: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* CTAs */}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link href="/" style={{ padding: "11px 22px", borderRadius: 10, background: "#7c6aff", color: "#1a1a2e", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                🔍 Buscar produtos
-              </Link>
-              <button onClick={() => setTab("alerts")} style={{ padding: "11px 22px", borderRadius: 10, background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.25)", color: "#a78bfa", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                🔔 Ver alertas
-              </button>
-            </div>
+        {/* Stats */}
+        <div className={styles.statsGrid}>
+          <div className={styles.statCard} style={{ ["--c" as string]: "var(--acc)" }}>
+            <div className={styles.statIcon}>🔔</div>
+            <div className={styles.statValue}>{activeAlerts.length}</div>
+            <div className={styles.statLabel}>Alertas ativos</div>
           </div>
-        )}
+          <div className={styles.statCard} style={{ ["--c" as string]: "var(--grn)" }}>
+            <div className={styles.statIcon}>✅</div>
+            <div className={styles.statValue}>{triggeredAlerts.length}</div>
+            <div className={styles.statLabel}>Alertas disparados</div>
+          </div>
+          <div className={styles.statCard} style={{ ["--c" as string]: "var(--ylw)" }}>
+            <div className={styles.statIcon}>⭐</div>
+            <div className={styles.statValue}>{favorites.length}</div>
+            <div className={styles.statLabel}>Favoritos</div>
+          </div>
+        </div>
 
-        {/* ── ALERTAS ── */}
-        {tab === "alerts" && (
-          <div>
+        {/* Quick actions */}
+        <div className={styles.actionsRow}>
+          <Link href="/" className={styles.actionBtn}>🔍 Buscar produtos</Link>
+          <Link href="/cupons" className={`${styles.actionBtn} ${styles.actionBtnGreen}`}>🏷️ Ver cupons</Link>
+          {user.is_admin && <Link href="/admin" className={`${styles.actionBtn} ${styles.actionBtnPurple}`}>📊 Painel Admin</Link>}
+          {user.is_admin && <Link href="/afiliados" className={`${styles.actionBtn} ${styles.actionBtnYellow}`}>💰 Afiliados</Link>}
+          {user.is_admin && <Link href="/aletubegames" className={`${styles.actionBtn} ${styles.actionBtnRed}`}>📹 AleTube</Link>}
+        </div>
+
+        {/* Two columns: alerts + favorites */}
+        <div className={styles.twoCol}>
+          {/* Alertas */}
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>🔔 Meus Alertas</div>
+              <Link href="/" className={styles.cardLink}>+ Criar</Link>
+            </div>
+
             {activeAlerts.length === 0 && triggeredAlerts.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "#475569" }}>
-                <p style={{ fontSize: 40, marginBottom: 12 }}>🔔</p>
-                <p style={{ fontSize: 15, marginBottom: 8, color: "#4a4a6a" }}>Nenhum alerta criado ainda.</p>
-                <p style={{ fontSize: 13, marginBottom: 24 }}>Busque um produto e clique em "Criar alerta de preço".</p>
-                <Link href="/" style={{ padding: "11px 24px", borderRadius: 10, background: "#7c6aff", color: "#1a1a2e", textDecoration: "none", fontWeight: 700 }}>
-                  Buscar produtos →
-                </Link>
+              <div className={styles.emptyState}>
+                <div className={styles.emptyIcon}>🔔</div>
+                <p className={styles.emptyText}>Nenhum alerta criado ainda.</p>
+                <p className={styles.emptySub}>Busque um produto e clique em "Criar alerta de preço".</p>
+                <Link href="/" className={styles.emptyBtn}>Buscar produtos →</Link>
               </div>
             ) : (
-              <>
+              <div className={styles.list}>
                 {activeAlerts.length > 0 && (
-                  <section style={{ marginBottom: 28 }}>
-                    <h2 style={sectionLabel}>Aguardando preço cair</h2>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {activeAlerts.map(a => <AlertCard key={a.id} alert={a} onDelete={deleteAlert} />)}
-                    </div>
-                  </section>
+                  <div className={styles.listSection}>
+                    <div className={styles.listSectionLabel}>Aguardando preço cair</div>
+                    {activeAlerts.map(a => (
+                      <AlertRow key={a.id} alert={a} onDelete={deleteAlert} />
+                    ))}
+                  </div>
                 )}
                 {triggeredAlerts.length > 0 && (
-                  <section>
-                    <h2 style={{ ...sectionLabel, color: "#00e5a0" }}>✅ Disparados — preço atingiu o alvo</h2>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {triggeredAlerts.map(a => <AlertCard key={a.id} alert={a} onDelete={deleteAlert} triggered />)}
-                    </div>
-                  </section>
+                  <div className={styles.listSection}>
+                    <div className={styles.listSectionLabel} style={{ color: "var(--grn)" }}>✅ Disparados</div>
+                    {triggeredAlerts.map(a => (
+                      <AlertRow key={a.id} alert={a} onDelete={deleteAlert} triggered />
+                    ))}
+                  </div>
                 )}
-              </>
+              </div>
             )}
           </div>
-        )}
 
-        {/* ── CONTA ── */}
-        {tab === "account" && (
-          <div style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 16, padding: 28, maxWidth: 440 }}>
-            {[
-              { label: "Nome",          value: user?.name },
-              { label: "E-mail",        value: user?.email },
-              { label: "Tipo de conta", value: user?.is_admin ? "👑 Administrador" : "👤 Usuário", highlight: true },
-            ].map(f => (
-              <div key={f.label} style={{ marginBottom: 20 }}>
-                <label style={labelStyle}>{f.label}</label>
-                <p style={{ color: f.highlight ? (user?.is_admin ? "#fbbf24" : "#7c6aff") : "#fff", fontSize: 15, fontWeight: f.highlight ? 700 : 400 }}>
-                  {f.value}
-                </p>
+          {/* Favoritos */}
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>⭐ Meus Favoritos</div>
+            </div>
+            {favorites.length === 0 ? (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyIcon}>⭐</div>
+                <p className={styles.emptyText}>Nenhum favorito ainda.</p>
+                <p className={styles.emptySub}>Clique no ❤ ao lado de um produto para salvá-lo.</p>
+                <Link href="/" className={styles.emptyBtn}>Explorar produtos →</Link>
               </div>
-            ))}
-            <button onClick={logout} style={{ padding: "11px 24px", borderRadius: 10, background: "rgba(244,63,94,.1)", border: "1px solid rgba(244,63,94,.3)", color: "#f43f5e", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
-              Sair da conta
-            </button>
+            ) : (
+              <div className={styles.list}>
+                {favorites.map(f => (
+                  <div key={f.id} className={styles.favRow}>
+                    <Link href={`/produto/${f.product_id}`} className={styles.favLink}>
+                      Ver produto
+                    </Link>
+                    <span className={styles.favDate}>Salvo em {fmtDate(f.created_at)}</span>
+                    <button onClick={() => removeFavorite(f.id)} className={styles.favRemove}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Account info */}
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>👤 Minha Conta</div>
+            <Link href="/perfil" className={styles.cardLink}>Editar →</Link>
+          </div>
+          <div className={styles.accountGrid}>
+            <div className={styles.accountField}>
+              <div className={styles.accountLabel}>Nome</div>
+              <div className={styles.accountValue}>{user.name}</div>
+            </div>
+            <div className={styles.accountField}>
+              <div className={styles.accountLabel}>E-mail</div>
+              <div className={styles.accountValue}>{user.email}</div>
+            </div>
+            <div className={styles.accountField}>
+              <div className={styles.accountLabel}>Tipo de conta</div>
+              <div className={styles.accountValue}>
+                <span className={`${styles.tag} ${user.is_admin ? styles.tagPurple : styles.tagBlue}`}>
+                  {user.is_admin ? "👑 Administrador" : "👤 Usuário"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   )
 }
 
-// ── Sub-componentes ──────────────────────────────────────────────────────────
-
-function AlertCard({ alert, onDelete, triggered }: { alert: Alert; onDelete: (id: string) => void; triggered?: boolean }) {
+function AlertRow({ alert, onDelete, triggered }: { alert: Alert; onDelete: (id: string) => void; triggered?: boolean }) {
   return (
-    <div style={{
-      background: "#ffffff",
-      border: `1px solid ${triggered ? "rgba(0,229,160,0.2)" : "rgba(124,106,255,0.15)"}`,
-      borderRadius: 12, padding: "14px 18px",
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-    }}>
-      <div style={{ flex: 1 }}>
-        <p style={{ color: "#1a1a2e", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{alert.query}</p>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <p style={{ color: triggered ? "#00e5a0" : "#a78bfa", fontSize: 12 }}>
+    <div className={`${styles.alertRow} ${triggered ? styles.alertRowTriggered : ""}`}>
+      <div className={styles.alertInfo}>
+        <p className={styles.alertQuery}>{alert.query}</p>
+        <div className={styles.alertMeta}>
+          <span style={{ color: triggered ? "var(--grn)" : "var(--acc)" }}>
             Alvo: R$ {fmt(alert.target_price)}{triggered && " — ✅ Disparado!"}
-          </p>
-          <p style={{ color: "#334155", fontSize: 11 }}>
-            Criado {new Date(alert.created_at).toLocaleDateString("pt-BR")}
-          </p>
+          </span>
+          <span className={styles.alertDate}>Criado {fmtDate(alert.created_at)}</span>
         </div>
       </div>
       {!triggered && (
-        <button onClick={() => onDelete(alert.id)} style={{
-          padding: "7px 14px", borderRadius: 8,
-          background: "rgba(244,63,94,.08)", border: "1px solid rgba(244,63,94,.2)",
-          color: "#f43f5e", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0,
-        }}>
-          Remover
-        </button>
+        <button onClick={() => onDelete(alert.id)} className={styles.alertDelete}>Remover</button>
       )}
     </div>
   )
-}
-
-const sectionLabel: React.CSSProperties = {
-  color: "#6b6b8a", fontSize: 11, fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 12,
-}
-
-const labelStyle: React.CSSProperties = {
-  color: "#475569", fontSize: 11, fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 4, display: "block",
 }

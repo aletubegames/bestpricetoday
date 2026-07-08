@@ -33,7 +33,7 @@ async def get_cached(key: str) -> Optional[Any]:
     return None
 
 
-async def set_cached(key: str, value: Any, ttl: int = None) -> None:
+async def set_cached(key: str, value: Any, ttl: Optional[int] = None) -> None:
     try:
         r = await get_redis()
         ttl = ttl or settings.CACHE_TTL

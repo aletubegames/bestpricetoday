@@ -10,39 +10,6 @@
   flex-direction: column;
 }
 
-.header {
-  border-bottom: 1px solid rgba(108, 92, 231, 0.12);
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-}
-
-.headerInner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.logo {
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 20px;
-  font-weight: 800;
-}
-
-.logoBest {
-  color: #1a1a2e;
-}
-
-.logoAccent {
-  color: #7c6aff;
-}
-
 .safeBadge {
   display: inline-flex;
   align-items: center;
@@ -234,31 +201,91 @@
   margin-top: 8px;
 }
 
+.couponBox {
+  background: linear-gradient(135deg, rgba(225,29,72,.08), rgba(225,29,72,.04));
+  border: 1px solid rgba(225,29,72,.2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.couponIcon { font-size: 24px; }
+
+.couponInfo { flex: 1; }
+
+.couponTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e11d48;
+  margin: 0;
+}
+
+.couponCode {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+.couponCode strong {
+  color: #e11d48;
+  font-family: monospace;
+}
+
+.trustBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.trustBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f8f9ff;
+  border: 1px solid rgba(108, 92, 231, 0.12);
+  padding: 5px 10px;
+  border-radius: 99px;
+}
+
 .cta {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: linear-gradient(135deg, #7c6aff, #a78bfa);
-  color: #fff;
+  width: 100%;
   font-size: 16px;
   font-weight: 800;
-  padding: 16px 28px;
+  padding: 18px 28px;
   border-radius: 14px;
   text-decoration: none;
   text-align: center;
-  margin-bottom: 20px;
-  box-shadow: 0 8px 24px rgba(124, 106, 255, 0.25);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  margin-bottom: 10px;
+  box-shadow: 0 8px 24px rgba(26, 26, 46, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .cta:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(124, 106, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(26, 26, 46, 0.16);
+  filter: brightness(1.05);
 }
 
 .cta:active {
   transform: translateY(0);
+}
+
+.ctaMicrocopy {
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 14px 0;
 }
 
 .ctaSecondary {
@@ -282,7 +309,41 @@
   background: #f8f9ff;
   border-radius: 10px;
   border: 1px solid rgba(124, 106, 255, 0.08);
-  margin: 0;
+  margin: 0 0 12px 0;
+}
+
+.reportBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 0;
+  align-self: flex-start;
+}
+
+.historyCard {
+  background: #ffffff;
+  border: 1px solid rgba(124, 106, 255, 0.15);
+  border-radius: 20px;
+  padding: 28px 32px;
+  margin-top: 24px;
+  box-shadow: 0 10px 40px rgba(26, 26, 46, 0.06);
+}
+
+@media (max-width: 640px) {
+  .historyCard {
+    padding: 20px 20px;
+    border-radius: 16px;
+  }
+}
+
+.historyTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin: 0 0 20px 0;
 }
 
 .footer {

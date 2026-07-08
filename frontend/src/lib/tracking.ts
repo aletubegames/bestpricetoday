@@ -1,5 +1,6 @@
 import type { Offer } from "@/types";
 import { API_BASE } from "@/lib/api";
+import { trackClickOffer } from "@/lib/analytics";
 
 export const trackClick = (offer: Offer) => {
   fetch(`${API_BASE}/api/v1/clicks`, {
@@ -15,6 +16,13 @@ export const trackClick = (offer: Offer) => {
     }),
   }).catch((error: unknown) => {
     console.warn("Click tracking failed:", error);
+  });
+  // GA4 + Meta Pixel
+  trackClickOffer({
+    provider: offer.provider,
+    product_title: offer.title,
+    price: offer.final_price ?? undefined,
+    source: "web",
   });
 };
 

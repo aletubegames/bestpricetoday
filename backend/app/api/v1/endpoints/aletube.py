@@ -23,7 +23,7 @@ import re
 import subprocess
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,12 +63,16 @@ def _get_public_video_url(video_id: str) -> str:
 async def _extract_video_metadata(file_path: str) -> dict:
     """Extrai duração, resolução e fps com ffprobe."""
     try:
-        result = subprocess.run(
-            [
-                "ffprobe", "-v", "quiet", "-print_format", "json",
-                "-show_streams", "-show_format", file_path
-            ],
-            capture_output=True, text=True, timeout=30
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(
+                [
+                    "ffprobe", "-v", "quiet", "-print_format", "json",
+                    "-show_streams", "-show_format", file_path
+                ],
+                capture_output=True, text=True, timeout=30
+            )
         )
         if result.returncode != 0:
             return {"duration_seconds": 0, "width": 0, "height": 0, "fps": 0}
@@ -263,7 +267,10 @@ async def _generate_platform_content(
     frames: list[bytes] = []
     if file_path and settings.OPENROUTER_API_KEY:
         try:
-            frames = _extract_keyframes(file_path, duration_seconds, count=4)
+            loop = asyncio.get_event_loop()
+            frames = await loop.run_in_executor(
+                None, _extract_keyframes, file_path, duration_seconds, 4
+            )
             log.info("aletube analyze: extraídos %d frames de %s", len(frames), filename)
         except Exception as exc:  # noqa: BLE001
             log.warning("aletube extract frames falhou: %s", exc)
@@ -433,9 +440,6 @@ async def auth_facebook():
 async def test_facebook_credentials():
     """Testa se as credenciais Facebook estão corretas"""
     try:
-        import httpx
-        from app.core.config import settings
-        
         log.info("Testando credenciais Facebook...")
         log.info(f"App ID: {settings.ID_APLICATIVO_FACEBOOK}")
         log.info(f"App Secret: {settings.FACEBOOK_APP_SECRET[:10]}..." if settings.FACEBOOK_APP_SECRET else "Secret não configurado")
@@ -466,7 +470,6 @@ async def test_facebook_credentials():
 async def test_facebook_connectivity():
     """Testa conectividade com a API do Facebook"""
     try:
-        import httpx
         log.info("Testando conectividade com Facebook API...")
         
         # Teste simples: fazer uma requisição para a API do Facebook

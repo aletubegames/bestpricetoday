@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import { API_BASE as API, apiFetch } from "@/lib/api";
@@ -7,7 +7,6 @@ import { logger } from "@/lib/logger";
 import { isTokenExpired } from "@/lib/utils";
 import styles from "./page.module.css";
 
-const PROVIDERS = ["aliexpress", "shopee", "mercadolivre", "amazon", "lomadee", "awin"];
 const PROVIDER_COLORS: Record<string, string> = {
   aliexpress: "#f43f5e", shopee: "#f87171", mercadolivre: "#facc15",
   amazon: "#fb923c", lomadee: "#c084fc", awin: "#60a5fa", tiktok: "#ff0050",
@@ -17,685 +16,274 @@ const PROVIDER_EMOJI: Record<string, string> = {
   aliexpress: "🔴", shopee: "🟠", mercadolivre: "🟡", amazon: "📦", lomadee: "🟣", awin: "🔵"
 };
 
-const S = {
-  card: { background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 14, padding: "20px 24px" } as React.CSSProperties,
-  label: { color: "#6b6b8a", fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 6 } as React.CSSProperties,
-  bigValue: { color: "#1a1a2e", fontSize: 32, fontWeight: 800, lineHeight: 1 } as React.CSSProperties,
-  th: { padding: "10px 12px", textAlign: "left" as const, color: "#6b6b8a", fontSize: 12, fontWeight: 600, borderBottom: "1px solid rgba(108,92,231,0.2)", cursor: "pointer", userSelect: "none" as const } as React.CSSProperties,
-  td: { padding: "10px 12px", fontSize: 13, borderBottom: "1px solid rgba(108,92,231,0.1)" } as React.CSSProperties,
-};
-
 type IntegrationStatusEntry = { status?: string; expires_in_minutes?: number };
 type IntegrationStatus = Record<string, IntegrationStatusEntry>;
-type AnalyticsData = Record<string, Record<string, number>>;
 
 interface AdminOverview {
-  total_clicks_today?: number;
-  total_clicks_week?: number;
-  total_clicks_month?: number;
-  total_conversions?: number;
-  total_revenue?: number;
-  total_commission?: number;
-  conversion_rate?: number;
-  revenue_per_click?: number;
-  revenue_by_provider?: Record<string, number>;
+  total_clicks_today?: number; total_clicks_week?: number; total_clicks_month?: number;
+  total_conversions?: number; total_revenue?: number; total_commission?: number;
+  conversion_rate?: number; revenue_per_click?: number; revenue_by_provider?: Record<string, number>;
 }
-
 interface MarketplaceRow {
-  provider: string;
-  clicks?: number;
-  conversions?: number;
-  conversion_rate?: number;
-  revenue?: number;
-  commission?: number;
-  avg_price?: number;
+  provider: string; clicks?: number; conversions?: number; conversion_rate?: number;
+  revenue?: number; commission?: number; avg_price?: number;
   [key: string]: string | number | undefined;
 }
-
 interface TrafficRow { source: string; clicks?: number; percentage?: number }
 interface AdminProduct { product_title?: string; provider?: string; clicks?: number; price?: number; discount?: number; discount_percent?: number; badge?: string }
 interface RecentClick { clicked_at?: string; provider?: string; product_title?: string; price?: number; source?: string; ip_address?: string }
 interface RecentConversion { converted_at?: string; created_at?: string; provider?: string; product_title?: string; sale_value?: number; sale_price?: number; commission?: number; commission_value?: number; status?: string }
 interface TikTokAdminAccount { connected?: boolean; avatar_url?: string; display_name?: string; is_verified?: boolean }
 interface AdminListResponse<T> { items?: T[] }
-interface AnalyticsResponse { data?: AnalyticsData }
-
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return await response.json() as T;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function getSortableNumber(row: MarketplaceRow, key: string): number {
-  const value = row[key];
-  return typeof value === "number" ? value : Number(value || 0);
-}
+interface AnalyticsResponse { data?: Record<string, Record<string, number>> }
 
 function fmtBRL(v: number) { return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function fmtTime(iso?: string) {
   if (!iso) return "-";
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
-function fmtPct(n: number, d: number) { return d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "0%"; }
-
-function getIntegrations(integrationStatus: IntegrationStatus) {
-  const ml = integrationStatus?.mercadolivre || {};
-  const ali = integrationStatus?.aliexpress || {};
-  const shopee = integrationStatus?.shopee || {};
-  const lomadee = integrationStatus?.lomadee || {};
-  return [
-    { name: "AliExpress", icon: "🔴", status: ali.status === "active" ? "✅" : "⚠️", statusText: ali.status === "active" ? "Ativo" : "Sem credencial", color: ali.status === "active" ? "#4ade80" : "#facc15" },
-    { name: "Shopee", icon: "🟠", status: shopee.status === "active" ? "✅" : "⚠️", statusText: shopee.status === "active" ? "Ativo" : "Sem credencial", color: shopee.status === "active" ? "#4ade80" : "#facc15" },
-    { name: "Mercado Livre", icon: "🟡", status: ml.status === "active" ? "✅" : ml.status === "expiring_soon" ? "⏰" : "❌", statusText: ml.status === "active" ? `Ativo (${ml.expires_in_minutes ?? "?"}min)` : ml.status === "expiring_soon" ? "Expirando em breve" : "Bloqueado (403)", color: ml.status === "active" ? "#4ade80" : ml.status === "expiring_soon" ? "#fbbf24" : "#f43f5e" },
-    { name: "Amazon", icon: "📦", status: "⚠️", statusText: "Sem credencial", color: "#facc15" },
-    { name: "Lomadee", icon: "🟣", status: lomadee.status === "active" ? "✅" : "⚠️", statusText: lomadee.status === "active" ? "Ativo" : "Sem credencial", color: lomadee.status === "active" ? "#4ade80" : "#facc15" },
-    { name: "TikTok Shop", icon: "🎵", status: "🔄", statusText: "Em revisão", color: "#60a5fa" },
-  ];
+function getSortableNumber(row: MarketplaceRow, key: string): number {
+  const value = row[key];
+  return typeof value === "number" ? value : Number(value || 0);
+}
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
-// ─── Formatos de vídeo disponíveis ───────────────────────────────────────────
+// ─── Video formats ──────────────────────────────────────────────────────────
 const VIDEO_FORMATS = [
-  { id: "oferta_choque",    label: "Oferta Relâmpago",  emoji: "⚡", desc: "Preço + desconto + call-to-action direto" },
-  { id: "vs",              label: "VS Comparativo",     emoji: "⚔️", desc: "Marca conhecida vs importada" },
-  { id: "ultima_chance",   label: "Última Chance",      emoji: "⏳", desc: "Escassez + urgência para fechar venda" },
-  { id: "wan21_cinematic", label: "Cinema Rápido",      emoji: "🎥", desc: "Wan2.2 IA ~2min, vídeo automático" },
-  { id: "hybrid_cinema",   label: "Cinema Pro 4K ⭐",   emoji: "🎬", desc: "Wan2.2 + RIFE 2x + Upscale 4K ~5min" },
+  { id: "oferta_choque", label: "Oferta Relâmpago", emoji: "⚡", desc: "Preço + desconto + call-to-action direto" },
+  { id: "vs", label: "VS Comparativo", emoji: "⚔️", desc: "Marca conhecida vs importada" },
+  { id: "ultima_chance", label: "Última Chance", emoji: "⏳", desc: "Escassez + urgência para fechar venda" },
 ];
-
-// ─── Configurações de modelo de vídeo ────────────────────────────────────────
-type VideoModelConfig = {
-  baseModel:   "i2v" | "t2v" | "none";
-  refinement: "i2v" | "hunyuan" | "none";
-  upscale:    "4K" | "2K" | "none";
-  rife:       "4x" | "2x" | "none";
-  quality:    "max" | "high" | "fast";
-};
-
-// Presets de qualidade com ícones e descrições
-const QUALITY_PRESETS: { id: string; label: string; emoji: string; config: VideoModelConfig; desc: string }[] = [
-  { id: "cinema_pro",  label: "Cinema Pro",  emoji: "🔭", config: { baseModel: "t2v", refinement: "none", upscale: "4K", rife: "2x", quality: "max" },  desc: "81f / 20 steps / RIFE 2x / 4K — máxima qualidade" },
-  { id: "cinema_fast", label: "Cinema Fast", emoji: "🎬", config: { baseModel: "t2v", refinement: "none", upscale: "4K", rife: "2x", quality: "high" }, desc: "49f / 16 steps / RIFE 2x / 4K — equilíbrio qualidade⧸velocidade" },
-  { id: "viral_turbo", label: "Viral Turbo", emoji: "⚡", config: { baseModel: "t2v", refinement: "none", upscale: "none", rife: "2x", quality: "fast" }, desc: "33f / 12 steps / RIFE 2x — ultra rápido ~2min" },
-  { id: "estatico",    label: "Estático",    emoji: "📸", config: { baseModel: "none", refinement: "none", upscale: "none", rife: "none", quality: "high" }, desc: "Imagem do produto + overlay — sem AI" },
-];
-
-// Mapeia formato → config de modelo (para hybrid_cinema)
-const FORMAT_MODEL_CONFIG: Record<string, VideoModelConfig> = {
-  hybrid_cinema:   { baseModel: "t2v", refinement: "none", upscale: "4K", rife: "2x", quality: "high" },
-  wan21_cinematic: { baseModel: "t2v", refinement: "none", upscale: "none", rife: "none", quality: "fast" },
-};
-
 const PLATAFORMAS = [
   { id: "telegram", label: "Telegram", emoji: "✈️", color: "#29b6f6" },
-  { id: "youtube",  label: "YouTube",  emoji: "📹", color: "#f43f5e" },
-  { id: "tiktok",   label: "TikTok",   emoji: "🎙️", color: "#ff0050" },
+  { id: "youtube", label: "YouTube", emoji: "📹", color: "#f43f5e" },
+  { id: "tiktok", label: "TikTok", emoji: "🎙️", color: "#ff0050" },
+];
+const PRODUCT_SOURCES = [
+  { id: "top_clicks", label: "🔥 Top Cliques (nosso)", desc: "Produtos mais clicados pelos usuários" },
+  { id: "trending", label: "🔍 Mais Buscados", desc: "Termos em alta no site" },
+  { id: "top_month", label: "💰 Top Vendas do Mês", desc: "Mais convertidos com comissão confirmada" },
+  { id: "high_discount", label: "🏷️ Maiores Descontos Agora", desc: "Desconto ≥ 10% sem fake discount" },
+  { id: "top_sales_aliexpress", label: "🔴 Mais Vendidos AliExpress", desc: "Hot products via API AliExpress" },
+  { id: "top_sales_shopee", label: "🟠 Mais Vendidos Shopee", desc: "Hot sale Shopee" },
+  { id: "top_sales_mercadolivre", label: "🟡 Mais Vendidos ML", desc: "Top vendas Mercado Livre" },
 ];
 
-/**
- * Sugere o melhor formato de vídeo com base nas características da oferta.
- * Retorna uma lista ordenada: [{ id, reason }]
- */
 function suggestFormats(p: AdminProduct | null | undefined): { id: string; reason: string }[] {
-  const title    = (p?.product_title || "").toLowerCase();
+  const title = (p?.product_title || "").toLowerCase();
   const discount = p?.discount_percent || 0;
-  const price    = p?.price || 0;
-  const clicks   = p?.clicks || 0;
+  const price = p?.price || 0;
+  const clicks = p?.clicks || 0;
   const suggestions: { id: string; score: number; reason: string }[] = [];
-
-  // Desconto alto → oferta choque é o mais eficaz
-  if (discount >= 30)
-    suggestions.push({ id: "oferta_choque", score: 95,
-      reason: `${discount.toFixed(0)}% OFF — desconto alto converte bem em choque` });
-  else if (discount >= 10)
-    suggestions.push({ id: "oferta_choque", score: 75,
-      reason: `${discount.toFixed(0)}% OFF — bom desconto para destaque` });
-
-  // Produto premium (preço alto) → WAN2.1 cinemático
-  if (price >= 1500)
-    suggestions.push({ id: "wan21_cinematic", score: 80,
-      reason: `R$${price.toFixed(0)} — produto premium, vídeo cinemático agrega percepção de valor` });
-
-  // Muitos cliques → já é viral, sugere Cinema Rápido (IA)
-  if (clicks >= 20)
-    suggestions.push({ id: "wan21_cinematic", score: 85,
-      reason: `${clicks} cliques — produto já tem tráfego, vídeo IA amplifica` });
-  else if (clicks >= 5)
-    suggestions.push({ id: "wan21_cinematic", score: 60,
-      reason: `${clicks} cliques — boa tracção para vídeo IA` });
-
-  // Categorias que pedem VS (marca conhecida) ou Última Chance (categorias populares)
+  if (discount >= 30) suggestions.push({ id: "oferta_choque", score: 95, reason: `${discount.toFixed(0)}% OFF — desconto alto` });
+  else if (discount >= 10) suggestions.push({ id: "oferta_choque", score: 75, reason: `${discount.toFixed(0)}% OFF — bom desconto` });
+  if (price >= 1500) suggestions.push({ id: "oferta_choque", score: 80, reason: `R$${price.toFixed(0)} — produto premium` });
+  if (clicks >= 20) suggestions.push({ id: "oferta_choque", score: 85, reason: `${clicks} cliques — produto viral` });
+  else if (clicks >= 5) suggestions.push({ id: "oferta_choque", score: 60, reason: `${clicks} cliques — boa tracção` });
   const vsTerms = ["samsung", "iphone", "apple", "xiaomi", "rtx", "amd", "intel", "dell", "lenovo"];
   const chanceTerms = ["fone", "notebook", "smartphone", "smartwatch", "tablet", "tv", "headset"];
-  if (vsTerms.some(t => title.includes(t)))
-    suggestions.push({ id: "vs", score: 72,
-      reason: "Produto de marca conhecida — VS Comparativo gera debate e engajamento" });
-  if (chanceTerms.some(t => title.includes(t)))
-    suggestions.push({ id: "ultima_chance", score: 68,
-      reason: "Categoria popular — urgência fecha a venda" });
-
-  // Preço baixo → última chance funciona bem
-  if (price < 100 && price > 0)
-    suggestions.push({ id: "ultima_chance", score: 70,
-      reason: `R$${price.toFixed(0)} — preço acessível, urgência fecha a venda` });
-
-  // Desconto moderado → oferta relâmpago
-  if (discount >= 5 && discount < 20)
-    suggestions.push({ id: "oferta_choque", score: 65,
-      reason: `${discount.toFixed(0)}% OFF — oferta relâmpago cria senso de oportunidade` });
-
-  // Sempre adiciona fallbacks
-  ["oferta_choque", "ultima_chance", "wan21_cinematic"].forEach(id => {
-    if (!suggestions.find(s => s.id === id))
-      suggestions.push({ id, score: 40, reason: "Formato genérico sempre funciona" });
+  if (vsTerms.some(t => title.includes(t))) suggestions.push({ id: "vs", score: 72, reason: "Marca conhecida — VS gera debate" });
+  if (chanceTerms.some(t => title.includes(t))) suggestions.push({ id: "ultima_chance", score: 68, reason: "Categoria popular — urgência fecha" });
+  if (price < 100 && price > 0) suggestions.push({ id: "ultima_chance", score: 70, reason: `R$${price.toFixed(0)} — preço acessível` });
+  ["oferta_choque", "ultima_chance", "vs"].forEach(id => {
+    if (!suggestions.find(s => s.id === id)) suggestions.push({ id, score: 40, reason: "Formato genérico" });
   });
-
-  return suggestions
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4)
-    .map(({ id, reason }) => ({ id, reason }));
+  return suggestions.sort((a, b) => b.score - a.score).slice(0, 4).map(({ id, reason }) => ({ id, reason }));
 }
 
-const PRODUCT_SOURCES = [
-  { id: "top_clicks",           label: "🔥 Top Cliques (nosso)",        desc: "Produtos mais clicados pelos usuários" },
-  { id: "trending",             label: "🔍 Mais Buscados",              desc: "Termos em alta no site" },
-  { id: "top_month",            label: "💰 Top Vendas do Mês",          desc: "Mais convertidos com comissão confirmada" },
-  { id: "high_discount",        label: "🏷️ Maiores Descontos Agora",  desc: "Desconto ≥ 10% sem fake discount" },
-  { id: "top_sales_aliexpress", label: "🔴 Mais Vendidos AliExpress",  desc: "Hot products via API AliExpress" },
-  { id: "top_sales_shopee",     label: "🟠 Mais Vendidos Shopee",      desc: "Hot sale Shopee" },
-  { id: "top_sales_mercadolivre", label: "🟡 Mais Vendidos ML",         desc: "Top vendas Mercado Livre" },
-];
-
+// ─── VideoPublisher component ───────────────────────────────────────────────
 function VideoPublisher({ apiBase, adminKey, topProducts }: {
-  apiBase: string;
-  adminKey: string;
-  topProducts: AdminProduct[];
+  apiBase: string; adminKey: string; topProducts: AdminProduct[];
 }) {
-  const [productSource, setProductSource]     = React.useState("top_clicks");
-  const [sourceProducts, setSourceProducts]   = React.useState<AdminProduct[]>([]);
-  const [loadingSource, setLoadingSource]     = React.useState(false);
-  const [selectedProduct, setSelectedProduct] = React.useState<AdminProduct | null>(null);
-  const [selectedFormat, setSelectedFormat]   = React.useState("oferta_choque");
-  const [modelConfig, setModelConfig] = React.useState<VideoModelConfig>(
-    { baseModel: "i2v", refinement: "i2v", upscale: "4K", rife: "2x", quality: "max" }
-  );
-  const [selectedPlats, setSelectedPlats]     = React.useState<string[]>(["telegram"]);
-  const [jobId, setJobId]   = React.useState<string | null>(null);
-  const [jobLog, setJobLog] = React.useState<string[]>([]);
+  const [productSource, setProductSource] = useState("top_clicks");
+  const [sourceProducts, setSourceProducts] = useState<AdminProduct[]>([]);
+  const [loadingSource, setLoadingSource] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState("oferta_choque");
+  const [selectedPlats, setSelectedPlats] = useState<string[]>(["telegram"]);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobLog, setJobLog] = useState<string[]>([]);
+  const [jobDone, setJobDone] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [videoApiOnline, setVideoApiOnline] = useState<boolean | null>(null);
+  const [videoApiUrl, setVideoApiUrl] = useState<string>("");
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollStartRef = useRef<number>(0);
+  const POLL_TIMEOUT = 10 * 60 * 1000;
 
-  // Carrega produtos da fonte selecionada
-  const loadSource = React.useCallback(async (src: string) => {
-    setLoadingSource(true);
-    setSelectedProduct(null);
+  const loadSource = useCallback(async (src: string) => {
+    setLoadingSource(true); setSelectedProduct(null);
     try {
-      // top_clicks usa os topProducts já carregados para não fazer request extra
-      if (src === "top_clicks") {
-        setSourceProducts(topProducts.slice(0, 10));
-      } else {
-        const r = await apiFetch(
-          `${apiBase}/api/v1/admin/products/suggestions?source=${src}&limit=10`,
-          { headers: { "X-Admin-Key": adminKey } }
-        );
+      if (src === "top_clicks") { setSourceProducts(topProducts.slice(0, 10)); }
+      else {
+        const r = await apiFetch(`${apiBase}/api/v1/admin/products/suggestions?source=${src}&limit=10`, { headers: { "X-Admin-Key": adminKey } });
         const data = await r.json();
-        setSourceProducts(Array.isArray(data) ? data as AdminProduct[] : []);
+        setSourceProducts(Array.isArray(data) ? data : []);
       }
     } catch { setSourceProducts([]); }
     setLoadingSource(false);
   }, [apiBase, adminKey, topProducts]);
 
-  // Carrega a fonte quando topProducts mudar OU quando productSource mudar
-  React.useEffect(() => { loadSource(productSource); }, [topProducts, productSource, loadSource]);
-  const [jobDone, setJobDone] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const pollRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollStartRef = React.useRef<number>(0);
-  const POLL_TIMEOUT = 10 * 60 * 1000; // 10 minutos (pipeline pode levar 8-12min)
-  const POLL_BASE_DELAY = 4000;  // começa em 4s
-  const POLL_MAX_DELAY = 30000;  // máximo 30s entre polls
+  useEffect(() => { loadSource(productSource); }, [topProducts, productSource, loadSource]);
 
-  // Sugestões dinâmicas ao selecionar produto
-  const suggestions = React.useMemo(
-    () => selectedProduct ? suggestFormats(selectedProduct) : [],
-    [selectedProduct]
-  );
+  const suggestions = useMemo(() => selectedProduct ? suggestFormats(selectedProduct) : [], [selectedProduct]);
+  useEffect(() => { if (suggestions.length > 0) setSelectedFormat(suggestions[0].id); }, [suggestions]);
 
-  // Aplica sugestão top automaticamente ao selecionar produto
-  React.useEffect(() => {
-    if (suggestions.length > 0) setSelectedFormat(suggestions[0].id);
-  }, [suggestions]);
+  const togglePlat = (id: string) => setSelectedPlats(p => (p || []).includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
-  const togglePlat = (id: string) =>
-    setSelectedPlats(p => {
-      const current = p || [];
-      return current.includes(id) ? current.filter(x => x !== id) : [...current, id];
-    });
-
-  const stopPoll = () => {
-    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
-  };
-
-    const [videoApiOnline, setVideoApiOnline] = React.useState<boolean | null>(null);
-  const [videoApiUrl, setVideoApiUrl] = React.useState<string>("");
-
-  // Busca a URL da Video API do backend e chama DIRETO do browser
-  // (sem proxy pelo HF Space — o browser admin está na mesma rede que o ngrok)
-  React.useEffect(() => {
+  useEffect(() => {
     apiFetch(`${apiBase}/api/v1/admin/video/url`, { headers: { "X-Admin-Key": adminKey } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d?.url) return;
-        const url = d.url;
-        setVideoApiUrl(url);
-        // Checar health direto do browser
-        return apiFetch(`${url}/health`)
-          .then(r => r.ok ? r.json() : null)
-          .then(h => setVideoApiOnline(!!h?.ok))
-          .catch(() => setVideoApiOnline(false));
+        setVideoApiUrl(d.url);
+        return apiFetch(`${d.url}/health`).then(r => r.ok ? r.json() : null).then(h => setVideoApiOnline(!!h?.ok)).catch(() => setVideoApiOnline(false));
       })
       .catch(() => setVideoApiOnline(false));
   }, [apiBase, adminKey]);
 
-  const pollStatus = React.useCallback((jid: string, attempt: number = 0) => {
+  const stopPoll = () => { if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; } };
+
+  const pollStatus = useCallback((jid: string) => {
     pollStartRef.current = Date.now();
-
     const doPoll = async () => {
-      const elapsed = Date.now() - pollStartRef.current;
-      if (elapsed > POLL_TIMEOUT) {
+      if (Date.now() - pollStartRef.current > POLL_TIMEOUT) {
         setJobLog(prev => [...prev, "⏰ Timeout: job demorou mais de 10 minutos."]);
-        setJobDone(true);
-        setLoading(false);
-        return;
+        setJobDone(true); setLoading(false); return;
       }
-
       let data: { ok?: boolean; log_tail?: string[]; done?: boolean; error?: string } | null = null;
-
-      // Tenta ngrok direto primeiro, fallback via HF Space
       if (videoApiUrl) {
-        try {
-          const r = await apiFetch(`${videoApiUrl}/video/status/${jid}`);
-          if (r.ok) data = await r.json();
-        } catch { /* ngrok falhou, tenta HF Space abaixo */ }
+        try { const r = await apiFetch(`${videoApiUrl}/video/status/${jid}`); if (r.ok) data = await r.json(); } catch {}
       }
-
-      // Fallback: proxy via HF Space (backend → ngrok interno)
       if (!data?.ok) {
-        try {
-          const r = await apiFetch(`${apiBase}/api/v1/admin/video/status/${jid}`, {
-            headers: { "X-Admin-Key": adminKey },
-          });
-          if (r.ok) data = await r.json();
-        } catch { /* ambos falharam */ }
+        try { const r = await apiFetch(`${apiBase}/api/v1/admin/video/status/${jid}`, { headers: { "X-Admin-Key": adminKey } }); if (r.ok) data = await r.json(); } catch {}
       }
-
       if (data?.ok) {
         setJobLog(data.log_tail || []);
-        if (data.done) {
-          setJobDone(true);
-          setLoading(false);
-          return; // para de poll
-        }
+        if (data.done) { setJobDone(true); setLoading(false); stopPoll(); return; }
+        if (data.error) { setJobLog(prev => [...prev, `❌ ${data.error}`]); setJobDone(true); setLoading(false); stopPoll(); return; }
       }
-
-      // Backoff exponencial: 4s → 5.2s → 6.8s → ... → max 30s
-      const delay = Math.min(POLL_BASE_DELAY * Math.pow(1.3, attempt), POLL_MAX_DELAY);
-      pollRef.current = setTimeout(() => pollStatus(jid, attempt + 1), delay);
+      pollRef.current = setTimeout(doPoll, 4000);
     };
-
     doPoll();
-  }, [apiBase, adminKey, videoApiUrl]);
+  }, [videoApiUrl, apiBase, adminKey]);
 
   const dispatch = async () => {
     if (!selectedPlats.length) return;
-    setLoading(true);
-    setJobId(null);
-    setJobLog([]);
-    setJobDone(false);
-    stopPoll();
-    const payload: Record<string, unknown> = {
-      query: selectedProduct?.product_title || null,
-      plataformas: selectedPlats,
-      formato: selectedFormat,
-    };
-    // Inclui config de modelos para formatos AI (wan21_cinematic, hybrid_cinema)
-    if (selectedFormat === "hybrid_cinema" || selectedFormat === "wan21_cinematic") {
-      payload.config = modelConfig;
-    }
+    setLoading(true); setJobDone(false); setJobLog([]); setJobId(null);
     try {
-      let d: { ok?: boolean; job_id?: string; pid?: number; error?: string } | null = null;
-
-      // Tenta ngrok direto primeiro
-      if (videoApiUrl) {
-        try {
-          const r = await apiFetch(`${videoApiUrl}/video/publish`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (r.ok) d = await r.json();
-        } catch { /* ngrok falhou */ }
-      }
-
-      // Fallback: HF Space proxy
-      if (!d?.ok) {
-        const r = await apiFetch(`${apiBase}/api/v1/admin/video/publish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
-          body: JSON.stringify(payload),
-        });
-        d = await r.json();
-      }
-
-      if (d?.ok) {
-        setJobId(d.job_id!);
-        setJobLog([`✅ Job ${d.job_id} iniciado (pid ${d.pid || '?'})`]);
-        setLoading(false); // loading termina — agora é só poll
-        pollStatus(d.job_id!);
-      } else {
-        setJobLog([`❌ ${d?.error || 'Erro desconhecido'}`]);
-        setLoading(false);
-      }
-    } catch (e: unknown) {
-      setJobLog([`❌ Erro: ${getErrorMessage(e)}`]);
-      setLoading(false);
+      const r = await apiFetch(`${apiBase}/api/v1/admin/video/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+        body: JSON.stringify({
+          product_title: selectedProduct?.product_title || null,
+          product_url: selectedProduct?.provider ? `https://bestpricetoday.alaserver.com.br` : null,
+          format: selectedFormat,
+          platforms: selectedPlats,
+          source: productSource,
+        }),
+      });
+      const data = await r.json();
+      if (data.job_id) { setJobId(data.job_id); pollStatus(data.job_id); }
+      else { setJobLog([`❌ ${data.error || "Falha ao iniciar job"}`]); setJobDone(true); setLoading(false); }
+    } catch (e) {
+      setJobLog([`❌ ${getErrorMessage(e)}`]); setJobDone(true); setLoading(false);
     }
   };
 
-  React.useEffect(() => () => stopPoll(), []);
-
-  const fmtBRL = (v: number) => v?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const fmt = VIDEO_FORMATS.find(f => f.id === selectedFormat);
 
   return (
-    <div style={{ marginTop: 20, borderTop: "1px solid #1e293b", paddingTop: 20 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a2e", marginBottom: 16 }}>
-        🎥 Gerar Vídeo com IA
-      </div>
+    <div className={styles.videoSection}>
+      <div className={styles.cardTitle} style={{ marginBottom: 16 }}>🎥 Gerar Vídeo com IA</div>
 
-      {/* STEP 1 — Produto */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          1. Produto
-        </div>
-
-        {/* Dropdown de fonte */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-          <select
-            value={productSource}
-            onChange={e => { setProductSource(e.target.value); loadSource(e.target.value); }}
-            style={{
-              background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8,
-              padding: "8px 12px", color: "#1a1a2e", fontSize: 12, cursor: "pointer",
-              minWidth: 220, outline: "none",
-            }}>
-            {PRODUCT_SOURCES.map(s => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
+      {/* Step 1 — Produto */}
+      <div className={styles.videoStep}>
+        <div className={styles.videoStepLabel}>1. Produto</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          <select value={productSource} onChange={e => { setProductSource(e.target.value); loadSource(e.target.value); }}
+            className={styles.pill} style={{ minWidth: 220 }}>
+            {PRODUCT_SOURCES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
-          <button
-            onClick={() => loadSource(productSource)}
-            title="Recarregar"
-            style={{ background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8,
-              padding: "7px 12px", color: "#7c6aff", cursor: "pointer", fontSize: 13 }}>
+          <button onClick={() => loadSource(productSource)} className={styles.refreshBtn} style={{ width: 32, height: 32 }}>
             {loadingSource ? "⏳" : "↻"}
           </button>
-          <span style={{ fontSize: 10, color: "#475569" }}>
-            {PRODUCT_SOURCES.find(s => s.id === productSource)?.desc}
-          </span>
+          <span style={{ fontSize: 10, color: "var(--muted)" }}>{PRODUCT_SOURCES.find(s => s.id === productSource)?.desc}</span>
         </div>
-
-        {/* Lista de produtos da fonte */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            onClick={() => setSelectedProduct(null)}
-            style={{
-              padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-              background: !selectedProduct ? "rgba(124,106,255,0.2)" : "#ffffff",
-              border: `1px solid ${!selectedProduct ? "#7c6aff" : "rgba(108,92,231,0.2)"}`,
-              color: !selectedProduct ? "#a78bfa" : "#6b6b8a",
-            }}>
-            🌟 Auto
-          </button>
-
-          {loadingSource ? (
-            <span style={{ fontSize: 11, color: "#6b6b8a", padding: "6px 0" }}>⏳ Carregando...</span>
-          ) : sourceProducts.length === 0 ? (
-            <span style={{ fontSize: 11, color: "#475569", padding: "6px 0" }}>Sem dados para esta fonte</span>
-          ) : sourceProducts.map((p, i) => {
+          <button onClick={() => setSelectedProduct(null)}
+            className={`${styles.sourceBtn} ${!selectedProduct ? styles.sourceBtnActive : ""}`}>🌟 Auto</button>
+          {loadingSource ? <span style={{ fontSize: 11, color: "var(--muted)", padding: "6px 0" }}>⏳ Carregando...</span> :
+           sourceProducts.length === 0 ? <span style={{ fontSize: 11, color: "var(--muted)", padding: "6px 0" }}>Sem dados</span> :
+           sourceProducts.map((p, i) => {
             const sel = selectedProduct?.product_title === p.product_title;
-            const badge = p.badge || "";
-            const discount = p.discount ? ` -${Math.round(p.discount)}%` : "";
             return (
-              <button key={i} onClick={() => setSelectedProduct(p)}
-                title={p.product_title}
-                style={{
-                  padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
-                  cursor: "pointer", maxWidth: 180, overflow: "hidden",
-                  textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" as const,
-                  background: sel ? "rgba(124,106,255,0.2)" : "#ffffff",
-                  border: `1px solid ${sel ? "#7c6aff" : "rgba(108,92,231,0.15)"}`,
-                  color: sel ? "#a78bfa" : "#4a4a6a",
-                }}>
+              <button key={i} onClick={() => setSelectedProduct(p)} title={p.product_title}
+                className={`${styles.sourceBtn} ${sel ? styles.sourceBtnActive : ""}`}
+                style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
                 <span style={{ fontSize: 10, opacity: 0.7 }}>#{i + 1} </span>
                 {p.product_title?.slice(0, 20) || "Produto"}
-                {p.price ? <span style={{ color: "#facc15", marginLeft: 4 }}>{fmtBRL(p.price)}</span> : null}
-                {discount ? <span style={{ color: "#4ade80", marginLeft: 3 }}>{discount}</span> : null}
+                {p.price ? <span style={{ color: "var(--ylw)", marginLeft: 4 }}>{fmtBRL(p.price)}</span> : null}
               </button>
             );
           })}
         </div>
-
-        {/* Produto selecionado */}
         {selectedProduct && (
-          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 11, color: "#7c6aff", background: "rgba(124,106,255,0.08)",
-              borderRadius: 6, padding: "4px 10px" }}>
-              ✔ {selectedProduct.product_title?.slice(0, 60)}
-            </div>
-            {selectedProduct.badge && (
-              <div style={{ fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.1)",
-                borderRadius: 6, padding: "3px 8px" }}>
-                {selectedProduct.badge}
-              </div>
-            )}
-            {(selectedProduct.discount ?? 0) >= 10 && (
-              <div style={{ fontSize: 10, color: "#4ade80", background: "rgba(74,222,128,0.1)",
-                borderRadius: 6, padding: "3px 8px" }}>
-                -{Math.round(selectedProduct.discount ?? 0)}% OFF
-              </div>
-            )}
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span className={styles.tag + " " + styles.tagPurple}>✔ {selectedProduct.product_title?.slice(0, 60)}</span>
+            {selectedProduct.badge && <span className={styles.tag + " " + styles.tagYellow}>{selectedProduct.badge}</span>}
+            {(selectedProduct.discount ?? 0) >= 10 && <span className={styles.tag + " " + styles.tagGreen}>-{Math.round(selectedProduct.discount ?? 0)}% OFF</span>}
           </div>
         )}
       </div>
 
-      {/* STEP 2 — Formato */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          2. Formato do vídeo
-        </div>
-
-        {/* Sugestões inteligentes — aparecem só quando um produto foi selecionado */}
+      {/* Step 2 — Formato */}
+      <div className={styles.videoStep}>
+        <div className={styles.videoStepLabel}>2. Formato do vídeo</div>
         {suggestions.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: "#fbbf24", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
-              ✨ Sugerido para este produto
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: "var(--ylw)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>✨ Sugerido</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {suggestions.map((s, i) => {
-                const fmt = VIDEO_FORMATS.find(f => f.id === s.id);
-                if (!fmt) return null;
-                const isSel = selectedFormat === s.id;
+                const f = VIDEO_FORMATS.find(x => x.id === s.id); if (!f) return null;
+                const sel = selectedFormat === s.id;
                 return (
-                  <button key={s.id} onClick={() => setSelectedFormat(s.id)}
-                    title={s.reason}
-                    style={{
-                      padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700,
-                      cursor: "pointer", transition: "all .15s",
-                      background: isSel ? "rgba(251,191,36,0.18)" : "rgba(251,191,36,0.06)",
-                      border: `2px solid ${isSel ? "#fbbf24" : "rgba(251,191,36,0.3)"}`,
-                      color: isSel ? "#fbbf24" : "#4a4a6a",
-                      position: "relative" as const,
-                    }}>
-                    {i === 0 && <span style={{ position: "absolute", top: -8, right: -6, fontSize: 9, background: "#fbbf24", color: "#000", borderRadius: 4, padding: "1px 4px", fontWeight: 800 }}>TOP</span>}
-                    {fmt.emoji} {fmt.label}
-                    <div style={{ fontSize: 9, color: isSel ? "#fbbf24" : "#6b6b8a", marginTop: 2, maxWidth: 140, lineHeight: 1.3 }}>{s.reason}</div>
+                  <button key={s.id} onClick={() => setSelectedFormat(s.id)} title={s.reason}
+                    className={`${styles.formatCard} ${sel ? styles.formatCardActive : ""}`}
+                    style={{ position: "relative", marginBottom: 6, maxWidth: 180 }}>
+                    {i === 0 && <span style={{ position: "absolute", top: -8, right: -6, fontSize: 9, background: "var(--ylw)", color: "#000", borderRadius: 4, padding: "1px 4px", fontWeight: 800 }}>TOP</span>}
+                    <div className={styles.formatCardTitle}>{f.emoji} {f.label}</div>
+                    <div className={styles.formatCardDesc}>{s.reason}</div>
                   </button>
                 );
               })}
             </div>
           </div>
         )}
-
-        {/* Todos os formatos */}
-        <div style={{ fontSize: 10, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
-          {suggestions.length > 0 ? "Ou escolha manualmente" : "Escolha o formato"}
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {VIDEO_FORMATS.map(f => {
-            const isSuggested = suggestions.some(s => s.id === f.id);
-            const isSel = selectedFormat === f.id;
+            const sel = selectedFormat === f.id;
             return (
-              <button key={f.id} onClick={() => setSelectedFormat(f.id)}
-                title={f.desc}
-                style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                  background: isSel ? "rgba(124,106,255,0.2)" : "#ffffff",
-                  border: `1px solid ${isSel ? "#7c6aff" : isSuggested ? "rgba(251,191,36,0.3)" : "rgba(108,92,231,0.2)"}`,
-                  color: isSel ? "#a78bfa" : isSuggested ? "#fbbf24" : "#4a4a6a",
-                  opacity: isSuggested ? 1 : 0.7,
-                }}>
-                {f.emoji} {f.label}
-              </button>
+              <button key={f.id} onClick={() => setSelectedFormat(f.id)} title={f.desc}
+                className={`${styles.sourceBtn} ${sel ? styles.sourceBtnActive : ""}`}>{f.emoji} {f.label}</button>
             );
           })}
         </div>
-        {fmt && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "#6b6b8a" }}>
-            {fmt.emoji} <em>{fmt.desc}</em>
-            {fmt.id === "wan21_cinematic" && (
-              <span style={{ color: "#fbbf24", marginLeft: 6 }}>⚠️ Requer GPU local — pode demorar 2-5 min</span>
-            )}
-          </div>
-        )}
-
-        {/* Configuração de modelos (apenas para formatos AI) */}
-        {(selectedFormat === "hybrid_cinema" || selectedFormat === "wan21_cinematic") && (
-          <div style={{ marginTop: 12, padding: "12px 16px", background: "rgba(124,106,255,0.04)", borderRadius: 12, border: "1px solid rgba(124,106,255,0.12)" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
-              ⚙️ Pipeline de IA
-            </div>
-
-            {/* Presets rápidos */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-              {QUALITY_PRESETS.map(p => {
-                const active = JSON.stringify(modelConfig) === JSON.stringify(p.config);
-                return (
-                  <button key={p.id} onClick={() => setModelConfig(p.config)}
-                    title={p.desc}
-                    style={{
-                      padding: "5px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
-                      background: active ? "rgba(124,106,255,0.2)" : "rgba(124,106,255,0.05)",
-                      border: `1px solid ${active ? "#7c6aff" : "rgba(124,106,255,0.2)"}`,
-                      color: active ? "#c4b5fd" : "#6b6b8a",
-                    }}>
-                    {p.emoji} {p.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Controles finos */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {/* Modelo Base */}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Modelo Base (S1)</div>
-                <select value={modelConfig.baseModel}
-                  onChange={e => setModelConfig({ ...modelConfig, baseModel: e.target.value as VideoModelConfig["baseModel"] })}
-                  style={{ width: "100%", fontSize: 10, padding: "4px 8px", background: "#111", color: "#e2e8f0", border: "1px solid #333", borderRadius: 6 }}>
-                  <option value="i2v">🎯 I2V (imagem→vídeo, ~12GB, recomendado)</option>
-                  <option value="t2v">🎥 T2V (texto→vídeo, ~20GB, pode OOM)</option>
-                  <option value="none">📸 Estático (sem AI, imagem + overlay)</option>
-                </select>
-              </div>
-              {/* Refinamento */}
-              <div>
-                <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Refinamento</div>
-                <select value={modelConfig.refinement}
-                  onChange={e => setModelConfig({ ...modelConfig, refinement: e.target.value as VideoModelConfig["refinement"] })}
-                  style={{ width: "100%", fontSize: 10, padding: "4px 8px", background: "#111", color: "#e2e8f0", border: "1px solid #333", borderRadius: 6 }}>
-                  <option value="i2v">Wan2.1 I2V (recomendado)</option>
-                  <option value="hunyuan">HunyuanVideo (alta qualidade)</option>
-                  <option value="none">Nenhum (mais rápido)</option>
-                </select>
-              </div>
-              {/* Upscale */}
-              <div>
-                <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Upscale</div>
-                <select value={modelConfig.upscale}
-                  onChange={e => setModelConfig({ ...modelConfig, upscale: e.target.value as VideoModelConfig["upscale"] })}
-                  style={{ width: "100%", fontSize: 10, padding: "4px 8px", background: "#111", color: "#e2e8f0", border: "1px solid #333", borderRadius: 6 }}>
-                  <option value="4K">Real-ESRGAN 4K</option>
-                  <option value="2K">Lanczos 2K (rápido)</option>
-                  <option value="none">Sem upscale</option>
-                </select>
-              </div>
-              {/* RIFE */}
-              <div>
-                <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Interpolação</div>
-                <select value={modelConfig.rife}
-                  onChange={e => setModelConfig({ ...modelConfig, rife: e.target.value as VideoModelConfig["rife"] })}
-                  style={{ width: "100%", fontSize: 10, padding: "4px 8px", background: "#111", color: "#e2e8f0", border: "1px solid #333", borderRadius: 6 }}>
-                  <option value="2x">RIFE 2x (recomendado)</option>
-                  <option value="4x">RIFE 4x (ultra fluido)</option>
-                  <option value="none">Sem interpolação</option>
-                </select>
-              </div>
-              {/* Qualidade */}
-              <div>
-                <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 3 }}>Qualidade</div>
-                <select value={modelConfig.quality}
-                  onChange={e => setModelConfig({ ...modelConfig, quality: e.target.value as VideoModelConfig["quality"] })}
-                  style={{ width: "100%", fontSize: 10, padding: "4px 8px", background: "#111", color: "#e2e8f0", border: "1px solid #333", borderRadius: 6 }}>
-                  <option value="max">Máxima (49f, 20s, lento)</option>
-                  <option value="high">Alta (33f, 16s)</option>
-                  <option value="fast">Rápida (17f, 12s)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Resumo do pipeline */}
-            <div style={{ marginTop: 10, fontSize: 9, color: "#475569", fontFamily: "monospace" }}>
-              Pipeline: {modelConfig.baseModel === "i2v" ? "Wan I2V" : modelConfig.baseModel === "t2v" ? "Wan T2V" : "Imagem estática"}
-              {modelConfig.refinement !== "none" && ` → ${modelConfig.refinement === "hunyuan" ? "HunyuanVideo" : "Wan I2V"}`}
-              {modelConfig.rife !== "none" && ` → RIFE ${modelConfig.rife}`}
-              {modelConfig.upscale !== "none" && ` → ${modelConfig.upscale}`}
-              {" → Overlay"}
-              <span style={{ marginLeft: 8, color: "#fbbf24" }}>
-                ~{modelConfig.quality === "max" ? "6-10" : modelConfig.quality === "high" ? "4-6" : "2-4"}min
-              </span>
-            </div>
-          </div>
-        )}
+        {fmt && <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>{fmt.emoji} <em>{fmt.desc}</em></div>}
       </div>
 
-      {/* STEP 3 — Plataformas */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b8a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          3. Publicar em
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
+      {/* Step 3 — Plataformas */}
+      <div className={styles.videoStep}>
+        <div className={styles.videoStepLabel}>3. Publicar em</div>
+        <div className={styles.platformCheck}>
           {PLATAFORMAS.map(p => {
             const on = selectedPlats.includes(p.id);
             return (
               <button key={p.id} onClick={() => togglePlat(p.id)}
-                style={{
-                  padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  background: on ? `${p.color}20` : "#ffffff",
-                  border: `2px solid ${on ? p.color : "rgba(108,92,231,0.2)"}`,
-                  color: on ? p.color : "#6b6b8a",
-                  transition: "all .15s",
-                }}>
+                className={`${styles.platformChip} ${on ? styles.platformChipActive : ""}`}
+                style={on ? { borderColor: p.color, color: p.color, background: p.color + "10" } : {}}>
                 {p.emoji} {p.label} {on ? "✔" : ""}
               </button>
             );
@@ -703,61 +291,42 @@ function VideoPublisher({ apiBase, adminKey, topProducts }: {
         </div>
       </div>
 
-      {/* DISPATCH */}
-      <div style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8, fontSize: 11,
-        background: videoApiOnline ? "rgba(74,222,128,0.06)" : "rgba(251,191,36,0.06)",
-        border: `1px solid ${videoApiOnline ? "rgba(74,222,128,0.25)" : "rgba(251,191,36,0.2)"}`,
-        color: videoApiOnline ? "#4ade80" : "#fbbf24",
-        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap"
-      }}>
-        {videoApiOnline === null && <span>🔍 Verificando Video API...</span>}
-        {videoApiOnline === true  && <span>✅ Video API online — GPU pronta para gerar vídeos</span>}
-        {videoApiOnline === false && (
-          <span>
-            ⚠️ Video API offline. Na máquina local:
-            <code style={{ background: "rgba(0,0,0,0.4)", padding: "1px 6px", borderRadius: 3, marginLeft: 6 }}>
-              cd ~/wan2 &amp;&amp; python video_api.py
-            </code>
-            {" "}e configure <code style={{ background: "rgba(0,0,0,0.4)", padding: "1px 6px", borderRadius: 3 }}>VIDEO_API_URL</code> no HF Space.
-          </span>
-        )}
+      {/* Status Video API */}
+      <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 8, fontSize: 11,
+        background: videoApiOnline ? "rgba(0,184,148,0.06)" : "rgba(245,158,11,0.06)",
+        border: `1px solid ${videoApiOnline ? "rgba(0,184,148,0.25)" : "rgba(245,158,11,0.2)"}`,
+        color: videoApiOnline ? "var(--grn)" : "var(--ylw)" }}>
+        {videoApiOnline === null && "🔍 Verificando Video API..."}
+        {videoApiOnline === true && "✅ Video API online — GPU pronta"}
+        {videoApiOnline === false && "⚠️ Video API offline — inicie localmente"}
       </div>
-      <button
-        onClick={dispatch}
-        disabled={loading || !selectedPlats.length}
-        style={{
-          padding: "10px 24px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: loading ? "wait" : "pointer",
-          background: loading ? "#1a1a2e" : "linear-gradient(135deg,#7c6aff,#a78bfa)",
-          border: "none", color: loading ? "#6b6b8a" : "#fff",
-          opacity: !selectedPlats.length ? 0.5 : 1,
-          marginBottom: 16, transition: "all .2s",
-        }}>
+
+      <button onClick={dispatch} disabled={loading || !selectedPlats.length} className={styles.generateBtn}>
         {loading ? "⏳ Gerando..." : `🚀 Gerar e publicar em ${selectedPlats.map(id => PLATAFORMAS.find(p => p.id === id)?.emoji).join(" ")}`}
       </button>
 
-      {/* LOG */}
       {(jobLog.length > 0 || jobId) && (
-        <div style={{ background: "#060610", border: "1px solid #1e293b", borderRadius: 8, padding: 12, fontFamily: "monospace", fontSize: 11 }}>
-          {jobId && !jobDone && (
-            <div style={{ color: "#7c6aff", marginBottom: 6 }}>⏳ Job {jobId} rodando... (atualiza a cada 3s)</div>
-          )}
-          {jobDone && (
-            <div style={{ color: "#4ade80", marginBottom: 6 }}>✅ Concluído!</div>
-          )}
+        <div className={styles.jobLog}>
+          {jobId && !jobDone && <div style={{ color: "var(--acc)", marginBottom: 6 }}>⏳ Job {jobId} rodando...</div>}
+          {jobDone && <div style={{ color: "var(--grn)", marginBottom: 6 }}>✅ Concluído!</div>}
           {jobLog.map((line, i) => (
-            <div key={i} style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "#f87171" : line.includes("✅") || line.includes("RESULT") ? "#4ade80" : "#4a4a6a", lineHeight: 1.6 }}>
+            <div key={i} className={styles.jobLogLine}
+              style={{ color: line.includes("❌") || line.toLowerCase().includes("error") ? "var(--red)" : line.includes("✅") ? "var(--grn)" : "var(--muted)" }}>
               {line}
             </div>
           ))}
-          {!jobDone && jobId && <div style={{ color: "#6b6b8a", marginTop: 4 }}>...</div>}
+          {!jobDone && jobId && <div style={{ color: "var(--muted)" }}>...</div>}
         </div>
       )}
     </div>
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ════════════════════════════════════════════════════════════════════════════
 export default function AdminPage() {
-  const router = useRouter()
+  const router = useRouter();
   const [key, setKey] = useState<string>("");
   const [inputKey, setInputKey] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -780,61 +349,31 @@ export default function AdminPage() {
   const [marketSort, setMarketSort] = useState<string>("clicks");
   const [marketSortDir, setMarketSortDir] = useState<"asc" | "desc">("desc");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("overview");
+
+  const ADMIN_KEY_TTL = 8 * 60 * 60 * 1000;
 
   useEffect(() => {
-    const token = localStorage.getItem("bpt_token")
-    const userStr = localStorage.getItem("bpt_user")
-    
-    // Proteção: user normal não pode acessar /admin
+    const token = localStorage.getItem("bpt_token");
+    const userStr = localStorage.getItem("bpt_user");
     if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        if (!user.is_admin) {
-          router.push("/")
-          return
-        }
-      } catch { }
+      try { const user = JSON.parse(userStr); if (!user.is_admin) { router.push("/"); return; } } catch {}
     }
-    
     if (token && isTokenExpired(token)) {
-      localStorage.removeItem("bpt_token")
-      localStorage.removeItem("bpt_user")
-      router.push("/login")
-      return
+      localStorage.removeItem("bpt_token"); localStorage.removeItem("bpt_user");
+      router.push("/login"); return;
     }
-
     const stored = localStorage.getItem("admin_key");
     const storedTs = localStorage.getItem("admin_key_ts");
-    if (stored && storedTs && (Date.now() - Number(storedTs)) < ADMIN_KEY_TTL) {
-      setKey(stored);
-      return;
-    }
-    if (stored) {
-      localStorage.removeItem("admin_key");
-      localStorage.removeItem("admin_key_ts");
-    }
-    // Auto-login: se o user for admin via JWT, busca a key automaticamente
+    if (stored && storedTs && (Date.now() - Number(storedTs)) < ADMIN_KEY_TTL) { setKey(stored); return; }
+    if (stored) { localStorage.removeItem("admin_key"); localStorage.removeItem("admin_key_ts"); }
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
         if (user.is_admin) {
-          apiFetch(`${API}/api/v1/admin/auth/session-key`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${token}` },
-          })
-            .then(async (r) => {
-              if (r.ok) return r.json();
-              logger.error(`[Admin Auto-Login] Status ${r.status}: ${await r.text()}`);
-              return null;
-            })
-            .then(data => {
-              if (data?.admin_key) {
-                localStorage.setItem("admin_key", data.admin_key);
-                setKey(data.admin_key);
-              } else {
-                logger.error("[Admin Auto-Login] Failed: no admin_key in response");
-              }
-            })
+          apiFetch(`${API}/api/v1/auth/admin-key`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.json())
+            .then(data => { if (data?.admin_key) { localStorage.setItem("admin_key", data.admin_key); setKey(data.admin_key); } })
             .catch((err) => logger.error("[Admin Auto-Login] Error:", err.message));
         }
       } catch (e) { logger.error("[Admin Auto-Login] Parse error:", e); }
@@ -842,11 +381,8 @@ export default function AdminPage() {
   }, []);
 
   const adminFetch = <T,>(url: string, k: string, options: RequestInit = {}): Promise<T> =>
-    apiFetch(`${API}${url}`, {
-      cache: "no-store",
-      ...options,
-      headers: { "Content-Type": "application/json", "X-Admin-Key": k, ...(options.headers || {}) },
-    }).then(parseJsonResponse<T>);
+    apiFetch(`${API}${url}`, { cache: "no-store", ...options, headers: { "Content-Type": "application/json", "X-Admin-Key": k, ...(options.headers || {}) } })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<T>; });
 
   const fetchAll = useCallback(async (k: string) => {
     setLoading(true);
@@ -861,12 +397,8 @@ export default function AdminPage() {
         adminFetch<AdminListResponse<RecentClick>>(`/api/v1/admin/clicks?limit=10&page=${clickPage}`, k),
         adminFetch<AdminListResponse<RecentConversion>>(`/api/v1/admin/conversions?limit=10&page=${convPage}`, k),
         apiFetch(`${API}/api/v1/admin/integrations/status`, { cache: "no-store", headers: { "X-Admin-Key": k } })
-          .then(parseJsonResponse<IntegrationStatus>)
-          .catch((error: unknown) => {
-            setIntegrationStatusError(getErrorMessage(error));
-            return null;
-          }),
-        apiFetch(`${API}/api/v1/tiktok/admin/account`, { cache: "no-store", headers: { "X-Admin-Key": k } }).then(async r => await r.json() as TikTokAdminAccount).catch(() => null),
+          .then(r => r.json() as Promise<IntegrationStatus>).catch((e: unknown) => { setIntegrationStatusError(getErrorMessage(e)); return null; }),
+        apiFetch(`${API}/api/v1/tiktok/admin/account`, { cache: "no-store", headers: { "X-Admin-Key": k } }).then(r => r.json() as Promise<TikTokAdminAccount>).catch(() => null),
       ]);
       setOverview(ov); setAnalytics(an.data || {}); setMarketplaces(Array.isArray(mk) ? mk : []);
       setTraffic(Array.isArray(tr) ? tr : []); setTopProducts(Array.isArray(tp) ? tp : []);
@@ -882,8 +414,6 @@ export default function AdminPage() {
 
   useEffect(() => { if (key) fetchAll(key); }, [key, fetchAll]);
 
-  const ADMIN_KEY_TTL = 8 * 60 * 60 * 1000; // 8 horas
-
   const handleLogin = async () => {
     setLoginError("");
     try {
@@ -897,26 +427,17 @@ export default function AdminPage() {
 
   const connectTikTokAdmin = async () => {
     try {
-      const res  = await apiFetch(`${API}/api/v1/tiktok/auth/admin`, { headers: { "X-Admin-Key": key } });
+      const res = await apiFetch(`${API}/api/v1/tiktok/auth/admin`, { headers: { "X-Admin-Key": key } });
       const data = await res.json();
       if (data.auth_url) {
         const popup = window.open(data.auth_url, "TikTok Admin Auth", "width=480,height=700,scrollbars=yes");
-        const interval = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(interval);
-            fetchAll(key); // recarrega status
-          }
-        }, 1000);
+        const interval = setInterval(() => { if (popup?.closed) { clearInterval(interval); fetchAll(key); } }, 1000);
       }
-    } catch (e: unknown) {
-      alert(`Erro ao iniciar auth TikTok admin: ${getErrorMessage(e)}`);
-    }
+    } catch (e: unknown) { alert(`Erro: ${getErrorMessage(e)}`); }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("admin_key");
-    localStorage.removeItem("bpt_token");
-    localStorage.removeItem("bpt_user");
+    localStorage.removeItem("admin_key"); localStorage.removeItem("bpt_token"); localStorage.removeItem("bpt_user");
     window.location.href = "/login";
   };
 
@@ -954,28 +475,31 @@ export default function AdminPage() {
   ];
   const periods = [{ days: 1, label: "Hoje" }, { days: 7, label: "7d" }, { days: 30, label: "30d" }];
 
-  const pillActive: React.CSSProperties = { background: "linear-gradient(135deg,#7c6aff,#a78bfa)", color: "#1a1a2e", border: "none", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" };
-  const pillInactive: React.CSSProperties = { background: "#f5f7ff", border: "1px solid rgba(108,92,231,0.2)", color: "#888", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" };
+  const TABS = [
+    { id: "overview", label: "Visão Geral", icon: "📊" },
+    { id: "traffic", label: "Tráfego", icon: "🌐" },
+    { id: "products", label: "Produtos", icon: "🏆" },
+    { id: "conversions", label: "Conversões", icon: "✅" },
+    { id: "marketing", label: "Marketing", icon: "📣" },
+    { id: "integrations", label: "Integrações", icon: "🔌" },
+  ];
 
   // ─── LOGIN ────────────────────────────────────────────────
   if (!key) {
     return (
-      <div style={{ minHeight: "100vh", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif", padding: "20px" }}>
-        <div style={{ ...S.card, width: "100%", maxWidth: 380, textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
-          <h2 style={{ color: "#1a1a2e", margin: "0 0 8px", fontSize: 22, fontWeight: 800 }}>BestPriceToday Admin</h2>
-          <p style={{ color: "#6b6b8a", fontSize: 14, marginBottom: 24 }}>Digite sua chave de administrador</p>
-          <input
-            type="password" placeholder="Admin key..." value={inputKey}
-            onChange={e => setInputKey(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleLogin()}
-            style={{ width: "100%", boxSizing: "border-box", background: "#ffffff", border: "1px solid rgba(108,92,231,0.2)", borderRadius: 8, padding: "12px 16px", color: "#1a1a2e", fontSize: 14, marginBottom: 12, outline: "none" }}
-          />
-          {loginError && <p style={{ color: "#f43f5e", fontSize: 13, marginBottom: 12 }}>{loginError}</p>}
-          <button onClick={handleLogin}
-            style={{ width: "100%", background: "linear-gradient(135deg,#7c6aff,#a78bfa)", border: "none", borderRadius: 8, padding: "12px", color: "#1a1a2e", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
-            Entrar
-          </button>
+      <div className={styles.root}>
+        <div className={styles.loginWrap}>
+          <div className={styles.loginCard}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
+            <h2 className={styles.loginTitle}>BestPriceToday Admin</h2>
+            <p className={styles.loginSubtitle}>Digite sua chave de administrador</p>
+            <input type="password" placeholder="Admin key..." value={inputKey}
+              onChange={e => setInputKey(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              className={styles.loginInput} />
+            {loginError && <p className={styles.loginError}>{loginError}</p>}
+            <button onClick={handleLogin} className={styles.loginBtn}>Entrar</button>
+          </div>
         </div>
       </div>
     );
@@ -984,405 +508,414 @@ export default function AdminPage() {
   // ─── DASHBOARD ───────────────────────────────────────────────────────────
   return (
     <div className={styles.root}>
-
       <Header variant="admin" onLogout={handleLogout} />
-
       <div className={styles.container}>
 
-        {/* Toolbar de refresh/lastUpdated */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 12 }}>
-          {loading && <span style={{ color: "#7c6aff", fontSize: 12 }}>⟳ Atualizando...</span>}
-          {lastUpdated && !loading && <span style={{ color: "#6b6b8a", fontSize: 11 }}>{lastUpdated.toLocaleTimeString("pt-BR")}</span>}
-          <button onClick={() => fetchAll(key)} className={`${styles.headerBtn} ${styles.headerBtnDark}`} aria-label="Atualizar dados">↻</button>
+        {/* Topbar */}
+        <div className={styles.topbar}>
+          <div className={styles.topbarLeft}>
+            <h1 className={styles.topbarTitle}>Dashboard</h1>
+            {loading && <span style={{ color: "var(--acc)", fontSize: 12 }}>⟳ Atualizando...</span>}
+          </div>
+          <div className={styles.topbarRight}>
+            {lastUpdated && !loading && <span className={styles.lastUpdated}>Atualizado às {lastUpdated.toLocaleTimeString("pt-BR")}</span>}
+            <button onClick={() => fetchAll(key)} className={styles.refreshBtn} aria-label="Atualizar">↻</button>
+          </div>
         </div>
 
-        {/* FILTER BAR — flex-wrap para mobile */}
+        {/* Tabs */}
+        <div className={styles.tabs}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`${styles.tab} ${activeTab === t.id ? styles.tabActive : ""}`}>
+              <span>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </div>
 
-        {/* FILTER BAR — flex-wrap para mobile */}
-        <div style={{ ...S.card, marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={S.label}>Plataforma:</span>
+        {/* Filter bar */}
+        <div className={styles.filterBar}>
+          <div className={styles.filterGroup}>
+            <span className={styles.filterLabel}>Plataforma</span>
             {platforms.map(p => (
               <button key={p.id} onClick={() => { setActivePlatform(p.id); setClickPage(1); setConvPage(1); }}
-                style={activePlatform === p.id ? pillActive : pillInactive}>
+                className={`${styles.pill} ${activePlatform === p.id ? styles.pillActive : ""}`}>
                 {p.emoji} {p.label}
               </button>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={S.label}>Período:</span>
+          <div className={styles.filterGroup}>
+            <span className={styles.filterLabel}>Período</span>
             {periods.map(p => (
               <button key={p.days} onClick={() => { setActivePeriod(p.days); setClickPage(1); setConvPage(1); }}
-                style={activePeriod === p.days ? pillActive : pillInactive}>
+                className={`${styles.pill} ${activePeriod === p.days ? styles.pillActive : ""}`}>
                 {p.label}
               </button>
             ))}
           </div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={exportCSV} style={{ ...pillInactive, color: "#4ade80" }}>⬇ CSV</button>
+          <div style={{ marginLeft: "auto" }}>
+            <button onClick={exportCSV} className={`${styles.pill} ${styles.pillSuccess}`}>⬇ CSV</button>
           </div>
         </div>
 
-        {/* KPI CARDS — grid responsivo: 2 cols mobile, 4 tablet, 7 desktop */}
-        <div className={styles.kpiGrid}>
-          {[
-            { label: "Cliques Hoje", value: (overview?.total_clicks_today ?? 0).toLocaleString("pt-BR"), color: "#7c6aff", icon: "👆" },
-            { label: `Cliques ${activePeriod}d`, value: ((activePeriod <= 7 ? (overview?.total_clicks_week ?? 0) : (overview?.total_clicks_month ?? 0))).toLocaleString("pt-BR"), color: "#60a5fa", icon: "📊" },
-            { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "#4ade80", icon: "✅" },
-            { label: "Receita", value: fmtBRL(overview?.total_revenue ?? 0), color: "#facc15", icon: "💰" },
-            { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "#f87171", icon: "🏷️" },
-            { label: "CTR", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "#00e5a0", icon: "🎯" },
-            { label: "R$/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "#fbbf24", icon: "💹" },
-          ].map(card => (
-            <div key={card.label} className={`${styles.card} ${styles.kpiCard}`}>
-              <div className={styles.kpiIcon}>{card.icon}</div>
-              <div className={styles.kpiLabel}>{card.label}</div>
-              <div className={styles.kpiValue} style={{ color: card.color }}>{card.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* CHARTS ROW — 1 col mobile, 2 cols desktop */}
-        <div className={styles.chartsRow}>
-          {/* Time Series */}
-          <div style={S.card}>
-            <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>📈 Cliques por Dia</div>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 120, overflowX: "auto" }}>
-              {analyticsKeys.length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
-              {analyticsKeys.map((day, i) => {
-                const total = analyticsTotals[i];
-                const h = Math.max(4, (total / maxBar) * 110);
-                return (
-                  <div key={day} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, minWidth: 24 }}>
-                    <div style={{ fontSize: 9, color: "#6b6b8a", marginBottom: 1 }}>{total}</div>
-                    <div style={{ width: "100%", background: "linear-gradient(180deg,#7c6aff,#a78bfa)", borderRadius: "3px 3px 0 0", height: h }} />
-                    <div style={{ fontSize: 9, color: "#6b6b8a", marginTop: 2, writingMode: "vertical-rl", transform: "rotate(180deg)", height: 28 }}>{day.slice(5)}</div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* ═══════ TAB: OVERVIEW ═══════ */}
+        {activeTab === "overview" && (<>
+          {/* KPI Grid */}
+          <div className={styles.kpiGrid}>
+            {[
+              { label: "Cliques Hoje", value: (overview?.total_clicks_today ?? 0).toLocaleString("pt-BR"), color: "var(--acc)", icon: "👆" },
+              { label: `Cliques ${activePeriod}d`, value: ((activePeriod <= 7 ? (overview?.total_clicks_week ?? 0) : (overview?.total_clicks_month ?? 0))).toLocaleString("pt-BR"), color: "#60a5fa", icon: "📊" },
+              { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "var(--grn)", icon: "✅" },
+              { label: "Receita", value: fmtBRL(overview?.total_revenue ?? 0), color: "var(--ylw)", icon: "💰" },
+              { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "var(--org)", icon: "🏷️" },
+              { label: "CTR", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "var(--grn)", icon: "🎯" },
+              { label: "R$/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "var(--ylw)", icon: "💹" },
+            ].map(card => (
+              <div key={card.label} className={styles.kpiCard} style={{ ["--kpiColor" as string]: card.color }}>
+                <div className={styles.kpiIcon}>{card.icon}</div>
+                <div className={styles.kpiLabel}>{card.label}</div>
+                <div className={styles.kpiValue}>{card.value}</div>
+              </div>
+            ))}
           </div>
 
-          {/* Revenue by Provider */}
-          <div style={S.card}>
-            <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>💰 Receita por Plataforma</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {Object.entries(revByProvider).length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
-              {Object.entries(revByProvider).sort(([, a], [, b]) => Number(b) - Number(a)).map(([prov, val]) => {
-                const w = (Number(val) / maxRev) * 100;
-                const color = PROVIDER_COLORS[prov] || "#6b6b8a";
-                return (
-                  <div key={prov} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ minWidth: 80, fontSize: 11, color: "#ccc" }}>{PROVIDER_EMOJI[prov] || "•"} {prov}</div>
-                    <div style={{ flex: 1, background: "#1a1a2e", borderRadius: 3, height: 14 }}>
-                      <div style={{ width: `${w}%`, background: color, borderRadius: 3, height: 14 }} />
+          {/* Charts */}
+          <div className={styles.chartsRow}>
+            <div className={styles.card}>
+              <div className={styles.cardHeader}><div className={styles.cardTitle}>📈 Cliques por Dia</div></div>
+              <div className={styles.chartContainer}>
+                {analyticsKeys.length === 0 && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>📊</div>Sem dados</div>}
+                {analyticsKeys.map((day, i) => {
+                  const total = analyticsTotals[i];
+                  const h = Math.max(4, (total / maxBar) * 120);
+                  return (
+                    <div key={day} className={styles.barCol}>
+                      <div className={styles.barValue}>{total}</div>
+                      <div className={styles.bar} style={{ height: h }} />
+                      <div className={styles.barLabel}>{day.slice(5)}</div>
                     </div>
-                    <div style={{ minWidth: 72, fontSize: 11, color, textAlign: "right" }}>{fmtBRL(Number(val))}</div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* MARKETING */}
-        <div style={{ ...S.card, marginBottom: 16 }}>
-          <div style={{ ...S.label, marginBottom: 16 }}>📣 Marketing Automático</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-
-            {/* Canal Telegram */}
-            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📱 Canal Telegram</div>
-              <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 12 }}>Posta ofertas de texto/imagem direto no canal</div>
-              <button onClick={async () => {
-                const res = await apiFetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, { method: "POST", headers: { "X-Admin-Key": key } });
-                const d = await res.json();
-                alert(d.ok ? `✅ ${d.posted} ofertas postadas!\n${d.titles?.join("\n") || ""}` : `❌ ${d.error || "Erro"}`);
-              }} style={{ width: "100%", padding: "9px", borderRadius: 8, background: "rgba(41,182,246,0.1)", border: "1px solid rgba(41,182,246,0.3)", color: "#29b6f6", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-                📤 Postar 3 ofertas agora
-              </button>
-            </div>
-
-            {/* SEO */}
-            <div style={{ background: "#0a0a14", border: "1px solid #1e293b", borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🔍 SEO / Páginas</div>
-              <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 4 }}>Sitemap publicado para páginas públicas</div>
-              <div style={{ fontSize: 11, color: "#6b6b8a", marginBottom: 12 }}>Sitemap em /sitemap.xml</div>
-              <a href="/sitemap.xml" target="_blank"
-                style={{ display: "block", textAlign: "center", padding: "9px", borderRadius: 8, background: "rgba(124,106,255,0.1)", border: "1px solid rgba(124,106,255,0.3)", color: "#a78bfa", fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
-                Ver sitemap →
-              </a>
+            <div className={styles.card}>
+              <div className={styles.cardHeader}><div className={styles.cardTitle}>💰 Receita por Plataforma</div></div>
+              <div className={styles.barList}>
+                {Object.entries(revByProvider).length === 0 && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>💰</div>Sem dados</div>}
+                {Object.entries(revByProvider).sort(([, a], [, b]) => Number(b) - Number(a)).map(([prov, val]) => {
+                  const w = (Number(val) / maxRev) * 100;
+                  const color = PROVIDER_COLORS[prov] || "var(--muted)";
+                  return (
+                    <div key={prov} className={styles.barRow}>
+                      <div className={styles.barRowLabel}>{PROVIDER_EMOJI[prov] || "•"} {prov}</div>
+                      <div className={styles.barRowTrack}>
+                        <div className={styles.barRowFill} style={{ width: `${w}%`, background: color }} />
+                      </div>
+                      <div className={styles.barRowValue} style={{ color }}>{fmtBRL(Number(val))}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* ── GERADOR DE VÍDEO ── */}
-          <VideoPublisher apiBase={API} adminKey={key} topProducts={topProducts} />
-        </div>
-
-        {/* CONVERSION LOOP */}
-        <div style={{ ...S.card, marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-            <div>
-              <div style={S.label}>Loop de Conversão</div>
-              <div style={{ color: "#1a1a2e", fontSize: 15, fontWeight: 700 }}>Clique → Venda → Comissão</div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {/* Funnel */}
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>🔄 Funil de Conversão</div>
               <button onClick={async () => {
                 const res = await apiFetch(`${API}/api/v1/admin/conversions/poll`, { method: "POST", headers: { "X-Admin-Key": key } });
-                const data = await res.json();
-                alert(`Poll: ${JSON.stringify(data.new_conversions)}`); fetchAll(key);
-              }} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(0,229,160,0.3)", background: "rgba(0,229,160,0.08)", color: "#00e5a0", fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-                ↻ Buscar conversões
-              </button>
+                const data = await res.json(); alert(`Poll: ${JSON.stringify(data.new_conversions)}`); fetchAll(key);
+              }} className={styles.intBtn}>↻ Buscar conversões</button>
             </div>
-          </div>
-
-          {/* Funil — scroll horizontal no mobile */}
-          <div className={styles.funilWrap}>
-            <div className={styles.funil}>
+            <div className={styles.funnel}>
               {[
-                { label: "Cliques", value: overview?.total_clicks_month ?? 0, color: "#7c6aff", pct: "100%" },
-                null,
-                { label: "Conversões", value: overview?.total_conversions ?? 0, color: "#00e5a0", pct: overview?.total_clicks_month ? `${(((overview.total_conversions ?? 0) / overview.total_clicks_month) * 100).toFixed(1)}%` : "0%" },
-                null,
-                { label: "Receita", value: `R$${(overview?.total_revenue ?? 0).toFixed(0)}`, color: "#fbbf24", pct: "—", isStr: true },
-                null,
-                { label: "Comissão", value: `R$${(overview?.total_commission ?? 0).toFixed(0)}`, color: "#f43f5e", pct: "—", isStr: true },
-              ].map((item, i) =>
-                item === null ? (
-                  <div key={i} style={{ textAlign: "center", color: "rgba(108,92,231,0.2)", fontSize: 20 }}>→</div>
-                ) : (
-                  <div key={i} style={{ background: `${item.color}10`, border: `1px solid ${item.color}30`, borderRadius: 10, padding: "12px 10px", textAlign: "center" }}>
-                    <div style={{ color: item.color, fontSize: 18, fontWeight: 800 }}>{typeof item.value === "string" ? item.value : item.value.toLocaleString()}</div>
-                    <div style={{ color: "#6b6b8a", fontSize: 10, fontWeight: 600, marginTop: 3 }}>{item.label}</div>
-                    <div style={{ color: item.color, fontSize: 11, marginTop: 2, opacity: 0.8 }}>{item.pct}</div>
+                { label: "Cliques", value: (overview?.total_clicks_month ?? 0).toLocaleString("pt-BR"), color: "var(--acc)", pct: "100%" },
+                { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "var(--grn)", pct: overview?.total_clicks_month ? `${(((overview.total_conversions ?? 0) / overview.total_clicks_month) * 100).toFixed(1)}%` : "0%" },
+                { label: "Receita", value: fmtBRL(overview?.total_revenue ?? 0), color: "var(--ylw)", pct: "—" },
+                { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "var(--org)", pct: "—" },
+              ].map((item, i, arr) => (
+                <React.Fragment key={item.label}>
+                  <div className={styles.funnelStep} style={{ background: `${item.color}10`, border: `1px solid ${item.color}30` }}>
+                    <div className={styles.funnelStepValue} style={{ color: item.color }}>{item.value}</div>
+                    <div className={styles.funnelStepLabel}>{item.label}</div>
+                    <div className={styles.funnelStepPct} style={{ color: item.color }}>{item.pct}</div>
                   </div>
-                )
-              )}
+                  {i < arr.length - 1 && <div className={styles.funnelArrow}>→</div>}
+                </React.Fragment>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* MARKETPLACE TABLE — scroll horizontal */}
-        <div style={{ ...S.card, marginBottom: 16 }}>
-          <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🏪 Comparativo de Marketplaces</div>
-          <div className={styles.tableWrap}>
-            <table className={styles.tableWrap} style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr>
-                  {[["provider", "Marketplace"], ["clicks", "Cliques"], ["conversions", "Conv."], ["conversion_rate", "Taxa%"], ["revenue", "Receita"], ["commission", "Comissão"], ["avg_price", "Preço Méd."]].map(([key, lbl]) => (
-                    <th key={key} style={S.th} onClick={() => handleSortMarket(key)}>
-                      {lbl} {marketSort === key ? (marketSortDir === "desc" ? "↓" : "↑") : ""}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedMarketplaces.length === 0 && <tr><td colSpan={7} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
-                {sortedMarketplaces.map((row, i) => (
-                  <tr key={row.provider} style={i === 0 && sortedMarketplaces.length > 1 ? { borderLeft: "3px solid #4ade80" } : {}}>
-                    <td style={S.td}><span style={{ color: PROVIDER_COLORS[row.provider] || "#6b6b8a" }}>{PROVIDER_EMOJI[row.provider] || "•"} {row.provider}</span></td>
-                    <td style={S.td}>{(row.clicks || 0).toLocaleString()}</td>
-                    <td style={S.td}>{row.conversions || 0}</td>
-                    <td style={S.td}>{(row.conversion_rate || 0).toFixed(2)}%</td>
-                    <td style={{ ...S.td, color: "#facc15" }}>{fmtBRL(row.revenue || 0)}</td>
-                    <td style={{ ...S.td, color: "#4ade80" }}>{fmtBRL(row.commission || 0)}</td>
-                    <td style={S.td}>{fmtBRL(row.avg_price || 0)}</td>
+          {/* Marketplace table */}
+          <div className={styles.card}>
+            <div className={styles.cardHeader}><div className={styles.cardTitle}>🏪 Comparativo de Marketplaces</div></div>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    {[["provider", "Marketplace"], ["clicks", "Cliques"], ["conversions", "Conv."], ["conversion_rate", "Taxa"], ["revenue", "Receita"], ["commission", "Comissão"], ["avg_price", "Preço Méd."]].map(([k, lbl]) => (
+                      <th key={k} className={styles.th} onClick={() => handleSortMarket(k)}>
+                        {lbl} {marketSort === k ? (marketSortDir === "desc" ? "↓" : "↑") : ""}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sortedMarketplaces.length === 0 && <tr><td colSpan={7} className={styles.td} style={{ textAlign: "center", color: "var(--muted)" }}>Sem dados</td></tr>}
+                  {sortedMarketplaces.map((row, i) => (
+                    <tr key={i} className={styles.tr}>
+                      <td className={styles.td}><span style={{ color: PROVIDER_COLORS[row.provider] || "var(--muted)", fontWeight: 600 }}>{PROVIDER_EMOJI[row.provider] || "•"} {row.provider}</span></td>
+                      <td className={styles.td}>{(row.clicks || 0).toLocaleString()}</td>
+                      <td className={styles.td}>{row.conversions || 0}</td>
+                      <td className={styles.td}>{(row.conversion_rate || 0).toFixed(2)}%</td>
+                      <td className={styles.td} style={{ color: "var(--ylw)", fontWeight: 600 }}>{fmtBRL(row.revenue || 0)}</td>
+                      <td className={styles.td} style={{ color: "var(--grn)", fontWeight: 600 }}>{fmtBRL(row.commission || 0)}</td>
+                      <td className={styles.td}>{fmtBRL(row.avg_price || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </>)}
 
-        {/* TRAFFIC + INTEGRATIONS — 2 cols */}
-        <div className={styles.twoColGrid}>
-          <div style={S.card}>
-            <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🌐 Fontes de Tráfego</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {traffic.length === 0 && <span style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</span>}
+        {/* ═══════ TAB: TRAFFIC ═══════ */}
+        {activeTab === "traffic" && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}><div className={styles.cardTitle}>🌐 Fontes de Tráfego</div></div>
+            <div className={styles.barList}>
+              {traffic.length === 0 && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🌐</div>Sem dados</div>}
               {traffic.map((src) => {
-                const color = PROVIDER_COLORS[src.source] || "#7c6aff";
+                const color = PROVIDER_COLORS[src.source] || "var(--acc)";
                 return (
-                  <div key={src.source} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ minWidth: 72, fontSize: 11, color: "#ccc" }}>{src.source}</div>
-                    <div style={{ flex: 1, background: "#1a1a2e", borderRadius: 3, height: 12 }}>
-                      <div style={{ width: `${src.percentage || 0}%`, background: color, borderRadius: 3, height: 12 }} />
+                  <div key={src.source} className={styles.barRow}>
+                    <div className={styles.barRowLabel}>{src.source}</div>
+                    <div className={styles.barRowTrack}>
+                      <div className={styles.barRowFill} style={{ width: `${src.percentage || 0}%`, background: color }} />
                     </div>
-                    <div style={{ minWidth: 60, fontSize: 11, color: "#888", textAlign: "right" }}>{src.clicks} ({src.percentage}%)</div>
+                    <div className={styles.barRowValue}>{src.clicks} ({src.percentage}%)</div>
                   </div>
                 );
               })}
             </div>
           </div>
-          <div style={S.card}>
-            <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🔌 Status das Integrações</div>
+        )}
+
+        {/* ═══════ TAB: PRODUCTS ═══════ */}
+        {activeTab === "products" && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}><div className={styles.cardTitle}>🏆 Top 10 Produtos</div></div>
+            {topProducts.length === 0 && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🏆</div>Sem dados</div>}
+            <div>
+              {topProducts.map((p, i) => {
+                const isExpanded = expandedProduct === p.product_title;
+                const provider = p.provider || "unknown";
+                const color = PROVIDER_COLORS[provider] || "var(--muted)";
+                return (
+                  <div key={i}>
+                    <div onClick={() => setExpandedProduct(isExpanded ? null : p.product_title || null)}
+                      className={styles.productRow} style={{ borderColor: isExpanded ? color : "transparent" }}>
+                      <span className={styles.productRank}>#{i + 1}</span>
+                      <span className={styles.productTitle}>{p.product_title || "–"}</span>
+                      <span className={styles.productBadge} style={{ color, background: color + "22" }}>{PROVIDER_EMOJI[provider] || ""} {provider}</span>
+                      <span className={styles.productMeta}>{p.clicks} cliques</span>
+                      {p.price && <span className={styles.productMeta} style={{ color: "var(--ylw)", fontWeight: 600 }}>{fmtBRL(p.price)}</span>}
+                    </div>
+                    {isExpanded && (
+                      <div style={{ background: "var(--s2)", borderRadius: "0 0 10px 10px", padding: "8px 12px", overflowX: "auto" }}>
+                        <table className={styles.table} style={{ minWidth: 320 }}>
+                          <thead><tr>{["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} className={styles.th}>{h}</th>)}</tr></thead>
+                          <tbody>
+                            {recentClicks.filter(c => c.product_title === p.product_title).map((c, j) => (
+                              <tr key={j}>
+                                <td className={styles.td}>{fmtTime(c.clicked_at)}</td>
+                                <td className={styles.td}>{c.source || "–"}</td>
+                                <td className={styles.td}>{c.price ? fmtBRL(c.price) : "–"}</td>
+                                <td className={styles.td}>{c.ip_address || "–"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ═══════ TAB: CONVERSIONS ═══════ */}
+        {activeTab === "conversions" && (
+          <div className={styles.twoCol}>
+            {/* Cliques recentes */}
+            <div className={styles.card}>
+              <div className={styles.cardHeader}><div className={styles.cardTitle}>🖱️ Cliques Recentes</div></div>
+              <div className={styles.tableWrap}>
+                <table className={styles.table} style={{ minWidth: 360 }}>
+                  <thead><tr>{["Hora", "Plataforma", "Produto", "Preço", "Fonte"].map(h => <th key={h} className={styles.th}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {recentClicks.length === 0 && <tr><td colSpan={5} className={styles.td} style={{ textAlign: "center", color: "var(--muted)" }}>Sem dados</td></tr>}
+                    {recentClicks.map((c, i) => (
+                      <tr key={i} className={styles.tr}>
+                        <td className={styles.td}>{fmtTime(c.clicked_at)}</td>
+                        <td className={styles.td} style={{ color: PROVIDER_COLORS[c.provider || "unknown"] || "var(--muted)" }}>{PROVIDER_EMOJI[c.provider || "unknown"] || ""} {c.provider}</td>
+                        <td className={styles.td} style={{ maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.product_title}>{c.product_title || "–"}</td>
+                        <td className={styles.td}>{c.price ? fmtBRL(c.price) : "–"}</td>
+                        <td className={styles.td}>{c.source || "–"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className={styles.pagination}>
+                <button onClick={() => setClickPage(p => Math.max(1, p - 1))} disabled={clickPage === 1}
+                  className={`${styles.pageBtn} ${clickPage === 1 ? styles.pageBtnDisabled : ""}`}>← Ant.</button>
+                <span className={styles.pageInfo}>Pág. {clickPage}</span>
+                <button onClick={() => setClickPage(p => p + 1)} className={styles.pageBtn}>Próx. →</button>
+              </div>
+            </div>
+
+            {/* Conversões recentes */}
+            <div className={styles.card}>
+              <div className={styles.cardHeader}><div className={styles.cardTitle}>✅ Conversões Recentes</div></div>
+              <div className={styles.tableWrap}>
+                <table className={styles.table} style={{ minWidth: 360 }}>
+                  <thead><tr>{["Hora", "Plataforma", "Produto", "Venda", "Comissão", "Status"].map(h => <th key={h} className={styles.th}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {recentConversions.length === 0 && <tr><td colSpan={6} className={styles.td} style={{ textAlign: "center", color: "var(--muted)" }}>Sem dados</td></tr>}
+                    {recentConversions.map((c, i) => {
+                      const saleValue = c.sale_value ?? c.sale_price;
+                      const commissionValue = c.commission ?? c.commission_value;
+                      return (
+                        <tr key={i} className={styles.tr}>
+                          <td className={styles.td}>{fmtTime(c.converted_at || c.created_at)}</td>
+                          <td className={styles.td} style={{ color: PROVIDER_COLORS[c.provider || "unknown"] || "var(--muted)" }}>{PROVIDER_EMOJI[c.provider || "unknown"] || ""} {c.provider}</td>
+                          <td className={styles.td} style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.product_title}>{c.product_title || "–"}</td>
+                          <td className={styles.td}>{saleValue ? fmtBRL(saleValue) : "–"}</td>
+                          <td className={styles.td} style={{ color: "var(--grn)", fontWeight: 600 }}>{commissionValue ? fmtBRL(commissionValue) : "–"}</td>
+                          <td className={styles.td}>
+                            <span className={styles.tag + " " + (c.status === "confirmed" ? styles.tagGreen : c.status === "pending" ? styles.tagYellow : styles.tagRed)}>
+                              {c.status || "–"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className={styles.pagination}>
+                <button onClick={() => setConvPage(p => Math.max(1, p - 1))} disabled={convPage === 1}
+                  className={`${styles.pageBtn} ${convPage === 1 ? styles.pageBtnDisabled : ""}`}>← Ant.</button>
+                <span className={styles.pageInfo}>Pág. {convPage}</span>
+                <button onClick={() => setConvPage(p => p + 1)} className={styles.pageBtn}>Próx. →</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════ TAB: MARKETING ═══════ */}
+        {activeTab === "marketing" && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}><div className={styles.cardTitle}>📣 Marketing Automático</div></div>
+            <div className={styles.mktGrid}>
+              <div className={styles.mktCard}>
+                <div className={styles.mktCardTitle}>📱 Canal Telegram</div>
+                <div className={styles.mktCardDesc}>Posta ofertas de texto/imagem direto no canal</div>
+                <button onClick={async () => {
+                  const res = await apiFetch(`${API}/api/v1/admin/broadcast/telegram?n=3`, { method: "POST", headers: { "X-Admin-Key": key } });
+                  const d = await res.json();
+                  alert(d.ok ? `✅ ${d.posted} ofertas postadas!\n${d.titles?.join("\n") || ""}` : `❌ ${d.error || "Erro"}`);
+                }} className={`${styles.mktBtn} ${styles.mktBtnTelegram}`}>📤 Postar 3 ofertas agora</button>
+              </div>
+              <div className={styles.mktCard}>
+                <div className={styles.mktCardTitle}>🔍 SEO / Páginas</div>
+                <div className={styles.mktCardDesc}>Sitemap publicado para páginas públicas em /sitemap.xml</div>
+                <a href="/sitemap.xml" target="_blank" className={`${styles.mktBtn} ${styles.mktBtnPurple}`}>Ver sitemap →</a>
+              </div>
+            </div>
+            <VideoPublisher apiBase={API} adminKey={key} topProducts={topProducts} />
+          </div>
+        )}
+
+        {/* ═══════ TAB: INTEGRATIONS ═══════ */}
+        {activeTab === "integrations" && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}><div className={styles.cardTitle}>🔌 Status das Integrações</div></div>
             {integrationStatusError && (
-              <div style={{ marginBottom: 8, padding: "7px 10px", borderRadius: 8, background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.22)", color: "#f43f5e", fontSize: 11 }}>
-                Falha ao carregar status: {integrationStatusError}
+              <div style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "rgba(231,76,60,0.08)", border: "1px solid rgba(231,76,60,0.22)", color: "var(--red)", fontSize: 12 }}>
+                Falha ao carregar: {integrationStatusError}
               </div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
               {!hasIntegrationStatus && !integrationStatusError && (
-                <div style={{ padding: "7px 10px", background: "#ffffff", borderRadius: 8, color: "#6b6b8a", fontSize: 12 }}>
-                  Carregando status das integrações...
-                </div>
+                <div className={styles.emptyState}>Carregando status...</div>
               )}
+              {/* ML */}
               {hasIntegrationStatus && (() => {
                 const ml = integrationStatus?.mercadolivre || {};
-                const mlColor = ml.status === "active" ? "#00e5a0" : ml.status === "expiring_soon" ? "#fbbf24" : "#ff6b6b";
+                const mlColor = ml.status === "active" ? "var(--grn)" : ml.status === "expiring_soon" ? "var(--ylw)" : "var(--red)";
                 const mlIcon = ml.status === "active" ? "✅" : ml.status === "expiring_soon" ? "⏰" : "❌";
                 const mlLabel = ml.status === "active" ? `Ativo (${ml.expires_in_minutes}min)` : ml.status === "expiring_soon" ? "Expirando" : "Token expirado";
                 return (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8, gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 12 }}>🟡 Mercado Livre</span>
-                    <span style={{ fontSize: 12, color: mlColor }}>{mlIcon} {mlLabel}</span>
-                    <button onClick={() => apiFetch(`${API}/api/v1/auth/ml/refresh`, { method: "POST", headers: { "X-Admin-Key": key } }).then(r => r.json()).then(d => { alert(d.ok ? "Token renovado!" : `Erro: ${d.error}`); fetchAll(key); })}
-                      style={{ fontSize: 10, padding: "2px 7px", background: "#1a1a2e", border: "1px solid #333", borderRadius: 5, color: "#a78bfa", cursor: "pointer" }}>Renovar</button>
+                  <div className={styles.intRow}>
+                    <span className={styles.intName}>🟡 Mercado Livre</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span className={styles.intStatus} style={{ color: mlColor }}>{mlIcon} {mlLabel}</span>
+                      <button onClick={() => apiFetch(`${API}/api/v1/auth/ml/refresh`, { method: "POST", headers: { "X-Admin-Key": key } }).then(r => r.json()).then(d => { alert(d.ok ? "Token renovado!" : `Erro: ${d.error}`); fetchAll(key); })}
+                        className={styles.intBtn}>Renovar</button>
+                    </div>
                   </div>
                 );
               })()}
-              {hasIntegrationStatus && (getIntegrations(integrationStatus) || []).filter(i => i.name !== "Mercado Livre" && i.name !== "TikTok Shop").map(int => (
-                <div key={int.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "#ffffff", borderRadius: 8 }}>
-                  <span style={{ fontSize: 12 }}>{int.icon} {int.name}</span>
-                  <span style={{ fontSize: 12, color: int.color }}>{int.status} {int.statusText}</span>
-                </div>
-              ))}
-              {/* TikTok Admin — card especial com botão de conexão */}
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "7px 10px", background: "#ffffff", borderRadius: 8, flexWrap: "wrap", gap: 6,
-              }}>
+              {/* Outras integrações */}
+              {hasIntegrationStatus && [
+                { name: "AliExpress", icon: "🔴", key: "aliexpress" },
+                { name: "Shopee", icon: "🟠", key: "shopee" },
+                { name: "Amazon", icon: "📦", key: "amazon" },
+                { name: "Lomadee", icon: "🟣", key: "lomadee" },
+              ].map(int => {
+                const st = integrationStatus?.[int.key] || {};
+                const color = st.status === "active" ? "var(--grn)" : "var(--ylw)";
+                const icon = st.status === "active" ? "✅" : "⚠️";
+                const label = st.status === "active" ? "Ativo" : "Sem credencial";
+                return (
+                  <div key={int.key} className={styles.intRow}>
+                    <span className={styles.intName}>{int.icon} {int.name}</span>
+                    <span className={styles.intStatus} style={{ color }}>{icon} {label}</span>
+                  </div>
+                );
+              })}
+              {/* TikTok */}
+              <div className={styles.intRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {tiktokAdminAccount?.connected && tiktokAdminAccount?.avatar_url && (
                     <img src={tiktokAdminAccount.avatar_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />
                   )}
-                  <span style={{ fontSize: 12 }}>♪ TikTok Admin</span>
+                  <span className={styles.intName}>♪ TikTok Admin</span>
                 </div>
                 {tiktokAdminAccount?.connected ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "#00e5a0" }}>
+                    <span className={styles.intStatus} style={{ color: "var(--grn)" }}>
                       ✅ @{tiktokAdminAccount.display_name}
-                      {tiktokAdminAccount.is_verified && <span style={{ color: "#60a5fa", marginLeft: 4 }}>✓</span>}
+                      {tiktokAdminAccount.is_verified && <span style={{ color: "var(--acc)", marginLeft: 4 }}>✓</span>}
                     </span>
-                    <button onClick={connectTikTokAdmin}
-                      style={{ fontSize: 10, padding: "2px 7px", background: "#1a1a2e", border: "1px solid #333", borderRadius: 5, color: "#a78bfa", cursor: "pointer" }}>
-                      Reconectar
-                    </button>
+                    <button onClick={connectTikTokAdmin} className={styles.intBtn}>Reconectar</button>
                   </div>
                 ) : (
                   <button onClick={connectTikTokAdmin}
-                    style={{
-                      fontSize: 11, padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                    style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
                       background: "rgba(255,0,80,0.1)", border: "1px solid rgba(255,0,80,0.3)",
-                      color: "#ff3060", fontWeight: 700,
-                    }}>
+                      color: "#ff3060", fontWeight: 700 }}>
                     ♪ Conectar conta TikTok
                   </button>
                 )}
               </div>
             </div>
           </div>
-        </div>
-
-        {/* TOP PRODUCTS */}
-        <div style={{ ...S.card, marginBottom: 16 }}>
-          <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🏆 Top 10 Produtos</div>
-          {topProducts.length === 0 && <p style={{ color: "#6b6b8a", fontSize: 12 }}>Sem dados</p>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {topProducts.map((p, i) => {
-              const isExpanded = expandedProduct === p.product_title;
-              const provider = p.provider || "unknown";
-              const color = PROVIDER_COLORS[provider] || "#6b6b8a";
-              return (
-                <div key={i}>
-                  <div onClick={() => setExpandedProduct(isExpanded ? null : p.product_title || null)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "#ffffff", borderRadius: 8, cursor: "pointer", border: `1px solid ${isExpanded ? color + "44" : "transparent"}`, flexWrap: "wrap" }}>
-                    <span style={{ color: "#7c6aff", fontWeight: 800, minWidth: 22, fontSize: 12 }}>#{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 12, color: "#1a1a2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 100 }}>{p.product_title || "–"}</span>
-                    <span style={{ color, fontSize: 11, background: color + "22", padding: "2px 7px", borderRadius: 8 }}>{PROVIDER_EMOJI[provider] || ""} {provider}</span>
-                    <span style={{ color: "#6b6b8a", fontSize: 11 }}>{p.clicks} cliques</span>
-                    {p.price && <span style={{ color: "#facc15", fontSize: 11 }}>{fmtBRL(p.price)}</span>}
-                  </div>
-                  {isExpanded && (
-                    <div style={{ background: "#ffffff", borderRadius: "0 0 8px 8px", padding: "8px 12px", borderTop: "1px solid #1a1a2e", overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 320 }}>
-                        <thead><tr>{["Hora", "Fonte", "Preço", "IP"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
-                        <tbody>
-                          {(recentClicks || []).filter(c => c.product_title === p.product_title).slice(0, 5).map((c, ci) => (
-                            <tr key={ci}><td style={S.td}>{fmtTime(c.clicked_at)}</td><td style={S.td}>{c.source}</td><td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td><td style={S.td}>{c.ip_address || "–"}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RECENT CLICKS + CONVERSIONS — 1 col mobile, 2 cols desktop */}
-        <div className={styles.topProductsGrid}>
-          {/* Cliques */}
-          <div style={S.card}>
-            <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>🖱️ Cliques Recentes</div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 360 }}>
-                <thead><tr>{["Hora", "Plataforma", "Produto", "Preço", "Fonte"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {recentClicks.length === 0 && <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
-                  {recentClicks.map((c, i) => (
-                    <tr key={i}>
-                      <td style={S.td}>{fmtTime(c.clicked_at)}</td>
-                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider || "unknown"] || "#ccc" }}>{PROVIDER_EMOJI[c.provider || "unknown"] || ""} {c.provider}</td>
-                      <td style={{ ...S.td, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.product_title}>{c.product_title || "–"}</td>
-                      <td style={S.td}>{c.price ? fmtBRL(c.price) : "–"}</td>
-                      <td style={S.td}>{c.source || "–"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
-              <button onClick={() => setClickPage(p => Math.max(1, p - 1))} disabled={clickPage === 1} style={{ ...pillInactive, opacity: clickPage === 1 ? 0.5 : 1, padding: "4px 12px" }}>← Ant.</button>
-              <span style={{ color: "#888", padding: "4px 10px", fontSize: 12 }}>Pág. {clickPage}</span>
-              <button onClick={() => setClickPage(p => p + 1)} style={{ ...pillInactive, padding: "4px 12px" }}>Próx. →</button>
-            </div>
-          </div>
-
-          {/* Conversões */}
-          <div style={S.card}>
-            <div style={{ ...S.label, marginBottom: 12, fontSize: 12 }}>✅ Conversões Recentes</div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 360 }}>
-                <thead><tr>{["Hora", "Plataforma", "Produto", "Venda", "Comissão", "Status"].map(h => <th key={h} style={{ ...S.th, fontSize: 10 }}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {recentConversions.length === 0 && <tr><td colSpan={6} style={{ ...S.td, textAlign: "center", color: "#6b6b8a" }}>Sem dados</td></tr>}
-                  {recentConversions.map((c, i) => {
-                    const saleValue = c.sale_value ?? c.sale_price;
-                    const commissionValue = c.commission ?? c.commission_value;
-                    return (
-                    <tr key={i}>
-                      <td style={S.td}>{fmtTime(c.converted_at || c.created_at)}</td>
-                      <td style={{ ...S.td, color: PROVIDER_COLORS[c.provider || "unknown"] || "#ccc" }}>{PROVIDER_EMOJI[c.provider || "unknown"] || ""} {c.provider}</td>
-                      <td style={{ ...S.td, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.product_title}>{c.product_title || "–"}</td>
-                      <td style={S.td}>{saleValue ? fmtBRL(saleValue) : "–"}</td>
-                      <td style={{ ...S.td, color: "#4ade80" }}>{commissionValue ? fmtBRL(commissionValue) : "–"}</td>
-                      <td style={{ ...S.td, color: c.status === "confirmed" ? "#4ade80" : c.status === "pending" ? "#facc15" : "#f43f5e" }}>{c.status || "–"}</td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
-              <button onClick={() => setConvPage(p => Math.max(1, p - 1))} disabled={convPage === 1} style={{ ...pillInactive, opacity: convPage === 1 ? 0.5 : 1, padding: "4px 12px" }}>← Ant.</button>
-              <span style={{ color: "#888", padding: "4px 10px", fontSize: 12 }}>Pág. {convPage}</span>
-              <button onClick={() => setConvPage(p => p + 1)} style={{ ...pillInactive, padding: "4px 12px" }}>Próx. →</button>
-            </div>
-          </div>
-        </div>
+        )}
 
       </div>
     </div>

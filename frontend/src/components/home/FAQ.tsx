@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { IconChevronDown } from "@tabler/icons-react";
+import styles from "./FAQ.module.css";
 
 interface FaqItem {
   q: string;
@@ -38,37 +39,15 @@ const FAQ_ITEMS: FaqItem[] = [
 
 function FaqAccordion({ item, isOpen, onToggle }: { item: FaqItem; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: `1px solid ${isOpen ? "#7c3aed" : "#e0e0f0"}`,
-        borderRadius: 14,
-        overflow: "hidden",
-        transition: "border-color 0.2s",
-      }}
-    >
-      <button
-        onClick={onToggle}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          padding: "16px 20px",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-        }}
-      >
-        <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a2e", flex: 1 }}>
+    <div className={`${styles.item} ${isOpen ? styles.itemOpen : ""}`}>
+      <button onClick={onToggle} className={styles.toggle}>
+        <span className={styles.question}>
           {item.q}
         </span>
         <motion.span
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.25 }}
-          style={{ color: "#7c3aed", flexShrink: 0, display: "flex" }}
+          className={styles.icon}
         >
           <IconChevronDown size={20} stroke={2} />
         </motion.span>
@@ -82,9 +61,9 @@ function FaqAccordion({ item, isOpen, onToggle }: { item: FaqItem; isOpen: boole
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            style={{ overflow: "hidden" }}
+            className={styles.content}
           >
-            <p style={{ padding: "0 20px 16px", fontSize: 14, lineHeight: 1.7, color: "rgba(26,26,46,0.6)", margin: 0 }}>
+            <p className={styles.answer}>
               {item.a}
             </p>
           </motion.div>
@@ -99,15 +78,11 @@ export default function FAQ() {
 
   return (
     <div>
-      <h2 style={{
-        fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-        fontSize: 28, fontWeight: 800, color: "#1a1a2e",
-        textAlign: "center", marginBottom: 28,
-      }}>
+      <h2 className={styles.title}>
         Dúvidas frequentes
       </h2>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 720, margin: "0 auto" }}>
+      <div className={styles.list}>
         {FAQ_ITEMS.map((item, i) => (
           <FaqAccordion
             key={i}

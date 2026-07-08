@@ -211,6 +211,7 @@ async def save_coupons(coupons: List[dict]):
     """Salva cupons e seus produtos no banco (upsert por coupon_code)."""
     from app.db.session import AsyncSessionLocal
     from app.models.models import Coupon, CouponProduct
+    from app.services.affiliate_tracking import add_ml_affiliate_tracking
     from sqlalchemy import select, delete
 
     saved = 0
@@ -235,7 +236,7 @@ async def save_coupons(coupons: List[dict]):
                 existing.budget_remaining = c.get("budget_remaining")
                 existing.conditions = c.get("conditions")
                 existing.store_name = c.get("store_name")
-                existing.product_url = c.get("product_url")
+                existing.product_url = add_ml_affiliate_tracking(c.get("product_url"))
                 existing.is_active = True
                 existing.updated_at = datetime.now(timezone.utc)
                 coupon_obj = existing
@@ -250,7 +251,7 @@ async def save_coupons(coupons: List[dict]):
                     expires_at=c.get("expires_at"),
                     budget_remaining=c.get("budget_remaining"),
                     conditions=c.get("conditions"),
-                    product_url=c.get("product_url"),
+                    product_url=add_ml_affiliate_tracking(c.get("product_url")),
                     is_active=True,
                 )
                 db.add(coupon_obj)
@@ -277,7 +278,7 @@ async def save_coupons(coupons: List[dict]):
                     db.add(CouponProduct(
                         coupon_id=coupon_obj.id,
                         title=p["title"],
-                        product_url=p["product_url"],
+                        product_url=add_ml_affiliate_tracking(p["product_url"]),
                         image_url=p.get("image_url"),
                         price=price,
                         ml_code=p.get("ml_code"),
@@ -827,6 +828,8 @@ async def scrape_ml_coupons(page, context=None, max_pages: int = 0) -> List[dict
 async def run(max_pages: int = 0, headless: bool = True, collect_only: bool = False):
     """Executa o scraper de cupons do ML."""
     from playwright.async_api import async_playwright
+
+    coupons = []
 
     # 1. Lock para evitar execuções simultâneas
     lock = LockFile(LOCK_FILE)

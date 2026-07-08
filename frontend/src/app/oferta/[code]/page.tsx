@@ -288,47 +288,46 @@ export default function OfferPage() {
               </div>
 
               {coupon && (
-                <div style={{
-                  background: "linear-gradient(135deg, rgba(225,29,72,.08), rgba(225,29,72,.04))",
-                  border: "1px solid rgba(225,29,72,.2)",
-                  borderRadius: 12,
-                  padding: "14px 16px",
-                  marginBottom: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}>
-                  <span style={{ fontSize: 24 }}>🏷️</span>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#e11d48", margin: 0 }}>
+                <div className={styles.couponBox}>
+                  <span className={styles.couponIcon}>🏷️</span>
+                  <div className={styles.couponInfo}>
+                    <p className={styles.couponTitle}>
                       Cupom disponível: {coupon.discount_text || "Desconto extra"}
                     </p>
-                    <p style={{ fontSize: 12, color: "#64748b", margin: "2px 0 0 0" }}>
-                      Use o código <strong style={{ color: "#e11d48", fontFamily: "monospace" }}>{coupon.coupon_code}</strong>
+                    <p className={styles.couponCode}>
+                      Use o código <strong>{coupon.coupon_code}</strong>
                       {coupon.expires_at && ` • Vence em ${new Date(coupon.expires_at).toLocaleDateString("pt-BR")}`}
                     </p>
                   </div>
                 </div>
               )}
 
+              {/* Trust badges */}
+              <div className={styles.trustBadges}>
+                <span className={styles.trustBadge}>✅ Compra na loja oficial</span>
+                <span className={styles.trustBadge}>🔄 Preço atualizado agora</span>
+                <span className={styles.trustBadge}>🔒 Redirecionamento seguro</span>
+              </div>
+
               <a
                 href={goUrl}
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 className={styles.cta}
+                style={{ background: provider.bg, color: provider.text }}
               >
                 <span>🛒</span>
                 <span>Ver oferta na {provider.name}</span>
                 <span>→</span>
               </a>
 
+              <p className={styles.ctaMicrocopy}>
+                Você será redirecionado para {provider.name} com segurança.
+              </p>
+
               <a href={SITE_BASE} className={styles.ctaSecondary}>
                 ← Voltar para o BestPriceToday
               </a>
-
-              {(offer.provider === "mercadolivre" || offer.provider === "amazon") && offer.affiliate_url && (
-                <PriceHistoryPublic affiliateUrl={offer.affiliate_url} />
-              )}
 
               <p className={styles.disclosure}>
                 O BestPriceToday compara preços em tempo real pra você economizar de verdade.
@@ -337,18 +336,20 @@ export default function OfferPage() {
                 e mantemos o serviço 100% gratuito pra você.
               </p>
 
-              <button
-                onClick={reportDead}
-                style={{
-                  marginTop: 12, background: "none", border: "none", cursor: "pointer",
-                  color: "#94a3b8", fontSize: 12, textDecoration: "underline", padding: 0,
-                }}
-              >
+              <button onClick={reportDead} className={styles.reportBtn}>
                 {reported ? "✓ Obrigado! Vamos verificar." : "Link quebrado? Avise-nos"}
               </button>
             </div>
           </div>
         </div>
+
+        {/* Price history card */}
+        {(offer.provider === "mercadolivre" || offer.provider === "amazon") && offer.affiliate_url && (
+          <div className={styles.historyCard}>
+            <h3 className={styles.historyTitle}>📉 Histórico de preço</h3>
+            <PriceHistoryPublic affiliateUrl={offer.affiliate_url} />
+          </div>
+        )}
       </main>
 
       <footer className={styles.footer}>

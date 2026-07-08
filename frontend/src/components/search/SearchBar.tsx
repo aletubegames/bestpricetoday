@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Loader2 } from "lucide-react";
 import { useTrendingSearches } from "@/hooks/useTrendingSearches";
+import styles from "./SearchBar.module.css";
 
 interface Props {
   onSearch: (query: string) => void;
@@ -28,24 +29,19 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
   };
 
   return (
-    <div style={{ position: "relative", width: "100%" }}>
+    <div className={styles.root}>
       <motion.form
+        className={styles.form}
         onSubmit={(e) => { e.preventDefault(); if (value.length >= 2) submit(value); }}
         animate={{
           boxShadow: focused
             ? "0 0 0 2px rgba(124,106,255,0.5), 0 8px 40px rgba(124,106,255,0.15)"
             : "0 0 0 1px rgba(108,92,231,0.15)",
         }}
-        style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "0 16px", height: 60,
-          borderRadius: 16,
-          background: "var(--s2)",
-        }}
       >
         {isLoading
-          ? <Loader2 size={20} style={{ color: "var(--acc)", flexShrink: 0, animation: "spin 1s linear infinite" }} />
-          : <Search size={20} style={{ color: "var(--muted2)", flexShrink: 0 }} />
+          ? <Loader2 size={20} className={`${styles.icon} ${styles.spinner}`} />
+          : <Search size={20} className={styles.icon} />
         }
         <input
           ref={inputRef}
@@ -55,15 +51,11 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 200)}
           placeholder="Ex: iPhone 16 Pro, Nike 42, RTX 4070..."
-          style={{
-            flex: 1, background: "none", border: "none", outline: "none",
-            fontSize: 16, color: "var(--txt)", caretColor: "var(--acc)",
-            minWidth: 0,
-          }}
+          className={styles.input}
         />
         {value && (
           <button type="button" aria-label="Limpar busca" onClick={() => { setValue(""); onSearch(""); inputRef.current?.focus(); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", padding: 8, borderRadius: 8, display: "flex", flexShrink: 0, minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" }}>
+            className={styles.clearBtn}>
             <X size={18} />
           </button>
         )}
@@ -73,33 +65,20 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
       <AnimatePresence>
         {focused && !value && suggestions.length > 0 && (
           <motion.div
+            className={styles.suggestions}
             initial={{ opacity: 0, y: -8, scale: .98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: .98 }}
             transition={{ duration: .15 }}
-            style={{
-              position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0,
-              background: "var(--s2)", border: "1px solid var(--bd)",
-              borderRadius: 16, overflow: "hidden", zIndex: 100,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
-            }}
           >
-            <p style={{ padding: "12px 16px 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted2)", borderBottom: "1px solid var(--bd)" }}>
+            <p className={styles.suggestionsTitle}>
               🔥 Em alta agora
             </p>
             {suggestions.map((item, i) => (
               <motion.button key={item.query}
+                className={styles.suggestionItem}
                 initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * .025 }}
                 onClick={() => { setValue(item.query); submit(item.query); }}
-                style={{
-                  width: "100%", textAlign: "left", background: "none", border: "none",
-                  padding: "12px 16px", cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 10,
-                  fontSize: 14, color: "var(--muted)",
-                  transition: "background .1s, color .1s",
-                }}
-                onMouseEnter={e => Object.assign(e.currentTarget.style, { background: "rgba(124,106,255,.07)", color: "var(--txt)" })}
-                onMouseLeave={e => Object.assign(e.currentTarget.style, { background: "none", color: "var(--muted)" })}
               >
                 <Search size={13} style={{ color: "var(--muted2)", flexShrink: 0 }} />
                 {item.query}

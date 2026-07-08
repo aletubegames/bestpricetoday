@@ -42,16 +42,11 @@
   border-radius: 12px;
 }
 
-.loading,
-.error {
+.loading {
   padding: 24px;
   text-align: center;
   color: #6b6b8a;
   font-size: 14px;
-}
-
-.error {
-  color: #dc2626;
 }
 
 .empty {

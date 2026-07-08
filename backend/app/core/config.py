@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL:   str = "anthropic/claude-3.5-sonnet"
 
     # Video API (GPU local via ngrok ou URL fixa)
-    VIDEO_API_URL: str = "https://sacrament-subduing-confined.ngrok-free.dev"
+    VIDEO_API_URL: str = ""
     VIDEO_API_KEY: str = ""
 
     # URL interna usada por workers para se comunicar com a própria API

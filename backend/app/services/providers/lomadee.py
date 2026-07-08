@@ -7,7 +7,6 @@ Fluxo correto:
 2. POST /affiliate/shortener/url         -> gera link afiliado rastreado
 3. Usa link rastreado no botão "Ver oferta"
 """
-import httpx
 from typing import List, Optional
 from app.services.providers.base import BaseProvider
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
@@ -121,20 +120,22 @@ class LomadeeProvider(BaseProvider):
         """
         if not product_url or not organization_id:
             return None
+
+        # Se Custom já falhou para esta org, pula direto para o fallback
+        if organization_id in self._custom_failed_orgs:
+            return self._build_affiliate_url(product_url)
+
         try:
             async with self._shortener_sem:
                 client = await self.get_client()
-                
-                # Se Custom já falhou para esta org, pula direto para BrandPage
-                skip_custom = organization_id in self._custom_failed_orgs
-                
-                if not skip_custom:
-                    # Tenta Custom primeiro (link direto do produto)
+                # Tenta Custom primeiro (link direto do produto) com timeout curto
+                # Se falhar ou demorar, usa fallback com sourceId (instantâneo)
+                try:
                     resp = await client.post(
                         f"{self.BASE_URL}/shortener/url",
                         headers={"x-api-key": settings.LOMADEE_API_KEY, "Content-Type": "application/json"},
                         json={"url": product_url, "organizationId": organization_id, "type": "Custom"},
-                        timeout=5,
+                        timeout=1.5,
                     )
                     if resp.status_code in (200, 201):
                         data = resp.json()
@@ -142,15 +143,18 @@ class LomadeeProvider(BaseProvider):
                             short_urls = data[0].get("shortUrls", [])
                             if short_urls:
                                 return short_urls[0]
-                    # Custom falhou — marca para pular nas próximas
-                    self._custom_failed_orgs.add(organization_id)
+                except Exception:
+                    pass  # timeout ou erro — cai no fallback abaixo
 
-                # Fallback: NAO usa BrandPage (leva pra homepage, nao pro produto)
-                # Usa o link direto do produto com sourceId (deeplink manual)
+                # Custom falhou ou demorou — marca para pular nas próximas
+                self._custom_failed_orgs.add(organization_id)
+
+                # Fallback: link direto do produto com sourceId (instantâneo, rastreia afiliado)
                 return self._build_affiliate_url(product_url)
         except Exception as exc:
             logger.debug(f"Lomadee shortener failed: {type(exc).__name__}: {exc}")
-        return None
+        # Último recurso: fallback com sourceId
+        return self._build_affiliate_url(product_url)
 
     async def _has_catalog_access(self) -> bool:
         if self._catalog_access is not None:

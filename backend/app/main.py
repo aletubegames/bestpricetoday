@@ -1,15 +1,10 @@
-from fastapi import FastAPI, Request, status, Response
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI, Request, Response
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.logging import setup_logging, logger
 from app.db.session import init_db
 from app.api.v1.router import api_router
 import sentry_sdk
-import time
-import uuid
 
 
 @asynccontextmanager

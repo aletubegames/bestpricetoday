@@ -79,7 +79,7 @@ class ShopeeClient(MarketplaceClient):
     Cliente para Shopee Affiliate API (GraphQL).
     """
     marketplace_id = MarketplaceId.shopee
-    timeout = 10
+    timeout = 4
 
     def __init__(self) -> None:
         super().__init__()
@@ -272,7 +272,7 @@ class ShopeeClient(MarketplaceClient):
             logger.error(f"Shopee hot products error: {e}")
             return []
 
-    async def get_affiliate_link(self, product_url: str, **kwargs) -> str:
+    async def get_affiliate_link(self, product_url: str, **kwargs) -> Optional[str]:
         """
         Gera link de afiliado rastreado.
 

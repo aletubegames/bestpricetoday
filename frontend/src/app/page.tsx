@@ -8,6 +8,7 @@ import Header from "@/components/layout/Header";
 import SearchBar from "@/components/search/SearchBar";
 import OfferGrid from "@/components/offers/OfferGrid";
 import { openTrackedOffer } from "@/lib/tracking";
+import { trackSearch } from "@/lib/analytics";
 import OfferSkeleton from "@/components/offers/OfferSkeleton";
 import { useSearch } from "@/hooks/useSearch";
 import { useTrendingSearches } from "@/hooks/useTrendingSearches";
@@ -63,20 +64,16 @@ function ProviderStatusGrid({ statuses, offers }: { statuses: ProviderStatus[]; 
   });
   if (!visible.length) return null;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+    <div className={styles.providerGrid}>
       {visible.map((status) => {
         const meta = STATUS_META[status.status];
         const providerLabel = PROVIDER_LABELS[status.provider] || status.provider;
         const count = realCounts[status.provider] ?? 0;
         return (
-          <div key={status.provider} style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            background: meta.background, border: meta.border,
-            borderRadius: 99, padding: "6px 14px 6px 8px",
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{providerLabel}</span>
+          <div key={status.provider} className={styles.providerChip} style={{ background: meta.background, border: meta.border }}>
+            <span className={styles.providerName}>{providerLabel}</span>
             {status.status === "ok" && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: meta.color, background: `${meta.color}18`, borderRadius: 99, padding: "1px 8px" }}>
+              <span className={styles.providerCount} style={{ color: meta.color, background: `${meta.color}18` }}>
                 {count}
               </span>
             )}
@@ -84,15 +81,6 @@ function ProviderStatusGrid({ statuses, offers }: { statuses: ProviderStatus[]; 
         );
       })}
     </div>
-  );
-}
-
-// ── Section wrapper ───────────────────────────────────────────────────────────
-function Section({ children, maxWidth = 960 }: { children: React.ReactNode; maxWidth?: number }) {
-  return (
-    <section style={{ maxWidth, margin: "0 auto", padding: "0 20px" }}>
-      {children}
-    </section>
   );
 }
 
@@ -118,6 +106,10 @@ async function fetchChartData(): Promise<ChartDay[]> {
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
+  const handleSearch = (q: string) => {
+    if (q && q.trim()) trackSearch(q.trim());
+    setQuery(q);
+  };
   const { data, isLoading, error } = useSearch(query);
   const { data: trendingData } = useTrendingSearches(20);
   const trending = trendingData?.items ?? [];
@@ -166,78 +158,37 @@ export default function HomePage() {
 
   return (
     <div className={styles.root}>
-      {/* Animações do logo */}
-      <style>{`
-        @keyframes logoFloat {
-          0%, 100% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(0px); }          50% { transform: perspective(900px) rotateY(-18deg) rotateX(10deg) translateY(-10px); }
-        }
-        @keyframes pulseGlow {
-          0%, 100% { opacity: 0.6; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.08); }
-        }
-      `}</style>
-
       <Header variant="default" />
 
       <main>
       {/* ── HERO ── */}
       <section className={styles.hero}>
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <motion.div className={styles.heroInner} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className={styles.heroBadge}>
             ⚡ Comparação em tempo real
           </div>
 
-          <div className={styles.heroGrid}>
-            {/* Logo com glow ring + animação */}
-            <div className={styles.heroLogoWrap}>
-              <div className={styles.heroGlow} />
-              <div className={styles.heroRing} />
-              <img
-                src="/logo.webp"
-                alt="BestPriceToday"
-                width={157}
-                height={157}
-                className={styles.heroLogo}
-              />
-            </div>
+          <h1 className={styles.heroTitle}>
+            <span className={styles.heroTitleMain}>Menor preço</span><br />
+            <span className={styles.heroTitleAccent}>do Brasil.</span>
+          </h1>
 
-            <div className={styles.heroText}>
-              <h1 className={styles.heroTitle}>
-                <span className={styles.heroTitleMain}>Menor preço</span><br />
-                <span className={styles.heroTitleAccent}>do Brasil.</span>
-              </h1>
+          <p className={styles.heroSubtitle}>
+            Busca automática em Mercado Livre, Amazon, Shopee e mais.
+            Histórico de preços e alertas de queda. Score de oferta real.
+          </p>
 
-              <p className={styles.heroSubtitle}>
-                Busca automática em Mercado Livre, Amazon, Shopee e mais.
-                Histórico de preços e alertas de queda. Score de oferta real.
-              </p>
-            </div>
+          <div className={styles.heroSearch}>
+            <SearchBar onSearch={handleSearch} isLoading={isLoading} />
           </div>
-
-          <SearchBar onSearch={setQuery} isLoading={isLoading} />
 
           {/* Trending pills */}
           {showLanding && trending.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} style={{ marginTop: 24 }}>
-              <span style={{ fontSize: 12, color: "var(--muted2)", display: "block", marginBottom: 12, textAlign: "center" }}>
-                Em alta:
-              </span>
-              <div style={{
-                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: 10, width: "min(100%, 960px)", margin: "0 auto",
-              }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className={styles.trending}>
+              <span className={styles.trendingLabel}>Em alta:</span>
+              <div className={styles.trendingPills}>
                 {trending.map((item) => (
-                  <button key={item.query} onClick={() => setQuery(item.query)}
-                    style={{
-                      fontSize: 12, fontWeight: 600, padding: "10px 14px", borderRadius: 14,
-                      background: "#fff", border: "1px solid #e0e0f0",
-                      color: "var(--muted)", cursor: "pointer", transition: "all .15s",
-                      textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 42,
-                    }}
-                    title={item.query}
-                    onMouseEnter={e => Object.assign(e.currentTarget.style, { borderColor: "rgba(124,58,237,.35)", color: "#7c3aed", background: "rgba(124,58,237,.04)", transform: "translateY(-1px)" })}
-                    onMouseLeave={e => Object.assign(e.currentTarget.style, { borderColor: "#e0e0f0", color: "var(--muted)", background: "#fff", transform: "translateY(0)" })}
-                  >
+                  <button key={item.query} onClick={() => handleSearch(item.query)} className={styles.trendingPill} title={item.query}>
                     {item.query}
                   </button>
                 ))}
@@ -247,9 +198,8 @@ export default function HomePage() {
 
           {/* Store chips inline */}
           {showLanding && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-              style={{ marginTop: 20, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11, color: "var(--muted2)" }}>Buscamos em:</span>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className={styles.heroStores}>
+              <span className={styles.heroStoresLabel}>Buscamos em:</span>
               <StoreChips compact />
             </motion.div>
           )}
@@ -260,44 +210,41 @@ export default function HomePage() {
       {showLanding && (
         <>
           {/* ── FEATURED OFFERS + CATEGORIES ── */}
-          <section className={styles.section}>
-            <FeaturedOffers onSearch={setQuery} />
+          <section className={styles.sectionWhite}>
+            <div className={styles.sectionInner}>
+              <FeaturedOffers onSearch={handleSearch} />
+            </div>
           </section>
 
           {/* ── CATEGORIES HUB ── */}
-          <section className={styles.section}>
-            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 20, textAlign: "center" }}>
-              📂 Compre por categoria
-            </h2>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
-              {CATEGORIES.map(cat => (
-                <a
-                  key={cat.slug}
-                  href={`/categoria/${cat.slug}`}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "12px 20px", borderRadius: 14,
-                    background: "rgba(255,255,255,0.8)",
-                    border: "1px solid rgba(108,92,231,0.15)",
-                    color: "#1a1a2e", textDecoration: "none",
-                    fontSize: 14, fontWeight: 600,
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>{cat.icon}</span>
-                  {cat.name}
-                </a>
-              ))}
+          <section className={styles.sectionWhite}>
+            <div className={styles.sectionInner}>
+              <h2 className={styles.sectionHeading}>
+                📂 Compre por categoria
+              </h2>
+              <div className={styles.categoryGrid}>
+                {CATEGORIES.map(cat => (
+                  <a key={cat.slug} href={`/categoria/${cat.slug}`} className={styles.categoryCard}>
+                    <span className={styles.categoryIcon}>{cat.icon}</span>
+                    {cat.name}
+                  </a>
+                ))}
+              </div>
             </div>
           </section>
 
           {/* ── WHY US (histórico de preços como diferencial) ── */}
-          <section className={styles.section}>
-            <WhyUs />
+          <section className={styles.sectionMuted}>
+            <div className={styles.sectionInner}>
+              <WhyUs />
+            </div>
           </section>
 
           {/* ── HOW IT WORKS ── */}
-          <section className={styles.section}>
-            <HowItWorks />
+          <section className={styles.sectionWhite}>
+            <div className={styles.sectionInner}>
+              <HowItWorks />
+            </div>
           </section>
         </>
       )}
@@ -337,9 +284,9 @@ export default function HomePage() {
 
       {/* ── STATS + CHART ── */}
       {showLanding && (
-        <section className={styles.statsSection}>
-          <div className={styles.statsInner}>
-            <h2 className={styles.statsTitle}>
+        <section className={styles.sectionMuted}>
+          <div className={styles.sectionInner}>
+            <h2 className={styles.sectionHeading}>
               Em <span style={{ color: "#f97316" }}>números</span>
             </h2>
             <StatsCards />
@@ -351,49 +298,67 @@ export default function HomePage() {
       )}
 
       {/* ── TESTIMONIALS ── */}
-      <section className={styles.section}>
-        <Testimonials />
+      <section className={styles.sectionWhite}>
+        <div className={styles.sectionInner}>
+          <Testimonials />
+        </div>
       </section>
 
       {/* ── FAQ ── */}
-      <section className={styles.sectionBg}>
-        <div className={styles.section}>
+      <section className={styles.sectionMuted}>
+        <div className={styles.sectionInner}>
           <FAQ />
         </div>
       </section>
 
       {/* ── TRUST BADGES ── */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>
-          Segurança e <span style={{ color: "#7c3aed" }}>confiança</span>
-        </h2>
-        <TrustBadges />
+      <section className={styles.sectionWhite}>
+        <div className={styles.sectionInner}>
+          <h2 className={styles.sectionHeading}>
+            Segurança e <span style={{ color: "#7c3aed" }}>confiança</span>
+          </h2>
+          <TrustBadges />
+        </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className={styles.footer}>
+      <footer className={styles.footerDark}>
         <div className={styles.footerInner}>
-          <span>© {new Date().getFullYear()} BestPriceToday</span>
-          <span className={styles.footerSeparator}>|</span>
-          <a href="/terms" className={styles.footerLink}
-            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
-          >Termos de Uso</a>
-          <span className={styles.footerSeparator}>|</span>
-          <a href="/privacy" className={styles.footerLink}
-            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
-          >Política de Privacidade</a>
-          <span className={styles.footerSeparator}>|</span>
-          <a href="/deletion-status" className={styles.footerLink}
-            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
-          >Solicitação de Exclusão</a>
-          <span className={styles.footerSeparator}>|</span>
-          <a href="mailto:aletubegames@gmail.com" className={styles.footerLink}
-            onMouseEnter={e => (e.currentTarget.style.color = "#7c3aed")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(26,26,46,0.45)")}
-          >Contato</a>
+          <div className={styles.footerBrand}>
+            <a href="/" className={styles.footerLogo}>
+              <img
+                src="/logo-header.png"
+                alt="BestPriceToday"
+                width={50}
+                height={50}
+                className={styles.footerLogoImg}
+              />
+              <span className={styles.footerLogoText}>
+                <span className={styles.footerLogoBest}>BestPrice</span>
+                <span className={styles.footerLogoToday}>Today</span>
+              </span>
+            </a>
+            <p className={styles.footerTagline}>Encontre o menor preço do Brasil em segundos.</p>
+          </div>
+          <div className={styles.footerCol}>
+            <h4 className={styles.footerColTitle}>Navegue</h4>
+            <a href="/" className={styles.footerLink}>Buscar ofertas</a>
+            <a href="/alertas" className={styles.footerLink}>Alertas de preço</a>
+            <a href="/cupons" className={styles.footerLink}>Produtos com cupom</a>
+          </div>
+          <div className={styles.footerCol}>
+            <h4 className={styles.footerColTitle}>Legal</h4>
+            <a href="/terms" className={styles.footerLink}>Termos de Uso</a>
+            <a href="/privacy" className={styles.footerLink}>Política de Privacidade</a>
+            <a href="/deletion-status" className={styles.footerLink}>Solicitação de Exclusão</a>
+          </div>
+          <div className={styles.footerCol}>
+            <h4 className={styles.footerColTitle}>Contato</h4>
+            <a href="mailto:aletubegames@gmail.com" className={styles.footerLink}>aletubegames@gmail.com</a>
+          </div>
+        </div>
+        <div className={styles.footerBottom}>
+          <span>© {new Date().getFullYear()} BestPriceToday. Todos os direitos reservados.</span>
         </div>
       </footer>
 
@@ -461,12 +426,7 @@ export default function HomePage() {
                     onClick={(e) => handleCompareOfferClick(e, offer, i)}
                     target="_blank"
                     rel="noopener noreferrer sponsored"
-                    className={styles.compareItemLink}
-                    style={{
-                      background: i === 0 ? "linear-gradient(135deg,#7c3aed,#a78bfa)" : "#f5f5ff",
-                      color: i === 0 ? "#fff" : "#7c3aed",
-                      border: i === 0 ? "none" : "1px solid rgba(124,58,237,0.2)",
-                    }}
+                    className={`${styles.compareItemLink} ${i === 0 ? styles.compareItemLinkBest : ""}`}
                   >
                     {openingCompareKey === compareOfferKey(offer, i) ? "Abrindo..." : "Ver oferta →"}
                   </a>

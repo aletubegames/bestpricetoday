@@ -88,9 +88,10 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <div className={styles.root}>
-      <script type="application/ld+json">
-        {JSON.stringify(jsonLd)}
-      </script>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       <Header variant="default" />
 

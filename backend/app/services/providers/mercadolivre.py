@@ -297,6 +297,7 @@ class MercadoLivreProvider(BaseProvider):
                     .where(
                         AffiliateProduct.is_active == True,
                         AffiliateProduct.title != None,
+                        AffiliateProduct.affiliate_url.notlike("%amazon%"),
                         where_clause,
                     )
                     .limit(limit * 3)

@@ -1,13 +1,13 @@
 # Grow_up.md — Plano Realista para Romper a Bolha
 
 > **Único KPI:** R$ de comissão **confirmada** entrando no bolso.
-> **Base:** alaserver (192.168.100.30) + domínios próprios. Nada de ngrok/Vercel
+> **Base:** alaserver (192.168.100.30) + Cloudflare Tunnel. Nada de ngrok/Vercel
 > como infra principal. Nada de projeção irreal — só o caminho escalável com o
 > arsenal que já existe.
 
 ---
 
-## 📊 Resumo executivo (atualizado 2026-06-30)
+## 📊 Resumo executivo (atualizado 2026-07-01)
 
 ### ✅ Implementado (Fase 0, 1, 2 e 3.2 — SEO em escala)
 | Área | Status | Detalhe |
@@ -19,9 +19,11 @@
 | Sitemap honesto | ✅ | **95 URLs** com conteúdo real (4 estáticas + 10 categorias + 81 produtos) |
 | Categorias | ✅ | 10 hubs `/categoria/[cat]` com SSR + JSON-LD `CollectionPage` |
 | Analytics | ✅ | GA4 (`G-D2J769S99H`) + Microsoft Clarity (`xd51oaxppe`) ativos |
-| Distribuição | ✅ | Orquestrador `distributor.py` + loop automático em 4 canais (Telegram + Facebook + Instagram + YouTube) |
+| Distribuição | ✅ | Orquestrador `distributor.py` 4x/dia (12h, 15h, 19h, 21h) em 4 canais (Telegram + Facebook + Instagram + YouTube) |
+| Cupons ML | ✅ | `coupon_distributor.py` 2x/dia (12h, 19h) + vídeo XTTS para YouTube |
 | IA legendas | ✅ | OpenRouter com fallback gracioso (postagem nunca falha) |
 | Dashboard | ✅ | `/admin/distribute/stats` tracking por canal/post |
+| Header compartilhado | ✅ | `src/components/layout/Header.tsx` com Lucide icons, logo padronizado e responsividade completa |
 | Filtro de relevância | ✅ | Remove acessórios (capas, cases, joysticks, gift cards) de buscas de produtos principais |
 | Filtro Lomadee | ✅ | Remove resultados irrelevantes (ex: Dorflex para "iphone") |
 | **Amazon scraper** | ✅ | **1.066 produtos ativos** via Playwright + **cron 3am diário** (atualiza preços/estoque) |
@@ -61,11 +63,14 @@
 - **Queries com produtos:** 81 (airfryers + iPhones + Galaxy + notebooks + TVs + PS5 + etc)
 - **Catálogo total:** 2.532 produtos ativos (1.466 ML + 1.066 Amazon) + AliExpress/Shopee/Lomadee ao vivo
 - **Dashboard afiliados:** 5 providers funcionando (ML 1466, Amazon 1066, Shopee 48, Lomadee 24, AliExpress 50)
-- **Frequência de postagem:** 2x/dia (12h, 19h) em 4 canais simultaneamente
+- **Frequência de postagem:**
+  - Distributor principal: 4x/dia (12h, 15h, 19h, 21h) em 4 canais
+  - Coupon distributor: 2x/dia (12h, 19h) em 4 canais
+  - Total: até 6 janelas/dia combinando ofertas + cupons
 
 ---
 
-## Realidade verificada em 2026-06-30 (atualizada pós-implementação)
+## Realidade verificada em 2026-07-01 (atualizada pós-implementação)
 
 ### O que está NO AR (verificado por curl + SSH)
 - ✅ **Frontend HTTPS** `https://bestpricetoday.alaserver.com.br/` —
@@ -97,8 +102,10 @@
 - ✅ **Amazon scraper ativo** (1.084 produtos: iPhones, Galaxy, notebooks, TVs, PS5, etc).
 - ✅ **Cron diário 3am** — scraper Amazon atualiza preços e remove produtos fora de estoque.
 - ⚠️ **Páginas de marca** (`/marca/[slug]`) existem mas têm 0 ofertas — removidas do sitemap.
-- ✅ **Distributor automático** postando em 4 canais (Telegram + Facebook + Instagram + YouTube) 2x/dia.
+- ✅ **Distributor automático** postando em 4 canais 4x/dia (12h, 15h, 19h, 21h).
+- ✅ **Coupon distributor** postando cupons ML em 4 canais 2x/dia (12h, 19h) com vídeo XTTS para YouTube.
 - ✅ **3 páginas Facebook** ativas: Bestpricetoday + Achados Shoppee + Achados Shopee.
+- ✅ **Header compartilhado** com Lucide icons, logo padronizado e responsividade mobile-first (CSS Modules).
 - ✅ **Instagram @aletubegames** ativo (Business account vinculada).
 - ✅ **Scraping de métricas ML** rodando diariamente (portal de afiliados).
 
