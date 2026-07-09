@@ -65,17 +65,23 @@ class ProfileLock:
         self.path = path
         self.fd = None
 
-    def acquire(self, timeout: int = 0) -> bool:
+    def acquire(self, timeout: int = 60) -> bool:
+        import time
         self.fd = open(self.path, "w")
-        try:
-            fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            self.fd.write(str(os.getpid()))
-            self.fd.flush()
-            return True
-        except (IOError, OSError):
-            self.fd.close()
-            self.fd = None
-            return False
+        elapsed = 0
+        while True:
+            try:
+                fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.fd.write(str(os.getpid()))
+                self.fd.flush()
+                return True
+            except (IOError, OSError):
+                if elapsed >= timeout:
+                    self.fd.close()
+                    self.fd = None
+                    return False
+                time.sleep(5)
+                elapsed += 5
 
     def release(self):
         if self.fd:
@@ -526,7 +532,13 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
     # Adquire lock do perfil persistente (compartilhado com session keeper)
     profile_lock = ProfileLock(PROFILE_LOCK_FILE)
     if not profile_lock.acquire():
-        logger.error("Perfil Chromium em uso por outro processo (session keeper?). Tente novamente mais tarde.")
+        holder = ""
+        try:
+            if PROFILE_LOCK_FILE.exists():
+                holder = f" (PID {PROFILE_LOCK_FILE.read_text().strip()})"
+        except Exception:
+            pass
+        logger.error(f"Perfil Chromium em uso por outro processo{holder}. Tente novamente mais tarde.")
         return 0
 
     # Migração: se o perfil persistente não existe mas tem storage_state antigo,
@@ -752,11 +764,11 @@ async def deactivate_all_products():
             await db.commit()
             logger.info(f"{hist_count} registros de histórico (>2 anos) deletados (auto-cleanup)")
 
-        # Só desativa produtos ML (não Amazon)
+        # Só desativa produtos ML antigos (não Amazon)
         result = await db.execute(
             select(AffiliateProduct).where(
                 AffiliateProduct.is_active == True,
-                func.lower(AffiliateProduct.notes).notlike("%amazon_scraper%"),
+                func.lower(AffiliateProduct.notes).like("%ml_scraper%"),
             )
         )
         old = result.scalars().all()
@@ -788,6 +800,7 @@ async def save_single_product(r: dict) -> bool:
     image_url = r.get("image_url", "")
 
     notes_parts = []
+    notes_parts.append("source=ml_scraper")  # Marca como produto ML para filtro do endpoint /affiliate/products
     if r.get("badge"):
         notes_parts.append(f"badge={r['badge']}")
     if rating:
