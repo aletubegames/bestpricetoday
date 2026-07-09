@@ -1,10 +1,16 @@
 from fastapi import FastAPI, Request, Response
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.logging import setup_logging, logger
 from app.db.session import init_db
 from app.api.v1.router import api_router
+from app.core.visitor_tracking import track_visitor
 import sentry_sdk
+import os
+import time
+import asyncio
+from collections import defaultdict
 
 
 @asynccontextmanager
@@ -75,9 +81,32 @@ _CORS_ALLOW_HEADERS = (
     "X-Admin-Key, X-Api-Key, X-Auth-Token, ngrok-skip-browser-warning"
 )
 
+# Rate limiting simples (não afeta funcionamento normal, apenas protege contra abuso)
+_rate_limit_store = defaultdict(list)
+_RATE_LIMIT = 100  # requisições por minuto por IP
+_RATE_WINDOW = 60  # segundos
+
 # Custom CORS middleware - FORCE headers on ALL responses
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
+    # Rate limiting simples (não afeta uso normal, apenas protege contra abuso)
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    
+    # Limpa requisições antigas
+    _rate_limit_store[client_ip] = [
+        ts for ts in _rate_limit_store[client_ip] 
+        if now - ts < _RATE_WINDOW
+    ]
+    
+    # Verifica se excedeu o limite
+    if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT:
+        logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+        return Response(status_code=429, content="Too many requests")
+    
+    # Registra a requisição
+    _rate_limit_store[client_ip].append(now)
+    
     # Handle OPTIONS preflight
     if request.method == "OPTIONS":
         response = Response()
@@ -104,6 +133,17 @@ async def cors_middleware(request: Request, call_next):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
+
+    # Security headers (não afetam funcionamento, apenas hardening)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Registra visitante online (usado pelo admin / Online Agora)
+    # roda fora do fluxo crítico para não atrasar resposta
+    asyncio.create_task(track_visitor(request))
 
     return response
 
@@ -144,6 +184,16 @@ async def cors_middleware(request: Request, call_next):
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": settings.APP_VERSION}
+
+
+# Mount static files directory for test videos and other assets
+# __file__ is /home/alessandro/backend/app/main.py, so we go up one level to backend/static
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    logger.info(f"Static files mounted at /static from {static_dir}")
+else:
+    logger.warning(f"Static directory not found: {static_dir}")
 
 
 app.include_router(api_router, prefix=settings.API_V1_STR)

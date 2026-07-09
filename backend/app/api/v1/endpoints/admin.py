@@ -462,20 +462,33 @@ async def get_traffic(
     _: str = Depends(require_admin),
 ):
     try:
-        r = await db.execute(select(func.count()).select_from(ClickEvent))
-        total = r.scalar() or 0
-
         r = await db.execute(
             select(ClickEvent.source, func.count().label("cnt"))
             .group_by(ClickEvent.source)
         )
         rows = r.fetchall()
+
+        # Filtrar clicks de teste/admin/auditoria — só tráfego real
+        def is_real_source(src: Optional[str]) -> bool:
+            if not src:
+                return False
+            lowered = src.lower()
+            return not (
+                "test" in lowered
+                or lowered.startswith("final_")
+                or lowered.startswith("admin_")
+                or lowered.startswith("audit_")
+            )
+
+        real_rows = [row for row in rows if is_real_source(row.source)]
+        real_total = sum(row.cnt for row in real_rows)
+
         result = []
-        for row in rows:
+        for row in real_rows:
             result.append({
                 "source": row.source or "web",
                 "clicks": row.cnt,
-                "percentage": round(row.cnt / total * 100, 1) if total else 0,
+                "percentage": round(row.cnt / real_total * 100, 1) if real_total else 0,
                 "conversions": 0,
                 "revenue": 0,
             })
@@ -1688,3 +1701,97 @@ async def get_session_admin_key(
     if not user or not user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso restrito ao administrador.")
     return {"admin_key": settings.ADMIN_MANAGER_KEY}
+
+
+@router.get("/online")
+async def get_online_visitors(
+    x_admin_key: str = Header(None, alias="X-Admin-Key"),
+    admin_key: str = FQuery(None, alias="admin_key"),
+    authorization: str = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna numero de visitantes unicos online (ativos nos ultimos 5 min).
+    Usa Redis — zero carga no banco Neon."""
+    await require_admin(x_admin_key, admin_key, authorization, db)
+    try:
+        from app.core.cache import get_redis
+        import json
+        r = await get_redis()
+        keys = []
+        async for key in r.scan_iter(match="visitor:*", count=200):
+            keys.append(key)
+        return {
+            "online_now": len(keys),
+            "window_minutes": 5,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        return {"online_now": 0, "error": str(e), "window_minutes": 5}
+
+
+@router.get("/online/details")
+async def get_online_visitors_details(
+    x_admin_key: str = Header(None, alias="X-Admin-Key"),
+    admin_key: str = FQuery(None, alias="admin_key"),
+    authorization: str = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna lista detalhada de visitantes online com device, geo, paginas e tempo.
+    Usa Redis — zero carga no banco Neon."""
+    await require_admin(x_admin_key, admin_key, authorization, db)
+    try:
+        from app.core.cache import get_redis
+        import json, time as _time
+        r = await get_redis()
+        visitors = []
+        now = _time.time()
+        async for key in r.scan_iter(match="visitor:*", count=200):
+            raw = await r.get(key)
+            if raw:
+                try:
+                    data = json.loads(raw)
+                    # Calcular tempo online
+                    first_seen = data.get("first_seen", now)
+                    last_seen = data.get("last_seen", now)
+                    online_seconds = int(last_seen - first_seen)
+                    data["online_seconds"] = online_seconds
+                    data["online_formatted"] = (
+                        f"{online_seconds // 60}m {online_seconds % 60}s" if online_seconds < 3600
+                        else f"{online_seconds // 3600}h {(online_seconds % 3600) // 60}m"
+                    )
+                    # Ultima pagina visitada
+                    pages = data.get("pages", [])
+                    data["current_page"] = pages[-1]["path"] if pages else "/"
+                    data["pages"] = pages  # manter todas
+                    visitors.append(data)
+                except Exception:
+                    pass
+        # Ordenar por last_seen (mais recente primeiro)
+        visitors.sort(key=lambda v: v.get("last_seen", 0), reverse=True)
+        # Estatisticas agregadas
+        devices = {}
+        countries = {}
+        oses = {}
+        browsers = {}
+        for v in visitors:
+            d = v.get("device", "unknown")
+            devices[d] = devices.get(d, 0) + 1
+            c = v.get("country", "Desconhecido")
+            countries[c] = countries.get(c, 0) + 1
+            o = v.get("os", "unknown")
+            oses[o] = oses.get(o, 0) + 1
+            b = v.get("browser", "unknown")
+            browsers[b] = browsers.get(b, 0) + 1
+        return {
+            "online_now": len(visitors),
+            "visitors": visitors,
+            "stats": {
+                "devices": devices,
+                "countries": countries,
+                "oses": oses,
+                "browsers": browsers,
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        return {"online_now": 0, "visitors": [], "stats": {}, "error": str(e)}
