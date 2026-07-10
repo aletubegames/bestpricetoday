@@ -213,9 +213,6 @@ def _apply_stealth(context_or_page, user_agent: str = None):
             navigator_platform_override="Linux x86_64",
         )
         if hasattr(stealth, "apply_stealth_async"):
-            import inspect
-            if inspect.iscoroutinefunction(stealth.apply_stealth_async):
-                return stealth.apply_stealth_async(context_or_page)
             return stealth.apply_stealth_async(context_or_page)
     except Exception as e:
         logger.warning(f"Stealth não aplicado: {e}")
@@ -254,7 +251,7 @@ def _mark_last_ok():
         pass
 
 
-def _mark_session_expired():
+async def _mark_session_expired():
     """Registra que a sessão expirou e envia alerta Telegram (uma vez por expiração)."""
     try:
         EXPIRED_FILE.write_text(datetime.now(timezone.utc).isoformat())
@@ -264,13 +261,10 @@ def _mark_session_expired():
     if ALERT_SENT_FILE.exists():
         return
     try:
-        asyncio.get_event_loop().create_task(_send_telegram_alert())
-    except Exception:
-        pass
-    try:
         ALERT_SENT_FILE.write_text(datetime.now(timezone.utc).isoformat())
     except Exception:
         pass
+    await _send_telegram_alert()
 
 
 def _clear_session_expired():
@@ -289,7 +283,7 @@ async def _send_telegram_alert():
     try:
         from app.core.config import settings
         token = settings.TELEGRAM_BOT_TOKEN
-        chat_id = os.getenv("TELEGRAM_CHANNEL_ID", "5899118807")
+        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
         if not token:
             return
         last_ok = LAST_OK_FILE.read_text().strip() if LAST_OK_FILE.exists() else "desconhecido"
@@ -297,9 +291,9 @@ async def _send_telegram_alert():
             "⚠️ *SESSÃO ML EXPIRADA*\n\n"
             "A sessão do Mercado Livre Afiliados expirou.\n"
             f"Última renovação OK: `{last_ok}`\n\n"
-            "Para resolver, acesse o servidor via VNC e rode:\n"
-            "`cd /home/alessandro/backend && DISPLAY=:99 venv/bin/python -m app.workers.ml_scraper --login`\n\n"
-            "Depois de fazer login, o session keeper retoma automaticamente."
+            "Para resolver, manda `/ml_login` aqui no Telegram.\n"
+            "O bot vai tentar login automático (email + senha + reCAPTCHA).\n"
+            "Se o reCAPTCHA pedir challenge de imagem, conecta via VNC."
         )
         async with httpx.AsyncClient(timeout=15) as client:
             await client.post(
@@ -386,7 +380,7 @@ async def _browser_keep_session(headless: bool = True) -> bool:
             await context.close()
 
             if session_expired:
-                _mark_session_expired()
+                await _mark_session_expired()
                 return False
 
             _clear_session_expired()

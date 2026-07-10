@@ -246,7 +246,7 @@ async def _send_telegram_alert(msg: str):
         import httpx
         from app.core.config import settings
         token = settings.TELEGRAM_BOT_TOKEN
-        chat_id = os.getenv("TELEGRAM_CHANNEL_ID", "5899118807")
+        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
         if not token:
             return
         async with httpx.AsyncClient(timeout=15) as client:
@@ -653,183 +653,182 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
         logger.info(f"Perfil persistente: {PROFILE_DIR}")
         context = await p.chromium.launch_persistent_context(**persistent_kwargs)
 
-        # Migração: se é primeira execução do perfil e tem storage_state legado,
-        # carrega os cookies antigos no perfil novo
-        if STORAGE_STATE_FILE.exists() and not (PROFILE_DIR / "Default" / "Cookies").exists():
-            try:
-                cookies = json.loads(COOKIES_FILE.read_text()) if COOKIES_FILE.exists() else []
-                if cookies:
-                    await context.add_cookies(cookies)
-                    logger.info(f"Migração: {len(cookies)} cookies legados carregados no perfil persistente")
-            except Exception as e:
-                logger.warning(f"Migração: erro ao carregar cookies legados: {e}")
-
-        page = await context.new_page()
-
-        # Aplica stealth para evitar detecção de automation
         try:
-            from playwright_stealth import Stealth
-            await Stealth(
-                navigator_user_agent_override=persistent_kwargs["user_agent"],
-                navigator_languages_override=("pt-BR", "pt"),
-                navigator_platform_override="Linux x86_64",
-            ).apply_stealth_async(page)
-            logger.info("Stealth aplicado na página")
-        except Exception as e:
-            logger.warning(f"Não foi possível aplicar stealth: {e}")
-
-        # Intercepta a API createLink para capturar links de afiliado (meli.la)
-        global affiliate_links_queue
-        affiliate_links_queue = []
-
-        async def on_response(resp):
-            if "createLink" in resp.url:
+            # Migração: se é primeira execução do perfil e tem storage_state legado,
+            # carrega os cookies antigos no perfil novo
+            if STORAGE_STATE_FILE.exists() and not (PROFILE_DIR / "Default" / "Cookies").exists():
                 try:
-                    body = await resp.text()
-                    import json as _json
-                    data = _json.loads(body)
-                    if "urls" in data:
-                        for u in data["urls"]:
-                            short = u.get("short_url", "")
-                            if short:
-                                affiliate_links_queue.append(short)
-                                logger.info(f"  Link afiliado capturado: {short}")
-                except Exception:
-                    pass
+                    cookies = json.loads(COOKIES_FILE.read_text()) if COOKIES_FILE.exists() else []
+                    if cookies:
+                        await context.add_cookies(cookies)
+                        logger.info(f"Migração: {len(cookies)} cookies legados carregados no perfil persistente")
+                except Exception as e:
+                    logger.warning(f"Migração: erro ao carregar cookies legados: {e}")
 
-        page.on("response", on_response)
+            page = await context.new_page()
 
-        # Override clipboard para capturar links
-        await page.expose_function("__capture_clipboard", lambda text: setattr(page, "_clipboard_text", text))
-
-        # Login
-        ok = await login(page, email, password, headless)
-        if not ok:
-            logger.error("Login falhou — sessão expirada")
-            await _send_telegram_alert(
-                "⚠️ *ML SCRAPER: LOGIN FALHOU*\n\n"
-                "A sessão do ML expirou e o scraper não conseguiu logar.\n"
-                "Manda `/ml_login` aqui para renovar."
-            )
-            await context.close()
-            profile_lock.release()
-            return 0
-
-        # Só desativa produtos depois de confirmar que está logado
-        if start_category == 0 and not dry_run:
-            await deactivate_all_products()
-
-        # Salva storage state e cookies para próximas execuções
-        try:
-            await context.storage_state(path=str(STORAGE_STATE_FILE))
-            logger.info(f"Storage state salvo em {STORAGE_STATE_FILE}")
-        except Exception as e:
-            logger.warning(f"Erro ao salvar storage state: {e}")
-        try:
-            cookies = await context.cookies()
-            COOKIES_FILE.write_text(json.dumps(cookies, indent=2))
-            logger.info(f"Cookies salvos: {len(cookies)} cookies")
-        except Exception as e:
-            logger.warning(f"Erro ao salvar cookies: {e}")
-
-        # Navega para a página de produtos afiliados
-        # O portal pode redirecionar, então esperamos estabilizar
-        await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_timeout(8000)  # espera SPA carregar
-
-        logger.info(f"URL atual: {page.url}")
-
-        # Ativa o filtro "Ganhos extras"
-        await toggle_extra_commission(page)
-        await page.wait_for_timeout(2000)
-
-        # Obtém lista de categorias (do JSON embutido no HTML)
-        categorias = await get_categories(page)
-        if not categorias:
-            logger.warning("Nenhuma categoria encontrada — scrapeando página atual")
-            count = await scrape_category(page, "Geral", dry_run)
-            total_count += count
-        else:
-            last_keepalive = time.time()
-            # Scrapeia cada categoria (a partir do checkpoint)
-            for i, (cat_id, cat_name) in enumerate(categorias):
-                if i < start_category:
-                    logger.info(f"Pulando categoria {i+1} (já feita): {cat_name}")
-                    continue
-
-                # Keepalive da sessão a cada 25 minutos
-                if time.time() - last_keepalive > 1500:
-                    try:
-                        logger.info("Keepalive: acessando portal afiliados para renovar sessão")
-                        await page.goto("https://www.mercadolivre.com.br/afiliados/hub", wait_until="domcontentloaded", timeout=30000)
-                        await page.wait_for_timeout(3000)
-                        if await _check_session_expired(page):
-                            logger.error("Sessão expirada durante keepalive do scraper!")
-                            await _send_telegram_alert(
-                                "⚠️ *SESSÃO ML EXPIRADA DURING SCRAPE*\n\n"
-                                "A sessão caiu no meio do scraping. "
-                                f"Progresso: categoria {i+1}/{len(categorias)}, {total_count} produtos coletados.\n\n"
-                                "Manda `/ml_login` aqui para renovar."
-                            )
-                            await context.close()
-                            profile_lock.release()
-                            return total_count
-                        await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
-                        await page.wait_for_timeout(3000)
-                        last_keepalive = time.time()
-                    except Exception as e:
-                        logger.warning(f"Keepalive falhou: {e}")
-
-                logger.info(f"\n{'='*60}")
-                logger.info(f"Categoria {i+1}/{len(categorias)}: {cat_name} ({cat_id})")
-                logger.info(f"{'='*60}")
-
-                # Salva checkpoint ANTES de começar a categoria
-                save_checkpoint(i)
-
-                ok = await select_category(page, cat_id, cat_name)
-                if not ok:
-                    logger.warning(f"Pulando categoria {cat_name}")
-                    continue
-
-                count = await scrape_category(page, cat_name, dry_run)
-                total_count += count
-
-                logger.info(f"Total parcial: {total_count} produtos")
-
-                # Verifica se a sessão morreu durante a categoria
-                if await _check_session_expired(page):
-                    logger.error(f"Sessão expirada após categoria {cat_name}!")
-                    await _send_telegram_alert(
-                        "⚠️ *SESSÃO ML EXPIRADA DURING SCRAPE*\n\n"
-                        f"Caiu após categoria {cat_name} ({i+1}/{len(categorias)}).\n"
-                        f"Produtos coletados até agora: {total_count}\n\n"
-                        "Manda `/ml_login` aqui para renovar."
-                    )
-                    await context.close()
-                    profile_lock.release()
-                    return total_count
-
-        # Coleta métricas de desempenho (após scraping, navega para página de Métricas)
-        metrics = await scrape_metrics_summary(page)
-        if not dry_run:
-            await save_metrics_snapshot(metrics)
-
-        # Scrape de cupons (após produtos, reusa mesma sessão/logada)
-        if not dry_run:
-            coupons = []
+            # Aplica stealth para evitar detecção de automation
             try:
-                logger.info("\n=== INICIANDO SCRAPE DE CUPONS ===")
-                from app.workers.ml_coupon_scraper import scrape_ml_coupons, save_coupons, deactivate_expired_coupons
-                coupons = await scrape_ml_coupons(page, max_pages=0)
-                if coupons:
-                    await save_coupons(coupons)
-                await deactivate_expired_coupons()
-                logger.info(f"=== CUPONS: {len(coupons)} coletados ===\n")
+                from playwright_stealth import Stealth
+                await Stealth(
+                    navigator_user_agent_override=persistent_kwargs["user_agent"],
+                    navigator_languages_override=("pt-BR", "pt"),
+                    navigator_platform_override="Linux x86_64",
+                ).apply_stealth_async(page)
+                logger.info("Stealth aplicado na página")
             except Exception as e:
-                logger.warning(f"Erro no scrape de cupons: {e}")
+                logger.warning(f"Não foi possível aplicar stealth: {e}")
 
-        await context.close()
+            # Intercepta a API createLink para capturar links de afiliado (meli.la)
+            global affiliate_links_queue
+            affiliate_links_queue = []
+
+            async def on_response(resp):
+                if "createLink" in resp.url:
+                    try:
+                        body = await resp.text()
+                        import json as _json
+                        data = _json.loads(body)
+                        if "urls" in data:
+                            for u in data["urls"]:
+                                short = u.get("short_url", "")
+                                if short:
+                                    affiliate_links_queue.append(short)
+                                    logger.info(f"  Link afiliado capturado: {short}")
+                    except Exception:
+                        pass
+
+            page.on("response", on_response)
+
+            # Override clipboard para capturar links
+            await page.expose_function("__capture_clipboard", lambda text: setattr(page, "_clipboard_text", text))
+
+            # Login
+            ok = await login(page, email, password, headless)
+            if not ok:
+                logger.error("Login falhou — sessão expirada")
+                await _send_telegram_alert(
+                    "⚠️ *ML SCRAPER: LOGIN FALHOU*\n\n"
+                    "A sessão do ML expirou e o scraper não conseguiu logar.\n"
+                    "Manda `/ml_login` aqui para renovar."
+                )
+                return 0
+
+            # Só desativa produtos depois de confirmar que está logado
+            if start_category == 0 and not dry_run:
+                await deactivate_all_products()
+
+            # Salva storage state e cookies para próximas execuções
+            try:
+                await context.storage_state(path=str(STORAGE_STATE_FILE))
+                logger.info(f"Storage state salvo em {STORAGE_STATE_FILE}")
+            except Exception as e:
+                logger.warning(f"Erro ao salvar storage state: {e}")
+            try:
+                cookies = await context.cookies()
+                COOKIES_FILE.write_text(json.dumps(cookies, indent=2))
+                logger.info(f"Cookies salvos: {len(cookies)} cookies")
+            except Exception as e:
+                logger.warning(f"Erro ao salvar cookies: {e}")
+
+            # Navega para a página de produtos afiliados
+            # O portal pode redirecionar, então esperamos estabilizar
+            await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(8000)  # espera SPA carregar
+
+            logger.info(f"URL atual: {page.url}")
+
+            # Ativa o filtro "Ganhos extras"
+            await toggle_extra_commission(page)
+            await page.wait_for_timeout(2000)
+
+            # Obtém lista de categorias (do JSON embutido no HTML)
+            categorias = await get_categories(page)
+            if not categorias:
+                logger.warning("Nenhuma categoria encontrada — scrapeando página atual")
+                count = await scrape_category(page, "Geral", dry_run)
+                total_count += count
+            else:
+                last_keepalive = time.time()
+                # Scrapeia cada categoria (a partir do checkpoint)
+                for i, (cat_id, cat_name) in enumerate(categorias):
+                    if i < start_category:
+                        logger.info(f"Pulando categoria {i+1} (já feita): {cat_name}")
+                        continue
+
+                    # Keepalive da sessão a cada 25 minutos
+                    if time.time() - last_keepalive > 1500:
+                        try:
+                            logger.info("Keepalive: acessando portal afiliados para renovar sessão")
+                            await page.goto("https://www.mercadolivre.com.br/afiliados/hub", wait_until="domcontentloaded", timeout=30000)
+                            await page.wait_for_timeout(3000)
+                            if await _check_session_expired(page):
+                                logger.error("Sessão expirada durante keepalive do scraper!")
+                                await _send_telegram_alert(
+                                    "⚠️ *SESSÃO ML EXPIRADA DURING SCRAPE*\n\n"
+                                    "A sessão caiu no meio do scraping. "
+                                    f"Progresso: categoria {i+1}/{len(categorias)}, {total_count} produtos coletados.\n\n"
+                                    "Manda `/ml_login` aqui para renovar."
+                                )
+                                return total_count
+                            await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                            await page.wait_for_timeout(3000)
+                            last_keepalive = time.time()
+                        except Exception as e:
+                            logger.warning(f"Keepalive falhou: {e}")
+
+                    logger.info(f"\n{'='*60}")
+                    logger.info(f"Categoria {i+1}/{len(categorias)}: {cat_name} ({cat_id})")
+                    logger.info(f"{'='*60}")
+
+                    # Salva checkpoint ANTES de começar a categoria
+                    save_checkpoint(i)
+
+                    ok = await select_category(page, cat_id, cat_name)
+                    if not ok:
+                        logger.warning(f"Pulando categoria {cat_name}")
+                        continue
+
+                    count = await scrape_category(page, cat_name, dry_run)
+                    total_count += count
+
+                    logger.info(f"Total parcial: {total_count} produtos")
+
+                    # Verifica se a sessão morreu durante a categoria
+                    if await _check_session_expired(page):
+                        logger.error(f"Sessão expirada após categoria {cat_name}!")
+                        await _send_telegram_alert(
+                            "⚠️ *SESSÃO ML EXPIRADA DURING SCRAPE*\n\n"
+                            f"Caiu após categoria {cat_name} ({i+1}/{len(categorias)}).\n"
+                            f"Produtos coletados até agora: {total_count}\n\n"
+                            "Manda `/ml_login` aqui para renovar."
+                        )
+                        return total_count
+
+            # Coleta métricas de desempenho (após scraping, navega para página de Métricas)
+            metrics = await scrape_metrics_summary(page)
+            if not dry_run:
+                await save_metrics_snapshot(metrics)
+
+            # Scrape de cupons (após produtos, reusa mesma sessão/logada)
+            if not dry_run:
+                coupons = []
+                try:
+                    logger.info("\n=== INICIANDO SCRAPE DE CUPONS ===")
+                    from app.workers.ml_coupon_scraper import scrape_ml_coupons, save_coupons, deactivate_expired_coupons
+                    coupons = await scrape_ml_coupons(page, max_pages=0)
+                    if coupons:
+                        await save_coupons(coupons)
+                    await deactivate_expired_coupons()
+                    logger.info(f"=== CUPONS: {len(coupons)} coletados ===\n")
+                except Exception as e:
+                    logger.warning(f"Erro no scrape de cupons: {e}")
+
+        finally:
+            try:
+                await context.close()
+            except Exception:
+                pass
 
     # Libera lock do perfil persistente
     profile_lock.release()

@@ -19,8 +19,6 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRIPT_DIR.parent.parent
 ENV_FILE = BACKEND_DIR / ".env"
@@ -89,6 +87,9 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
 
     await _progress("🔄 Abrindo navegador no servidor...")
 
+    # Garante DISPLAY para headless=False (backend systemd não tem DISPLAY)
+    os.environ.setdefault("DISPLAY", ":99")
+
     # Lock do perfil
     import fcntl
     lock_fd = None
@@ -100,6 +101,7 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
     except (IOError, OSError):
         if lock_fd:
             lock_fd.close()
+            lock_fd = None
         return LoginResult(False, "❌ Perfil Chromium em uso pelo scraper. Tente novamente em alguns minutos.")
 
     _cleanup_singleton_lock()
@@ -321,9 +323,13 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
     except Exception as e:
         return LoginResult(False, f"❌ Erro durante login: {e}")
     finally:
+        if lock_fd:
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                lock_fd.close()
+            except Exception:
+                pass
         try:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-            lock_fd.close()
             PROFILE_LOCK_FILE.unlink(missing_ok=True)
         except Exception:
             pass
