@@ -41,6 +41,8 @@ PROFILE_DIR = BACKEND_DIR / ".ml_chrome_profile"
 PROFILE_LOCK_FILE = BACKEND_DIR / ".ml_chrome_profile.lock"
 LOCK_FILE = BACKEND_DIR / ".ml_session_keeper.lock"
 LAST_OK_FILE = BACKEND_DIR / ".ml_session_last_ok"
+EXPIRED_FILE = BACKEND_DIR / ".ml_session_expired"
+ALERT_SENT_FILE = BACKEND_DIR / ".ml_session_alert_sent"
 
 KEEPALIVE_URLS = [
     "https://www.mercadolivre.com.br/afiliados",
@@ -253,19 +255,60 @@ def _mark_last_ok():
 
 
 def _mark_session_expired():
-    """Registra que a sessão expirou. Pode ser usado para alertar."""
+    """Registra que a sessão expirou e envia alerta Telegram (uma vez por expiração)."""
     try:
-        expired_file = BACKEND_DIR / ".ml_session_expired"
-        expired_file.write_text(datetime.now(timezone.utc).isoformat())
+        EXPIRED_FILE.write_text(datetime.now(timezone.utc).isoformat())
+    except Exception:
+        pass
+    # Envia alerta Telegram só uma vez por expiração
+    if ALERT_SENT_FILE.exists():
+        return
+    try:
+        asyncio.get_event_loop().create_task(_send_telegram_alert())
+    except Exception:
+        pass
+    try:
+        ALERT_SENT_FILE.write_text(datetime.now(timezone.utc).isoformat())
     except Exception:
         pass
 
 
 def _clear_session_expired():
     try:
-        (BACKEND_DIR / ".ml_session_expired").unlink(missing_ok=True)
+        EXPIRED_FILE.unlink(missing_ok=True)
     except Exception:
         pass
+    try:
+        ALERT_SENT_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+async def _send_telegram_alert():
+    """Envia alerta no Telegram quando a sessão do ML expira."""
+    try:
+        from app.core.config import settings
+        token = settings.TELEGRAM_BOT_TOKEN
+        chat_id = os.getenv("TELEGRAM_CHANNEL_ID", "5899118807")
+        if not token:
+            return
+        last_ok = LAST_OK_FILE.read_text().strip() if LAST_OK_FILE.exists() else "desconhecido"
+        msg = (
+            "⚠️ *SESSÃO ML EXPIRADA*\n\n"
+            "A sessão do Mercado Livre Afiliados expirou.\n"
+            f"Última renovação OK: `{last_ok}`\n\n"
+            "Para resolver, acesse o servidor via VNC e rode:\n"
+            "`cd /home/alessandro/backend && DISPLAY=:99 venv/bin/python -m app.workers.ml_scraper --login`\n\n"
+            "Depois de fazer login, o session keeper retoma automaticamente."
+        )
+        async with httpx.AsyncClient(timeout=15) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+            )
+        logger.info("Alerta Telegram enviado: sessão ML expirada")
+    except Exception as e:
+        logger.warning(f"Erro ao enviar alerta Telegram: {e}")
 
 
 async def _browser_keep_session(headless: bool = True) -> bool:
