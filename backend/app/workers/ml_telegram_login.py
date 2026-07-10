@@ -152,6 +152,17 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
             except Exception:
                 pass
 
+            # Carrega cookies do storage_state no perfil (caso perfil esteja desatualizado)
+            if STORAGE_STATE_FILE.exists():
+                try:
+                    state = json.loads(STORAGE_STATE_FILE.read_text())
+                    state_cookies = state.get("cookies", [])
+                    if state_cookies:
+                        await context.add_cookies(state_cookies)
+                        await _progress(f"📋 {len(state_cookies)} cookies carregados do backup")
+                except Exception as e:
+                    logger_warning(f"Erro ao carregar storage_state: {e}")
+
             await _progress("🌐 Navegando para o portal de afiliados...")
             await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_timeout(3000)

@@ -349,6 +349,17 @@ async def _browser_keep_session(headless: bool = True) -> bool:
             # Aplica stealth
             await _apply_stealth(context, user_agent=USER_AGENT)
 
+            # Carrega cookies do storage_state no perfil (caso perfil esteja desatualizado)
+            if STORAGE_STATE_FILE.exists():
+                try:
+                    state = json.loads(STORAGE_STATE_FILE.read_text())
+                    state_cookies = state.get("cookies", [])
+                    if state_cookies:
+                        await context.add_cookies(state_cookies)
+                        logger.info(f"Carregados {len(state_cookies)} cookies do storage_state no perfil")
+                except Exception as e:
+                    logger.warning(f"Erro ao carregar storage_state: {e}")
+
             session_expired = False
             urls = list(KEEPALIVE_URLS)
             random.shuffle(urls)
