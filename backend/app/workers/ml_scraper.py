@@ -21,10 +21,13 @@ Variáveis no .env:
 import asyncio
 import fcntl
 import os
+import random
 import re
+import shutil
 import sys
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -66,7 +69,6 @@ class ProfileLock:
         self.fd = None
 
     def acquire(self, timeout: int = 60) -> bool:
-        import time
         self.fd = open(self.path, "w")
         elapsed = 0
         while True:
@@ -98,6 +100,42 @@ class ProfileLock:
             except Exception:
                 pass
             self.fd = None
+
+
+def backup_storage_state():
+    """Guarda backup rotativo do storage_state antes de sobrescrever."""
+    if not STORAGE_STATE_FILE.exists():
+        return
+    for i in range(2, 0, -1):
+        src = BACKEND_DIR / f".ml_storage_state.json.bak.{i}"
+        dst = BACKEND_DIR / f".ml_storage_state.json.bak.{i+1}"
+        if src.exists():
+            try:
+                shutil.move(str(src), str(dst))
+            except Exception:
+                pass
+    try:
+        shutil.copy(str(STORAGE_STATE_FILE), str(BACKEND_DIR / ".ml_storage_state.json.bak.1"))
+    except Exception as e:
+        logger.warning(f"Backup storage_state falhou: {e}")
+
+
+def cleanup_chrome_singleton_lock():
+    """Remove arquivos de lock do Chromium no perfil persistente."""
+    removed = []
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        p = PROFILE_DIR / name
+        if p.exists():
+            try:
+                if p.is_symlink() or p.is_file():
+                    p.unlink()
+                else:
+                    shutil.rmtree(p, ignore_errors=True)
+                removed.append(name)
+            except Exception as e:
+                logger.warning(f"Não conseguiu remover {name}: {e}")
+    if removed:
+        logger.info(f"Removido lock do Chrome: {', '.join(removed)}")
 
 
 # ── checkpoint ────────────────────────────────────────────────────────────────
@@ -525,10 +563,6 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
     if start_category > 0:
         logger.info(f"RETOMANDO do checkpoint: categoria {start_category}")
 
-    # Se começa do zero, desativa todos os produtos (sobrescrever)
-    if start_category == 0 and not dry_run:
-        await deactivate_all_products()
-
     # Adquire lock do perfil persistente (compartilhado com session keeper)
     profile_lock = ProfileLock(PROFILE_LOCK_FILE)
     if not profile_lock.acquire():
@@ -547,6 +581,10 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
         logger.info("Migrando storage_state legado para perfil persistente...")
 
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Limpa lock do Chrome e faz backup do storage_state antes de usar
+    cleanup_chrome_singleton_lock()
+    backup_storage_state()
 
     async with async_playwright() as p:
         # Detecta chromium disponível: sistema (servidor) ou playwright (local)
@@ -571,6 +609,9 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 "--disable-gpu",
                 "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-infobars",
+                "--disable-notifications",
             ],
         }
         if chromium_path:
@@ -594,6 +635,18 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 logger.warning(f"Migração: erro ao carregar cookies legados: {e}")
 
         page = await context.new_page()
+
+        # Aplica stealth para evitar detecção de automation
+        try:
+            from playwright_stealth import Stealth
+            await Stealth(
+                navigator_user_agent_override=persistent_kwargs["user_agent"],
+                navigator_languages_override=("pt-BR", "pt"),
+                navigator_platform_override="Linux x86_64",
+            ).apply_stealth_async(page)
+            logger.info("Stealth aplicado na página")
+        except Exception as e:
+            logger.warning(f"Não foi possível aplicar stealth: {e}")
 
         # Intercepta a API createLink para capturar links de afiliado (meli.la)
         global affiliate_links_queue
@@ -626,6 +679,10 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
             profile_lock.release()
             return 0
 
+        # Só desativa produtos depois de confirmar que está logado
+        if start_category == 0 and not dry_run:
+            await deactivate_all_products()
+
         # Salva storage state e cookies para próximas execuções
         try:
             await context.storage_state(path=str(STORAGE_STATE_FILE))
@@ -657,11 +714,24 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
             count = await scrape_category(page, "Geral", dry_run)
             total_count += count
         else:
+            last_keepalive = time.time()
             # Scrapeia cada categoria (a partir do checkpoint)
             for i, (cat_id, cat_name) in enumerate(categorias):
                 if i < start_category:
                     logger.info(f"Pulando categoria {i+1} (já feita): {cat_name}")
                     continue
+
+                # Keepalive da sessão a cada 25 minutos
+                if time.time() - last_keepalive > 1500:
+                    try:
+                        logger.info("Keepalive: acessando portal afiliados para renovar sessão")
+                        await page.goto("https://www.mercadolivre.com.br/afiliados/hub", wait_until="domcontentloaded", timeout=30000)
+                        await page.wait_for_timeout(3000)
+                        await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                        await page.wait_for_timeout(3000)
+                        last_keepalive = time.time()
+                    except Exception as e:
+                        logger.warning(f"Keepalive falhou: {e}")
 
                 logger.info(f"\n{'='*60}")
                 logger.info(f"Categoria {i+1}/{len(categorias)}: {cat_name} ({cat_id})")
