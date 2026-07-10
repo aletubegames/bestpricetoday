@@ -240,6 +240,36 @@ def parse_sold_count(raw: str) -> Optional[int]:
 affiliate_links_queue = []
 
 
+async def _send_telegram_alert(msg: str):
+    """Envia alerta no Telegram quando algo crítico acontece no scraper."""
+    try:
+        import httpx
+        from app.core.config import settings
+        token = settings.TELEGRAM_BOT_TOKEN
+        chat_id = os.getenv("TELEGRAM_CHANNEL_ID", "5899118807")
+        if not token:
+            return
+        async with httpx.AsyncClient(timeout=15) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+            )
+        logger.info(f"Alerta Telegram enviado: {msg[:80]}")
+    except Exception as e:
+        logger.warning(f"Erro ao enviar alerta Telegram: {e}")
+
+
+async def _check_session_expired(page) -> bool:
+    """Verifica se a página foi redirecionada para login. Retorna True se expirada."""
+    try:
+        url = page.url.lower()
+        if "login" in url or "auth" in url or "jms" in url:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # ── scraper ───────────────────────────────────────────────────────────────────
 async def scrape_category(page, category_name: str, dry_run: bool = False) -> int:
     """Scrapeia a categoria atualmente aberta na página. Salva cada item no banco imediatamente.
@@ -675,6 +705,12 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
         # Login
         ok = await login(page, email, password, headless)
         if not ok:
+            logger.error("Login falhou — sessão expirada")
+            await _send_telegram_alert(
+                "⚠️ *ML SCRAPER: LOGIN FALHOU*\n\n"
+                "A sessão do ML expirou e o scraper não conseguiu logar.\n"
+                "Manda `/ml_login` aqui para renovar."
+            )
             await context.close()
             profile_lock.release()
             return 0
@@ -727,6 +763,17 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                         logger.info("Keepalive: acessando portal afiliados para renovar sessão")
                         await page.goto("https://www.mercadolivre.com.br/afiliados/hub", wait_until="domcontentloaded", timeout=30000)
                         await page.wait_for_timeout(3000)
+                        if await _check_session_expired(page):
+                            logger.error("Sessão expirada durante keepalive do scraper!")
+                            await _send_telegram_alert(
+                                "⚠️ *SESSÃO ML EXPIRADA DURING SCRAPE*\n\n"
+                                "A sessão caiu no meio do scraping. "
+                                f"Progresso: categoria {i+1}/{len(categorias)}, {total_count} produtos coletados.\n\n"
+                                "Manda `/ml_login` aqui para renovar."
+                            )
+                            await context.close()
+                            profile_lock.release()
+                            return total_count
                         await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
                         await page.wait_for_timeout(3000)
                         last_keepalive = time.time()
@@ -749,6 +796,19 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 total_count += count
 
                 logger.info(f"Total parcial: {total_count} produtos")
+
+                # Verifica se a sessão morreu durante a categoria
+                if await _check_session_expired(page):
+                    logger.error(f"Sessão expirada após categoria {cat_name}!")
+                    await _send_telegram_alert(
+                        "⚠️ *SESSÃO ML EXPIRADA DURING SCRAPE*\n\n"
+                        f"Caiu após categoria {cat_name} ({i+1}/{len(categorias)}).\n"
+                        f"Produtos coletados até agora: {total_count}\n\n"
+                        "Manda `/ml_login` aqui para renovar."
+                    )
+                    await context.close()
+                    profile_lock.release()
+                    return total_count
 
         # Coleta métricas de desempenho (após scraping, navega para página de Métricas)
         metrics = await scrape_metrics_summary(page)
