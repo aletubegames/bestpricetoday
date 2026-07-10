@@ -52,7 +52,7 @@ export default function CuponsPage() {
   const [products, setProducts] = useState<CouponProduct[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [offset, setOffset] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
   // Filtros
@@ -73,10 +73,10 @@ export default function CuponsPage() {
       .catch(() => {})
   }, [])
 
-  const buildUrl = (off: number) => {
+  const buildUrl = (page: number) => {
     const params = new URLSearchParams()
     params.set("limit", String(PAGE_SIZE))
-    params.set("offset", String(off))
+    params.set("offset", String((page - 1) * PAGE_SIZE))
     params.set("sort", sort)
     if (selectedStore) params.set("store", selectedStore)
     if (minDiscount) params.set("min_discount", minDiscount)
@@ -85,36 +85,29 @@ export default function CuponsPage() {
   }
 
   const fetchProducts = useCallback(
-    async (reset = false) => {
+    async (page: number = 1) => {
       setLoading(true)
       try {
-        const off = reset ? 0 : offset
-        const res = await fetch(buildUrl(off))
+        const res = await fetch(buildUrl(page))
         if (!res.ok) throw new Error("Failed to fetch")
         const data: ApiResponse = await res.json()
-
-        if (reset) {
-          setProducts(data.products)
-          setOffset(PAGE_SIZE)
-        } else {
-          setProducts((prev) => [...prev, ...data.products])
-          setOffset(off + PAGE_SIZE)
-        }
+        setProducts(data.products)
         setTotal(data.total)
+        setCurrentPage(page)
       } catch (e) {
         console.error(e)
       } finally {
         setLoading(false)
       }
     },
-    [offset, sort, selectedStore, minDiscount, maxPrice]
+    [sort, selectedStore, minDiscount, maxPrice]
   )
 
   // Refetch quando filtros mudam (com debounce)
   useEffect(() => {
     if (fetchTimer.current) clearTimeout(fetchTimer.current)
     fetchTimer.current = setTimeout(() => {
-      fetchProducts(true)
+      fetchProducts(1)
     }, 300)
     return () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current)
@@ -161,7 +154,7 @@ export default function CuponsPage() {
   }
 
   const hasActiveFilters = selectedStore || minDiscount || maxPrice || sort !== "expires_soon"
-  const hasMore = products.length < total
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
     <>
@@ -433,11 +426,35 @@ export default function CuponsPage() {
         </div>
       )}
 
-      {/* Load more */}
-      {!loading && hasMore && products.length > 0 && (
-        <div className={styles.loadMore}>
-          <button className={styles.loadMoreBtn} onClick={() => fetchProducts(false)}>
-            Carregar mais ({total - products.length} restantes)
+      {/* Paginação */}
+      {!loading && totalPages > 1 && products.length > 0 && (
+        <div className={styles.pagination}>
+          <button
+            className={styles.pageBtn}
+            disabled={currentPage === 1}
+            onClick={() => { fetchProducts(currentPage - 1); window.scrollTo({ top: 0, behavior: "smooth" }) }}
+          >
+            ‹ Anterior
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+            .map((p, idx, arr) => (
+              <span key={p} className={styles.pageBtnWrap}>
+                {idx > 0 && arr[idx - 1] !== p - 1 && <span className={styles.pageDots}>…</span>}
+                <button
+                  className={`${styles.pageNum} ${p === currentPage ? styles.pageActive : ""}`}
+                  onClick={() => { fetchProducts(p); window.scrollTo({ top: 0, behavior: "smooth" }) }}
+                >
+                  {p}
+                </button>
+              </span>
+            ))}
+          <button
+            className={styles.pageBtn}
+            disabled={currentPage === totalPages}
+            onClick={() => { fetchProducts(currentPage + 1); window.scrollTo({ top: 0, behavior: "smooth" }) }}
+          >
+            Próxima ›
           </button>
         </div>
       )}
