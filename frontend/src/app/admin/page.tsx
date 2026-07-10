@@ -336,6 +336,7 @@ export default function AdminPage() {
   const [analytics, setAnalytics] = useState<Record<string, Record<string, number>>>({});
   const [marketplaces, setMarketplaces] = useState<MarketplaceRow[]>([]);
   const [traffic, setTraffic] = useState<TrafficRow[]>([]);
+  const [onlineVisitors, setOnlineVisitors] = useState<{ online_now: number; visitors: any[]; stats?: any } | null>(null);
   const [topProducts, setTopProducts] = useState<AdminProduct[]>([]);
   const [recentClicks, setRecentClicks] = useState<RecentClick[]>([]);
   const [recentConversions, setRecentConversions] = useState<RecentConversion[]>([]);
@@ -405,6 +406,11 @@ export default function AdminPage() {
       setRecentClicks(cl.items || []); setRecentConversions(cv.items || []);
       if (intStatus) { setIntegrationStatus(intStatus); setIntegrationStatusError(null); }
       setTiktokAdminAccount(ttAdmin); setLastUpdated(new Date());
+
+      // Fetch online visitors (separate, não bloqueia)
+      adminFetch<{ online_now: number; visitors: any[]; stats?: any }>(`/api/v1/admin/online/details`, k)
+        .then(d => setOnlineVisitors(d))
+        .catch(() => {});
     } catch (e: unknown) {
       logger.error("Admin data fetch failed:", e);
       setIntegrationStatusError(getErrorMessage(e));
@@ -413,6 +419,17 @@ export default function AdminPage() {
   }, [activePlatform, activePeriod, clickPage, convPage]);
 
   useEffect(() => { if (key) fetchAll(key); }, [key, fetchAll]);
+
+  // Auto-refresh visitantes online a cada 15s quando tab ativa
+  useEffect(() => {
+    if (!key || activeTab !== "online") return;
+    const interval = setInterval(() => {
+      adminFetch<{ online_now: number; visitors: any[]; stats?: any }>(`/api/v1/admin/online/details`, key)
+        .then(d => setOnlineVisitors(d))
+        .catch(() => {});
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [key, activeTab]);
 
   const handleLogin = async () => {
     setLoginError("");
@@ -477,6 +494,7 @@ export default function AdminPage() {
 
   const TABS = [
     { id: "overview", label: "Visão Geral", icon: "📊" },
+    { id: "online", label: "Online", icon: "🟢" },
     { id: "traffic", label: "Tráfego", icon: "🌐" },
     { id: "products", label: "Produtos", icon: "🏆" },
     { id: "conversions", label: "Conversões", icon: "✅" },
@@ -679,6 +697,78 @@ export default function AdminPage() {
             </div>
           </div>
         </>)}
+
+        {/* ═══════ TAB: ONLINE ═══════ */}
+        {activeTab === "online" && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>🟢 Visitantes Online Agora</div>
+              {onlineVisitors && (
+                <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                  {onlineVisitors.online_now} online · janela de 5 min
+                </div>
+              )}
+            </div>
+
+            {!onlineVisitors || onlineVisitors.online_now === 0 ? (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyStateIcon}>🟢</div>
+                Nenhum visitante online no momento
+              </div>
+            ) : (
+              <>
+                {/* Stats resumo */}
+                {onlineVisitors.stats && (
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {Object.entries(onlineVisitors.stats.devices || {}).map(([k, v]: any) => (
+                      <div key={`d-${k}`} style={{ padding: "6px 12px", borderRadius: 8, background: "var(--s2)", fontSize: 12 }}>
+                        💻 {k}: <strong>{v}</strong>
+                      </div>
+                    ))}
+                    {Object.entries(onlineVisitors.stats.countries || {}).map(([k, v]: any) => (
+                      <div key={`c-${k}`} style={{ padding: "6px 12px", borderRadius: 8, background: "var(--s2)", fontSize: 12 }}>
+                        🌍 {k}: <strong>{v}</strong>
+                      </div>
+                    ))}
+                    {Object.entries(onlineVisitors.stats.browsers || {}).map(([k, v]: any) => (
+                      <div key={`b-${k}`} style={{ padding: "6px 12px", borderRadius: 8, background: "var(--s2)", fontSize: 12 }}>
+                        🌐 {k}: <strong>{v}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tabela de visitantes */}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid var(--bd)", textAlign: "left" }}>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>IP (anonimizado)</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>País</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Dispositivo</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Página atual</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Páginas vistas</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Tempo online</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {onlineVisitors.visitors?.map((v: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--bd)" }}>
+                          <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11 }}>{v.ip_anon || "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{v.country || "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{v.device || "—"} {v.browser !== "unknown" ? `· ${v.browser}` : ""}</td>
+                          <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11, color: "var(--acc)" }}>{v.current_page || "—"}</td>
+                          <td style={{ padding: "8px 10px" }}>{v.page_count || 0}</td>
+                          <td style={{ padding: "8px 10px" }}>{v.online_formatted || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* ═══════ TAB: TRAFFIC ═══════ */}
         {activeTab === "traffic" && (
