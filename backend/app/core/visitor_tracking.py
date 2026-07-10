@@ -174,6 +174,6 @@ async def track_visitor(request: Request) -> None:
         data["online_seconds"] = int(now - data.get("first_seen", now))
         data["current_page"] = data["pages"][-1]["path"] if data["pages"] else "/"
 
-        await r.setex(key, 300, json.dumps(data))
+        await r.setex(key, 60, json.dumps(data))
     except Exception as exc:
         logger.warning(f"Visitor tracking failed for {path}: {exc}")

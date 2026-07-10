@@ -1710,7 +1710,7 @@ async def get_online_visitors(
     authorization: str = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Retorna numero de visitantes unicos online (ativos nos ultimos 5 min).
+    """Retorna numero de visitantes unicos online (ativos nos ultimos 1 min).
     Usa Redis — zero carga no banco Neon."""
     await require_admin(x_admin_key, admin_key, authorization, db)
     try:
@@ -1722,11 +1722,11 @@ async def get_online_visitors(
             keys.append(key)
         return {
             "online_now": len(keys),
-            "window_minutes": 5,
+            "window_minutes": 1,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
-        return {"online_now": 0, "error": str(e), "window_minutes": 5}
+        return {"online_now": 0, "error": str(e), "window_minutes": 1}
 
 
 @router.get("/online/details")

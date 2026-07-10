@@ -423,11 +423,11 @@ export default function AdminPage() {
   // Auto-refresh visitantes online a cada 15s quando tab ativa
   useEffect(() => {
     if (!key || activeTab !== "online") return;
-    const interval = setInterval(() => {
-      adminFetch<{ online_now: number; visitors: any[]; stats?: any }>(`/api/v1/admin/online/details`, key)
-        .then(d => setOnlineVisitors(d))
-        .catch(() => {});
-    }, 15000);
+    const fetchOnline = () => adminFetch<{ online_now: number; visitors: any[]; stats?: any }>(`/api/v1/admin/online/details`, key)
+      .then(d => setOnlineVisitors(d))
+      .catch(() => {});
+    fetchOnline(); // fetch imediato
+    const interval = setInterval(fetchOnline, 15000);
     return () => clearInterval(interval);
   }, [key, activeTab]);
 
@@ -705,7 +705,7 @@ export default function AdminPage() {
               <div className={styles.cardTitle}>🟢 Visitantes Online Agora</div>
               {onlineVisitors && (
                 <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                  {onlineVisitors.online_now} online · janela de 5 min
+                  {onlineVisitors.online_now} online · janela de 1 min
                 </div>
               )}
             </div>
