@@ -184,6 +184,52 @@ async def cmd_alertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def cmd_ml_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Login do ML Afiliados via Telegram — abre browser, preenche, tenta reCAPTCHA."""
+    chat_id = str(update.effective_chat.id)
+    channel_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else ""
+
+    # Só responde no canal admin (não no bot público)
+    if chat_id != channel_id and chat_id != "5899118807":
+        await update.message.reply_text("❌ Comando não disponível.")
+        return
+
+    msg = await update.message.reply_text(
+        "🔄 *Iniciando login ML Afiliados...*\nAguarde, abrindo navegador no servidor.",
+        parse_mode="Markdown"
+    )
+
+    # Callback para atualizar progresso
+    progress_messages = []
+
+    async def progress_cb(text: str):
+        progress_messages.append(text)
+        try:
+            await msg.edit_text(f"🔄 *Login ML em andamento...*\n\n{text}", parse_mode="Markdown")
+        except Exception:
+            pass
+
+    try:
+        from app.workers.ml_telegram_login import do_telegram_login
+        result = await do_telegram_login(progress_cb=progress_cb)
+
+        if result.success:
+            await msg.edit_text(result.message, parse_mode="Markdown")
+        else:
+            # Se tem screenshot, envia
+            if result.screenshot_path and os.path.exists(result.screenshot_path):
+                with open(result.screenshot_path, "rb") as photo:
+                    await update.message.reply_photo(
+                        photo=photo,
+                        caption=result.message,
+                        parse_mode="Markdown"
+                    )
+            else:
+                await msg.edit_text(result.message, parse_mode="Markdown")
+    except Exception as e:
+        await msg.edit_text(f"❌ Erro: {e}", parse_mode="Markdown")
+
+
 async def start_bot_polling():
     """Run bot polling in background — for cloud deployment."""
     token = settings.TELEGRAM_BOT_TOKEN
@@ -201,6 +247,7 @@ async def start_bot_polling():
     application.add_handler(CommandHandler("alertas", cmd_alertas))
     application.add_handler(CommandHandler("top", cmd_top))
     application.add_handler(CommandHandler("canal", cmd_canal))
+    application.add_handler(CommandHandler("ml_login", cmd_ml_login))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search))
 
     logger.info("Starting Telegram bot polling (cloud mode)...")
@@ -231,6 +278,7 @@ def run():
     app.add_handler(CommandHandler("alertas", cmd_alertas))
     app.add_handler(CommandHandler("top", cmd_top))
     app.add_handler(CommandHandler("canal", cmd_canal))
+    app.add_handler(CommandHandler("ml_login", cmd_ml_login))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search))
 
     logger.info("BestPriceToday Telegram bot started")
