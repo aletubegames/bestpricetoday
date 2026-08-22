@@ -18,17 +18,23 @@ Cada post = 1 short link /r/{code} único com source = canal.
 """
 
 import asyncio
+import glob
 import hashlib
 import httpx
 import json
 import os
 import random
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 from app.core.config import settings
 from app.core.logging import logger
+
+# Semaphore para limitar concorrência de XTTS (evita OOM)
+# Máximo 1 processo XTTS por vez (cada processo consome ~2GB RAM)
+_XTTS_SEMAPHORE = asyncio.Semaphore(1)
 
 
 # ─── Config ───────────────────────────────────────────────────────────────────
@@ -38,43 +44,67 @@ CHANNEL_ID = settings.TELEGRAM_CHANNEL_ID
 API_URL = settings.INTERNAL_API_URL
 ADMIN_KEY = settings.ADMIN_MANAGER_KEY
 
-# Filtros de qualidade — foco em compra por impulso (R$30-200) com demanda real
-MIN_PRICE = 30.0          # preço mínimo: R$30 (gadget/fone/smartwatch — compra por impulso)
-MAX_PRICE = 200.0         # preço máximo: R$200 (acima disso ninguém compra de canal desconhecido)
-MIN_DISCOUNT = 15.0       # desconto mínimo: 15% (só ofertas reais que convertem)
-DEDUP_TTL_HOURS = 48      # não repete a mesma oferta em 48h (evita saturação)
+# Filtros de qualidade — relaxados para aumentar conversões
+MIN_PRICE = 20.0          # preço mínimo: R$20 (aumentado de R$30)
+MAX_PRICE = 500.0         # preço máximo: R$500 (aumentado de R$200)
+MIN_DISCOUNT = 10.0       # desconto mínimo: 10% (reduzido de 15%)
+DEDUP_TTL_HOURS = 24      # não repete a mesma oferta em 24h (reduzido de 48h)
 
-# Demanda mínima — só posta produtos com prova de venda
-MIN_SALES_COUNT = 500     # ≥500 unidades vendidas (Shopee/AliExpress/ML) ou ≥500 reviews (Amazon)
-MIN_RATING = 4.7          # nota ≥4.7 (escala 0-5); ML usa 0-5 na API, scraper guarda igual
+# Demanda mínima — relaxada para mais produtos
+MIN_SALES_COUNT = 100     # ≥100 unidades vendidas (reduzido de 500)
+MIN_RATING = 4.3          # nota ≥4.3 (reduzido de 4.7)
 
-# Marcas reconhecidas — produto genérico sem marca = 0% conversão em tráfego frio
+# Marcas reconhecidas — expandido para incluir mais marcas populares
 RECOGNIZED_BRANDS = {
     # Smartphones / eletrônicos
     "samsung", "apple", "iphone", "xiaomi", "redmi", "motorola", "realme", "pocophone", "poco",
+    "lg", "htc", "nokia", "alcatel", "zte", "blu", "vivo", "oppo", "oneplus",
     # Áudio
     "jbl", "sony", "bose", "anker", "soundcore", "beats", "airpods", "edifier", "jvc", "philips",
+    "sennheiser", "audio-technica", "pioneer", "kenwood", "pyle", "skullcandy", "plantronics",
     # Wearables
-    "garmin", "amazfit", "huawei", "fitbit", "withings",
+    "garmin", "amazfit", "huawei", "fitbit", "withings", "polar", "suunto", "fossil",
     # Casa / cozinha
     "electrolux", "philco", "mondial", "arno", "oster", "black+decker", "black decker",
+    "brastemp", "consul", "whirlpool", "panasonic", "mabe", "britania", "cadence", "walita",
+    "breville", "kitchenaid", "cuisinart", "ge", "moulinex", "delonghi", "nespresso",
     # Games
     "playstation", "nintendo", "xbox", "razer", "logitech", "hyperx", "steelseries",
+    "corsair", "msi", "asus", "gigabyte", "zowie", "benq", "keychron", "durgod",
     # Informática
     "dell", "acer", "asus", "lenovo", "hp", "intel", "amd", "nvidia", "kingston",
+    "corsair", "crucial", "g.skill", "samsung", "western digital", "seagate", "toshiba",
+    "intelbras", "tp-link", "d-link", "netgear", "linksys", "mikrotik", "ubiquiti",
     # Câmeras
-    "canon", "nikon", "gopro", "dji",
+    "canon", "nikon", "gopro", "dji", "sony", "fujifilm", "olympus", "pentax", "leica",
     # TV
-    "lg", "tcl", "hisense",
+    "lg", "tcl", "hisense", "philips", "sharp", "hitachi", "jvc", "panasonic", "samsung",
+    # Eletrodomésticos
+    "electrolux", "brastemp", "consul", "whirlpool", "samsung", "lg", "panasonic",
+    "mabe", "continental", "esmaltec", "inox", "tramontina", "berkel", "britania",
+    # Marcas brasileiras populares
+    "intelbras", "multilaser", "c3tech", "positivo", "itautec", "gradiente", "philips",
+    "bombril", "ype", "qbo", "eins", "kibon", "natura", "oboticario", "havaianas",
+    # Outras marcas reconhecidas
+    "adidas", "nike", "puma", "reebok", "new balance", "under armour",
+    "calvin klein", "tommy hilfiger", "lacoste", "ralph lauren",
+    "nivea", "dove", "pantene", "head & shoulders", "gillette",
 }
 
-# Categorias de demanda (queries que convertem em compra por impulso R$30-200)
+# Categorias de demanda (expandido para mais categorias que convertem)
 DEMAND_CATEGORIES = {
-    "audio":        ["fone jbl bluetooth", "fone bluetooth tws", "headset gamer", "caixa de som bluetooth", "earbuds airpods"],
-    "wearables":    ["smartwatch samsung", "xiaomi band 8", "amazfit", "smartwatch"],
-    "games":        ["jogo ps5", "controle xbox", "jogo nintendo switch", "headset ps5"],
-    "periferico":   ["mouse gamer sem fio", "teclado mecanico", "webcam 1080p", "mouse logitech"],
-    "gadgets":      ["power bank xiaomi", "carregador turbo samsung", "smart bulb", "pilhas recarregaveis"],
+    "audio":        ["fone jbl bluetooth", "fone bluetooth tws", "headset gamer", "caixa de som bluetooth", "earbuds airpods", "speaker bluetooth", "microfone", "soundbar"],
+    "wearables":    ["smartwatch samsung", "xiaomi band 8", "amazfit", "smartwatch", "relogio smart", "fitness tracker"],
+    "games":        ["jogo ps5", "controle xbox", "jogo nintendo switch", "headset ps5", "mouse gamer", "teclado gamer", "monitor gamer"],
+    "periferico":   ["mouse gamer sem fio", "teclado mecanico", "webcam 1080p", "mouse logitech", "monitor", "teclado wireless"],
+    "gadgets":      ["power bank xiaomi", "carregador turbo samsung", "smart bulb", "pilhas recarregaveis", "carregador wireless", "cabo usb"],
+    "casa":         ["ventilador", "ar condicionado", "ferro de passar", "cafeteira", "liquidificador", "batedeira", "processador"],
+    "cozinha":      ["panela", "frigideira", "air fryer", "microondas", "fogao", "geladeira", "freezer"],
+    "eletro":       ["tv", "smart tv", "home theater", "barulho", "som", "projetor", "televisao"],
+    "esportes":     ["bicicleta", "treadmill", "eliptico", "halter", "peso", "academia", "corrida", "natacao"],
+    "beleza":       ["secador", "chapinha", "barbeador", "cortador de cabelo", "cuidado pessoal", "maquiagem"],
+    "automotivo":   ["gps", "camera de re", "radar", "carregador carro", "bateria carro", "farol", "pneu"],
+    "informatica":  ["notebook", "laptop", "desktop", "ssd", "hd", "memoria ram", "placa de video", "processador"],
 }
 
 # Dedup file (compartilhado com broadcaster)
@@ -143,13 +173,11 @@ def _has_recognized_brand(title: str) -> bool:
     return False
 
 
-# Keywords de acessórios/genéricos que NÃO devem ser postados
+# Keywords de acessórios/genéricos que NÃO devem ser postados (reduzido - só lixo)
 EXCLUDE_KEYWORDS = {
     "capa", "case", "cover", "filme", "protetor", "pelicula", "película",
-    "carregador", "cabo", "fonte", "adaptador", "suporte", "base",
-    "bateria", "pilha recarregavel", "pneu", "aro", "roda",
-    "bolsa airbag", "tapete", "mould", "tray", "forma silicone",
-    "pelicula 3d", "vidro nano", "screen protector",
+    "screen protector", "vidro nano", "pelicula 3d",
+    # Mantive apenas proteção de tela e capas - acessórios úteis (carregador, cabo, etc) agora são permitidos
 }
 
 
@@ -853,6 +881,41 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
         return {"ok": False, "error": str(e)}
 
 
+# ─── Limpeza de arquivos temporários ─────────────────────────────────────────────────────
+
+def cleanup_temp_files():
+    """Remove arquivos temporários antigos do /tmp (vídeos, áudios, imagens).
+    
+    Executado periodicamente para evitar ocupação de espaço.
+    """
+    import glob
+    import time
+    import shutil
+    try:
+        logger.info("Distributor: iniciando limpeza de arquivos temporários")
+        now = time.time()
+        cutoff = now - 3600  # remove arquivos com mais de 1 hora
+        
+        removed_count = 0
+        # Remove arquivos temporários antigos
+        for pattern in ["/tmp/tmp*", "/tmp/*.mp4", "/tmp/*.wav", "/tmp/*.jpg"]:
+            for filepath in glob.glob(pattern):
+                try:
+                    if os.path.getmtime(filepath) < cutoff:
+                        if os.path.isdir(filepath):
+                            shutil.rmtree(filepath)
+                            logger.info(f"Distributor: removed old temp directory: {filepath}")
+                        else:
+                            os.remove(filepath)
+                            logger.info(f"Distributor: removed old temp file: {filepath}")
+                        removed_count += 1
+                except Exception as e:
+                    logger.warning(f"Distributor: failed to remove {filepath}: {e}")
+        logger.info(f"Distributor: limpeza de arquivos temporários concluída ({removed_count} arquivos removidos)")
+    except Exception as e:
+        logger.warning(f"Distributor: cleanup_temp_files failed: {e}")
+
+
 # ─── YouTube Shorts poster ────────────────────────────────────────────────────
 
 async def generate_offer_video(offer: dict, output_path: str, custom_narration: Optional[str] = None) -> Optional[str]:
@@ -926,25 +989,66 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         if custom_narration:
             narration = custom_narration
         else:
-            # Gancho: preço nos 2 primeiros segundos (fisga antes do scroll)
+            # Variedade de ganchos/aberturas aleatórias
+            hooks = [
+                f"Olha só essa oferta: {title_clean} por {speak_brl(price)}!",
+                f"Não perca: {title_clean} por {speak_brl(price)}!",
+                f"Oferta do dia: {title_clean} por {speak_brl(price)}!",
+                f"Preço baixo: {title_clean} por {speak_brl(price)}!",
+                f"Promoção imperdível: {title_clean} por {speak_brl(price)}!",
+                f"Vale a pena: {title_clean} por {speak_brl(price)}!",
+                f"Corre que acaba: {title_clean} por {speak_brl(price)}!",
+                f"Super oferta: {title_clean} por {speak_brl(price)}!",
+            ]
+            
+            # Variedade de CTAs aleatórios
+            ctas = [
+                "Link no comentário. Clica agora!",
+                "Clica no link do comentário!",
+                "Link fixado no comentário!",
+                "Confira no comentário!",
+                "Botão no comentário!",
+                "Aproveita no comentário!",
+            ]
+            
+            # Escolhe aleatoriamente
+            import random as _rand
+            hook = _rand.choice(hooks)
+            cta = _rand.choice(ctas)
+            
+            # Variedade de estruturas de preço/desconto
             if original and original > price and discount > 0:
                 economy = original - price
-                narration = (
-                    f"{title_clean} por apenas {speak_brl(price)}! "
-                    f"De {speak_brl(original)} por {speak_brl(price)}, "
-                    f"você economiza {speak_brl(economy)}. "
-                )
+                price_structures = [
+                    f"Era {speak_brl(original)}, agora {speak_brl(price)}. Economiza {speak_brl(economy)}.",
+                    f"De {speak_brl(original)} para {speak_brl(price)}. Você economiza {speak_brl(economy)}.",
+                    f"Preço antigo {speak_brl(original)}, novo preço {speak_brl(price)}. Economia de {speak_brl(economy)}.",
+                    f"Desconto de {speak_brl(economy)}. De {speak_brl(original)} por {speak_brl(price)}.",
+                ]
+                price_info = _rand.choice(price_structures)
+                narration = f"{hook} {price_info} "
             else:
-                narration = (
-                    f"{title_clean} por apenas {speak_brl(price)}! "
-                    f"É uma ótima opção pra quem busca qualidade. "
-                )
+                value_props = [
+                    "Oferta imperdível pra quem busca qualidade.",
+                    "Excelente custo-benefício.",
+                    "Produto de qualidade com preço baixo.",
+                    "Não perca essa oportunidade.",
+                    "Ideal pra quem quer economizar.",
+                ]
+                value_prop = _rand.choice(value_props)
+                narration = f"{hook} {value_prop} "
 
             if shipping_free:
-                narration += "E ainda tem frete grátis. "
+                shipping_msgs = [
+                    "Frete grátis. ",
+                    "Com frete grátis. ",
+                    "E ainda tem frete grátis. ",
+                    "Envio sem custo. ",
+                ]
+                narration += _rand.choice(shipping_msgs)
 
-            # CTA: comentário fixado (não descrição — quase ninguém abre em Shorts)
-            narration += "O link está no comentário fixado. Clica rápido!"
+            # Adiciona CTA
+            narration += cta
 
             # Expande marcas e unidades para TTS
             narration = expand_units_for_tts(narration)
@@ -972,6 +1076,9 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         def esc(t):
             return t.replace("'", "\\'").replace(":", "\\:").replace(",", "\\,")
 
+        # Variedade visual aleatória
+        import random as _rand
+        
         # Quebra título em linhas dinamicamente (max ~30 chars cada)
         title_full = offer.get("title", "")[:90]
         words = title_full.split()
@@ -1000,72 +1107,93 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         economy_val = offer.get("economy", 0) or (original - price if original and original > price else 0)
         economy_text = esc(f"ECONOMIZE {fmt_brl(economy_val)}") if economy_val > 10 else ""
 
+        # Variedade de cores e posições
+        color_schemes = [
+            {"price": "0x00ff88", "discount": "0xff4444", "economy": "0xffaa00"},  # verde/vermelho/laranja
+            {"price": "0x00ccff", "discount": "0xff6600", "economy": "0xffcc00"},  # azul/laranja/amarelo
+            {"price": "0x00ffaa", "discount": "0xff3366", "economy": "0xffdd00"},  # verde claro/vermelho/amarelo claro
+        ]
+        colors = _rand.choice(color_schemes)
+
         # ── 5. Monta vídeo com ffmpeg ──
         if _os.path.exists(img_path):
+            # Gradiente de fundo (melhor que cor sólida)
             vf_parts = [
                 "scale=1080:1920:force_original_aspect_ratio=decrease",
-                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0a0a0a",
+                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0a0a1a@0.95",  # cor de fundo com transparência
                 "format=yuv420p",
                 # Título via textfile (permite quebra de linha real com \n)
-                f"drawtext=textfile={title_file}:fontcolor=white:fontsize=32:"
-                f"x=(w-text_w)/2:y=60:line_spacing=8:box=1:boxcolor=0x000000@0.7:boxborderw=12",
+                f"drawtext=textfile={title_file}:fontcolor=white:fontsize=34:"
+                f"x=(w-text_w)/2:y=50:line_spacing=10:box=1:boxcolor=0x000000@0.75:boxborderw=15",
             ]
             if orig_text:
                 vf_parts.append(
-                    f"drawtext=text='DE {orig_text}':fontcolor=0x999999:fontsize=38:"
-                    f"x=(w-text_w)/2:y=1480:box=1:boxcolor=0x000000@0.6:boxborderw=8"
+                    f"drawtext=text='DE {orig_text}':fontcolor=0xaaaaaa:fontsize=40:"
+                    f"x=(w-text_w)/2:y=1450:box=1:boxcolor=0x000000@0.65:boxborderw=10"
                 )
                 vf_parts.append(
-                    f"drawtext=text='POR {price_text}':fontcolor=0x00ff88:fontsize=52:"
-                    f"x=(w-text_w)/2:y=1550:box=1:boxcolor=0x000000@0.8:boxborderw=14"
+                    f"drawtext=text='POR {price_text}':fontcolor={colors['price']}:fontsize=56:"
+                    f"x=(w-text_w)/2:y=1520:box=1:boxcolor=0x000000@0.85:boxborderw=16"
                 )
                 if discount_text:
                     vf_parts.append(
-                        f"drawtext=text='{discount_text}':fontcolor=0xff4444:fontsize=42:"
-                        f"x=(w-text_w)/2:y=1640:box=1:boxcolor=0x000000@0.6:boxborderw=10"
+                        f"drawtext=text='{discount_text}':fontcolor={colors['discount']}:fontsize=44:"
+                        f"x=(w-text_w)/2:y=1610:box=1:boxcolor=0x000000@0.65:boxborderw=12"
                     )
                 if economy_text:
                     vf_parts.append(
-                        f"drawtext=text='{economy_text}':fontcolor=0xffaa00:fontsize=38:"
-                        f"x=(w-text_w)/2:y=1700:box=1:boxcolor=0x000000@0.6:boxborderw=8"
+                        f"drawtext=text='{economy_text}':fontcolor={colors['economy']}:fontsize=40:"
+                        f"x=(w-text_w)/2:y=1680:box=1:boxcolor=0x000000@0.65:boxborderw=10"
                     )
             else:
                 vf_parts.append(
-                    f"drawtext=text='{price_text}':fontcolor=0x00ff88:fontsize=56:"
-                    f"x=(w-text_w)/2:y=1550:box=1:boxcolor=0x000000@0.8:boxborderw=14"
+                    f"drawtext=text='{price_text}':fontcolor={colors['price']}:fontsize=60:"
+                    f"x=(w-text_w)/2:y=1520:box=1:boxcolor=0x000000@0.85:boxborderw=16"
                 )
 
             if shipping_free:
+                shipping_colors = ["0x00ff88", "0x00ccff", "0x00ffaa"]
+                shipping_color = _rand.choice(shipping_colors)
                 vf_parts.append(
-                    "drawtext=text='FRETE GRATIS':fontcolor=0x00ff88:fontsize=36:"
-                    "x=(w-text_w)/2:y=1720:box=1:boxcolor=0x000000@0.6:boxborderw=10"
+                    f"drawtext=text='FRETE GRATIS':fontcolor={shipping_color}:fontsize=38:"
+                    "x=(w-text_w)/2:y=1750:box=1:boxcolor=0x000000@0.65:boxborderw=12"
                 )
             else:
                 vf_parts.append(
-                    f"drawtext=text='{provider.upper()}':fontcolor=0x888888:fontsize=32:"
-                    f"x=(w-text_w)/2:y=1720"
+                    f"drawtext=text='{provider.upper()}':fontcolor=0x999999:fontsize=34:"
+                    f"x=(w-text_w)/2:y=1750"
                 )
 
+            # Variedade de textos de CTA
+            cta_texts = [
+                "LINK NO COMENTÁRIO",
+                "LINK NO COMENTÁRIO FIXADO",
+                "CLICA NO COMENTÁRIO",
+                "CONFIRA NO COMENTÁRIO",
+            ]
+            cta_text = _rand.choice(cta_texts)
             vf_parts.append(
-                "drawtext=text='LINK NO COMENTARIO FIXADO':fontcolor=0x00ff88:fontsize=28:"
-                "x=(w-text_w)/2:y=1820:box=1:boxcolor=0x000000@0.7:boxborderw=8"
+                f"drawtext=text='{cta_text}':fontcolor=0x00ff88:fontsize=30:"
+                "x=(w-text_w)/2:y=1830:box=1:boxcolor=0x000000@0.75:boxborderw=10"
             )
             vf_parts.append(
-                "drawtext=text='BestPriceToday':fontcolor=0x888888:fontsize=22:"
-                "x=(w-text_w)/2:y=1880"
+                "drawtext=text='BestPriceToday':fontcolor=0x777777:fontsize=24:"
+                "x=(w-text_w)/2:y=1890"
             )
 
             cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", img_path,
                 "-i", audio_path,
-                "-c:v", "libx264", "-tune", "stillimage",
+                # Otimizações para CPU Intel com pouca RAM
+                "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage",
                 "-vf", ",".join(vf_parts),
-                "-c:a", "aac", "-b:a", "128k",
+                "-c:a", "aac", "-b:a", "64k",  # reduzido de 128k para 64k
                 "-t", str(duration),
                 "-pix_fmt", "yuv420p",
-                "-r", "30",
-                "-crf", "20",
+                "-r", "15",  # reduzido de 30fps para 15fps (vídeo estático)
+                "-crf", "23",  # aumentado de 20 para 23 (menor arquivo, mais rápido)
+                "-threads", "4",  # limita threads para não estourar RAM
                 output_path
             ]
         else:
@@ -1087,9 +1215,11 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                 "-f", "lavfi", "-i", f"color=c=0x0a0a1a:s=1080x1920:d={duration}",
                 "-i", audio_path,
                 "-vf", ",".join(vf_parts),
-                "-c:v", "libx264", "-c:a", "aac", "-b:a", "128k",
+                "-c:v", "libx264", "-preset", "veryfast",  # adicionado preset
+                "-c:a", "aac", "-b:a", "64k",  # reduzido de 128k
                 "-t", str(duration),
-                "-pix_fmt", "yuv420p", "-r", "30", "-crf", "20",
+                "-pix_fmt", "yuv420p", "-r", "15", "-crf", "23",  # otimizações
+                "-threads", "4",  # limita threads
                 output_path
             ]
 
@@ -1180,7 +1310,7 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "", vi
             video_id = result.get("video_id")
             logger.info(f"YouTube: posted Short {video_id} for offer '{offer.get('title','')[:40]}'")
 
-            # Limpa arquivo temporário
+            # Limpa arquivo temporário (sempre, mesmo em caso de erro)
             try:
                 _os.remove(video_path)
             except Exception:
@@ -1194,6 +1324,12 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "", vi
 
     except Exception as e:
         logger.error(f"YouTube: failed to post: {e}")
+        # Limpa arquivo temporário em caso de erro
+        if video_path and _os.path.exists(video_path):
+            try:
+                _os.remove(video_path)
+            except Exception:
+                pass
         return {"ok": False, "error": str(e)}
 
 
@@ -1501,18 +1637,14 @@ async def distribute_auto(
 # ─── Loop automático ──────────────────────────────────────────────────────────
 
 # Horários de postagem (hora local BR, UTC-3)
-# Modo agressivo moderado: 10 posts/dia para Telegram/FB/IG, 6 vídeos/dia para YouTube
-# Horários de pico: manhã, almoço, tarde, jantar, noite
+# Foco em qualidade: 3 posts/dia para Telegram/FB/IG (apenas melhores ofertas)
+# Horários de pico: almoço e jantar
 POST_SCHEDULE = [
-    (9, 1),   # 09h — 1 oferta (manhã)
-    (12, 2),  # 12h — 2 ofertas (pico almoço)
-    (15, 2),  # 15h — 2 ofertas (tarde)
-    (18, 1),  # 18h — 1 oferta (pré-noite)
+    (12, 1),  # 12h — 1 oferta (pico almoço)
     (19, 2),  # 19h — 2 ofertas (jantar)
-    (21, 2),  # 21h — 2 ofertas (pico noite)
 ]
 
-# YouTube: menos vídeos, melhores (2/dia — produto com marca + desconto real)
+# YouTube: 2 vídeos/dia (qualidade sobre quantidade)
 YOUTUBE_POST_SCHEDULE = [
     (12, 1),
     (19, 1),
@@ -1526,9 +1658,9 @@ ALL_CHANNELS = ["telegram", "facebook", "instagram", "youtube"]
 async def run_distributor_loop():
     """Loop automático do distributor.
 
-    Modo agressivo moderado:
-    - Telegram/FB/IG: 10 posts/dia nos horários de pico
-    - YouTube: 6 vídeos/dia (evita spam)
+    Foco em qualidade sobre quantidade:
+    - Telegram/FB/IG: 3 posts/dia nos horários de pico (12h, 19h)
+    - YouTube: 2 vídeos/dia (12h, 19h)
 
     Janela de postagem: 2 horas (sched_hour até sched_hour+1:59)
     — garante que mesmo se o loop acordar tarde, ainda posta.
@@ -1553,6 +1685,9 @@ async def run_distributor_loop():
         stale_yt = [k for k in youtube_posted_today if not k.startswith(today_key)]
         for k in stale_yt:
             del youtube_posted_today[k]
+
+        # Limpeza de arquivos temporários (a cada loop)
+        cleanup_temp_files()
 
         # ── Canais rápidos (Telegram, Facebook, Instagram) ──
         n_offers = 0

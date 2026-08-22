@@ -178,8 +178,10 @@ class AmazonProvider(BaseProvider):
             offers = []
             for p in scored:
                 price = p.price or 0
-                # Verifica se é Prime
+                # Verifica se é Prime (para info, mas não afixa frete)
                 is_prime = "prime=true" in (p.notes or "")
+                # Amazon: maioria dos produtos tem frete grátis, especialmente acima de R$ 79
+                # Não fixamos frete R$ 20 — isso gerava preços incorretos
                 offers.append(OfferSchema(
                     provider=ProviderEnum.amazon,
                     title=p.title or "",
@@ -187,8 +189,8 @@ class AmazonProvider(BaseProvider):
                     original_price=price,
                     discount_percent=0.0,
                     shipping_free=is_prime,
-                    shipping_price=0.0 if is_prime else 20.0,
-                    final_price=price + (0 if is_prime else 20.0),
+                    shipping_price=0.0,
+                    final_price=price,
                     score=round(_score(p.title or "", tokens), 4),
                     product_id=p.ml_code or "",
                     product_url=p.affiliate_url or "",

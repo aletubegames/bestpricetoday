@@ -437,8 +437,12 @@ async def auth_facebook():
 
 
 @router.get("/test/facebook-credentials")
-async def test_facebook_credentials():
-    """Testa se as credenciais Facebook estão corretas"""
+async def test_facebook_credentials(_: str = Depends(require_admin)):
+    """Testa se as credenciais Facebook estão corretas
+
+    Protegido por admin key/JWT — chama a Graph API com client_secret
+    e devolve o access_token do app no response.
+    """
     try:
         log.info("Testando credenciais Facebook...")
         log.info(f"App ID: {settings.ID_APLICATIVO_FACEBOOK}")

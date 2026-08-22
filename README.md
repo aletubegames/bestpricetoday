@@ -96,7 +96,7 @@ npm run dev
 
 - **Backend:** Python 3.14 + FastAPI + SQLAlchemy async + Pydantic v2 + PostgreSQL (Neon)
 - **Frontend:** Next.js 14 (App Router) + React 18 + TypeScript + CSS Modules + Tailwind CSS + Lucide icons + Framer Motion
-- **Deploy:** Alaserver (192.168.100.30) + Cloudflare Tunnel
+- **Deploy:** Alaserver (192.168.15.45) + Cloudflare Tunnel
 - **Cache:** Redis (Upstash / localhost)
 - **Vídeo:** ffmpeg + XTTS v2 (voz clonada)
 
@@ -259,7 +259,7 @@ PYTHONPATH=. .venv312/bin/pytest tests/ -v
 
 ### Infraestrutura
 
-- **Servidor:** `alaserver` (`192.168.100.30`, rede local)
+- **Servidor:** `alaserver` (`192.168.15.45`, rede local)
 - **Proxy:** Cloudflare Tunnel (`cloudflared`) na porta 443
 - **Backup:** nginx nas portas 9443/8443/2053 (port forwarding roteador)
 
@@ -287,7 +287,7 @@ curl http://localhost:8765/health
 
 ### Frontend (Alaserver)
 ```bash
-ssh alessandro@192.168.100.30
+ssh alessandro@192.168.15.45
 cd /home/alessandro/frontend
 npx next build
 sudo systemctl restart bestprice-frontend
@@ -295,7 +295,7 @@ sudo systemctl restart bestprice-frontend
 
 ### Backend (Alaserver)
 ```bash
-ssh alessandro@192.168.100.30
+ssh alessandro@192.168.15.45
 cd /home/alessandro/backend
 sudo systemctl restart bestprice-backend
 ```

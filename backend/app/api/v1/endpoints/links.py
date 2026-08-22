@@ -280,6 +280,45 @@ async def proxy_image(encoded: str):
             encoded += "=" * padding
         original_url = base64.urlsafe_b64decode(encoded).decode()
 
+        # ── SSRF protection ──────────────────────────────────────────
+        # Bloqueia esquemas não-HTTP e hosts internos (localhost, RFC1918,
+        # link-local, AWS metadata, etc).
+        from urllib.parse import urlparse
+        import ipaddress
+
+        parsed = urlparse(original_url)
+        if parsed.scheme not in ("http", "https"):
+            return Response(status_code=403)
+
+        host = parsed.hostname or ""
+        if not host:
+            return Response(status_code=403)
+
+        # Hostnames literais que sempre bloqueamos
+        _BLOCKED_HOSTS = {
+            "localhost", "metadata.google.internal",
+            "metadata.aws.internal",
+        }
+        if host.lower() in _BLOCKED_HOSTS:
+            return Response(status_code=403)
+
+        # Tenta resolver e valida cada IP — bloqueia ranges privados
+        import socket
+        try:
+            infos = socket.getaddrinfo(host, None)
+        except socket.gaierror:
+            return Response(status_code=404)
+
+        for family, _, _, _, sockaddr in infos:
+            ip_str = sockaddr[0]
+            try:
+                ip = ipaddress.ip_address(ip_str)
+            except ValueError:
+                continue
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return Response(status_code=403)
+        # ── /SSRF protection ─────────────────────────────────────────
+
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.get(original_url, follow_redirects=True)
             if r.status_code != 200:

@@ -39,6 +39,10 @@ COOKIES_FILE = BACKEND_DIR / ".ml_cookies.json"
 STORAGE_STATE_FILE = BACKEND_DIR / ".ml_storage_state.json"
 LOCK_FILE = BACKEND_DIR / ".ml_coupon_scraper.lock"
 
+# Flag de sessão expirada compartilhado com ml_session_keeper (dedup de ruído)
+EXPIRED_FILE = BACKEND_DIR / ".ml_session_expired"
+EXPIRED_RECENT_HOURS = 12
+
 COUPONS_URL = "https://www.mercadolivre.com.br/afiliados/coupons#hub"
 CODE_PREFIX = "ALETUBE"  # prefixo automático do ML para códigos do afiliado
 
@@ -587,12 +591,78 @@ async def scrape_ml_coupons(page, context=None, max_pages: int = 0) -> List[dict
     # ── FASE 2: Coletar códigos gerados ──
     logger.info("\n=== FASE 2: Coletando códigos gerados ===")
 
-    # Vai para aba "Códigos gerados"
+    # Após FASE 1 (potencialmente longa), a página pode estar instável:
+    # modais residuais, overlays, React state degradado.
+    # Fecha a página atual e abre uma nova para garantir estado limpo.
     try:
-        await page.locator('#coupons-tabs-tab-1').click()
-        await page.wait_for_timeout(3000)
+        if context:
+            logger.info("Fechando página degradada e abrindo nova para FASE 2...")
+            old_page = page
+            page = await context.new_page()
+            await old_page.close()
+            await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(8000)
+            logger.info(f"Nova página carregada: {page.url}")
+        else:
+            raise Exception("context não disponível — usando reload")
     except Exception as e:
-        logger.error(f"Erro ao ir para aba Códigos gerados: {e}")
+        logger.warning(f"Erro ao abrir nova página: {e}")
+        # Fallback: recarrega a página atual com networkidle
+        try:
+            await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(8000)
+        except Exception as e2:
+            logger.warning(f"Reload fallback também falhou: {e2}")
+
+    # Limpa modais/overlays residuais
+    try:
+        await page.evaluate("""() => {
+            document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
+            document.querySelectorAll('.andes-modal__overlay, .andes-mask').forEach(e => e.remove());
+            document.querySelectorAll('.andes-snackbar, .andes-toast, [class*=toast], [class*=notification], [class*=snackbar]').forEach(e => e.remove());
+        }""")
+        await page.wait_for_timeout(1000)
+    except Exception:
+        pass
+
+    # Vai para aba "Códigos gerados" — retry com múltiplas estratégias
+    tab_clicked = False
+    for attempt in range(3):
+        try:
+            # Estratégia 1: seletor original
+            tab = page.locator('#coupons-tabs-tab-1')
+            if await tab.count() > 0:
+                await tab.click(timeout=10000)
+                await page.wait_for_timeout(3000)
+                tab_clicked = True
+                logger.info("Aba 'Códigos gerados' clicada (seletor #coupons-tabs-tab-1)")
+                break
+        except Exception as e:
+            logger.warning(f"  Tentativa {attempt+1} #coupons-tabs-tab-1 falhou: {e}")
+
+        try:
+            # Estratégia 2: role=tab com texto
+            tab2 = page.locator('[role=tab]:has-text("gerad")')
+            if await tab2.count() > 0:
+                await tab2.first.click(timeout=10000)
+                await page.wait_for_timeout(3000)
+                tab_clicked = True
+                logger.info("Aba 'Códigos gerados' clicada (role=tab texto)")
+                break
+        except Exception as e:
+            logger.warning(f"  Tentativa {attempt+1} role=tab falhou: {e}")
+
+        # Estratégia 3: reload e tenta de novo
+        if attempt < 2:
+            logger.info(f"  Recarregando página para retry {attempt+2}...")
+            try:
+                await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(5000)
+            except Exception:
+                pass
+
+    if not tab_clicked:
+        logger.error("Não foi possível clicar na aba 'Códigos gerados' após 3 tentativas")
         return []
 
     all_coupons = []
@@ -894,6 +964,19 @@ async def run(max_pages: int = 0, headless: bool = True, collect_only: bool = Fa
             await page.wait_for_timeout(8000)  # espera SPA carregar
     
             if "login" in page.url.lower() or "auth" in page.url.lower():
+                # Dedup de ruído: se ml_session_keeper já marcou EXPIRED_FILE
+                # recentemente (<12h), só loga em silêncio (já retornou []).
+                # Evita poluir log todo dia às 23h pelo mesmo incidente.
+                if EXPIRED_FILE.exists():
+                    try:
+                        last = datetime.fromisoformat(EXPIRED_FILE.read_text().strip())
+                        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+                        if elapsed < EXPIRED_RECENT_HOURS * 3600:
+                            logger.info("Cookies expirados — EXPIRED_FILE recente, keeper já alertou (silêncio)")
+                            await browser.close()
+                            return []
+                    except Exception:
+                        pass
                 logger.error("Cookies expirados — rode ml_scraper --login primeiro")
                 await browser.close()
                 return []
@@ -901,12 +984,35 @@ async def run(max_pages: int = 0, headless: bool = True, collect_only: bool = Fa
             if collect_only:
                 # Só Fase 2: coleta cupons já gerados (sem gerar novos)
                 logger.info("=== MODO COLLECT-ONLY: pulando Fase 1 ===")
-                # Vai direto pra aba "Códigos gerados"
-                try:
-                    await page.locator('#coupons-tabs-tab-1').click()
-                    await page.wait_for_timeout(3000)
-                except Exception as e:
-                    logger.error(f"Erro ao ir para aba Códigos gerados: {e}")
+                # Vai direto pra aba "Códigos gerados" — retry com múltiplas estratégias
+                tab_clicked = False
+                for attempt in range(3):
+                    try:
+                        tab = page.locator('#coupons-tabs-tab-1')
+                        if await tab.count() > 0:
+                            await tab.click(timeout=10000)
+                            await page.wait_for_timeout(3000)
+                            tab_clicked = True
+                            break
+                    except Exception as e:
+                        logger.warning(f"  Tentativa {attempt+1} #coupons-tabs-tab-1 falhou: {e}")
+                    try:
+                        tab2 = page.locator('[role=tab]:has-text("gerad")')
+                        if await tab2.count() > 0:
+                            await tab2.first.click(timeout=10000)
+                            await page.wait_for_timeout(3000)
+                            tab_clicked = True
+                            break
+                    except Exception as e:
+                        logger.warning(f"  Tentativa {attempt+1} role=tab falhou: {e}")
+                    if attempt < 2:
+                        try:
+                            await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="domcontentloaded", timeout=30000)
+                            await page.wait_for_timeout(5000)
+                        except Exception:
+                            pass
+                if not tab_clicked:
+                    logger.error("Não foi possível clicar na aba 'Códigos gerados' após 3 tentativas")
                     await browser.close()
                     return []
     

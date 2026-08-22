@@ -2,12 +2,27 @@
 ml_session_keeper.py — Mantém a sessão do Mercado Livre Afiliados viva.
 
 Estratégia (melhor prática para sessões longas):
-1. Heartbeat leve via HTTP (requests + cookies) a cada 15 min para evitar
+1. Heartbeat leve via HTTP (httpx + cookies) a cada 30 min para evitar
    abrir o Chromium desnecessariamente e reduzir fingerprint.
-2. Se o HTTP detectar expiração, tenta reativar via browser automation
-   com perfil persistente + playwright-stealth.
-3. Backup rotativo do storage_state para poder restaurar se o perfil corromper.
-4. Limpa SingletonLock do Chromium para evitar "profile in use" após crash.
+   NÃO reescreve cookies a cada HTTP (era fonte de corrupção de sessão).
+2. Tri-estado no HTTP: "alive" | "expired" | "network_error".
+   - "alive" → mantém sessão, marca last_ok.
+   - "expired" → sessão morta confirmada; NÃO abre browser se EXPIRED_FILE
+     já existe (evita reabrir 288x/dia = padrão de bot). Só alerta Telegram
+     a cada 6h. Retoma quando login manual novo reescreve cookies/storage_state.
+   - "network_error" → DNS/rede caiu; NÃO abre browser, NÃO marca expired,
+     NÃO alerta. Tenta de novo no próximo ciclo de 30min.
+3. Renovação preventiva via browser a cada 6h mesmo com HTTP OK — refresh
+   dos cookies antes que expirem. SÓ declara sucesso se pelo menos 1 página
+   do portal carregar de verdade (URL final contém "mercadolivre" e não é
+   about:blank/chrome-error://). Se nenhuma carregar (rede caiu), NÃO salva
+   storage_state/cookies (evita gravar snapshot degradado que mata a sessão).
+4. Backup rotativo do storage_state para poder restaurar se o perfil corromper.
+5. Limpa SingletonLock do Chromium para evitar "profile in use" após crash.
+6. Pool de User-Agents reais e atuais (Chrome 138+) com rotação aleatória
+   por run — evita detecção de UA fixo/desatualizado.
+7. Roda com janela real no Xvfb :99 (--headless=false no cron) — fingerprint
+   de headless é detectável; o Xvfb já está sempre ativo no servidor.
 
 Não substitui login manual quando a sessão realmente expirar, mas reduz
  drasticamente a frequência de logins ao manter o cookie ativo.
@@ -15,6 +30,7 @@ Não substitui login manual quando a sessão realmente expirar, mas reduz
 Uso:
   cd backend && venv/bin/python -m app.workers.ml_session_keeper
   cd backend && venv/bin/python -m app.workers.ml_session_keeper --headless=false
+  cd backend && venv/bin/python -m app.workers.ml_session_keeper --http-only
 """
 import asyncio
 import fcntl
@@ -43,6 +59,12 @@ LOCK_FILE = BACKEND_DIR / ".ml_session_keeper.lock"
 LAST_OK_FILE = BACKEND_DIR / ".ml_session_last_ok"
 EXPIRED_FILE = BACKEND_DIR / ".ml_session_expired"
 ALERT_SENT_FILE = BACKEND_DIR / ".ml_session_alert_sent"
+LAST_BROWSER_REFRESH_FILE = BACKEND_DIR / ".ml_session_last_browser_refresh"
+
+BROWSER_REFRESH_INTERVAL = 21600  # 6 horas — renovação preventiva via browser
+BROWSER_BACKOFF_INTERVAL = 7200   # 2 horas — backoff após browser falhar (não fica 288x/dia)
+NETWORK_BACKOFF_INTERVAL = 1800   # 30 min — backoff curto após erro de rede (não confundir com sessão morta)
+EXPIRED_RECENT_HOURS = 12         # janela para considerar EXPIRED_FILE "recente" (dedup de alertas)
 
 KEEPALIVE_URLS = [
     "https://www.mercadolivre.com.br/afiliados",
@@ -51,7 +73,30 @@ KEEPALIVE_URLS = [
     "https://www.mercadolivre.com.br/afiliados/home",
 ]
 
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+# Pool de User-Agents reais e atuais (Chrome 138+, jul/2026).
+# Rotação aleatória por run evita detecção de UA fixo.
+USER_AGENTS = [
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.92 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.92 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.92 Safari/537.36",
+]
+USER_AGENT = USER_AGENTS[0]  # compat (não usar diretamente — use _pick_user_agent())
+
+
+def _pick_user_agent() -> str:
+    """Escolhe um User-Agent aleatório do pool (rotação por run)."""
+    return random.choice(USER_AGENTS)
+
+
+# Arquivo de backoff: se o browser tentou renovar e falhou, espera BROWSER_BACKOFF_INTERVAL
+# antes de tentar de novo. Evita padrão de bot (288 aberturas/dia).
+BROWSER_BACKOFF_FILE = BACKEND_DIR / ".ml_session_browser_backoff"
+# Backoff curto para erro de rede (DNS/internet caiu) — distinto do backoff de bot:
+# não indica sessão morta, só "não tente abrir browser agora".
+NETWORK_BACKOFF_FILE = BACKEND_DIR / ".ml_session_network_backoff"
 
 
 class LockFile:
@@ -169,18 +214,126 @@ def _load_cookie_dict() -> dict:
         return {}
 
 
-def _http_session_alive() -> bool:
-    """Heartbeat leve: tenta acessar o portal usando cookies salvos.
-    Retorna True se a sessão ainda estiver ativa (não redirecionou para login)."""
-    cookies = _load_cookie_dict()
-    if not cookies:
-        logger.info("HTTP keepalive: sem cookies salvos, necessário browser")
+def _browser_backoff_active() -> bool:
+    """True se estamos em backoff após browser falhar (não abrir browser de novo)."""
+    if not BROWSER_BACKOFF_FILE.exists():
+        return False
+    try:
+        last = datetime.fromisoformat(BROWSER_BACKOFF_FILE.read_text().strip())
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed < BROWSER_BACKOFF_INTERVAL
+    except Exception:
         return False
 
+
+def _mark_browser_backoff():
+    """Registra que o browser tentou renovar e falhou — entra em backoff."""
+    try:
+        BROWSER_BACKOFF_FILE.write_text(datetime.now(timezone.utc).isoformat())
+    except Exception:
+        pass
+
+
+def _clear_browser_backoff():
+    """Limpa o backoff após sucesso ou login manual."""
+    try:
+        BROWSER_BACKOFF_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _network_backoff_active() -> bool:
+    """True se estamos em backoff curto após erro de rede (não abrir browser)."""
+    if not NETWORK_BACKOFF_FILE.exists():
+        return False
+    try:
+        last = datetime.fromisoformat(NETWORK_BACKOFF_FILE.read_text().strip())
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed < NETWORK_BACKOFF_INTERVAL
+    except Exception:
+        return False
+
+
+def _mark_network_backoff():
+    """Registra erro de rede — backoff curto de 30min (não é sessão morta)."""
+    try:
+        NETWORK_BACKOFF_FILE.write_text(datetime.now(timezone.utc).isoformat())
+    except Exception:
+        pass
+
+
+def _clear_network_backoff():
+    try:
+        NETWORK_BACKOFF_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _expired_recent() -> bool:
+    """True se EXPIRED_FILE existe e é recente (< EXPIRED_RECENT_HOURS).
+    Usado para dedup de alertas (scraper/keeper não precisam re-alertar
+    pelo mesmo incidente)."""
+    if not EXPIRED_FILE.exists():
+        return False
+    try:
+        last = datetime.fromisoformat(EXPIRED_FILE.read_text().strip())
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed < EXPIRED_RECENT_HOURS * 3600
+    except Exception:
+        return False
+
+
+def _login_manual_newer_than_expired() -> bool:
+    """True se houve login manual novo após a sessão expirar.
+    Detecta comparando mtime de .ml_cookies.json/.ml_storage_state.json
+    com o timestamp de EXPIRED_FILE. Se True, o caller deve limpar o flag
+    expired e retomar o ciclo normal."""
+    if not EXPIRED_FILE.exists():
+        return True  # não há flag expired — nada a recuperar
+    try:
+        expired_ts = datetime.fromisoformat(EXPIRED_FILE.read_text().strip())
+    except Exception:
+        return True
+    # Pega o mtime mais recente entre cookies e storage_state
+    candidates = []
+    for f in (COOKIES_FILE, STORAGE_STATE_FILE):
+        if f.exists():
+            try:
+                mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)
+                candidates.append(mtime)
+            except Exception:
+                pass
+    if not candidates:
+        return False
+    newest = max(candidates)
+    # Login manual novo = arquivos de sessão mais novos que o flag expired (+30s de tolerância)
+    return (newest - expired_ts).total_seconds() > 30
+
+
+def _http_session_alive() -> str:
+    """Heartbeat leve: tenta acessar o portal usando cookies salvos.
+
+    Retorna tri-estado:
+      - "alive"         : sessão ativa (200 sem redirect pra login)
+      - "expired"       : sessão morta confirmada (redirect jms/login/auth)
+      - "network_error" : DNS/rede caiu — NÃO confundir com sessão morta.
+                          Não abre browser, não marca expired, não alerta.
+
+    NÃO persiste cookies recebidos via Set-Cookie — isso era fonte de
+    corrupção de sessão (cookies de página de loading/cache sobrescreviam
+    os cookies reais). Cookies só são salvos quando o browser confirma
+    a sessão ativa em _browser_keep_session()."""
+    cookies = _load_cookie_dict()
+    if not cookies:
+        logger.info("HTTP keepalive: sem cookies salvos — sessão expirada")
+        return "expired"
+
+    ua = _pick_user_agent()
+    saw_network_error = False
     try:
         with httpx.Client(
             cookies=cookies,
-            headers={"User-Agent": USER_AGENT, "Accept-Language": "pt-BR,pt;q=0.9"},
+            headers={"User-Agent": ua, "Accept-Language": "pt-BR,pt;q=0.9"},
             follow_redirects=True,
             timeout=20.0,
         ) as client:
@@ -191,16 +344,36 @@ def _http_session_alive() -> bool:
                     body = r.text[:500].lower()
                     if "login" in final or "auth" in final or "jms" in final or "senha" in body or "password" in body:
                         logger.info(f"HTTP keepalive detectou redirect/login: {r.url}")
-                        return False
+                        return "expired"
                     if r.status_code < 400:
                         logger.info(f"HTTP keepalive OK: {r.url} ({r.status_code})")
-                        return True
-                except Exception as e:
-                    logger.warning(f"HTTP keepalive erro em {url}: {e}")
+                        return "alive"
+                except httpx.ConnectError as e:
+                    logger.warning(f"HTTP keepalive erro de conexão em {url}: {e}")
+                    saw_network_error = True
                     continue
+                except httpx.TimeoutException as e:
+                    logger.warning(f"HTTP keepalive timeout em {url}: {e}")
+                    saw_network_error = True
+                    continue
+                except Exception as e:
+                    # Erro genérico — pode ser rede; não assume expirado
+                    logger.warning(f"HTTP keepalive erro em {url}: {e}")
+                    saw_network_error = True
+                    continue
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.warning(f"HTTP keepalive falhou (rede): {e}")
+        return "network_error"
     except Exception as e:
         logger.warning(f"HTTP keepalive falhou: {e}")
-    return False
+        return "network_error"
+
+    if saw_network_error:
+        logger.warning("HTTP keepalive: todas as tentativas falharam por rede")
+        return "network_error"
+    # Não houve redirect de login nem 200 — comportamento inesperado, trata como expirado
+    logger.warning("HTTP keepalive: sem resposta conclusiva — assumindo expirado")
+    return "expired"
 
 
 def _apply_stealth(context_or_page, user_agent: str = None):
@@ -251,20 +424,47 @@ def _mark_last_ok():
         pass
 
 
+def _browser_refresh_due() -> bool:
+    """Verifica se é hora de fazer renovação preventiva via browser."""
+    if not LAST_BROWSER_REFRESH_FILE.exists():
+        return True
+    try:
+        last = datetime.fromisoformat(LAST_BROWSER_REFRESH_FILE.read_text().strip())
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed >= BROWSER_REFRESH_INTERVAL
+    except Exception:
+        return True
+
+
+def _mark_browser_refresh():
+    try:
+        LAST_BROWSER_REFRESH_FILE.write_text(datetime.now(timezone.utc).isoformat())
+    except Exception:
+        pass
+
+
 async def _mark_session_expired():
-    """Registra que a sessão expirou e envia alerta Telegram (uma vez por expiração)."""
+    """Registra que a sessão expirou e envia alerta Telegram repetidamente (a cada 6h) até resolver."""
     try:
         EXPIRED_FILE.write_text(datetime.now(timezone.utc).isoformat())
     except Exception:
         pass
-    # Envia alerta Telegram só uma vez por expiração
+    # Envia alerta Telegram a cada 6h (não só uma vez) — usuário pode ter perdido o primeiro
+    should_alert = True
     if ALERT_SENT_FILE.exists():
-        return
-    try:
-        ALERT_SENT_FILE.write_text(datetime.now(timezone.utc).isoformat())
-    except Exception:
-        pass
-    await _send_telegram_alert()
+        try:
+            last_alert = datetime.fromisoformat(ALERT_SENT_FILE.read_text().strip())
+            elapsed = (datetime.now(timezone.utc) - last_alert).total_seconds()
+            if elapsed < 21600:  # 6h
+                should_alert = False
+        except Exception:
+            pass
+    if should_alert:
+        try:
+            ALERT_SENT_FILE.write_text(datetime.now(timezone.utc).isoformat())
+        except Exception:
+            pass
+        await _send_telegram_alert()
 
 
 def _clear_session_expired():
@@ -306,7 +506,16 @@ async def _send_telegram_alert():
 
 
 async def _browser_keep_session(headless: bool = True) -> bool:
-    """Abre o Chromium com perfil persistente e renova a sessão."""
+    """Abre o Chromium com perfil persistente e renova a sessão.
+
+    Sucesso só com prova real: pelo menos 1 página do portal precisa
+    carregar de verdade (URL final contém "mercadolivre" e não é
+    about:blank/chrome-error://). Se nenhuma carregar (rede/DNS caiu),
+    NÃO salva storage_state/cookies (evita gravar snapshot degradado
+    que mata a sessão) e aplica backoff curto de rede (30min).
+
+    Se a sessão realmente expirou (página caiu em login/jms/auth),
+    marca expired + backoff de bot (2h) e NÃO salva cookies."""
     from playwright.async_api import async_playwright
 
     if not PROFILE_DIR.exists():
@@ -316,6 +525,9 @@ async def _browser_keep_session(headless: bool = True) -> bool:
     _cleanup_orphan_chromiums()
     _cleanup_chrome_singleton_lock()
     _backup_storage_state()
+
+    # UA aleatório por run (evita detecção de UA fixo)
+    ua = _pick_user_agent()
 
     try:
         async with async_playwright() as p:
@@ -329,7 +541,7 @@ async def _browser_keep_session(headless: bool = True) -> bool:
                 "user_data_dir": str(PROFILE_DIR),
                 "headless": headless,
                 "viewport": {"width": 1366, "height": 768},
-                "user_agent": USER_AGENT,
+                "user_agent": ua,
                 "locale": "pt-BR",
                 "timezone_id": "America/Sao_Paulo",
                 "args": [
@@ -347,36 +559,75 @@ async def _browser_keep_session(headless: bool = True) -> bool:
             page = await context.new_page()
 
             # Aplica stealth
-            await _apply_stealth(context, user_agent=USER_AGENT)
+            await _apply_stealth(context, user_agent=ua)
 
-            # Carrega cookies do storage_state no perfil (caso perfil esteja desatualizado)
+            # Guarda na injeção de cookies: só injeta storage_state se for
+            # mais novo que o cookie DB do perfil (evita sobrescrever cookies
+            # frescos do perfil com snapshot velho).
             if STORAGE_STATE_FILE.exists():
                 try:
-                    state = json.loads(STORAGE_STATE_FILE.read_text())
-                    state_cookies = state.get("cookies", [])
-                    if state_cookies:
-                        await context.add_cookies(state_cookies)
-                        logger.info(f"Carregados {len(state_cookies)} cookies do storage_state no perfil")
+                    profile_cookies_db = PROFILE_DIR / "Default" / "Cookies"
+                    inject = True
+                    if profile_cookies_db.exists():
+                        ss_mtime = STORAGE_STATE_FILE.stat().st_mtime
+                        db_mtime = profile_cookies_db.stat().st_mtime
+                        if ss_mtime <= db_mtime:
+                            inject = False
+                            logger.info(
+                                f"storage_state ({datetime.fromtimestamp(ss_mtime).isoformat()}) "
+                                f"não é mais novo que o cookie DB do perfil "
+                                f"({datetime.fromtimestamp(db_mtime).isoformat()}) — não injeta"
+                            )
+                    if inject:
+                        state = json.loads(STORAGE_STATE_FILE.read_text())
+                        state_cookies = state.get("cookies", [])
+                        if state_cookies:
+                            await context.add_cookies(state_cookies)
+                            logger.info(f"Carregados {len(state_cookies)} cookies do storage_state no perfil")
                 except Exception as e:
                     logger.warning(f"Erro ao carregar storage_state: {e}")
 
             session_expired = False
+            pages_loaded = 0  # contador de páginas que carregaram de verdade
             urls = list(KEEPALIVE_URLS)
             random.shuffle(urls)
 
             for url in urls:
                 try:
                     await _human_like_browsing(page, url)
-                    final_url = page.url.lower()
-                    if "login" in final_url or "auth" in final_url or "jms" in final_url:
-                        logger.error(f"Sessão expirada ao acessar {url} — login manual necessário")
-                        session_expired = True
-                        break
-                    logger.info(f"Página acessada: {page.url}")
+                    final_url = (page.url or "").lower()
+                    # Prova real de carregamento: URL contém mercadolivre e não é erro/about:blank
+                    if "mercadolivre" in final_url and "chrome-error://" not in final_url and final_url != "about:blank":
+                        if "login" in final_url or "auth" in final_url or "jms" in final_url:
+                            logger.error(f"Sessão expirada ao acessar {url} — login manual necessário")
+                            session_expired = True
+                            break
+                        pages_loaded += 1
+                        logger.info(f"Página acessada: {page.url}")
+                    else:
+                        logger.warning(f"Página NÃO carregou corretamente: {final_url} (url={url}) — possível erro de rede")
                 except Exception as e:
                     logger.warning(f"Erro ao acessar {url}: {e}")
 
-            # Salva storage state e cookies
+            # CASO 1: sessão expirada — NÃO salva cookies, marca expired + backoff de bot
+            if session_expired:
+                await context.close()
+                await _mark_session_expired()
+                _mark_browser_backoff()  # backoff 2h — não abre browser de novo
+                logger.warning("Sessão expirada — cookies NÃO salvos para evitar sobrescrever login manual")
+                return False
+
+            # CASO 2: nenhuma página carregou — erro de rede, NÃO salva nada
+            if pages_loaded == 0:
+                await context.close()
+                _mark_network_backoff()  # backoff curto 30min — não é sessão morta
+                logger.warning(
+                    "Nenhuma página do portal carregou (rede/DNS caiu?) — "
+                    "storage_state/cookies NÃO salvos para evitar snapshot degradado"
+                )
+                return False
+
+            # CASO 3: pelo menos 1 página carregou e nenhuma caiu em login — sucesso real
             try:
                 await context.storage_state(path=str(STORAGE_STATE_FILE))
             except Exception:
@@ -384,22 +635,22 @@ async def _browser_keep_session(headless: bool = True) -> bool:
             try:
                 cookies = await context.cookies()
                 COOKIES_FILE.write_text(json.dumps(cookies, indent=2))
-                logger.info(f"Cookies renovados: {len(cookies)}")
+                logger.info(f"Cookies renovados: {len(cookies)} (páginas carregadas: {pages_loaded})")
             except Exception as e:
                 logger.warning(f"Erro ao salvar cookies: {e}")
 
             await context.close()
 
-            if session_expired:
-                await _mark_session_expired()
-                return False
-
             _clear_session_expired()
+            _clear_browser_backoff()  # sucesso — limpa backoff
+            _clear_network_backoff()
             _mark_last_ok()
+            _mark_browser_refresh()
             return True
 
     except Exception as e:
         logger.error(f"Erro durante browser keep-alive: {e}")
+        _mark_browser_backoff()  # erro também entra em backoff
         return False
 
 
@@ -417,15 +668,60 @@ async def keep_session(headless: bool = True) -> bool:
             return False
 
         try:
-            # 1. Tenta heartbeat HTTP leve (não abre browser)
-            if _http_session_alive():
+            # 0. Verifica se houve login manual novo após sessão expirada.
+            # Se sim, limpa o flag expired e retoma o ciclo normal.
+            if EXPIRED_FILE.exists() and _login_manual_newer_than_expired():
+                logger.info("Login manual novo detectado (cookies/storage_state mais novos que EXPIRED_FILE) — limpando flag expired")
+                _clear_session_expired()
+                _clear_browser_backoff()
+                _clear_network_backoff()
+
+            # 1. Tenta heartbeat HTTP leve (tri-estado, não abre browser)
+            state = _http_session_alive()
+
+            if state == "network_error":
+                # Rede/DNS caiu — NÃO abre browser, NÃO marca expired, NÃO alerta.
+                # Tenta de novo no próximo ciclo de 30min.
+                _mark_network_backoff()
+                logger.warning("HTTP keepalive: erro de rede — não abre browser, tenta no próximo ciclo")
+                return False
+
+            if state == "alive":
                 _mark_last_ok()
                 _clear_session_expired()
+                _clear_network_backoff()
                 logger.info("Sessão mantida via HTTP keepalive")
+
+                # 2. Renovação preventiva via browser a cada 6h mesmo com HTTP OK
+                if _browser_refresh_due():
+                    if _browser_backoff_active():
+                        logger.info("Renovação preventiva via browser pendente — em backoff de bot, pulando")
+                    elif _network_backoff_active():
+                        logger.info("Renovação preventiva via browser pendente — em backoff de rede, pulando")
+                    else:
+                        logger.info("Renovação preventiva via browser — refresh periódico")
+                        return await _browser_keep_session(headless=headless)
                 return True
 
-            # 2. Se HTTP falhou, abre o Chromium para renovar
-            logger.info("HTTP keepalive não confirmou sessão — abrindo browser")
+            # state == "expired" — sessão morta confirmada pelo HTTP
+            # Se EXPIRED_FILE já existe, NÃO abre browser (evita 288 aberturas/dia
+            # = padrão de bot que agrava o flag anti-bot do ML). Só alerta a cada 6h.
+            if EXPIRED_FILE.exists():
+                logger.warning("Sessão expirada (HTTP) — EXPIRED_FILE já existe, não abre browser (evita padrão de bot)")
+                await _mark_session_expired()  # só envia alerta Telegram a cada 6h (dedup interno)
+                return False
+
+            # EXPIRED_FILE não existe ainda — primeira detecção de expiração.
+            # Verifica backoff antes de abrir browser (pode ter falhado há pouco).
+            if _browser_backoff_active():
+                logger.info("HTTP detectou expiração e browser em backoff — esperando próximo ciclo (login manual necessário)")
+                await _mark_session_expired()
+                return False
+
+            # Abre browser UMA VEZ para confirmar expiração (pode ser falso positivo
+            # do HTTP — ex.: redirect temporário). Se o browser também confirmar,
+            # _browser_keep_session marca expired + backoff.
+            logger.info("HTTP detectou expiração — abrindo browser UMA VEZ para confirmar")
             return await _browser_keep_session(headless=headless)
         finally:
             profile_lock.release()
@@ -442,10 +738,10 @@ if __name__ == "__main__":
     headless = args.headless.lower() != "false"
 
     if args.http_only:
-        # Modo utilitário: apenas testa HTTP keepalive
-        alive = _http_session_alive()
-        print(f"HTTP session alive: {alive}")
-        raise SystemExit(0 if alive else 1)
+        # Modo utilitário: apenas testa HTTP keepalive (tri-estado)
+        state = _http_session_alive()
+        print(f"HTTP session state: {state}")
+        raise SystemExit(0 if state == "alive" else 1)
 
     ok = asyncio.run(keep_session(headless=headless))
     raise SystemExit(0 if ok else 1)

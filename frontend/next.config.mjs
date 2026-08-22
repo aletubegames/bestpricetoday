@@ -25,11 +25,11 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com",
+              "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://connect.facebook.net",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' https: data: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://api.alaserver.com.br https://www.googletagmanager.com https://www.clarity.ms https://i.clarity.ms https://www.google-analytics.com https://www.google.com https://cloudflareinsights.com",
+              "connect-src 'self' https://api.alaserver.com.br https://www.googletagmanager.com https://www.clarity.ms https://i.clarity.ms https://www.google-analytics.com https://www.google.com https://cloudflareinsights.com https://connect.facebook.net https://www.facebook.com https://graph.facebook.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -39,6 +39,8 @@ const nextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
         ],
       },
     ];

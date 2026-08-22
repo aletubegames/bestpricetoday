@@ -219,7 +219,7 @@
   .grid { grid-template-columns: repeat(5, 1fr); }
 }
 @media (min-width: 1600px) {
-  .grid { grid-template-columns: repeat(6, 1fr); }
+  .grid { grid-template-columns: repeat(5, 1fr); }
 }
 
 .card {
@@ -276,6 +276,7 @@
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   min-height: 54px;
 }

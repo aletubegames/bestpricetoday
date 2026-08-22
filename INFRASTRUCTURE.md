@@ -1,25 +1,26 @@
 # BestPriceToday — Documentacao Completa de Infraestrutura
 
-> **Ultima atualizacao:** 2026-07-01
-> **URL oficial:** `https://bestpricetoday.alaserver.com.br` (porta 443, sem :9443)
+> **Ultima atualizacao:** 2026-08-05
+> **URL oficial:** `https://bestpricetoday.alaserver.com.br` (porta 443, sem :8443)
 
 ---
 
 ## 1. Visao Geral
 
-O BestPriceToday roda em um servidor local (192.168.100.30) conectado a internet
-via V tal (IP dinamico). A operadora bloqueia portas 80 e 443 inbound, mas a
-porta 9443 funciona. O Cloudflare Tunnel resolve isso, expondo o site na porta
-443 padrao sem precisar abrir portas no roteador.
+O BestPriceToday roda em um servidor local (192.168.15.45) conectado a internet
+via Vivo (IP dinamico, roteador ALEHOUSE 192.168.15.1). A operadora bloqueia
+portas 80, 443 e 9443 inbound. O Cloudflare Tunnel resolve isso, expondo o site
+na porta 443 padrao sem precisar de port forwarding. A porta 8443 funciona como
+backup externo (a 9443 deixou de funcionar apos migracao para a Vivo em 2026-08-05).
 
 **Fluxo de trafego:**
 ```
 Internet → Cloudflare (porta 443) → Cloudflare Tunnel → Servidor (localhost:3000/8000)
 ```
 
-**Backup (porta 9443):**
+**Backup (porta 8443):**
 ```
-Internet → Roteador (port forwarding 9443) → Nginx (porta 9443 SSL) → localhost:3000/8000
+Internet → Roteador ALEHOUSE (port forwarding 8443) → Nginx (porta 8443 SSL) → localhost:3000/8000
 ```
 
 ---
@@ -28,9 +29,9 @@ Internet → Roteador (port forwarding 9443) → Nginx (porta 9443 SSL) → loca
 
 | Servico | URL Oficial | URL Backup |
 |---|---|---|
-| Frontend | `https://bestpricetoday.alaserver.com.br` | `https://bestpricetoday.alaserver.com.br:9443` |
-| API | `https://api.alaserver.com.br` | `https://api.alaserver.com.br:9443` |
-| Root | `https://alaserver.com.br` | `https://alaserver.com.br:9443` |
+| Frontend | `https://bestpricetoday.alaserver.com.br` | `https://bestpricetoday.alaserver.com.br:8443` |
+| API | `https://api.alaserver.com.br` | `https://api.alaserver.com.br:8443` |
+| Root | `https://alaserver.com.br` | `https://alaserver.com.br:8443` |
 | Webmail | `https://webmail.alaserver.com.br` | — |
 | Health | `https://api.alaserver.com.br/health` | — |
 
@@ -140,8 +141,8 @@ cloudflared tunnel login
 
 ### Portas escutando
 - **443** — HTTPS (Cloudflare Tunnel + rede local)
-- **9443** — HTTPS (backup externo via port forwarding)
-- **8443** — HTTPS (alternativa, port forwarding configurado)
+- **8443** — HTTPS (backup externo via port forwarding — funciona na Vivo)
+- **9443** — HTTPS (legacy — bloqueado pela Vivo inbound desde 2026-08-05)
 - **2053** — HTTPS (alternativa)
 - **80** — HTTP redirect para HTTPS
 
@@ -164,19 +165,24 @@ sudo ss -tlnp | grep -E '443|9443|8000|3000'
 
 ---
 
-## 7. Roteador (192.168.100.1)
+## 7. Roteador ALEHOUSE (192.168.15.1) — Mitrastar GPT-2742GX4X5v6
 
 ### Port Forwarding
 | Nome | Porta Externa | Porta Interna | IP Interno | Protocolo |
 |---|---|---|---|---|
-| HTTP BestPrice | 80 | 80 | 192.168.100.30 | TCP |
-| HTTPS | 443 | 443 | 192.168.100.30 | TCP |
-| HTTPS BestPrice | 9443 | 9443 | 192.168.100.30 | TCP |
-| HTTPS 8443 | 8443 | 8443 | 192.168.100.30 | TCP |
-| HTTP 8080 | 8080 | 8080 | 192.168.100.30 | TCP |
+| HTTP BestPrice | 80 | 80 | 192.168.15.45 | TCP |
+| HTTPS | 443 | 443 | 192.168.15.45 | TCP |
+| Secure Web Server (HTTPS) | 443 | 443 | 192.168.15.45 | TCP |
+| Web Server (HTTP) | 80 | 80 | 192.168.15.45 | TCP |
+| SSH | 22 | 22 | 192.168.15.45 | TCP |
+| BestPrice9443 | 9443 | 9443 | 192.168.15.45 | TCP |
+| BestPrice8443 | 8443 | 8443 | 192.168.15.45 | TCP |
+| BestPrice8080 | 8080 | 8080 | 192.168.15.45 | TCP |
 
-**Nota:** As portas 80, 443, 8443 sao bloqueadas pela operadora (V tal) inbound.
-So a porta 9443 funciona de fora. O Cloudflare Tunnel resolve isso.
+**Nota:** A Vivo bloqueia as portas 80, 443 e 9443 inbound. So as portas 8443
+e 8080 funcionam de fora. O Cloudflare Tunnel resolve o acesso principal (443).
+Firmware do roteador: GL_g2.5_100XNT0b23_3. Port forwarding customizado via
+API interna (cgi-bin/settings-games.cgi com POST).
 
 ---
 
@@ -201,10 +207,11 @@ So a porta 9443 funciona de fora. O Cloudflare Tunnel resolve isso.
 ### Crons (user `alessandro`)
 | Horario | Script | O que faz |
 |---|---|---|
+| 30min | `ml_session_keeper` | Mantém sessão ML Afiliados viva (HTTP keepalive + browser a cada 6h + backoff 2h após falha) |
 | 2h | `ml_coupon_scraper --cleanup-only` | Deleta cupons ML vencidos |
 | 3h | `run_amazon_scraper.sh` | Atualiza produtos Amazon |
-| 4h | `run_ml_scraper.sh` | Coleta produtos afiliados ML |
-| 5h | `ml_coupon_scraper --collect-only` | Coleta cupons ML ativos (requer cookies validos) |
+| 9h05 | `run_ml_scraper.sh` | Coleta produtos afiliados ML (26 categorias, pode durar horas) |
+| 23h | `ml_coupon_scraper` | Coleta/gera cupons ML (à noite, evita colidir com ml_scraper) |
 
 ### Servicos DESABILITADOS
 - `bestprice-bot` — desabilitado (bot roda dentro do backend)
@@ -213,13 +220,13 @@ So a porta 9443 funciona de fora. O Cloudflare Tunnel resolve isso.
 
 ---
 
-## 9. IP Dinamico (V tal)
+## 9. IP Dinamico (Vivo)
 
-A operadora V tal usa IP dinamico. Quando o IP muda:
+A operadora Vivo usa IP dinamico. Quando o IP muda:
 
 1. **Cloudflare Tunnel** — nao precisa fazer nada. O tunnel e OUTBOUND, sempre
    conecta ao Cloudflare independente do IP publico.
-2. **Porta 9443 (backup)** — para de funcionar ate atualizar o DNS. Mas como
+2. **Porta 8443 (backup)** — para de funcionar ate atualizar o DNS. Mas como
    o Cloudflare Tunnel e a URL principal, nao tem impacto.
 
 **Antes do Cloudflare Tunnel:** era necessario atualizar o registro A no DNS
@@ -235,23 +242,23 @@ Quando mudar a URL do site, atualizar em TODOS os paineis:
 - App: BestPriceToday / AleTubeGames
 - Facebook Login → Settings → Valid OAuth Redirect URIs:
   - `https://api.alaserver.com.br/api/v1/aletube/callback/facebook`
-  - `https://api.alaserver.com.br:9443/api/v1/aletube/callback/facebook` (backup)
+  - `https://api.alaserver.com.br:8443/api/v1/aletube/callback/facebook` (backup)
 
 ### Google Cloud Console (https://console.cloud.google.com)
 - APIs & Services → Credentials → OAuth 2.0 Client (YouTube)
 - Authorized redirect URIs:
   - `https://bestpricetoday.alaserver.com.br/aletube/callback/youtube`
-  - `https://bestpricetoday.alaserver.com.br:9443/aletube/callback/youtube` (backup)
+  - `https://bestpricetoday.alaserver.com.br:8443/aletube/callback/youtube` (backup)
 
 ### TikTok Developer (https://developers.tiktok.com)
 - App → Login configuration
   - `https://api.alaserver.com.br/api/v1/tiktok/callback`
-  - `https://api.alaserver.com.br:9443/api/v1/tiktok/callback` (backup)
+  - `https://api.alaserver.com.br:8443/api/v1/tiktok/callback` (backup)
 
 ### Mercado Livre (https://applications.mercadolivre.com.br)
 - App → Redirect URI:
   - `https://bestpricetoday.alaserver.com.br/auth/callback`
-  - `https://bestpricetoday.alaserver.com.br:9443/auth/callback` (backup)
+  - `https://bestpricetoday.alaserver.com.br:8443/auth/callback` (backup)
 
 ---
 
@@ -259,7 +266,7 @@ Quando mudar a URL do site, atualizar em TODOS os paineis:
 
 - Propriedade: `https://bestpricetoday.alaserver.com.br` (sem porta)
 - Sitemap: `https://bestpricetoday.alaserver.com.br/sitemap.xml`
-- Propriedade antiga: `https://bestpricetoday.alaserver.com.br:9443/` (legacy)
+- Propriedade antiga: `https://bestpricetoday.alaserver.com.br:9443/` (legacy — 9443 bloqueado pela Vivo)
 
 ---
 
@@ -328,9 +335,10 @@ Se algum dia precisar mudar a URL (ex: domínio proprio bestprice.com.br):
 
 ### Quando Mudar o Roteador/Operadora:
 1. **IP publico muda** — Cloudflare Tunnel nao precisa de nada (e OUTBOUND)
-2. **Port forwarding:** Reconfigurar 9443 (e 8443 se quiser) no novo roteador
+2. **Port forwarding:** Reconfigurar 8443 e 8080 no novo roteador (9443 e 443 sao bloqueados pela Vivo)
 3. **Nginx:** Nao precisa mudar nada
 4. **DNS:** Nao precisa mudar nada (tunnel resolve automaticamente)
+5. **Netplan:** Atualizar SSID/senha/IP se mudar de WiFi
 
 ### Quando Reiniciar o Servidor:
 1. Todos os servicos sao systemd e iniciam automaticamente no boot:
@@ -359,8 +367,8 @@ curl -s http://localhost:8000/health
 # 4. Testar Cloudflare
 curl -sk https://bestpricetoday.alaserver.com.br/ -o /dev/null -w '%{http_code}'
 
-# 5. Testar backup 9443
-curl -sk https://bestpricetoday.alaserver.com.br:9443/ -o /dev/null -w '%{http_code}'
+# 5. Testar backup 8443
+curl -sk https://bestpricetoday.alaserver.com.br:8443/ -o /dev/null -w '%{http_code}'
 ```
 
 ### API retorna 429 (rate limit)

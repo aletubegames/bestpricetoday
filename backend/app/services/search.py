@@ -46,6 +46,9 @@ def clean_display_query(query: str) -> str:
 
 def trim_trending_label(query: str, max_length: int = 64) -> str:
     cleaned = clean_display_query(query)
+    # Sanitização adicional para exibição: remove caracteres perigosos
+    cleaned = re.sub(r"[<>\"'&]", "", cleaned)  # Remove caracteres que podem causar XSS
+    cleaned = re.sub(r"\.\./", "", cleaned)  # Remove path traversal
     if len(cleaned) <= max_length:
         return cleaned
     truncated = cleaned[: max_length - 1].rsplit(" ", 1)[0]
@@ -75,6 +78,18 @@ async def record_trending_query(query: str) -> None:
     normalized_query = normalize_query(display_query)
     if len(normalized_query) < 2:
         return
+
+    # Sanitização de segurança: remove padrões de SQL injection, path traversal, etc
+    dangerous_patterns = [
+        r"'|'--|;--|;|/\*|\*/",  # SQL injection
+        r"\.\./|\.\.\\",  # path traversal
+        r"<script|</script|javascript:|onerror=|onload=",  # XSS
+        r"union\s+select|drop\s+table|delete\s+from|insert\s+into",  # SQL commands
+    ]
+    for pattern in dangerous_patterns:
+        if re.search(pattern, normalized_query, re.IGNORECASE):
+            logger.warning(f"Blocked dangerous search query: {normalized_query}")
+            return
 
     fallback_trending_scores[normalized_query] += 1
     fallback_trending_labels[normalized_query] = display_query

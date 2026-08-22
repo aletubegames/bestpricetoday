@@ -299,7 +299,7 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
                     False,
                     "⚠️ O ML pediu challenge de imagem do reCAPTCHA.\n\n"
                     "Não consigo resolver automaticamente. Conecta via VNC:\n"
-                    "```\nssh -L 6080:localhost:6080 alessandro@192.168.100.30\n```\n"
+                    "```\nssh -L 6080:localhost:6080 alessandro@192.168.15.45\n```\n"
                     "Depois acessa: http://localhost:6080/vnc.html\n\n"
                     "O navegador já está aberto na tela do captcha.",
                     str(screenshot_final),
@@ -314,7 +314,7 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
                     False,
                     "📱 O ML pediu verificação 2FA.\n\n"
                     "Conecta via VNC para completar:\n"
-                    "```\nssh -L 6080:localhost:6080 alessandro@192.168.100.30\n```\n"
+                    "```\nssh -L 6080:localhost:6080 alessandro@192.168.15.45\n```\n"
                     "Depois acessa: http://localhost:6080/vnc.html",
                     str(screenshot_final),
                     True,

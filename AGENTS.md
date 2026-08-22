@@ -1,8 +1,8 @@
 # BestPriceToday — Regras do Projeto
 
 ## Deploy
-- **SEMPRE que corrigir um arquivo, subir para o alaserver (192.168.100.30) imediatamente**
-- SSH: `ssh alessandro@192.168.100.30` (só acessível via rede local, não 4G/5G)
+- **SEMPRE que corrigir um arquivo, subir para o alaserver (192.168.15.45) imediatamente**
+- SSH: `ssh alessandro@192.168.15.45` (só acessível via rede local, não 4G/5G)
 - Backend: `/home/alessandro/backend/`
 - Frontend: `/home/alessandro/frontend/`
 - Reiniciar backend: `sudo systemctl restart bestprice-backend`
@@ -13,7 +13,7 @@
 - **PUBLIC_SITE_URL**: `https://bestpricetoday.alaserver.com.br` (porta 443 padrão via Cloudflare Tunnel)
 - **INTERNAL_API_URL**: `https://api.alaserver.com.br` (porta 443 padrão via Cloudflare Tunnel)
 - Cloudflare Tunnel (cloudflared) faz proxy: edge Cloudflare → localhost:3000 (frontend) / localhost:8000 (API)
-- Porta 9443 ainda funciona como backup (nginx direto + port forwarding roteador)
+- Porta 8443 funciona como backup externo (nginx direto + port forwarding roteador). A porta 9443 era o backup antigo mas a Vivo bloqueia inbound desde 2026-08-05.
 - /etc/hosts no servidor redireciona api/bestpricetoday → 127.0.0.1 (evita loop pelo Cloudflare)
 
 ## Nginx
@@ -40,22 +40,45 @@
 - Serviços antigos user (bestprice-bot, channel-broadcaster, alert-checker) — DESABILITADOS
 
 ## Scrapers (NAO sao orfaos — manter rodando)
-- `ml_scraper` — roda via cron 4h diario (`run_ml_scraper.sh`), usa Playwright/Chromium
+- `ml_scraper` — roda via cron 9h05 diario (`run_ml_scraper.sh`), usa Playwright/Chromium. Percorre 26 categorias do portal de afiliados — pode durar horas.
 - `amazon_scraper` — roda via cron 3h diario (`run_amazon_scraper.sh`)
-- `ml_coupon_scraper` — coleta cupons de afiliado ML via Portal do Afiliado (Playwright + cookies manuais), cron 5h diario
+- `ml_coupon_scraper` — coleta cupons de afiliado ML via Portal do Afiliado (Playwright + cookies manuais), cron **23h diario** (à noite, evita colidir com ml_scraper das 9h que pode durar horas)
 - `ml_coupon_scraper --cleanup-only` — deleta cupons vencidos, cron 2h diario
-- `ml_session_keeper` — mantém sessão ML viva renovando cookies, cron **a cada 2h** (playwright-stealth + múltiplas URLs do portal)
+- `ml_session_keeper` — mantém sessão ML viva renovando cookies, cron **a cada 30min** com `DISPLAY=:99 --headless=false` (janela real no Xvfb — fingerprint headless é detectável). Tri-estado no HTTP: `alive`/`expired`/`network_error`. Erro de rede (DNS/internet caiu) NÃO abre browser, NÃO marca expired, NÃO alerta (backoff curto 30min). Sessão expirada confirmada NÃO reabre browser se `EXPIRED_FILE` já existe (evita padrão de bot 288x/dia). Sucesso do browser só com prova real (≥1 página do portal carrega de verdade — URL contém `mercadolivre` e não é `about:blank`/`chrome-error://`); se nenhuma carregar, NÃO salva storage_state/cookies (evita snapshot degradado que mata a sessão). Guarda na injeção: só injeta storage_state se for mais novo que o cookie DB do perfil. Backoff de bot 2h após browser falhar. Pool de UAs Chrome 138+ com rotação aleatória. HTTP keepalive não reescreve cookies (evita corrupção). Retoma ciclo normal automaticamente quando login manual novo reescreve cookies/storage_state mais novo que `EXPIRED_FILE`.
 - Processos Chromium/Playwright sao do ml_scraper / ml_coupon_scraper — NAO matar
 - Se ml_scraper travar (rodando >24h), pode reiniciar com `cd /home/alessandro/backend && setsid bash run_ml_scraper.sh < /dev/null > /dev/null 2>&1 &`
 
 ## Sessão ML Afiliados (login + renovação)
 - Login manual via VNC (porta 5900): `cd /home/alessandro/backend && DISPLAY=:99 venv/bin/python -m app.workers.ml_scraper --login`
 - ML usa reCAPTCHA Enterprise v2 (desafio de imagem) — bloqueia login programático
-- `ml_session_keeper` roda a cada 2h e renova cookies automaticamente enquanto sessão for válida
+- `ml_session_keeper` roda a cada 30min e renova cookies automaticamente enquanto sessão for válida
+- **Tri-estado HTTP**: `alive` (200 sem login) / `expired` (redirect jms/login) / `network_error` (DNS/timeout — não confundir com sessão morta)
+- **Backoff de bot 2h** após browser falhar (não abre browser 288x/dia — era detectado como bot)
+- **Backoff de rede 30min** após erro de DNS/internet (não é sessão morta — não abre browser, não alerta)
+- **Parar browser quando expired**: se `EXPIRED_FILE` existe, keeper não reabre browser (só HTTP check + alerta Telegram a cada 6h). Retoma quando login manual novo faz cookies/storage_state mais novos que `EXPIRED_FILE`.
+- **Sucesso do browser só com prova real**: ≥1 página do portal carrega (URL contém `mercadolivre`, não é `about:blank`/`chrome-error://`). Se nenhuma carregar (rede), NÃO salva storage_state/cookies (snapshot degradado mata a sessão).
+- **Guarda na injeção de cookies**: só injeta storage_state se for mais novo que o cookie DB do perfil (`Default/Cookies`).
+- **Dedup de alertas**: `ml_scraper` e `ml_coupon_scraper` suprimem alerta "LOGIN FALHOU"/"Cookies expirados" se `EXPIRED_FILE` é recente (<12h) — keeper já alertou pelo mesmo incidente.
+- Pool de User-Agents Chrome 138+ com rotação aleatória (UA fixo/desatualizado era detectado)
+- HTTP keepalive não reescreve cookies (evita corrupção de sessão)
 - Quando sessão expira (~7-30 dias), só login manual via VNC renova
 - Timestamp da última renovação OK: `.ml_session_last_ok`
+- Backoff após falha de bot: `.ml_session_browser_backoff` (2h)
+- Backoff após erro de rede: `.ml_session_network_backoff` (30min)
 - Cookies: `.ml_cookies.json` + storage state: `.ml_storage_state.json`
 - Chromium de login manual (tem `--login` ou `login_profile` nos args) NÃO é morto pelo session_keeper
+
+## Token OAuth ML (API — roda no alaserver 192.168.15.45)
+- Tokens na tabela `ml_tokens` (Neon), NÃO no `.env`
+- **NÃO confundir** com sessão de afiliados (cookies Playwright / VNC / `ml_session_keeper`)
+- **Bug histórico (11 semanas):** cron logava "renovado com sucesso" sem chamar a API
+  (get_token devolvia token antigo entre 30–60min). Logs: 186 falsos vs 63 reais.
+- **Fix:** só `force_refresh()` + `asyncio.Lock` (refresh single-use).
+  Sucesso só se expiry pular (~360min). Nunca logar sucesso com 44/59min.
+- Cron 15min: health live `/users/me` → se 401/403 ou <60min → force_refresh real
+- Se falhar de verdade: Telegram alert (cooldown 6h) + arquivo `.ml_oauth_alert_sent`
+- Reauth: `https://api.alaserver.com.br/api/v1/auth/ml/authorize`
+- Endpoints: `GET /auth/ml/status`, `POST /auth/ml/refresh`, `GET /admin/integrations/status`
 
 ## Cupons ML
 - Cupom = rastreio permanente (não expira em 48h como cookie do link)

@@ -18,6 +18,7 @@ node_modules/
 backend/.venv312/
 
 .env*.local
+.devin/config.local.json
 
 # Large/tracked files to exclude
 Videos_Uploads/
@@ -32,6 +33,7 @@ backend/.quemfornece_cookies.json
 backend/.quemfornece_screenshots/
 backend/.test_modal.*
 backend/.ml_session_last_ok
+backend/.ml_oauth_alert_sent
 
 # Test/audit scripts (not part of the app)
 Pentest.py

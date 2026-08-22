@@ -195,10 +195,14 @@ async def list_affiliate_products(
                     store_name = "mercadolivre"
 
                 query_db = select(AffiliateProduct).where(
-                    AffiliateProduct.is_active == True, url_filter
+                    AffiliateProduct.is_active == True,
+                    url_filter,
+                    func.lower(AffiliateProduct.notes).like("%ml_scraper%") if provider == "mercadolivre" else True,
                 )
                 count_q = select(func.count(AffiliateProduct.id)).where(
-                    AffiliateProduct.is_active == True, url_filter
+                    AffiliateProduct.is_active == True,
+                    url_filter,
+                    func.lower(AffiliateProduct.notes).like("%ml_scraper%") if provider == "mercadolivre" else True,
                 )
                 total_result = await db.execute(count_q)
                 total = total_result.scalar() or 0

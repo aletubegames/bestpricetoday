@@ -395,7 +395,7 @@ Quando validar 10+ vendas e quiser escalar sem trabalho manual:
    - Ajusta preço automaticamente pra ganhar Buy Box
    - Respeita margem mínima de 15%
 
-> Tudo isso pode rodar no alaserver (192.168.100.30) junto com o BestPriceToday, em pasta separada.
+> Tudo isso pode rodar no alaserver (192.168.15.45) junto com o BestPriceToday, em pasta separada.
 
 ---
 
@@ -1166,7 +1166,7 @@ POST /api/amazon/sync                — sincroniza pedidos → vendas
 
 ### Deploy
 - **URL:** https://seller.alaserver.com.br
-- **Servidor:** alaserver (192.168.100.30)
+- **Servidor:** alaserver (192.168.15.45)
 - **Backend:** FastAPI na porta 8100 (systemd: `amazon-seller-dashboard.service`)
 - **Frontend:** HTML/JS estático servido pelo FastAPI
 - **Nginx:** porta 9444 (SSL) → proxy para 8100

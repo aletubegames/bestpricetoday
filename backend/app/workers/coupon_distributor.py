@@ -28,13 +28,16 @@ from app.models.models import (
 )
 from app.core.config import settings
 from app.core.logging import logger
-from app.workers.distributor import create_short_link as _create_short_link
+
+# Semaphore para limitar concorrência de XTTS (evita OOM)
+# Máximo 1 processo XTTS por vez (cada processo consome ~2GB RAM)
+_XTTS_SEMAPHORE = asyncio.Semaphore(1)
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
-COUPON_POST_SCHEDULE = [(9, 1), (12, 2), (15, 1), (19, 2), (21, 1)]  # (hour, num_offers)
+COUPON_POST_SCHEDULE = [(9, 1), (12, 1), (15, 1), (19, 1), (21, 1)]  # (hour, num_offers) - reduzido para evitar spam
 TOLERANCE_HOURS = 2
-DEDUP_TTL_HOURS = 24  # não repetir mesmo cupom em 24h
+DEDUP_TTL_HOURS = 72  # não repetir mesmo cupom em 72h (evita bloqueio do algoritmo)
 
 # Telegram
 BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
@@ -665,9 +668,16 @@ else:
 
 
 async def generate_xtts_narration_async(text: str, output_path: str) -> bool:
-    """Versão async — roda XTTS numa thread separada para não bloquear o event loop."""
-    import asyncio
-    return await asyncio.to_thread(generate_xtts_narration, text, output_path)
+    """Versão async — roda XTTS numa thread separada com limite de concorrência.
+    
+    Usa semaphore para limitar a 1 processo XTTS por vez (evita OOM).
+    """
+    async with _XTTS_SEMAPHORE:
+        logger.info(f"XTTS: iniciando geração (concorrência limitada a 1 processo)")
+        import asyncio
+        result = await asyncio.to_thread(generate_xtts_narration, text, output_path)
+        logger.info(f"XTTS: geração concluída, liberando semaphore")
+        return result
 
 
 # 25 variações de abertura — evita cara de IA, parece humano
@@ -1070,7 +1080,7 @@ _BRAND_NAMES = {
     "new balance": "niu balenssi", "under armour": "ander armor",
     "ferrero rocher": "ferrero rocher",
     # Marcas com pronúncia diferente da escrita
-    "samsung": "sansunki", "apple": "epou", "iphone": "aifone", "ipad": "aipad",
+    "samsung": "sansunki", "apple": "ápol", "iphone": "aifone", "ipad": "aipad",
     "philips": "filips", "philco": "filco", "brastemp": "brástemp",
     "electrolux": "eletrólux", "cadence": "cadenssi", "britania": "britânia",
     "makita": "makíta", "dewalt": "diuólt", "stihl": "chitil",
@@ -1264,6 +1274,34 @@ _BRAND_NAMES = {
     "dell": "dél", "alienware": "alienuear",
     "trendnet": "trendnet", "tp-link": "te pi link",
     "netgear": "netguir", "d-link": "de link",
+    # Marcas BR adicionais (expandido)
+    "intelbras": "intelbras", "c3tech": "ce três tech",
+    "itautec": "itautec", "gradiente": "gradiente",
+    "philips": "filips", "bombril": "bombril",
+    "ype": "ípe", "qbo": "cu bo", "eins": "ains",
+    "kibon": "quibon", "natura": "natura",
+    "oboticario": "oboticário", "havaianas": "avaiânas",
+    "britania": "britânia", "walita": "ualita",
+    "breville": "breville", "kitchenaid": "quícheneid",
+    "cuisinart": "cuízinart", "delonghi": "delongui",
+    "nespresso": "nespreso", "ge": "ge",
+    "mabe": "mabe", "continental": "continental",
+    "esmaltec": "esmaltec", "inox": "inox",
+    "tramontina": "tramontina", "berkel": "berkel",
+    "philips": "filips", "sharp": "sharp",
+    "hitachi": "hitachi", "jvc": "jota ve ce",
+    "kenwood": "kenuód", "pioneer": "pionír",
+    "onkyo": "onkio", "denon": "dínon",
+    "yamaha": "iamaá", "calvin klein": "calvin clain",
+    "tommy hilfiger": "tomi hilfiger",
+    "ralph lauren": "ralf loren",
+    "lacoste": "lacóst", "nivea": "nivéa",
+    "dove": "dove", "pantene": "pantene",
+    "head & shoulders": "ed and shoulders",
+    "gillette": "gillette", "adidas": "adídas",
+    "nike": "naíki", "puma": "púma",
+    "reebok": "ríboc", "new balance": "niu balenssi",
+    "under armour": "ander armor",
     # ── E-commerce/Lojas ──
     "mercadolivre": "mercado livre", "mercadolivre.com": "mercado livre",
     "shopee": "chopi", "aliexpress": "aliexpress",
@@ -1346,6 +1384,335 @@ _BRAND_NAMES = {
     "spotify": "spotifaí", "netflix": "netflix",
     "youtube": "ioutube", "twitch": "tuítchi",
     "discord": "discórd", "reddit": "réddit",
+    # ── Marcas de tecnologia adicionais ──
+    "xiaomi": "chiaomi", "huawei": "uáuei", "oppo": "ópo",
+    "vivo": "vivo", "realme": "ríolmi", "oneplus": "uán plus",
+    "zte": "ze te e", "alcatel": "alcátel", "blu": "blu",
+    "motorola": "motorola", "nokia": "nokia", "lg": "ele ge",
+    "sony": "soni", "panasonic": "panasonic", "toshiba": "toshíba",
+    "sharp": "sharp", "hitachi": "hitachi", "jvc": "jota ve ce",
+    "pioneer": "pionír", "kenwood": "kenuód", "onkyo": "onkio",
+    "denon": "dínon", "marantz": "marants", "yamaha": "iamaá",
+    "fujitsu": "fujitsu", "nec": "ene e ce", "epson": "epson",
+    "canon": "cânon", "nikon": "naíkon", "pentax": "péntax",
+    "olympus": "ólimpus", "leica": "laica", "zeiss": "tsais",
+    "tamron": "tâmnron", "sigma": "sigma", "tokina": "tôkina",
+    "gopro": "gou pro", "dji": "de jota i", "insta360": "insta trezentos e sessenta",
+    "phantom": "fantom", "mavic": "mávic", "spark": "sparque",
+    # ── Marcas de PC/hardware ──
+    "intel": "intel", "amd": "a eme de", "nvidia": "envídia",
+    "msi": "eme esse i", "asus": "assus", "gigabyte": "gigabaite",
+    "asrock": "asrock", "biostar": "baistar", "evga": "e ve ge a",
+    "zotac": "zótac", "palit": "palit", "gainward": "guenuard",
+    "colorful": "colorful", "inno3d": "ino três de",
+    "crucial": "crúcial", "kingston": "kingston", "corsair": "corsér",
+    "g.skill": "gi skil", "adata": "adata", "teamgroup": "timgrupe",
+    "patriot": "patriot", "samsung": "sansunki", "hynix": "hínix",
+    "micron": "mícron", "western digital": "uésten digital", "wd": "dabliu de",
+    "seagate": "seigueite", "toshiba": "toshíba", "hitachi": "hitachi",
+    "transcend": "transcend", "adata": "adata", "sandisk": "sándisque",
+    "lexar": "léxar", "kingston": "kingston", "pnY": "pe en uái",
+    # ── Marcas de periféricos ──
+    "logitech": "loguitech", "razer": "reizer", "corsair": "corsér",
+    "steelseries": "stil séris", "hyperx": "haiper xis", "coolermaster": "culer máster",
+    "nzxt": "ene zé xis te", "fractal design": "fractal design",
+    "be quiet": "bi cuaite", "noctua": "nóctua", "be quiet": "bi cuaite",
+    "arctic": "ártic", "thermalright": "termalrait",
+    "deepcool": "dip cool", "cougar": "cúgar", "genesis": "guênesis",
+    "redragon": "redragon", "trust": "trust", "speedlink": "speedlinc",
+    "sharkoon": "sharkun", "enermax": "enermáx", "seasonic": "sônic",
+    "corsair": "corsér", "evga": "e ve ge a", "super flower": "super flauér",
+    # ── Marcas de áudio ──
+    "sennheiser": "zenaizer", "audio-technica": "audio tecnica",
+    "beyerdynamic": "baierdinamic", "akg": "a ke ge", "shure": "chur",
+    "audio-technica": "audio tecnica", "technics": "téknics",
+    "bang & olufsen": "bang olufsen", "b&o": "bang olufsen",
+    "marshall": "marchal", "focal": "focal", "klipsch": "clipsch",
+    "edifier": "edifaier", "creative": "crieitiv", "harman kardon": "árman kárdon",
+    "harman": "árman", "kardon": "kárdon", "jbl": "jótabêéli",
+    "bose": "bouss", "beats": "bíts", "sony": "soni",
+    "sennheiser": "zenaizer", "plantronics": "plántronics",
+    "jabra": "jábra", "bluedio": "blúdio", "kz": "ke ze",
+    "koss": "cós", "fostex": "fóstecks", "westone": "uéston",
+    "campfire": "cámpfair", "moondrop": "mundrop", "fiio": "fíio",
+    "ibasso": "ibasso", "hidizs": "ridizs", "qkz": "qu ke ze",
+    "ccz": "ce ce ze", "kbeast": "ke bist", "simgot": "símgot",
+    "letshuoer": "léts chuoer", "tanchjim": "tanchím", "aful": "afúll",
+    "7hz": "sete age ze", "kinera": "kinera", "dunu": "dúnu",
+    "tip": "tip", "earbuds": "ir bóds", "earphone": "ir fone",
+    "earphones": "ir fones", "headphone": "ed fone", "headphones": "ed fones",
+    "in-ear": "in ir", "over-ear": "over ir", "on-ear": "on ir",
+    "noise cancelling": "noiz cánceling", "anc": "a ene ce",
+    "tws": "te dabliu esse", "ticking": "ticking",
+    # ── Marcas de gaming ──
+    "nintendo": "nintento", "switch": "suítchi", "wii": "uí",
+    "gameboy": "geimei boi", "gamecube": "geime cub",
+    "playstation": "pleisteichon", "ps5": "pe esse cinco", "ps4": "pe esse quatro",
+    "xbox": "éksbox", "xbox series": "éksbox séries", "xbox one": "éksbox uan",
+    "razer": "reizer", "logitech": "loguitech", "corsair": "corsér",
+    "steelseries": "stil séris", "hyperx": "haiper xis", "roccat": "rócat",
+    "turtle beach": "turtol bítchi", "nacon": "nácón", "thrustmaster": "thrustmaster",
+    "fanatec": "fanátec", "simucube": "simucube", "thrustmaster": "thrustmaster",
+    # ── Marcas de smartphones ──
+    "samsung": "sansunki", "apple": "ápol", "iphone": "aifone",
+    "ipad": "aipad", "ipod": "aipod", "macbook": "macbouque",
+    "imac": "aimac", "mac mini": "mac mini", "mac": "mac",
+    "watch": "uótchi", "airpods": "er pods", "airpod": "er pod",
+    "homepod": "roumpod", "magSafe": "megue seife",
+    "xiaomi": "chiaomi", "redmi": "rédmi", "poco": "póco",
+    "realme": "ríolmi", "oneplus": "uán plus", "oppo": "ópo",
+    "vivo": "vivo", "honor": "anor", "huawei": "uáuei",
+    "motorola": "motorola", "nokia": "nokia", "lg": "ele ge",
+    "sony": "soni", "htc": "age te ce", "blackberry": "blakberri",
+    "alcatel": "alcátel", "zte": "ze te e", "blu": "blu",
+    "pixel": "pixou", "nord": "nórd", "fold": "fould",
+    "flip": "flip", "galaxy": "galaksi", "note": "nóti",
+    "s": "esse", "a": "a", "m": "eme", "z": "ze",
+    # ── Marcas de wearables ──
+    "garmin": "garmin", "fitbit": "fitbit", "suunto": "suunto",
+    "polar": "polar", "amazfit": "amazfit", "mobvoi": "mobvoi",
+    "withings": "uithings", "fossil": "fossil", "skagen": "skágen",
+    "michael kors": "maicol cors", "tag heuer": "tag oier",
+    "montblanc": "monblanc", "gucci": "gúci", "hermes": "ermes",
+    # ── Marcas de eletrodomésticos ──
+    "electrolux": "eletrólux", "brastemp": "brástemp", "consul": "cónsul",
+    "philco": "filco", "mondial": "mondial", "arno": "árno",
+    "black+decker": "blék dequer", "black decker": "blék dequer",
+    "oster": "oster", "breville": "breville", "kitchenaid": "quícheneid",
+    "cuisinart": "cuízinart", "delonghi": "delongui", "nespresso": "nespreso",
+    "philips": "filips", "panasonic": "panasonic", "lg": "ele ge",
+    "samsung": "sansunki", "bosch": "bósh", "siemens": "símens",
+    "miele": "míle", "smeg": "smég", "whirlpool": "uirlpul",
+    "mabe": "mabe", "continental": "continental", "esmaltec": "esmaltec",
+    "inox": "inox", "tramontina": "tramontina", "berkel": "berkel",
+    "britania": "britânia", "walita": "ualita", "cadence": "cadenssi",
+    "mondial": "mondial", "arno": "árno", "luminair": "luminair",
+    # ── Marcas de beleza/perfumaria ──
+    "l'oreal": "loréal", "loreal": "loréal", "nivea": "nivéa",
+    "garnier": "garniér", "avon": "avon", "natura": "natura",
+    "chanel": "chanel", "dior": "dior", "calvin klein": "calvin clain",
+    "tommy hilfiger": "tomi hilfiger", "ralph lauren": "ralf loren",
+    "victoria's secret": "victória secret", "maybelline": "meibelin",
+    "boticário": "boticário", "eudora": "eudora", "jequiti": "jequiti",
+    "o boticário": "o boticário", "granado": "granado", "cota": "cota",
+    "natura": "natura", "the body shop": "the body shop",
+    "l'occitane": "locitane", "kiehl's": "kiels", "clinique": "clínique",
+    "estee lauder": "estee lauder", "mac": "mac", "bobbi brown": "bobi brown",
+    "shiseido": "shiseido", "sk-ii": "es ke dois", "lancome": "lancome",
+    "yves saint laurent": "ives san laurent", "ysl": "uai esse ele",
+    "giorgio armani": "jórgio armáni", "emporio armani": "emperio armáni",
+    "versace": "versáchi", "dolce & gabbana": "dolce gabbana",
+    "prada": "prada", "gucci": "gúci", "fendi": "fendi",
+    "burberry": "búrberri", "coach": "couch", "kate spade": "keit speid",
+    "tory burch": "tori burch", "michael kors": "maicol cors",
+    "marc jacobs": "marque jacobs", "juicy couture": "juicy couture",
+    # ── Marcas de moda/roupas ──
+    "zara": "zara", "h&m": "age e eme", "mango": "mango",
+    "forever 21": "forever tuenti uán", "gap": "gep",
+    "levi's": "levais", "levis": "levais", "wrangler": "urángler",
+    "lee": "li", "diesel": "dizel", "tommy hilfiger": "tomi hilfiger",
+    "calvin klein": "calvin clain", "ralph lauren": "ralf loren",
+    "lacoste": "lacóst", "nautica": "nautica", "tommy": "tomi",
+    "hugo boss": "iugo boss", "armani": "armáni", "versace": "versáchi",
+    "dolce & gabbana": "dolce gabbana", "prada": "prada",
+    "gucci": "gúci", "burberry": "búrberri", "coach": "couch",
+    "kate spade": "keit speid", "tory burch": "tori burch",
+    "michael kors": "maicol cors", "marc jacobs": "marque jacobs",
+    "fendi": "fendi", "givenchy": "guivenchi", "balenciaga": "balenciaga",
+    "saint laurent": "san laurent", "ysl": "uai esse ele",
+    "chanel": "chanel", "dior": "dior", "hermes": "ermes",
+    "louis vuitton": "luí vuitôn", "fendi": "fendi",
+    # ── Marcas de calçados ──
+    "nike": "naíki", "adidas": "adídas", "puma": "púma",
+    "reebok": "ríboc", "new balance": "niu balenssi", "under armour": "ander armor",
+    "vans": "vans", "converse": "converse", "all star": "ol star",
+    "olympikus": "olimpikus", "mizuno": "mizuno", "fila": "fila",
+    "skechers": "skéchers", "crocs": "crócs", "havaianas": "avaiânas",
+    "rider": "raider", "melissa": "melissa", "arezzo": "arezzo",
+    "schutz": "schutz", "vizzano": "vizzano", "moleca": "moleca",
+    "carmen steffens": "carmen steffens", "vizzano": "vizzano",
+    "arezzo": "arezzo", "schutz": "schutz", "centenario": "centenario",
+    # ── Marcas de óculos ──
+    "ray-ban": "rei ban", "oakley": "óukli", "persol": "persol",
+    "tom ford": "tom ford", "prada": "prada", "gucci": "gúci",
+    "versace": "versáchi", "dior": "dior", "chanel": "chanel",
+    "burberry": "búrberri", "coach": "couch", "michael kors": "maicol cors",
+    "police": "police", "emporio armani": "emperio armáni",
+    "giorgio armani": "jórgio armáni", "dolce & gabbana": "dolce gabbana",
+    # ── Marcas de relógios ──
+    "rolex": "rólex", "omega": "omega", "tag heuer": "tag oier",
+    "breitling": "breitling", "cartier": "cartier", "patek philippe": "patek philippe",
+    "audemars piguet": "audemars piguet", "vacheron constantin": "vacheron constantin",
+    "iwc": "i uá ce", "jaeger-lecoultre": "jaeger lecoultre",
+    "longines": "longines", "tissot": "tissot", "hamilton": "rémiton",
+    "movado": "movado", "bulova": "bulova", "citizen": "citizen",
+    "seiko": "seico", "casio": "cássio", "g-shock": "ji choc",
+    # ── Marcas de alimentos/bebidas ──
+    "nestle": "nestlé", "kraft": "kraft", "heinz": "heinz",
+    "unilever": "unilever", "pepsi": "pépsi", "coca-cola": "coca cola",
+    "coca cola": "coca cola", "sprite": "spraite", "fanta": "fanta",
+    "guarana": "guaraná", "antarctica": "antártica", "brahma": "bráma",
+    "skol": "skol", "bohemia": "boemia", "stella": "stéla",
+    "budweiser": "baduáizer", "heineken": "reineken", "corona": "corona",
+    "schweppes": "chvépes", "halls": "róls", "toddy": "todi",
+    "milka": "mílka", "haribo": "haríbo", "lacta": "lacta",
+    "garoto": "garoto", "danone": "danone", "yoplait": "ioplê",
+    "activia": "activia", "nestea": "nestea", "tang": "tang",
+    "mucilon": "mucilon", "nescau": "nescau", "nesquik": "nesquic",
+    "nespresso": "nespreso", "dolce gusto": "dolce gusto",
+    # ── Marcas de automóveis ──
+    "volkswagen": "volkswagen", "vw": "ve dabliu", "audi": "audi",
+    "bmw": "be eme dabliu", "mercedes": "mercedes", "mercedes-benz": "mercedes benz",
+    "ferrari": "ferrari", "lamborghini": "lamborguini", "porsche": "porche",
+    "mclaren": "mac laren", "bugatti": "bugatti", "maserati": "maserati",
+    "bentley": "bentley", "rolls-royce": "rols roice", "aston martin": "aston martin",
+    "jaguar": "jaguar", "land rover": "land rover", "mini": "mini",
+    "toyota": "toióta", "honda": "ronda", "nissan": "nissan",
+    "mazda": "mazda", "mitsubishi": "mitsubishi", "subaru": "subaru",
+    "hyundai": "iúndai", "kia": "kia", "chevrolet": "chevrolet",
+    "ford": "ford", "fiat": "fiat", "renault": "renault",
+    "peugeot": "peugeot", "citroen": "citroen", "volvo": "volvo",
+    "jeep": "jipe", "chrysler": "chrysler", "dodge": "dodge",
+    # ── Marcas brasileiras adicionais ──
+    "intelbras": "intelbras", "c3tech": "ce três tech", "itautec": "itautec",
+    "gradiente": "gradiente", "philips": "filips", "bombril": "bombril",
+    "ype": "ípe", "qbo": "cu bo", "eins": "ains",
+    "kibon": "quibon", "natura": "natura", "oboticário": "oboticário",
+    "havaianas": "avaiânas", "britania": "britânia", "walita": "ualita",
+    "breville": "breville", "kitchenaid": "quícheneid", "cuisinart": "cuízinart",
+    "delonghi": "delongui", "nespresso": "nespreso", "ge": "ge",
+    "mabe": "mabe", "continental": "continental", "esmaltec": "esmaltec",
+    "inox": "inox", "tramontina": "tramontina", "berkel": "berkel",
+    "philips": "filips", "sharp": "sharp", "hitachi": "hitachi",
+    "jvc": "jota ve ce", "kenwood": "kenuód", "pioneer": "pionír",
+    "onkyo": "onkio", "denon": "dínon", "yamaha": "iamaá",
+    "calvin klein": "calvin clain", "tommy hilfiger": "tomi hilfiger",
+    "ralph lauren": "ralf loren", "lacoste": "lacóst", "nivea": "nivéa",
+    "dove": "dove", "pantene": "pantene", "head & shoulders": "ed and shoulders",
+    "gillette": "gillette", "adidas": "adídas", "nike": "naíki",
+    "puma": "púma", "reebok": "ríboc", "new balance": "niu balenssi",
+    "under armour": "ander armor", "positivo": "positivo", "cce": "ce ce e",
+    "megaware": "megauare", "neologic": "neologic", "winca": "uínca",
+    "h-buster": "age buster", "multilaser": "multilaser", "dl": "de ele",
+    "lenovo": "lenovo", "hp": "age pe", "dell": "dél",
+    "alienware": "alienuear", "trendnet": "trendnet", "tp-link": "te pi link",
+    "netgear": "netguir", "d-link": "de link",
+    # ── Termos técnicos comuns ──
+    "wi-fi": "uái fi", "wifi": "uái fi", "bluetooth": "blutúfi",
+    "usb": "usbe", "hdmi": "age de emi", "led": "léd",
+    "lcd": "ele ce de", "oled": "óled", "qled": "quiled",
+    "ssd": "esse esse de", "hd": "age de", "hdd": "age de de",
+    "gtx": "ge te xis", "rtx": "erre te xis", "rx": "erre xis",
+    "core": "cor", "ryzen": "raízen", "threadripper": "threadripper",
+    "xeon": "xion", "pentium": "pentium", "celeron": "celeron",
+    "arc": "arc", "epyc": "epic", "optane": "optane",
+    "nvme": "envi eme e", "sata": "sata", "sas": "sas",
+    "ddr3": "de de erre três", "ddr4": "de de erre quatro", "ddr5": "de de erre cinco",
+    "ddr2": "de de erre dois", "lpddr": "elpe de de erre",
+    "ram": "rã", "rom": "róm", "bios": "baios",
+    "uefi": "u e ef i", "cmos": "ce mos", "gpu": "ge pe u",
+    "cpu": "ce pe u", "soc": "esse o ce", "iot": "i o te",
+    "ai": "a i", "vr": "ve erre", "ar": "a erre",
+    "mr": "eme erre", "xr": "equis erre", "3d": "três de",
+    "4k": "quatro kai", "8k": "oito kai", "2k": "dois kai",
+    "5g": "cinco ge", "4g": "quatro ge", "3g": "três ge",
+    "lte": "ele te e", "cdma": "ce de eme a", "gsm": "ge esse eme",
+    "nfc": "ene efe ce", "gps": "ge pe esse", "rds": "erre de esse",
+    "fm": "efe eme", "am": "a eme", "pm": "pe eme",
+    "usb-c": "usbe ce", "type-c": "taipi ce", "usb type-c": "usbe taipi ce",
+    "thunderbolt": "thunderbolt", "lightning": "laitning", "pd": "pe de",
+    "qc": "qu ce", "quick charge": "quick charge", "fast charge": "fast charge",
+    "ip67": "i pe sessenta e sete", "ip68": "i pe sessenta e oito",
+    "ipx7": "i pe xis sete", "ipx8": "i pe xis oito",
+    "ip44": "i pe quarenta e quatro", "ip53": "i pe cinquenta e três",
+    "ip54": "i pe cinquenta e quatro", "atx": "a te xis",
+    "m-atx": "eme a te xis", "itx": "i te xis", "mini-itx": "mini i te xis",
+    "eps": "e pe esse", "pdf": "pe de efe", "jpg": "jota pe ge",
+    "jpeg": "jota pe e ge", "png": "pe en ge", "gif": "ge i efe",
+    "svg": "esse ve ge", "mp3": "eme pe três", "mp4": "eme pe quatro",
+    "avi": "a ve i", "mkv": "eme ka ve", "mov": "eme o ve",
+    "flac": "flac", "wav": "uáve", "aac": "a a ce",
+    "ogg": "o ge ge", "wma": "dabliu eme a",
+    # ── Termos de produtos ──
+    "smartwatch": "smartuótchi", "smartwatch": "smartuótchi",
+    "powerbank": "pouer banque", "power bank": "pouer banque",
+    "webcam": "uebecam", "notebook": "notebuque", "mousepad": "mause pad",
+    "smartphone": "smartufone", "smartband": "smart band",
+    "smarttv": "smart te ve", "smart tv": "smart te ve",
+    "streamdeck": "strim dec", "joystick": "joístique",
+    "gamepad": "geime pad", "headset": "edseti", "headphone": "ed fone",
+    "earphone": "ir fone", "keyboard": "quibórd", "speaker": "espíquer",
+    "laptop": "laptop", "display": "displêi", "monitor": "monitor",
+    "charger": "tchárger", "cable": "keibou", "microphone": "maicrofone",
+    "microfone": "maicrofone", "webcam hd": "uebecam age de",
+    "router": "rauter", "modem": "modem", "switch": "suítchi",
+    "hub": "hub", "adapter": "adaptador", "dongle": "dongle",
+    "case": "keis", "cover": "cover", "skin": "skin",
+    "screen protector": "screen protetor", "tempered glass": "tempered glass",
+    "stylus": "stylus", "pen": "pen", "pencil": "pencil",
+    "stand": "stand", "mount": "mount", "bracket": "bracket",
+    "dock": "dock", "station": "station", "cradle": "cradle",
+    "battery": "battery", "battery pack": "battery pack",
+    "power bank": "pouer banque", "charger": "tchárger",
+    "cable": "keibou", "wire": "uaire", "cord": "cord",
+    "plug": "plug", "socket": "socket", "outlet": "outlet",
+    # ── Cores ──
+    "preto": "preto", "branco": "branco", "cinza": "cinza",
+    "prata": "prata", "dourado": "dourado", "rosa": "rosa",
+    "vermelho": "vermelho", "azul": "azul", "verde": "verde",
+    "amarelo": "amarelo", "laranja": "laranja", "roxo": "roxo",
+    "marrom": "marrom", "bege": "bege", "creme": "creme",
+    "vinho": "vinho", "navy": "neivi", "turquesa": "turquesa",
+    "ciano": "ciano", "magenta": "magenta", "limão": "limão",
+    "lilás": "lilás", "índigo": "índigo", "violeta": "violeta",
+    # ── Materiais ──
+    "alumínio": "alumínio", "aço": "aço", "ferro": "ferro",
+    "plástico": "plástico", "vidro": "vidro", "borracha": "borracha",
+    "couro": "couro", "tecido": "tecido", "nylon": "náilon",
+    "poliéster": "poliéster", "algodão": "algodão", "seda": "seda",
+    "lã": "lã", "cânhamo": "cânhamo", "linho": "linho",
+    "jeans": "jeans", "denim": "denim", "couro sintético": "couro sintético",
+    # ── Unidades de medida ──
+    "metro": "metro", "centímetro": "centímetro", "milímetro": "milímetro",
+    "quilômetro": "quilômetro", "quilograma": "quilograma", "grama": "grama",
+    "miligrama": "miligrama", "litro": "litro", "mililitro": "mililitro",
+    "polegada": "polegada", "pé": "pé", "jarda": "jarda",
+    "milha": "milha", "onça": "onça", "libra": "libra",
+    "quilowatt": "quilowatt", "watt": "watt", "volt": "volt",
+    "ampere": "ampere", "ohm": "ohm", "hertz": "hertz",
+    "newton": "newton", "joule": "joule", "pascal": "pascal",
+    "bar": "bar", "atmosfera": "atmosfera", "psi": "pe esse ai",
+    # ── Números em português ──
+    "zero": "zero", "um": "um", "dois": "dois", "três": "três",
+    "quatro": "quatro", "cinco": "cinco", "seis": "seis",
+    "sete": "sete", "oito": "oito", "nove": "nove", "dez": "dez",
+    "vinte": "vinte", "trinta": "trinta", "quarenta": "quarenta",
+    "cinquenta": "cinquenta", "sessenta": "sessenta", "setenta": "setenta",
+    "oitenta": "oitenta", "noventa": "noventa", "cem": "cem",
+    "duzentos": "duzentos", "trezentos": "trezentos", "quatrocentos": "quatrocentos",
+    "quinhentos": "quinhentos", "seiscentos": "seiscentos", "setecentos": "setecentos",
+    "oitocentos": "oitocentos", "novecentos": "novecentos", "mil": "mil",
+    "milhão": "milhão", "bilhão": "bilhão", "trilhão": "trilhão",
+    # ── Dias da semana ──
+    "segunda": "segunda", "terça": "terça", "quarta": "quarta",
+    "quinta": "quinta", "sexta": "sexta", "sábado": "sábado",
+    "domingo": "domingo",
+    # ── Meses ──
+    "janeiro": "janeiro", "fevereiro": "fevereiro", "março": "março",
+    "abril": "abril", "maio": "maio", "junho": "junho",
+    "julho": "julho", "agosto": "agosto", "setembro": "setembro",
+    "outubro": "outubro", "novembro": "novembro", "dezembro": "dezembro",
+    # ── Termos comuns em e-commerce ──
+    "frete": "frete", "entrega": "entrega", "envio": "envio",
+    "estoque": "estoque", "disponível": "disponível", "indisponível": "indisponível",
+    "oferta": "oferta", "promoção": "promoção", "desconto": "desconto",
+    "cupom": "cupom", "voucher": "voucher", "cashback": "caxebeque",
+    "parcelamento": "parcelamento", "à vista": "à vista", "prazo": "prazo",
+    "garantia": "garantia", "devolução": "devolução", "troca": "troca",
+    "reembolso": "reembolso", "estorno": "estorno", "cancelamento": "cancelamento",
+    "compra": "compra", "venda": "venda", "pedido": "pedido",
+    "fatura": "fatura", "boleto": "boleto", "cartão": "cartão",
+    "pix": "pix", "transferência": "transferência", "depósito": "depósito",
 }
 
 # Siglas de 2-5 letras maiúsculas que devem ser soletradas automaticamente
@@ -1932,47 +2299,51 @@ async def distribute_coupons():
     logger.info("CouponDistributor: iniciando postagem de cupons...")
 
     # Seleciona ofertas
-    offers = await select_coupon_offers(num=2)
+    offers = await select_coupon_offers(num=3)  # aumenta para ter mais opções
     if not offers:
         logger.info("CouponDistributor: nenhuma oferta de cupom disponível")
         return
 
-    # Filtra já postados
+    # Filtra já postados (com dedup mais estrito)
     offers = [o for o in offers if not already_posted_coupon(o["coupon_code"])]
     if not offers:
         logger.info("CouponDistributor: todas as ofertas já foram postadas recentemente")
         return
 
-    for offer in offers:
-        logger.info(f"CouponDistributor: postando cupom {offer['coupon_code']} — {offer['title'][:40]}")
+    # Seleciona apenas 1 oferta aleatória para evitar repetição
+    import random
+    offer = random.choice(offers)
+    logger.info(f"CouponDistributor: postando cupom {offer['coupon_code']} — {offer['title'][:40]}")
 
-        # Cria short link para o product_url (rastreia clique + passa pelo site)
-        product_url = offer.get("product_url", "")
-        short_url = None
-        if product_url:
-            short_link_offer = {
-                "affiliate_url": product_url,
-                "provider": "mercadolivre",
-                "title": offer.get("title", ""),
-                "final_price": offer.get("price", 0),
-                "image_url": offer.get("image_url", ""),
-            }
-            short_url = await _create_short_link(short_link_offer, source="coupon", campaign=offer.get("coupon_code"))
-        offer["short_url"] = short_url or product_url  # fallback: product_url direto
+    # Cria short link para o product_url (rastreia clique + passa pelo site)
+    product_url = offer.get("product_url", "")
+    short_url = None
+    if product_url:
+        # Import tardio para evitar circular import
+        from app.workers.distributor import create_short_link
+        short_link_offer = {
+            "affiliate_url": product_url,
+            "provider": "mercadolivre",
+            "title": offer.get("title", ""),
+            "final_price": offer.get("price", 0),
+            "image_url": offer.get("image_url", ""),
+        }
+        short_url = await create_short_link(short_link_offer, source="coupon", campaign=offer.get("coupon_code"))
+    offer["short_url"] = short_url or product_url  # fallback: product_url direto
 
-        # Telegram + Facebook (síncrono)
-        tg = await post_coupon_telegram(offer)
-        logger.info(f"  Telegram: {tg.get('ok')}")
+    # Telegram + Facebook (síncrono)
+    tg = await post_coupon_telegram(offer)
+    logger.info(f"  Telegram: {tg.get('ok')}")
 
-        fb = await post_coupon_facebook(offer)
-        logger.info(f"  Facebook: {fb.get('ok')}")
+    fb = await post_coupon_facebook(offer)
+    logger.info(f"  Facebook: {fb.get('ok')}")
 
-        # YouTube em background (não bloqueia)
-        asyncio.create_task(post_coupon_youtube(offer))
+    # YouTube em background (não bloqueia)
+    asyncio.create_task(post_coupon_youtube(offer))
 
-        await asyncio.sleep(2)
+    await asyncio.sleep(2)
 
-    logger.info(f"CouponDistributor: concluído — {len(offers)} cupons postados")
+    logger.info(f"CouponDistributor: concluído — 1 cupom postado")
 
 
 async def coupon_distributor_loop():

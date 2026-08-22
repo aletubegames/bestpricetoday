@@ -942,15 +942,18 @@ async def get_integration_status(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(require_admin),
 ):
-    """Returns integration status for all providers — used by admin dashboard."""
+    """Returns integration status for all providers — used by admin dashboard.
+
+    ML: health live + auto-refresh no alaserver se a sessão falhar.
+    """
     from app.services.ml_token_service import get_token_status
 
-    ml_status = await get_token_status(db)
+    ml_status = await get_token_status(db, probe_live=True, auto_refresh_on_fail=True)
 
     return {
         "mercadolivre": {
             **ml_status,
-            "note": "Conversions tracked via scraping (ml_scraper.py) — no webhook needed"
+            "note": "Health live /users/me + auto-refresh no alaserver se falhar; conversions via scraper",
         },
         "aliexpress": {
             "status": "active" if settings.ALIEXPRESS_APP_KEY and settings.ALIEXPRESS_APP_SECRET else "not_configured",

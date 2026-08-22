@@ -3,7 +3,7 @@
 # Uso: ./deploy_backend.sh
 set -e
 
-SERVER="alessandro@192.168.100.30"
+SERVER="alessandro@192.168.15.45"
 REMOTE_DIR="/home/alessandro/backend"
 LOCAL_DIR="$(dirname "$0")/backend"
 

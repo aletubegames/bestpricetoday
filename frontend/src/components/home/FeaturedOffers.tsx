@@ -97,6 +97,11 @@ function inferEmoji(query: string): string {
   return "🏷️"; // emoji genérico de oferta
 }
 
+function sanitizeQuery(query: string): string {
+  // Remove caracteres perigosos para XSS
+  return query.replace(/[<>\"'&]/g, "").replace(/\.\./g, "").trim();
+}
+
 const BRAND_COLORS = ["#7c3aed", "#f97316", "#1a1a2e", "#ec7000", "#8b5cf6", "#ea580c"];
 
 interface ProductItem {
@@ -121,12 +126,15 @@ export default function FeaturedOffers({ onSearch }: { onSearch: (q: string) => 
     const items = trendingData?.items ?? [];
     if (items.length >= 6) {
       // Use trending items dynamically — emoji inferido pelo título/query
-      return items.slice(0, 12).map((item, i) => ({
-        emoji: inferEmoji(item.query),
-        query: item.query,
-        label: item.query.length > 28 ? item.query.slice(0, 28) + "…" : item.query,
-        color: BRAND_COLORS[i % BRAND_COLORS.length],
-      }));
+      return items.slice(0, 12).map((item, i) => {
+        const sanitizedQuery = sanitizeQuery(item.query);
+        return {
+          emoji: inferEmoji(sanitizedQuery),
+          query: sanitizedQuery,
+          label: sanitizedQuery.length > 28 ? sanitizedQuery.slice(0, 28) + "…" : sanitizedQuery,
+          color: BRAND_COLORS[i % BRAND_COLORS.length],
+        };
+      });
     }
     // Fallback: rotate through fixed list
     return FALLBACK_PRODUCTS.map((p, i) => ({

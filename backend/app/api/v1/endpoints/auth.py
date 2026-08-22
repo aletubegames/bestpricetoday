@@ -10,7 +10,8 @@ Rotas:
   GET  /auth/ml/status    — status token ML
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import Query as FQuery
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
@@ -33,6 +34,18 @@ security = HTTPBearer(auto_error=False)
 import bcrypt as _bcrypt
 
 JWT_ALGORITHM = "HS256"
+
+
+async def _require_admin_lazy(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+    admin_key: str | None = FQuery(default=None, alias="admin_key"),
+    authorization: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    """Proxy lazy para admin.require_admin — evita circular import
+    (admin.py importa decode_jwt deste módulo)."""
+    from app.api.v1.endpoints.admin import require_admin
+    return await require_admin(x_admin_key, admin_key, authorization, db)
 JWT_EXPIRE_DAYS = 30
 REDIRECT_URI = os.getenv("ML_REDIRECT_URI", "https://bestpricetoday.alaserver.com.br/auth/callback")
 
@@ -174,38 +187,6 @@ async def me(user: User = Depends(get_current_user)):
 
 # ── ML OAuth (mantido) ────────────────────────────────────────────────────────
 
-async def _do_token_refresh(refresh_token: str) -> dict | None:
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.mercadolibre.com/oauth/token",
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": settings.MERCADOLIVRE_APP_ID,
-                    "client_secret": settings.MERCADOLIVRE_SECRET,
-                    "refresh_token": refresh_token,
-                },
-            )
-        return resp.json() if resp.status_code == 200 else None
-    except Exception as e:
-        logger.error(f"ML token refresh error: {e}")
-        return None
-
-
-async def get_valid_ml_token() -> str | None:
-    token = settings.MERCADOLIVRE_ACCESS_TOKEN
-    if token:
-        return token
-    refresh = settings.MERCADOLIVRE_REFRESH_TOKEN
-    if not refresh:
-        return None
-    data = await _do_token_refresh(refresh)
-    if data:
-        logger.info("ML token refreshed successfully [token value redacted]")
-        return data.get("access_token")
-    return None
-
-
 @router.get("/auth/ml/authorize")
 async def ml_authorize():
     """Gera URL de autorização ML com PKCE. Acesse no browser."""
@@ -276,49 +257,58 @@ async def ml_oauth_callback(code: str = None, error: str = None, state: str = No
 
 
 @router.post("/auth/ml/refresh")
-async def ml_refresh_token(db: AsyncSession = Depends(get_db)):
-    """Força um refresh manual do token ML. Útil para testes ou recuperação."""
-    from app.services.ml_token_service import get_token, get_token_status
-    
+async def ml_refresh_token(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(_require_admin_lazy),
+):
+    """Força um refresh do token ML (sempre troca o refresh_token).
+
+    Protegido por admin key/JWT — refresh_token é single-use, chamadas
+    anônimas podem queimar a sessão ML.
+    """
+    from app.services.ml_token_service import force_refresh, get_token_status
+
     try:
-        # Primeiro verificar status atual
-        status_before = await get_token_status(db)
-        
-        # Tentar forçar refresh
-        token = await get_token(db)
-        
-        # Verificar novo status
-        status_after = await get_token_status(db)
-        
+        status_before = await get_token_status(db, probe_live=False)
+        token = await force_refresh(db)
+        status_after = await get_token_status(db, probe_live=True, auto_refresh_on_fail=False)
+
         return {
             "ok": bool(token),
             "status_before": status_before,
             "status_after": status_after,
-            "message": "Token refresh executado" if token else "Refresh falhou - reauth necessário"
+            "message": "Token refresh executado" if token else "Refresh falhou - reauth necessário",
         }
     except Exception as e:
         logger.error(f"Manual ML refresh error: {type(e).__name__}: {e}")
         return {
             "ok": False,
             "error": str(e),
-            "message": "Erro ao executar refresh manual"
+            "message": "Erro ao executar refresh manual",
         }
 
 
 @router.get("/auth/ml/status")
-async def ml_token_status(db: AsyncSession = Depends(get_db)):
-    """Retorna status detalhado do token ML com informações de diagnóstico."""
+async def ml_token_status(
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(_require_admin_lazy),
+):
+    """Status do token ML com health live e auto-heal se a sessão falhar.
+
+    Protegido por admin key/JWT — expõe estado do token e pode disparar refresh.
+    """
     from app.services.ml_token_service import get_token_status
-    status = await get_token_status(db)
-    
-    # Adicionar informações de ajuda se o token não estiver configurado
+
+    status = await get_token_status(db, probe_live=True, auto_refresh_on_fail=True)
+
     if status.get("status") == "not_configured":
         status["help"] = "Acesse /api/v1/auth/ml/authorize para autenticar no Mercado Livre"
         status["oauth_url"] = "/api/v1/auth/ml/authorize"
-        status["auto_refresh_info"] = "Sistema de renovação automática ativo: verifica a cada 15 min e renova 30 min antes de expirar"
     else:
-        # Adicionar informações sobre o sistema de auto-refresh
-        status["auto_refresh_info"] = "Sistema de renovação automática ativo: verifica a cada 15 min e renova 30 min antes de expirar"
         status["manual_refresh_url"] = "/api/v1/auth/ml/refresh"
-    
+
+    status["auto_refresh_info"] = (
+        "Cron no alaserver a cada 15min + health live /users/me; "
+        "force_refresh real se 401/403 ou token < 60min do expiry (lock anti-race)"
+    )
     return status

@@ -1,7 +1,7 @@
 # Grow_up.md — Plano Realista para Romper a Bolha
 
 > **Único KPI:** R$ de comissão **confirmada** entrando no bolso.
-> **Base:** alaserver (192.168.100.30) + Cloudflare Tunnel. Nada de ngrok/Vercel
+> **Base:** alaserver (192.168.15.45) + Cloudflare Tunnel. Nada de ngrok/Vercel
 > como infra principal. Nada de projeção irreal — só o caminho escalável com o
 > arsenal que já existe.
 
@@ -80,7 +80,7 @@
 - ✅ **API HTTPS** `https://api.alaserver.com.br/` — nginx + uvicorn,
   `/health` 200. Serviço `bestprice-backend.service` active running.
   Cloudflare Tunnel (porta 443 padrão) + nginx backup na porta 9443.
-- ✅ Backend na máquina alaserver (`192.168.100.30:8000`), DB Neon, Redis Upstash.
+- ✅ Backend na máquina alaserver (`192.168.15.45:8000`), DB Neon, Redis Upstash.
 - ✅ nginx com vhosts: `bestprice-frontend-ssl` (:443+:9443+:8443+:2053),
   `bestprice-api-ssl` (:443+:9443+:8443+:2053), `bestprice-redirect` (:80→HTTPS).
   Cert Let's Encrypt `alaserver.com.br` válido. `error_page 497` redireciona
@@ -650,7 +650,7 @@ fonte dominante → dobrar nela → tráfego pago com arbitragem.
          `instagram_basic`, `pages_show_list`, `business_management`
        - Em modo dev (Development) funcionam sem revisão para o admin do app
    - **4f.** Atualizar `.env` no alaserver com o novo App ID + Secret:
-     - SSH: `ssh alessandro@192.168.100.30`
+     - SSH: `ssh alessandro@192.168.15.45`
      - Editar `/home/alessandro/backend/.env`:
        ```
        ID_APLICATIVO_FACEBOOK=<NOVO_APP_ID>

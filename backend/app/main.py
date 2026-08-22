@@ -81,6 +81,29 @@ _CORS_ALLOW_HEADERS = (
     "X-Admin-Key, X-Api-Key, X-Auth-Token, ngrok-skip-browser-warning"
 )
 
+# ── CORS whitelist ───────────────────────────────────────────────────────────
+# Só origins do BestPriceToday (e localhost para dev) podem chamar a API
+# do browser. Chamadas server-side (curl, httpx, Instagram Graph API) não
+# enviam Origin header e não são afetadas por CORS.
+_ALLOWED_CORS_HOSTS = {
+    "bestpricetoday.alaserver.com.br",
+    "api.alaserver.com.br",
+    "localhost",
+}
+
+
+def _cors_origin_ok(origin: str | None) -> bool:
+    """True se o Origin está na whitelist de hosts permitidos."""
+    if not origin:
+        return False
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(origin).hostname or ""
+        return host in _ALLOWED_CORS_HOSTS
+    except Exception:
+        return False
+
+
 # Rate limiting simples (não afeta funcionamento normal, apenas protege contra abuso)
 _rate_limit_store = defaultdict(list)
 _RATE_LIMIT = 100  # requisições por minuto por IP
@@ -107,10 +130,16 @@ async def cors_middleware(request: Request, call_next):
     # Registra a requisição
     _rate_limit_store[client_ip].append(now)
     
+    # Origin do request — só setamos CORS headers se for permitido
+    origin = request.headers.get("origin")
+    allow_origin = origin if _cors_origin_ok(origin) else None
+
     # Handle OPTIONS preflight
     if request.method == "OPTIONS":
+        if not allow_origin:
+            return Response(status_code=403, content="Origin not allowed")
         response = Response()
-        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Origin"] = allow_origin
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         response.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
         response.headers["Access-Control-Max-Age"] = "86400"
@@ -124,10 +153,11 @@ async def cors_middleware(request: Request, call_next):
     except Exception:
         response = Response(status_code=500)
 
-    # Force CORS headers on ALL responses
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    response.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
+    # CORS headers só se origin for permitida
+    if allow_origin:
+        response.headers["Access-Control-Allow-Origin"] = allow_origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
 
     # Disable cache completely
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"

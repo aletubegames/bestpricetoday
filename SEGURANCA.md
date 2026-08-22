@@ -1,7 +1,7 @@
 # 🔒 Segurança do Alaserver — Guia Completo
 
 > **Data da auditoria:** 07/07/2026
-> **Servidor:** 192.168.100.30 (alaserver)
+> **Servidor:** 192.168.15.45 (alaserver)
 > **Aplicação:** BestPriceToday v1.0.0
 
 ---
@@ -11,7 +11,7 @@
 Se algo parar de funcionar após as mudanças de segurança, **reverte tudo com 1 comando**:
 
 ```bash
-ssh alessandro@192.168.100.30 "bash /home/alessandro/RESTAURAR.sh"
+ssh alessandro@192.168.15.45 "bash /home/alessandro/RESTAURAR.sh"
 ```
 
 Isso restaura:
@@ -191,12 +191,12 @@ Headers adicionados em `headers()`:
 
 ### Verificar fail2ban
 ```bash
-ssh alessandro@192.168.100.30 "sudo fail2ban-client status sshd"
+ssh alessandro@192.168.15.45 "sudo fail2ban-client status sshd"
 ```
 
 ### Verificar UFW
 ```bash
-ssh alessandro@192.168.100.30 "sudo ufw status numbered"
+ssh alessandro@192.168.15.45 "sudo ufw status numbered"
 ```
 
 ### Rodar pentest novamente
@@ -210,23 +210,23 @@ O VNC está bloqueado no UFW. Para fazer login manual do ML:
 
 ```bash
 # Opção 1: liberar VNC só para seu PC temporariamente
-ssh alessandro@192.168.100.30 "sudo ufw allow from 192.168.100.216 to any port 5900 && sudo ufw allow from 192.168.100.216 to any port 6080"
+ssh alessandro@192.168.15.45 "sudo ufw allow from 192.168.100.216 to any port 5900 && sudo ufw allow from 192.168.100.216 to any port 6080"
 
-# Fazer login via noVNC: http://192.168.100.30:6080/vnc.html
+# Fazer login via noVNC: http://192.168.15.45:6080/vnc.html
 
 # Depois do login, bloquear novamente:
-ssh alessandro@192.168.100.30 "sudo ufw delete allow from 192.168.100.216 to any port 5900 && sudo ufw delete allow from 192.168.100.216 to any port 6080"
+ssh alessandro@192.168.15.45 "sudo ufw delete allow from 192.168.100.216 to any port 5900 && sudo ufw delete allow from 192.168.100.216 to any port 6080"
 ```
 
 ### Se ngrok voltar a ser necessário
 ```bash
-ssh alessandro@192.168.100.30 "setsid /usr/local/bin/ngrok http 8000 --log=stdout < /dev/null > /dev/null 2>&1 &"
+ssh alessandro@192.168.15.45 "setsid /usr/local/bin/ngrok http 8000 --log=stdout < /dev/null > /dev/null 2>&1 &"
 ```
 **Atenção:** ngrok expõe a API sem Cloudflare. Use só temporariamente.
 
 ### Atualizações de segurança
 ```bash
-ssh alessandro@192.168.100.30 "sudo apt update && sudo apt upgrade -y"
+ssh alessandro@192.168.15.45 "sudo apt update && sudo apt upgrade -y"
 ```
 
 ---

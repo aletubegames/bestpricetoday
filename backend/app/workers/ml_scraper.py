@@ -56,6 +56,10 @@ PROFILE_LOCK_FILE = BACKEND_DIR / ".ml_chrome_profile.lock"
 # Checkpoint — salva progresso para retomar de onde parou
 CHECKPOINT_FILE = BACKEND_DIR / ".ml_scraper_checkpoint.json"
 
+# Flag de sessão expirada compartilhado com ml_session_keeper (dedup de alertas)
+EXPIRED_FILE = BACKEND_DIR / ".ml_session_expired"
+EXPIRED_RECENT_HOURS = 12  # janela para considerar EXPIRED_FILE "recente"
+
 PORTAL_URL = "https://www.mercadolivre.com.br/afiliados/hub#menu-lateral"
 LOGIN_URL = "https://www.mercadolivre.com.br/afiliados/hub#menu-lateral"
 
@@ -257,6 +261,20 @@ async def _send_telegram_alert(msg: str):
         logger.info(f"Alerta Telegram enviado: {msg[:80]}")
     except Exception as e:
         logger.warning(f"Erro ao enviar alerta Telegram: {e}")
+
+
+def _expired_recent() -> bool:
+    """True se EXPIRED_FILE existe e é recente (< EXPIRED_RECENT_HOURS).
+    Usado para dedup: o ml_session_keeper já alertou sobre o mesmo incidente,
+    então o scraper não precisa re-alertar a cada 09h05."""
+    if not EXPIRED_FILE.exists():
+        return False
+    try:
+        last = datetime.fromisoformat(EXPIRED_FILE.read_text().strip())
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed < EXPIRED_RECENT_HOURS * 3600
+    except Exception:
+        return False
 
 
 async def _check_session_expired(page) -> bool:
@@ -465,24 +483,48 @@ async def get_categories(page) -> list:
 
 
 async def select_category(page, cat_id: str, cat_name: str) -> bool:
-    """Seleciona uma categoria no dropdown #category. Retorna True se sucesso."""
-    try:
-        # Abre o dropdown de categorias
-        cat_btn = await page.query_selector("#category")
-        if not cat_btn:
-            logger.warning(f"  Botão #category não encontrado")
-            return False
-        await cat_btn.click()
-        await page.wait_for_timeout(1500)
+    """Seleciona uma categoria no dropdown #category. Retorna True se sucesso.
+    
+    Após processar várias categorias (scroll, paginação), o botão #category pode
+    ficar stale ou coberto por sticky headers. Retry com scroll + reload."""
+    for attempt in range(3):
+        try:
+            # Scroll para o topo — sticky header pode cobrir o dropdown
+            await page.evaluate("window.scrollTo(0, 0)")
+            await page.wait_for_timeout(500)
 
-        # Procura a opção pelo texto da categoria
-        option = await page.query_selector(f"text={cat_name}")
-        if option:
-            await option.click()
-            await page.wait_for_timeout(3000)
-            logger.info(f"  Categoria selecionada: {cat_name}")
-            return True
-        else:
+            # Abre o dropdown de categorias
+            cat_btn = await page.query_selector("#category")
+            if not cat_btn:
+                if attempt < 2:
+                    logger.warning(f"  #category não encontrado (tentativa {attempt+1}) — recarregando página")
+                    await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(3000)
+                    continue
+                logger.warning(f"  Botão #category não encontrado após {attempt+1} tentativas")
+                return False
+
+            # Tenta clicar — se stale, recarrega
+            try:
+                await cat_btn.click(timeout=10000)
+            except Exception as click_err:
+                if attempt < 2:
+                    logger.warning(f"  Click #category falhou (tentativa {attempt+1}): {click_err} — recarregando")
+                    await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(3000)
+                    continue
+                raise click_err
+
+            await page.wait_for_timeout(1500)
+
+            # Procura a opção pelo texto da categoria
+            option = await page.query_selector(f"text={cat_name}")
+            if option:
+                await option.click()
+                await page.wait_for_timeout(3000)
+                logger.info(f"  Categoria selecionada: {cat_name}")
+                return True
+
             # Fallback: procura por data-id
             option = await page.query_selector(f"[data-id='{cat_id}']")
             if option:
@@ -490,12 +532,33 @@ async def select_category(page, cat_id: str, cat_name: str) -> bool:
                 await page.wait_for_timeout(3000)
                 logger.info(f"  Categoria selecionada (por id): {cat_name}")
                 return True
-            logger.warning(f"  Opção '{cat_name}' não encontrada no dropdown")
+
+            # Fallback 2: procura por option value=cat_id
+            option = await page.query_selector(f"option[value='{cat_id}']")
+            if option:
+                await option.click()
+                await page.wait_for_timeout(3000)
+                logger.info(f"  Categoria selecionada (por option value): {cat_name}")
+                return True
+
+            logger.warning(f"  Opção '{cat_name}' não encontrada no dropdown (tentativa {attempt+1})")
             await page.keyboard.press("Escape")
+            if attempt < 2:
+                await page.wait_for_timeout(1000)
+                continue
             return False
-    except Exception as e:
-        logger.error(f"  Erro ao selecionar categoria {cat_name}: {e}")
-        return False
+
+        except Exception as e:
+            logger.error(f"  Erro ao selecionar categoria {cat_name} (tentativa {attempt+1}): {e}")
+            if attempt < 2:
+                try:
+                    await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(3000)
+                except Exception:
+                    pass
+                continue
+            return False
+    return False
 
 
 async def toggle_extra_commission(page) -> bool:
@@ -523,13 +586,34 @@ async def login(page, email: str, password: str, headless: bool) -> bool:
     """Faz login no ML. Retorna True se sucesso."""
     logger.info("Navegando para o portal de afiliados...")
 
-    # Navega para o portal de afiliados
-    await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+    # Navega para o portal de afiliados.
+    # SPA pode demorar >3s no bounce de auth — usa networkidle quando possível
+    # e faz 1 retry antes de declarar expirado (evita falso positivo temporário).
+    async def _try_goto():
+        try:
+            await page.goto(PORTAL_URL, wait_until="networkidle", timeout=45000)
+        except Exception:
+            # networkidle pode timeout em SPAs que mantêm conexões abertas;
+            # fallback para domcontentloaded + espera maior
+            try:
+                await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(8000)
+            except Exception as e:
+                logger.warning(f"Retry de navegação falhou: {e}")
+
+    await _try_goto()
     await page.wait_for_timeout(3000)
 
     # Verifica se já está logado (cookies salvos funcionam)
     if "afiliados" in page.url and "login" not in page.url.lower():
         logger.info(f"Já estava logado (sessão ativa via cookies) — URL: {page.url}")
+        return True
+
+    # Retry único: SPA pode demorar no bounce de auth
+    logger.info("Sessão não confirmada na 1ª tentativa — retry após espera")
+    await page.wait_for_timeout(5000)
+    if "afiliados" in page.url and "login" not in page.url.lower() and "auth" not in page.url.lower():
+        logger.info(f"Sessão confirmada no retry — URL: {page.url}")
         return True
 
     if not headless:
@@ -538,10 +622,10 @@ async def login(page, email: str, password: str, headless: bool) -> bool:
         logger.info("MODO LOGIN MANUAL")
         logger.info("1. Faça login no ML (email, senha, 2FA)")
         logger.info("2. Aguarde até chegar na página de afiliados")
-        logger.info("Aguardando até 5 minutos...")
+        logger.info("Aguardando até 20 minutos...")
         logger.info("=" * 60)
 
-        for i in range(300):
+        for i in range(1200):
             try:
                 await page.wait_for_timeout(1000)
                 url = page.url.lower()
@@ -555,7 +639,7 @@ async def login(page, email: str, password: str, headless: bool) -> bool:
                 await page.wait_for_timeout(2000)
                 continue
 
-        logger.error("Timeout: login não completado em 5 minutos")
+        logger.error("Timeout: login não completado em 20 minutos")
         return False
     else:
         # Headless: só funciona se cookies válidos
@@ -616,6 +700,25 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
     cleanup_chrome_singleton_lock()
     backup_storage_state()
 
+    # Modo --login usa perfil persistente (pra salvar login manual via VNC).
+    # Modo normal usa launch + new_context(storage_state=...) — mais confiável
+    # porque o session_keeper atualiza .ml_storage_state.json mas o perfil
+    # persistente mantém seu próprio cookie jar stale em disco.
+    use_persistent = not headless  # --login implica headless=False
+    if use_persistent:
+        try:
+            cookies_db = PROFILE_DIR / "Default" / "Cookies"
+            local_storage = PROFILE_DIR / "Default" / "Local Storage"
+            if cookies_db.exists():
+                cookies_db.unlink()
+                logger.info("Cookies stale do perfil persistente removidos")
+            if local_storage.exists():
+                import shutil
+                shutil.rmtree(local_storage)
+                logger.info("LocalStorage stale do perfil persistente removido")
+        except Exception as e:
+            logger.warning(f"Erro ao limpar cookies stale do perfil: {e}")
+
     async with async_playwright() as p:
         # Detecta chromium disponível: sistema (servidor) ou playwright (local)
         chromium_path = None
@@ -624,54 +727,68 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 chromium_path = path
                 break
 
-        # launch_persistent_context mantém TODO o estado do navegador em disco
-        # (cookies, localStorage, IndexedDB, cache, histórico, service workers).
-        # O ML vê um usuário estabelecido, não um "perfil novo" a cada execução.
-        persistent_kwargs = {
-            "user_data_dir": str(PROFILE_DIR),
-            "headless": headless,
-            "viewport": {"width": 1280, "height": 800},
-            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "locale": "pt-BR",
-            "timezone_id": "America/Sao_Paulo",
-            "args": [
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--disable-infobars",
-                "--disable-notifications",
-            ],
-        }
-        if chromium_path:
-            persistent_kwargs["executable_path"] = chromium_path
-            logger.info(f"Usando chromium do sistema: {chromium_path}")
-        else:
-            logger.info("Usando chromium do playwright")
+        browser_args = [
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--disable-infobars",
+            "--disable-notifications",
+        ]
+        user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-        logger.info(f"Perfil persistente: {PROFILE_DIR}")
-        context = await p.chromium.launch_persistent_context(**persistent_kwargs)
+        if chromium_path:
+            logger.info(f"Usando chromium do sistema: {chromium_path}")
+
+        if use_persistent:
+            # Modo --login: perfil persistente para salvar login manual
+            persistent_kwargs = {
+                "user_data_dir": str(PROFILE_DIR),
+                "headless": headless,
+                "viewport": {"width": 1280, "height": 800},
+                "user_agent": user_agent,
+                "locale": "pt-BR",
+                "timezone_id": "America/Sao_Paulo",
+                "args": browser_args,
+            }
+            if chromium_path:
+                persistent_kwargs["executable_path"] = chromium_path
+
+            logger.info(f"Perfil persistente: {PROFILE_DIR}")
+            context = await p.chromium.launch_persistent_context(**persistent_kwargs)
+        else:
+            # Modo normal: launch + new_context(storage_state=...) — mais confiável
+            launch_kwargs = {
+                "headless": headless,
+                "args": browser_args,
+            }
+            if chromium_path:
+                launch_kwargs["executable_path"] = chromium_path
+
+            browser = await p.chromium.launch(**launch_kwargs)
+            context_kwargs = {
+                "viewport": {"width": 1280, "height": 800},
+                "user_agent": user_agent,
+                "locale": "pt-BR",
+                "timezone_id": "America/Sao_Paulo",
+            }
+            if STORAGE_STATE_FILE.exists():
+                try:
+                    context_kwargs["storage_state"] = str(STORAGE_STATE_FILE)
+                    logger.info(f"Storage state carregado: {STORAGE_STATE_FILE}")
+                except Exception as e:
+                    logger.warning(f"Erro ao carregar storage_state: {e}")
+            context = await browser.new_context(**context_kwargs)
 
         try:
-            # Migração: se é primeira execução do perfil e tem storage_state legado,
-            # carrega os cookies antigos no perfil novo
-            if STORAGE_STATE_FILE.exists() and not (PROFILE_DIR / "Default" / "Cookies").exists():
-                try:
-                    cookies = json.loads(COOKIES_FILE.read_text()) if COOKIES_FILE.exists() else []
-                    if cookies:
-                        await context.add_cookies(cookies)
-                        logger.info(f"Migração: {len(cookies)} cookies legados carregados no perfil persistente")
-                except Exception as e:
-                    logger.warning(f"Migração: erro ao carregar cookies legados: {e}")
-
             page = await context.new_page()
 
             # Aplica stealth para evitar detecção de automation
             try:
                 from playwright_stealth import Stealth
                 await Stealth(
-                    navigator_user_agent_override=persistent_kwargs["user_agent"],
+                    navigator_user_agent_override=user_agent,
                     navigator_languages_override=("pt-BR", "pt"),
                     navigator_platform_override="Linux x86_64",
                 ).apply_stealth_async(page)
@@ -707,11 +824,17 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
             ok = await login(page, email, password, headless)
             if not ok:
                 logger.error("Login falhou — sessão expirada")
-                await _send_telegram_alert(
-                    "⚠️ *ML SCRAPER: LOGIN FALHOU*\n\n"
-                    "A sessão do ML expirou e o scraper não conseguiu logar.\n"
-                    "Manda `/ml_login` aqui para renovar."
-                )
+                # Dedup de alerta: se ml_session_keeper já alertou recentemente
+                # (<12h), não re-envia "LOGIN FALHOU" todo dia às 09h05 pelo
+                # mesmo incidente — só loga em silêncio.
+                if _expired_recent():
+                    logger.info("Alerta Telegram suprimido — EXPIRED_FILE recente (keeper já alertou)")
+                else:
+                    await _send_telegram_alert(
+                        "⚠️ *ML SCRAPER: LOGIN FALHOU*\n\n"
+                        "A sessão do ML expirou e o scraper não conseguiu logar.\n"
+                        "Manda `/ml_login` aqui para renovar."
+                    )
                 return 0
 
             # Só desativa produtos depois de confirmar que está logado
@@ -816,7 +939,7 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 try:
                     logger.info("\n=== INICIANDO SCRAPE DE CUPONS ===")
                     from app.workers.ml_coupon_scraper import scrape_ml_coupons, save_coupons, deactivate_expired_coupons
-                    coupons = await scrape_ml_coupons(page, max_pages=0)
+                    coupons = await scrape_ml_coupons(page, context=context, max_pages=0)
                     if coupons:
                         await save_coupons(coupons)
                     await deactivate_expired_coupons()
@@ -829,6 +952,11 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                 await context.close()
             except Exception:
                 pass
+            if not use_persistent:
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
     # Libera lock do perfil persistente
     profile_lock.release()
