@@ -6,6 +6,7 @@ CRUD manual de produtos afiliados ML + geradores de conteúdo + short links.
 import uuid
 import json
 import httpx
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from typing import Optional, List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
@@ -83,6 +84,17 @@ def _calc(p: AffiliateProduct) -> dict:
 
 def _gen_code(length: int = 8) -> str:
     return uuid.uuid4().hex[:length].upper()
+
+
+def _canonical_history_url(url: str) -> str:
+    parsed = urlsplit(url or "")
+    query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.startswith("utm_") and key not in {"matt_word", "matt_tool"}
+    ]
+    return urlunsplit(parsed._replace(query=urlencode(query)))
+
 
 async def _claude(prompt: str) -> str:
     if not settings.ANTHROPIC_API_KEY:
@@ -624,10 +636,17 @@ async def get_price_history_by_url(
     days = min(days, 730)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Busca produto pela URL exata
     product = (await db.execute(
         select(AffiliateProduct).where(AffiliateProduct.affiliate_url == url)
     )).scalar_one_or_none()
+    if not product:
+        canonical_url = _canonical_history_url(url)
+        if canonical_url != url:
+            product = (await db.execute(
+                select(AffiliateProduct).where(
+                    AffiliateProduct.affiliate_url == canonical_url
+                )
+            )).scalar_one_or_none()
 
     if not product:
         return {"history": [], "stats": None}
@@ -671,7 +690,7 @@ async def get_price_stats(
 ):
     """Retorna estatísticas de preço de um produto (mín, máx, médio, atual)."""
     from app.models.models import AffiliatePriceHistory, AffiliateProduct
-    from sqlalchemy import select, func, and_
+    from sqlalchemy import select, func
 
     # Preço atual
     product = (await db.execute(
@@ -725,8 +744,6 @@ async def list_coupons(
     db: AsyncSession = Depends(get_db),
 ):
     """Lista cupons ativos. Filtra por provider (mercadolivre, amazon) e/ou loja."""
-    from sqlalchemy import func
-
     # Query base (sem limit) pra contar
     base_query = select(Coupon)
     if active_only:
@@ -796,15 +813,14 @@ async def list_coupon_products(
     """
     from sqlalchemy import func, desc, asc
 
-    # Query base — only show products with a valid price
+    # Query base — produtos de cupons ativos. Preço pode ser NULL (modelo novo
+    # de cupons ML nem sempre expõe preço; enriquecido via API quando possível).
     query = (
         select(CouponProduct, Coupon)
         .join(Coupon, CouponProduct.coupon_id == Coupon.id)
         .where(
             Coupon.is_active == True,
             CouponProduct.is_available == True,
-            CouponProduct.price.isnot(None),
-            CouponProduct.price > 0,
         )
     )
 
@@ -839,8 +855,6 @@ async def list_coupon_products(
         .where(
             Coupon.is_active == True,
             CouponProduct.is_available == True,
-            CouponProduct.price.isnot(None),
-            CouponProduct.price > 0,
         )
     )
     if store:

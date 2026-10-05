@@ -380,16 +380,26 @@ export default function CuponsPage() {
 
                 {/* Cupom */}
                 <div className={styles.couponBox}>
-                  <div className={styles.couponInfo}>
-                    <span className={styles.couponLabel}>Cupom:</span>
-                    <code className={styles.couponCode}>{product.coupon.code}</code>
-                  </div>
-                  <button
-                    className={styles.copyBtn}
-                    onClick={() => handleCopy(product.coupon.code, product)}
-                  >
-                    {copiedCode === product.coupon.code ? "✓" : "Copiar"}
-                  </button>
+                  {product.coupon.code.startsWith("MLC-") ? (
+                    <div className={styles.couponInfo}>
+                      <span className={styles.couponLabel}>
+                        Cupom Mercado Livre — ative na sua conta ao abrir a oferta
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={styles.couponInfo}>
+                        <span className={styles.couponLabel}>Cupom:</span>
+                        <code className={styles.couponCode}>{product.coupon.code}</code>
+                      </div>
+                      <button
+                        className={styles.copyBtn}
+                        onClick={() => handleCopy(product.coupon.code, product)}
+                      >
+                        {copiedCode === product.coupon.code ? "✓" : "Copiar"}
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Vencimento */}

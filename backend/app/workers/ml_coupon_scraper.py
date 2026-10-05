@@ -1,19 +1,32 @@
 """
-ml_coupon_scraper.py — Scraper de cupons do portal de afiliados do Mercado Livre.
+ml_coupon_scraper.py — Scraper de cupons do Mercado Livre (modelo consumidor).
 
-Navega /afiliados/coupons#hub, gera códigos para todos os cupons disponíveis,
-coleta os códigos gerados e salva no banco (tabela coupons).
+Fonte: https://www.mercadolivre.com.br/cupons (página de cupons do usuário logado).
 
-Fluxo:
-1. Login (reusa cookies do ml_scraper)
-2. Aba "Cupons disponíveis" — navega todas as páginas
-3. Para cada cupom: clica "Gerar código" → digita código custom → confirma
-4. Aba "Códigos gerados" — coleta todos os códigos com metadata
-5. Salva no banco, marca vencidos como inativos
+O modelo antigo de afiliados (gerar código ALETUBE*) foi descontinuado pelo ML
+em set/2026 — /afiliados/coupons redireciona pro hub. O novo modelo expõe
+~2200 cupons reais em /cupons/filter?all=true&page=N (30/página), com todos os
+dados estruturados no JSON de hydration <script id="__NORDIC_RENDERING_CTX__">
+(_n.ctx.r={...}) — scrape é HTTP puro com os cookies da sessão, SEM browser.
+
+Dados por cupom (filteredCouponsData.coupons + tracking...coupons_list):
+- campaignId → coupon_code sintético "MLC-{id}" (não há código digitável)
+- title.text → "10% OFF" / discount_type + discount_value (PERCENT/NOMINAL)
+- initialSubtitle.text → loja ("Em produtos de X")
+- amount.minAmount/capAmount → condições (compra mínima / limite)
+- tracking.expiration_date → expires_at (ISO real)
+- status.id → ACTIVE (já ativado na nossa conta — tem link) / INACTIVE
+- action.value (ACTIVE) → lista.mercadolivre.com.br/_CustId_{collector}?coupon_campaign_id={id}
+- tracking.item_ids + items[] → produtos amostra (CouponProduct)
+
+Para INACTIVE o link é reconstruído: _CustId_{collectors[0]}?coupon_campaign_id=.
+CTA do site: "Ver produtos" (o "Aplicar" ativa na conta de quem clica — nunca
+é acionado pelo scraper).
 
 Uso:
   cd backend && venv/bin/python -m app.workers.ml_coupon_scraper
   cd backend && venv/bin/python -m app.workers.ml_coupon_scraper --max-pages 5
+  cd backend && venv/bin/python -m app.workers.ml_coupon_scraper --cleanup-only
 """
 import asyncio
 import fcntl
@@ -22,12 +35,12 @@ import logging
 import os
 import random
 import re
-import string
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
+
+import httpx
 
 logger = logging.getLogger("ml_coupon_scraper")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -36,15 +49,25 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRIPT_DIR.parent.parent
 ENV_FILE = BACKEND_DIR / ".env"
 COOKIES_FILE = BACKEND_DIR / ".ml_cookies.json"
-STORAGE_STATE_FILE = BACKEND_DIR / ".ml_storage_state.json"
 LOCK_FILE = BACKEND_DIR / ".ml_coupon_scraper.lock"
 
 # Flag de sessão expirada compartilhado com ml_session_keeper (dedup de ruído)
 EXPIRED_FILE = BACKEND_DIR / ".ml_session_expired"
 EXPIRED_RECENT_HOURS = 12
 
-COUPONS_URL = "https://www.mercadolivre.com.br/afiliados/coupons#hub"
-CODE_PREFIX = "ALETUBE"  # prefixo automático do ML para códigos do afiliado
+COUPONS_FILTER_URL = "https://www.mercadolivre.com.br/cupons/filter?all=true"
+COUPONS_HOME_URL = "https://www.mercadolivre.com.br/cupons"
+PAGE_SIZE = 30  # cupons por página na listagem "Todos os cupons"
+PAGE_DELAY_RANGE = (2.0, 4.0)  # segundos entre páginas — polidez, evita captcha
+MAX_PAGES_HARD_LIMIT = 120  # segurança: nunca passa de N páginas por rodada
+
+# Pool de UAs (mesmo estilo do ml_session_keeper — UA fixo era detectável)
+USER_AGENTS = [
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.108 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7078.130 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.75 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.7078.177 Safari/537.36",
+]
 
 # Categorias de demanda — só salva cupons cujos produtos match essas keywords
 # (evita lixo como "Bolsa Airbag Ford Ranger 2015", "Capa Máquina de Lavar")
@@ -82,60 +105,24 @@ EXCLUDE_KEYWORDS = {
 
 
 def _is_demand_coupon(coupon: dict) -> bool:
-    """True se o cupom tem produtos em categorias de demanda.
+    """False só se o cupom é claramente lixo (todas as amostras são acessórios).
 
-    Verifica store_name + título dos produtos. Rejeita acessórios/genéricos.
+    Modelo novo (set/2026): items[] são só ~4 produtos amostra por cupom —
+    cupom amplo ("Em produtos selecionados") era rejeitado por amostra
+    aleatória quando se exigia match de DEMAND_KEYWORDS (rejeitava ~78% de
+    um inventário já curado pelo ML). Mantido como filtro de exclusão:
+    rejeita quando TODOS os produtos amostra batem em EXCLUDE_KEYWORDS.
     """
-    # Verifica store_name (algumas lojas são claramente de demanda)
     store = (coupon.get("store_name") or "").lower()
-    # Verifica títulos dos produtos
     products = coupon.get("products", [])
     if not products:
-        # Sem produtos — aceita (vai pegar produtos depois via "Ver produtos")
         return True
-    has_demand = False
-    for p in products:
-        title = (p.get("title") or "").lower()
-        # Rejeita acessórios/genéricos
-        if any(ex in title for ex in EXCLUDE_KEYWORDS):
-            continue
-        # Aceita se match categoria de demanda
-        if any(kw in title for kw in DEMAND_KEYWORDS):
-            has_demand = True
-            break
-    return has_demand
-
-
-def _cleanup_orphan_chromiums():
-    """Mata processos Chromium/Playwright órfãos de execuções anteriores."""
-    try:
-        result = subprocess.run(
-            ["ps", "-u", str(os.getuid()), "-o", "pid,comm,args", "--no-headers"],
-            capture_output=True, text=True, timeout=10
-        )
-        killed = 0
-        for line in result.stdout.splitlines():
-            if not line.strip():
-                continue
-            parts = line.split(None, 2)
-            if len(parts) < 2:
-                continue
-            pid_str, comm = parts[0], parts[1]
-            args = parts[2] if len(parts) > 2 else ""
-            if "chromium" in comm.lower() or "mercadolivre.com.br/afiliados" in args:
-                try:
-                    pid = int(pid_str)
-                    if pid != os.getpid():
-                        os.kill(pid, 15)
-                        killed += 1
-                except (ValueError, ProcessLookupError, PermissionError):
-                    continue
-        if killed:
-            logger.info(f"Cleanup: encerrados {killed} processos Chromium órfãos")
-            import time
-            time.sleep(2)
-    except Exception as e:
-        logger.warning(f"Cleanup: erro ao tentar matar processos órfãos: {e}")
+    if any(kw in store for kw in DEMAND_KEYWORDS):
+        return True
+    if all(any(ex in (p.get("title") or "").lower() for ex in EXCLUDE_KEYWORDS)
+           for p in products):
+        return False
+    return True
 
 
 def _check_cookies_valid() -> bool:
@@ -151,13 +138,22 @@ def _check_cookies_valid() -> bool:
         session_names = {"org_id", "site_id", "_csrf", "sid", "ui", "mp-session"}
         ml_names = {c.get("name", "") for c in cookies}
         if not session_names.intersection(ml_names):
-            logger.error("Cookies não parecem ser de sessão do Mercado Livre Afiliados")
+            logger.error("Cookies não parecem ser de sessão do Mercado Livre")
             return False
         logger.info(f"Cookies presentes: {len(cookies)} cookies")
         return True
     except Exception as e:
         logger.error(f"Erro ao ler cookies: {e}")
         return False
+
+
+def _load_cookie_dict() -> dict:
+    """Carrega cookies do arquivo JSON em formato {name: value}."""
+    try:
+        cookies = json.loads(COOKIES_FILE.read_text())
+        return {c["name"]: c["value"] for c in cookies if "name" in c and "value" in c}
+    except Exception:
+        return {}
 
 
 class LockFile:
@@ -286,7 +282,7 @@ async def save_coupons(coupons: List[dict]):
                         image_url=p.get("image_url"),
                         price=price,
                         ml_code=p.get("ml_code"),
-                        is_available=True,
+                        is_available=p.get("available", True),
                     ))
                     total_products += 1
 
@@ -350,890 +346,465 @@ def parse_discount(text: str) -> dict:
     return result
 
 
-def parse_expiry(text: str) -> Optional[datetime]:
-    """Converte 'Vence em 1 de julho' para datetime.
-    Assume ano atual (ou próximo se mês já passou)."""
-    text = text.replace("Vence em", "").strip()
-    months = {
-        "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4,
-        "maio": 5, "junho": 6, "julho": 7, "agosto": 8,
-        "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
-    }
-    m = re.match(r"(\d+)\s+de\s+(\w+)", text, re.I)
+def _parse_iso_date(s: Optional[str]) -> Optional[datetime]:
+    """'2026-10-16T02:59Z' / '2026-10-31T02:59:59Z' -> datetime UTC."""
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_br_money(s: str) -> Optional[float]:
+    """'R$ 1.000' -> 1000.0 | 'R$ 50,99' -> 50.99 | None se sem número."""
+    m = re.search(r"(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?|\d+)", s or "")
     if not m:
         return None
-    day = int(m.group(1))
-    month_name = m.group(2).lower()
-    month = months.get(month_name)
-    if not month:
+    v = m.group(1)
+    if "." in v and "," in v:
+        v = v.replace(".", "").replace(",", ".")
+    elif "," in v:
+        v = v.replace(",", ".")
+    elif "." in v:
+        parts = v.split(".")
+        if not (len(parts) == 2 and len(parts[1]) in (1, 2)):
+            v = v.replace(".", "")
+    try:
+        return float(v)
+    except ValueError:
         return None
-    year = datetime.now().year
-    dt = datetime(year, month, day, 23, 59, 59, tzinfo=timezone.utc)
-    # Se já passou, assume próximo ano
-    if dt < datetime.now(timezone.utc):
-        dt = datetime(year + 1, month, day, 23, 59, 59, tzinfo=timezone.utc)
-    return dt
 
 
-def parse_budget(text: str) -> Optional[str]:
-    """Extrai orçamento restante do texto."""
-    m = re.search(r"Orçamento restante:\s*(R\$\s*[\d.,]+)", text, re.I)
-    if m:
-        return m.group(1).strip()
-    return None
+def _product_url_from_ml_code(ml_code: str) -> str:
+    """MLB4224318415 -> https://produto.mercadolivre.com.br/MLB-4224318415"""
+    code = ml_code.strip().upper()
+    if code.startswith("MLB") and len(code) > 3:
+        return f"https://produto.mercadolivre.com.br/{code[:3]}-{code[3:]}"
+    return f"https://produto.mercadolivre.com.br/{code}"
 
 
-def parse_store(text: str) -> Optional[str]:
-    """Extrai nome da loja do texto do card."""
-    m = re.search(r"Em produtos de\s+(.+?)(?:Ver produtos|Condições|Gerar|$)", text, re.I)
-    if m:
-        return m.group(1).strip()
-    return None
+# ── extração do hydration blob ─────────────────────────────────────────────────
+def _extract_rendering_ctx(html: str) -> Optional[dict]:
+    """Extrai o objeto _n.ctx.r={...} do <script id="__NORDIC_RENDERING_CTX__">."""
+    m = re.search(r'<script id="__NORDIC_RENDERING_CTX__"[^>]*>(.*?)</script>', html, re.S)
+    if not m:
+        return None
+    raw = m.group(1)
+    start = raw.find("{")
+    if start < 0:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(raw[start:])
+        return data
+    except json.JSONDecodeError as e:
+        logger.warning(f"Falha ao parsear __NORDIC_RENDERING_CTX__: {e}")
+        return None
+
+
+def _extract_coupons_page(data: dict) -> tuple:
+    """Extrai cupons normalizados + total de páginas do ctx de uma página.
+
+    Retorna (lista_de_cupons, total_pages, total_coupons).
+    """
+    fcd = (data.get("appProps") or {}).get("pageProps", {}).get("filteredCouponsData") or {}
+    ui_coupons = fcd.get("coupons") or []
+    pagination = fcd.get("pagination") or {}
+    total_pages = pagination.get("total") or 1
+    total_coupons = (fcd.get("totalCouponsQuantity") or {}).get("number")
+
+    # Dados limpos do tracking (campaign_id -> item_ids, discount, collectors...)
+    tracking_by_id = {}
+    try:
+        for t in fcd["tracking"]["view"]["eventData"]["coupons_list"]:
+            if t.get("campaign_id"):
+                tracking_by_id[str(t["campaign_id"])] = t
+    except Exception:
+        pass
+
+    coupons = []
+    for c in ui_coupons:
+        try:
+            cid = str(c.get("campaignId") or "").strip()
+            if not cid:
+                continue
+            t = tracking_by_id.get(cid) or {}
+
+            title = (c.get("title") or {}).get("text") or ""
+            subtitle = (c.get("initialSubtitle") or {}).get("text") or ""
+            amount = c.get("amount") or {}
+            status_id = ((c.get("status") or {}).get("id") or "").upper()
+            action = c.get("action") or {}
+            tracking_status = (t.get("status_id") or "").upper()
+            if tracking_status:
+                status_id = tracking_status
+
+            coupon = {
+                "coupon_code": f"MLC-{cid}",
+                "campaign_id": cid,
+                "status": status_id,
+            }
+
+            # Desconto: tracking (limpo) primeiro, fallback no parse do título
+            dtype = (t.get("discount_type") or "").upper()
+            dvalue = t.get("discount_value")
+            if dtype == "PERCENT" and dvalue is not None:
+                coupon["discount_percent"] = float(dvalue)
+                coupon["discount_text"] = title or f"{dvalue}% OFF"
+            elif dvalue is not None and dtype in ("ABSOLUTE", "NOMINAL", "FIXED", "VALUE"):
+                coupon["discount_value"] = float(dvalue)
+                coupon["discount_text"] = title or f"R$ {dvalue} OFF"
+            else:
+                coupon.update(parse_discount(title))
+
+            # Loja: "Em produtos de Web Continental" -> "Web Continental"
+            m_store = re.match(r"Em produtos de\s+(.+)", subtitle, re.I)
+            coupon["store_name"] = m_store.group(1).strip() if m_store else "Mercado Livre"
+
+            # Vencimento: ISO do tracking > futureCouponInfo > texto do card
+            coupon["expires_at"] = (
+                _parse_iso_date(t.get("expiration_date"))
+                or _parse_iso_date((c.get("futureCouponInfo") or {}).get("expiration_date"))
+            )
+            if not coupon["expires_at"]:
+                exp_text = (c.get("expirationDate") or {}).get("text") or ""
+                m_exp = re.search(r"(\d+)\s+de\s+(\w+)", exp_text)
+                if m_exp:
+                    months = {
+                        "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4,
+                        "maio": 5, "junho": 6, "julho": 7, "agosto": 8,
+                        "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+                    }
+                    month = months.get(m_exp.group(2).lower())
+                    if month:
+                        year = datetime.now(timezone.utc).year
+                        try:
+                            dt = datetime(year, month, int(m_exp.group(1)), 23, 59, 59, tzinfo=timezone.utc)
+                            if dt < datetime.now(timezone.utc):
+                                dt = dt.replace(year=year + 1)
+                            coupon["expires_at"] = dt
+                        except ValueError:
+                            pass
+
+            # Condições: compra mínima + limite
+            cond_parts = []
+            min_txt = (amount.get("minAmount") or "").strip()
+            cap_txt = (amount.get("capAmount") or "").strip()
+            if min_txt:
+                cond_parts.append(min_txt.rstrip("."))
+            if cap_txt:
+                cond_parts.append(cap_txt.rstrip("."))
+            coupon["conditions"] = " · ".join(cond_parts) if cond_parts else None
+            coupon["min_amount"] = _parse_br_money(min_txt)
+            coupon["cap_amount"] = _parse_br_money(cap_txt)
+
+            # URL destino ("Ver produtos"): ACTIVE já traz action.value;
+            # INACTIVE reconstrói _CustId_{collector}?coupon_campaign_id=
+            product_url = None
+            if action.get("type") == "link" and action.get("value"):
+                product_url = action["value"]
+            else:
+                collectors = (t.get("segmentations") or {}).get("collectors") or []
+                if collectors:
+                    product_url = (
+                        f"https://lista.mercadolivre.com.br/_CustId_{collectors[0]}"
+                        f"?coupon_campaign_id={cid}"
+                    )
+            coupon["product_url"] = product_url
+
+            # Produtos amostra: item_ids do tracking + items[] (imagem/título) na mesma ordem
+            item_ids = t.get("item_ids") or []
+            ui_items = c.get("items") or []
+            products = []
+            for i, iid in enumerate(item_ids):
+                ui = ui_items[i] if i < len(ui_items) else {}
+                products.append({
+                    "title": (ui.get("altText") or "").strip() or f"Produto {iid}",
+                    "product_url": _product_url_from_ml_code(iid),
+                    "image_url": ui.get("imageUrl"),
+                    "price": None,
+                    "ml_code": iid,
+                })
+            # items[] sem item_id correspondente (fallback)
+            for ui in ui_items[len(products):]:
+                img = ui.get("imageUrl") or ""
+                mm = re.search(r"(MLB\d{6,})", img)
+                if mm:
+                    products.append({
+                        "title": (ui.get("altText") or "").strip() or "Produto",
+                        "product_url": _product_url_from_ml_code(mm.group(1)),
+                        "image_url": img or None,
+                        "price": None,
+                        "ml_code": mm.group(1),
+                    })
+            coupon["products"] = products
+
+            # product_url final: usa primeiro item se nada mais disponível
+            if not coupon["product_url"]:
+                if products:
+                    coupon["product_url"] = products[0]["product_url"]
+                else:
+                    coupon["product_url"] = COUPONS_HOME_URL
+
+            coupons.append(coupon)
+        except Exception as e:
+            logger.warning(f"Erro ao extrair cupom {c.get('campaignId')}: {e}")
+
+    return coupons, total_pages, total_coupons
+
+
+# ── fetch ──────────────────────────────────────────────────────────────────────
+def _fetch_page(client: httpx.Client, url: str) -> Optional[str]:
+    """GET com cookies. Retorna HTML ou None. Detecta login wall."""
+    try:
+        r = client.get(url)
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.warning(f"Erro de rede em {url}: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"Erro em {url}: {e}")
+        return None
+    final = str(r.url)
+    if "login" in final or "/auth" in final or "identification" in final:
+        return "__LOGIN__"
+    if r.status_code != 200 or "__NORDIC_RENDERING_CTX__" not in r.text:
+        logger.warning(f"Resposta inesperada em {url}: status={r.status_code} len={len(r.text)}")
+        return None
+    return r.text
+
+
+def _session_expired_notice() -> bool:
+    """True se EXPIRED_FILE é recente — keeper já alertou (silêncio no log)."""
+    if EXPIRED_FILE.exists():
+        try:
+            last = datetime.fromisoformat(EXPIRED_FILE.read_text().strip())
+            elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+            return elapsed < EXPIRED_RECENT_HOURS * 3600
+        except Exception:
+            pass
+    return False
+
+
+# ── enriquecimento via API ML ──────────────────────────────────────────────────
+ML_ITEMS_BATCH = 20  # limite do multiget /items?ids=
+
+
+async def _enrich_products_with_prices(coupons: List[dict], token: Optional[str],
+                                       cache: dict, client: httpx.AsyncClient):
+    """Preenche price/title/url reais dos produtos via API oficial do ML.
+
+    GET /items?ids=MLB1,...,MLB20 — resposta [{code, body:{price,title,permalink,...}}].
+    Falhas são toleradas silenciosamente (produtos ficam com price=None).
+    `cache` persiste entre páginas (muitos item_ids se repetem entre cupons).
+    """
+    if not token or cache.get("__disabled__"):
+        return
+    wanted = []
+    for c in coupons:
+        for p in c["products"]:
+            mc = p.get("ml_code")
+            if mc and mc not in cache:
+                cache[mc] = None  # reserva: evita refetch em cupons seguintes
+                wanted.append(mc)
+    if not wanted:
+        return
+
+    for i in range(0, len(wanted), ML_ITEMS_BATCH):
+        chunk = wanted[i:i + ML_ITEMS_BATCH]
+        try:
+            r = await client.get(
+                f"https://api.mercadolibre.com/items?ids={','.join(chunk)}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=20,
+            )
+            if r.status_code != 200:
+                logger.warning(f"ML items API {r.status_code} — pulando enriquecimento")
+                cache["__disabled__"] = True
+                return
+            entries = r.json()
+            # Multiget retorna [{code, body}] — 403 em TODOS os itens = app sem
+            # escopo de leitura de items → desliga pro resto da rodada.
+            if entries and all(
+                (e.get("code") or 200) in (401, 403) for e in entries
+            ):
+                logger.info("ML items API sem acesso a /items (403) — enriquecimento desligado")
+                cache["__disabled__"] = True
+                return
+            for entry in entries:
+                # code != 200 = erro por item (body.status é int, não status do item)
+                if (entry.get("code") or 200) != 200:
+                    continue
+                body = entry.get("body") or {}
+                iid = body.get("id") or (entry.get("id") if isinstance(entry.get("id"), str) else None)
+                if not iid:
+                    continue
+                price = body.get("price")
+                permalink = body.get("permalink")
+                title = body.get("title")
+                status = body.get("status")
+                cache[iid] = {
+                    "price": price if isinstance(price, (int, float)) else None,
+                    "permalink": permalink,
+                    "title": title,
+                    "available": status == "active",
+                }
+        except Exception as e:
+            logger.warning(f"ML items API erro: {e}")
+            return
+        await asyncio.sleep(0.4)
+
+    # Aplica cache aos produtos desta página
+    for c in coupons:
+        for p in c["products"]:
+            info = cache.get(p.get("ml_code") or "")
+            if not info:
+                continue
+            if info["price"]:
+                p["price"] = float(info["price"])
+            if info.get("permalink"):
+                p["product_url"] = info["permalink"]
+            if info.get("title") and (not p.get("title") or p["title"].startswith("Produto")):
+                p["title"] = info["title"]
+            p["available"] = info.get("available", True)
+
+
+async def _get_ml_api_token() -> Optional[str]:
+    """Token OAuth do ML (tabela ml_tokens) — None se indisponível."""
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.services.ml_token_service import get_token
+        async with AsyncSessionLocal() as db:
+            return await get_token(db)
+    except Exception as e:
+        logger.warning(f"Sem token ML API (produtos ficarão sem preço): {e}")
+        return None
 
 
 # ── scraper ────────────────────────────────────────────────────────────────────
-async def scrape_ml_coupons(page, context=None, max_pages: int = 0) -> List[dict]:
-    """Scrapeia cupons do ML. Retorna lista de cupons gerados.
+async def scrape_ml_coupons(max_pages: int = 0) -> List[dict]:
+    """Coleta todos os cupons de /cupons/filter?all=true via HTTP + JSON SSR.
 
-    Args:
-        page: página do Playwright já logada
-        context: contexto do browser (para abrir novas abas em "Ver produtos")
-        max_pages: limite de páginas (0 = todas)
+    Retorna lista de cupons normalizados (dedup por campaignId).
     """
-    logger.info(f"Navegando para {COUPONS_URL}")
-    await page.goto(COUPONS_URL, wait_until="networkidle", timeout=30000)
-    await page.wait_for_timeout(3000)
-
-    # Verifica se está logado
-    if "login" in page.url.lower() or "auth" in page.url.lower():
-        logger.error("Não está logado — redirecionou para login")
+    cookies = _load_cookie_dict()
+    if not cookies:
+        logger.error("Sem cookies para requisição")
         return []
 
-    # ── FASE 1: Gerar códigos para cupons disponíveis ──
-    logger.info("=== FASE 1: Gerando códigos ===")
+    api_token = await _get_ml_api_token()
+    if api_token:
+        logger.info("Token ML API disponível — produtos serão enriquecidos com preço real")
+    price_cache: dict = {}
 
-    # Espera o SPA carregar completamente (a paginação aparece depois)
-    logger.info("Esperando SPA carregar...")
-    await page.wait_for_timeout(8000)
-
-    # Garante que está na aba "Cupons disponíveis"
-    try:
-        await page.locator('#coupons-tabs-tab-0').click()
-        await page.wait_for_timeout(2000)
-    except Exception:
-        pass
-
-    total_pages = 1
-    try:
-        # A paginação mostra: 1 2 3 4 5 6 7 8 9 536 Seguinte
-        # Pega o maior numero nos botoes de paginacao
-        total_pages = await page.evaluate("""() => {
-            const btns = document.querySelectorAll('.andes-pagination__button:not(.andes-pagination__button--back):not(.andes-pagination__button--next) a, .andes-pagination__button--current');
-            let max = 0;
-            btns.forEach(b => {
-                const t = (b.innerText || '').trim();
-                const n = parseInt(t);
-                if (!isNaN(n) && n > max) max = n;
-            });
-            return max || 1;
-        }""")
-    except Exception:
-        pass
-    logger.info(f"Total de páginas: {total_pages}")
-
-    if max_pages > 0:
-        total_pages = min(total_pages, max_pages)
-        logger.info(f"Limitando a {total_pages} páginas")
-
-    generated_count = 0
-    for page_num in range(1, total_pages + 1):
-        logger.info(f"\n--- Página {page_num}/{total_pages} ---")
-
-        if page_num > 1:
-            # Clica no botão "Seguinte" com Playwright (JS click não dispara React handlers)
-            try:
-                is_disabled = await page.evaluate("""() => {
-                    const btn = document.querySelector('.andes-pagination__button--next');
-                    if (!btn) return true;
-                    return btn.classList.contains('andes-pagination__button--disabled') || btn.disabled;
-                }""")
-                if is_disabled:
-                    logger.info("Botão Seguinte disabled — fim das páginas disponíveis")
-                    break
-
-                # Playwright click (triggera event handlers do React)
-                next_btn = page.locator('.andes-pagination__button--next')
-                await next_btn.click(timeout=10000)
-                await page.wait_for_timeout(5000)  # 5s entre páginas (humano)
-
-                # Garante que está na aba "Cupons disponíveis"
-                await page.locator('#coupons-tabs-tab-0').click()
-                await page.wait_for_timeout(3000)
-            except Exception as e:
-                logger.warning(f"Erro ao paginar: {e}")
-                break
-
-        # Processa TODOS os botões habilitados da página.
-        # Após gerar um cupom, o botão fica disabled. Re-busca a cada iteração.
-        processed = 0
-        max_per_page = 50  # safety limit
-        while processed < max_per_page:
-            # Busca info do primeiro botão habilitado via JS (não clica, só encontra)
-            info = await page.evaluate("""() => {
-                const btns = document.querySelectorAll('button[data-testid=button-create-action]');
-                for (let i = 0; i < btns.length; i++) {
-                    const btn = btns[i];
-                    if (btn.disabled || btn.classList.contains('andes-button--disabled')) continue;
-                    let card = btn.closest('.available-coupon-item');
-                    let discText = '', storeName = '', expiryText = '';
-                    if (card) {
-                        const titleEl = card.querySelector('.available-coupon-item__title');
-                        discText = titleEl ? titleEl.innerText.trim() : '';
-                        const catEl = card.querySelector('.available-coupon-item__category');
-                        storeName = catEl ? catEl.innerText.replace('Em produtos de ', '').trim() : '';
-                        const expEl = card.querySelector('.available-coupon-item__expiration span');
-                        expiryText = expEl ? expEl.innerText.trim() : '';
-                    }
-                    return {index: i, total: btns.length, disc: discText, store: storeName, expiry: expiryText};
-                }
-                return null;
-            }""")
-
-            if info is None:
-                logger.info(f"  Sem mais botões habilitados na página (processados: {processed})")
-                break
-
-            idx = info['index']
-            total = info['total']
-            disc_text = info['disc']
-            store_name = info['store']
-            logger.info(f"  Cupom {idx+1}/{total}: {disc_text} — {store_name} ({info['expiry']})")
-
-            # Clica no botão usando Playwright (triggera event handlers corretamente)
-            try:
-                btn = page.locator('button[data-testid=button-create-action]').nth(idx)
-                await btn.click(timeout=10000)
-                await page.wait_for_timeout(1500)
-            except Exception as e:
-                logger.warning(f"  Erro ao clicar no botão {idx+1}: {e}")
-                continue
-
-            # Espera modal aparecer
-            try:
-                await page.wait_for_selector('.generate-code-modal', timeout=8000)
-            except Exception:
-                logger.warning(f"  Modal não apareceu — pulando")
-                continue
-
-            # Digita código aleatório no input do modal
-            random_code = ''.join(random.choices(
-                string.ascii_uppercase + string.digits, k=6
-            ))
-            try:
-                input_el = page.locator('#generate-code-modal__textfield')
-                await input_el.fill(random_code)
-                await page.wait_for_timeout(800)
-            except Exception as e:
-                logger.warning(f"  Erro ao preencher input: {e}")
-                await page.evaluate("""() => {
-                    document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
-                }""")
-                await page.wait_for_timeout(1000)
-                continue
-
-            # Clica em "Gerar código" no modal
-            try:
-                gen_btn = page.locator('.generate-code-modal button[data-testid=generate-code-modal__button]')
-                disabled = await gen_btn.evaluate('el => el.disabled')
-                if disabled:
-                    logger.info(f"  Botão disabled no modal — pulando")
-                    await page.evaluate("""() => {
-                        document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
-                    }""")
-                    await page.wait_for_timeout(1000)
-                    continue
-
-                await gen_btn.click()
-                await page.wait_for_timeout(5000)  # 5s após gerar (comportamento humano)
-                generated_count += 1
-                processed += 1
-                logger.info(f"  ✓ Código gerado: {CODE_PREFIX}{random_code} ({disc_text} — {store_name})")
-            except Exception as e:
-                logger.warning(f"  Erro ao confirmar: {e}")
-
-            # Fecha todos os modais, overlays e notificações
-            try:
-                await page.evaluate("""() => {
-                    document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
-                    document.querySelectorAll('.andes-modal__overlay, .andes-mask').forEach(e => e.remove());
-                    document.querySelectorAll('.andes-snackbar, .andes-toast, [class*=toast], [class*=notification], [class*=snackbar]').forEach(e => e.remove());
-                    document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27}));
-                }""")
-                await page.wait_for_timeout(2000)
-            except Exception:
-                pass
-
-            # Volta pra aba "Cupons disponíveis" (o SPA pode trocar de aba após gerar)
-            try:
-                await page.evaluate("""() => {
-                    const tab = document.querySelector('#coupons-tabs-tab-0');
-                    if (tab) tab.click();
-                }""")
-                await page.wait_for_timeout(3000)
-            except Exception:
-                pass
-
-            # Delay aleatório extra entre gerações (2-5s) — comportamento humano
-            await page.wait_for_timeout(random.randint(2000, 5000))
-
-    logger.info(f"\nTotal de códigos gerados: {generated_count}")
-
-    # ── FASE 2: Coletar códigos gerados ──
-    logger.info("\n=== FASE 2: Coletando códigos gerados ===")
-
-    # Após FASE 1 (potencialmente longa), a página pode estar instável:
-    # modais residuais, overlays, React state degradado.
-    # Fecha a página atual e abre uma nova para garantir estado limpo.
-    try:
-        if context:
-            logger.info("Fechando página degradada e abrindo nova para FASE 2...")
-            old_page = page
-            page = await context.new_page()
-            await old_page.close()
-            await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(8000)
-            logger.info(f"Nova página carregada: {page.url}")
-        else:
-            raise Exception("context não disponível — usando reload")
-    except Exception as e:
-        logger.warning(f"Erro ao abrir nova página: {e}")
-        # Fallback: recarrega a página atual com networkidle
-        try:
-            await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(8000)
-        except Exception as e2:
-            logger.warning(f"Reload fallback também falhou: {e2}")
-
-    # Limpa modais/overlays residuais
-    try:
-        await page.evaluate("""() => {
-            document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
-            document.querySelectorAll('.andes-modal__overlay, .andes-mask').forEach(e => e.remove());
-            document.querySelectorAll('.andes-snackbar, .andes-toast, [class*=toast], [class*=notification], [class*=snackbar]').forEach(e => e.remove());
-        }""")
-        await page.wait_for_timeout(1000)
-    except Exception:
-        pass
-
-    # Vai para aba "Códigos gerados" — retry com múltiplas estratégias
-    tab_clicked = False
-    for attempt in range(3):
-        try:
-            # Estratégia 1: seletor original
-            tab = page.locator('#coupons-tabs-tab-1')
-            if await tab.count() > 0:
-                await tab.click(timeout=10000)
-                await page.wait_for_timeout(3000)
-                tab_clicked = True
-                logger.info("Aba 'Códigos gerados' clicada (seletor #coupons-tabs-tab-1)")
-                break
-        except Exception as e:
-            logger.warning(f"  Tentativa {attempt+1} #coupons-tabs-tab-1 falhou: {e}")
-
-        try:
-            # Estratégia 2: role=tab com texto
-            tab2 = page.locator('[role=tab]:has-text("gerad")')
-            if await tab2.count() > 0:
-                await tab2.first.click(timeout=10000)
-                await page.wait_for_timeout(3000)
-                tab_clicked = True
-                logger.info("Aba 'Códigos gerados' clicada (role=tab texto)")
-                break
-        except Exception as e:
-            logger.warning(f"  Tentativa {attempt+1} role=tab falhou: {e}")
-
-        # Estratégia 3: reload e tenta de novo
-        if attempt < 2:
-            logger.info(f"  Recarregando página para retry {attempt+2}...")
-            try:
-                await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(5000)
-            except Exception:
-                pass
-
-    if not tab_clicked:
-        logger.error("Não foi possível clicar na aba 'Códigos gerados' após 3 tentativas")
-        return []
-
+    ua = random.choice(USER_AGENTS)
     all_coupons = []
-    seen_codes = set()
-    collected_pages = 0
+    seen_ids = set()
+    total_pages = 1
+    total_coupons = None
 
-    while True:
-        collected_pages += 1
-        logger.info(f"  Coletando página {collected_pages} de códigos gerados...")
-
-        # Extrai todos os cupons gerados da página atual
-        items = await page.evaluate(r'''() => {
-            const cards = document.querySelectorAll('[class*=generated-coupon-item]');
-            const results = [];
-            for (const card of cards) {
-                const text = card.innerText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-                if (text.length > 10) results.push(text);
-            }
-            return results;
-        }''')
-
-        for text in items:
-            # Extrai código: "#ALETUBEXXXXXX"
-            m = re.search(r"(#[A-Z0-9]{6,20})", text)
-            if not m:
-                continue
-            code = m.group(1)
-            if code in seen_codes:
-                continue
-            seen_codes.add(code)
-
-            # Parse metadata
-            coupon = {"coupon_code": code}
-            coupon.update(parse_discount(text))
-            coupon["expires_at"] = parse_expiry(text)
-            coupon["budget_remaining"] = parse_budget(text)
-            coupon["store_name"] = parse_store(text)
-
-            # Coleta condições clicando no ícone de info do card
-            # E coleta produtos da loja clicando em "Ver produtos"
-            try:
-                # 1. Coleta condições
-                conditions = await page.evaluate(r'''(code) => {
-                    const cards = document.querySelectorAll('[class*=generated-coupon-item]');
-                    for (const card of cards) {
-                        if (card.innerText.includes(code)) {
-                            const infoIcon = card.querySelector('[data-testid=info-icon]');
-                            if (infoIcon) {
-                                infoIcon.click();
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
-                }''', code)
-
-                if conditions:
-                    await page.wait_for_timeout(1500)
-                    cond_text = await page.evaluate(r'''() => {
-                        const modal = document.querySelector('.andes-modal:not([style*="display: none"])');
-                        if (!modal) return '';
-                        const body = modal.querySelector('.andes-modal__body, .andes-modal__content');
-                        return (body || modal).innerText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-                    }''')
-                    coupon["conditions"] = cond_text if cond_text else None
-                    logger.info(f"    Condições: {cond_text[:80]}..." if cond_text else "    Sem condições")
-
-                    # Fecha modal
-                    await page.evaluate(r'''() => {
-                        document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
-                    }''')
-                    await page.wait_for_timeout(800)
-                else:
-                    coupon["conditions"] = None
-
-                # 2. Coleta produtos da loja clicando em "Ver produtos"
-                # O link abre nova aba com URL: https://lista.mercadolivre.com.br/loja/{NOME_LOJA}/
-                # Nessa página, coletamos TODOS os produtos da loja
-                coupon["products"] = []
-                try:
-                    # Clica em "Ver produtos" com Playwright (abre nova aba)
-                    ver_link = page.locator(f'[class*=generated-coupon-item]:has-text("{code}") a.generated-coupon-item__link').first
-                    if await ver_link.count() > 0:
-                        async with context.expect_page(timeout=15000) as new_page_info:
-                            await ver_link.click()
-                        new_page = await new_page_info.value
-                        await new_page.wait_for_timeout(3000)
-                        store_url = new_page.url
-                        coupon["product_url"] = store_url
-
-                        # Extrai nome da loja da URL
-                        m_store = re.search(r'/loja/([^/]+)/?', store_url)
-                        if m_store:
-                            coupon["store_name"] = m_store.group(1)
-                            logger.info(f"    Loja: {m_store.group(1)}")
-
-                        # Coleta produtos da loja (navega até 5 páginas)
-                        products_collected = 0
-                        for prod_page in range(5):
-                            await new_page.wait_for_timeout(2000)
-                            prods = await new_page.evaluate(r'''() => {
-                                // Seleciona apenas os cards de produto reais
-                                const items = document.querySelectorAll('section.poly-card, .ui-search-layout__item, li.ui-search-layout__item');
-                                const seen = new Set();
-                                const results = [];
-                                items.forEach(item => {
-                                    const titleEl = item.querySelector('a.poly-component__title, a.ui-search-link__title-card, h3.poly-component__title, h2 a');
-                                    if (!titleEl) return;
-                                    const title = titleEl.innerText.trim();
-                                    const href = titleEl.getAttribute('href') || titleEl.closest('a')?.getAttribute('href') || '';
-                                    if (!title || !href) return;
-                                    // MLB code
-                                    let mlCode = '';
-                                    const m = href.match(/(MLB\d+)/);
-                                    if (m) mlCode = m[1];
-                                    // Dedup por MLB code ou href
-                                    const key = mlCode || href;
-                                    if (seen.has(key)) return;
-                                    seen.add(key);
-                                    // Preço — ML estrutura na listagem:
-                                    // .poly-price__amount => "R$1.670" ou "R$479" (preço real, sem centavos na listagem)
-                                    // .poly-price__current => "R$47924% OFF" (preço+desconto colado — NAO USAR)
-                                    // .andes-money-amount--cents => "R$167" (parcela, NAO é o preço — NAO USAR)
-                                    // .poly-price__previous => "R$630,33" (preço riscado anterior)
-                                    let price = null;
-                                    let priceEl = item.querySelector('.poly-price__amount');
-                                    if (!priceEl) priceEl = item.querySelector('.poly-price__current');
-                                    if (priceEl) {
-                                        let priceText = priceEl.textContent.trim();
-                                        // Extrai número após R$ — para no primeiro não-dígito (evita pegar "24" do "24% OFF")
-                                        const m2 = priceText.match(/R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?|\d+)/);
-                                        if (m2) {
-                                            let p = m2[1];
-                                            // BR format: "." = thousands, "," = decimal
-                                            if (p.includes('.') && p.includes(',')) {
-                                                p = p.replace(/\./g, '').replace(',', '.');
-                                            } else if (p.includes(',') && !p.includes('.')) {
-                                                p = p.replace(',', '.');
-                                            } else if (p.includes('.') && !p.includes(',')) {
-                                                // "." sem "," — é separador de milhar (ex: "1.670" = 1670)
-                                                // Mas se terminar com ".XX" (2 digitos), pode ser decimal
-                                                const parts = p.split('.');
-                                                if (parts.length === 2 && parts[1].length === 2) {
-                                                    // "31.99" → 31.99 (decimal)
-                                                } else {
-                                                    // "1.670" → 1670 (thousands)
-                                                    p = p.replace(/\./g, '');
-                                                }
-                                            }
-                                            price = parseFloat(p) || null;
-                                            if (price > 50000 || price < 0.01) price = null;
-                                        }
-                                    }
-                                    // Imagem — tenta vários seletores
-                                    let img = '';
-                                    const imgEl = item.querySelector('img.poly-component__picture, img[src*="mlstatic.com/D_"], img[data-src*="mlstatic.com/D_"], picture img, figure img');
-                                    if (imgEl) {
-                                        img = imgEl.getAttribute('src') || imgEl.getAttribute('data-src') || '';
-                                    }
-                                    // Se não achou, constrói a URL a partir do MLB code
-                                    if (!img && mlCode) {
-                                        img = `https://http2.mlstatic.com/D_NQ_NP_${mlCode}-MLB.webp`;
-                                    }
-                                    results.push({title, href, price, img, mlCode});
-                                });
-                                return results;
-                            }''')
-
-                            for p in prods:
-                                if p['title'] and p['href']:
-                                    coupon["products"].append({
-                                        "title": p['title'],
-                                        "product_url": p['href'],
-                                        "image_url": p['img'] if p['img'] else None,
-                                        "price": p['price'],
-                                        "ml_code": p['mlCode'] if p['mlCode'] else None,
-                                    })
-                                    products_collected += 1
-
-                            # Tenta paginar
-                            try:
-                                next_btn = new_page.locator('.andes-pagination__button--next')
-                                if await next_btn.count() > 0:
-                                    is_disabled = await next_btn.evaluate('el => el.classList.contains("andes-pagination__button--disabled")')
-                                    if is_disabled:
-                                        break
-                                    await next_btn.click()
-                                    await new_page.wait_for_timeout(3000)
-                                else:
-                                    break
-                            except Exception:
-                                break
-
-                        logger.info(f"    {products_collected} produtos coletados da loja")
-                        await new_page.close()
-                        await page.wait_for_timeout(2000)
-
-                except Exception as e:
-                    logger.debug(f"    Erro ao coletar produtos da loja: {e}")
-
-            except Exception as e:
-                logger.debug(f"    Erro ao coletar condições: {e}")
-                coupon["conditions"] = None
-
-            all_coupons.append(coupon)
-
-        logger.info(f"  {len(items)} items na página, {len(all_coupons)} total")
-
-        # Tenta paginar
-        try:
-            next_btn = page.locator('[class*=generated] .andes-pagination__button--next, [role=tabpanel] .andes-pagination__button--next')
-            if await next_btn.count() > 0:
-                disabled = await next_btn.evaluate('el => el.disabled || el.classList.contains("andes-pagination__button--disabled")')
-                if disabled:
-                    logger.info("  Sem mais páginas")
-                    break
-                await next_btn.click()
-                await page.wait_for_timeout(2000)
-            else:
-                logger.info("  Sem botão de paginação")
+    with httpx.Client(
+        cookies=cookies,
+        follow_redirects=True,
+        timeout=30,
+        headers={
+            "User-Agent": ua,
+            "Accept-Language": "pt-BR,pt;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+    ) as client:
+        page = 1
+        consecutive_failures = 0
+        while page <= total_pages:
+            if max_pages and page > max_pages:
                 break
-        except Exception:
-            break
+            if page > MAX_PAGES_HARD_LIMIT:
+                logger.warning(f"Hard limit de {MAX_PAGES_HARD_LIMIT} páginas atingido")
+                break
 
-        if collected_pages >= 50:  # safety limit
-            break
+            url = COUPONS_FILTER_URL if page == 1 else f"{COUPONS_FILTER_URL}&page={page}"
+            html = _fetch_page(client, url)
+            if html == "__LOGIN__":
+                if _session_expired_notice():
+                    logger.info("Cookies expirados — EXPIRED_FILE recente, keeper já alertou (silêncio)")
+                else:
+                    logger.error("Cookies expirados — redirecionou para login")
+                return all_coupons  # retorna o que já coletou
+            if not html:
+                consecutive_failures += 1
+                if consecutive_failures >= 3:
+                    logger.error("3 falhas consecutivas — abortando")
+                    break
+                await asyncio.sleep(5)
+                continue
+            consecutive_failures = 0
 
-    logger.info(f"\nTotal de cupons coletados: {len(all_coupons)}")
+            data = _extract_rendering_ctx(html)
+            if not data:
+                logger.warning(f"Página {page}: sem __NORDIC_RENDERING_CTX__")
+                await asyncio.sleep(random.uniform(*PAGE_DELAY_RANGE))
+                page += 1
+                continue
+
+            page_coupons, total_pages, total_coupons = _extract_coupons_page(data)
+            new = [c for c in page_coupons if c["campaign_id"] not in seen_ids]
+            for c in new:
+                seen_ids.add(c["campaign_id"])
+            all_coupons.extend(new)
+            logger.info(
+                f"Página {page}/{total_pages}: {len(page_coupons)} cupons "
+                f"({len(new)} novos) — total {len(all_coupons)}/{total_coupons or '?'}"
+            )
+
+            # Enriquece produtos com preço real (API ML) antes de salvar
+            if new:
+                try:
+                    async with httpx.AsyncClient(timeout=20) as api_client:
+                        await _enrich_products_with_prices(new, api_token, price_cache, api_client)
+                except Exception as e:
+                    logger.warning(f"Erro no enriquecimento página {page}: {e}")
+
+            # Salva incrementalmente a cada página (não perde dados se cair no meio)
+            if new:
+                try:
+                    await save_coupons(new)
+                except Exception as e:
+                    logger.warning(f"Erro ao salvar página {page}: {e}")
+
+            if not page_coupons:
+                logger.info("Página vazia — fim da listagem")
+                break
+
+            await asyncio.sleep(random.uniform(*PAGE_DELAY_RANGE))
+            page += 1
+
+    logger.info(f"Total coletado: {len(all_coupons)} cupons únicos (de ~{total_coupons} anunciados)")
     return all_coupons
 
 
 # ── main ───────────────────────────────────────────────────────────────────────
 async def run(max_pages: int = 0, headless: bool = True, collect_only: bool = False):
-    """Executa o scraper de cupons do ML."""
-    from playwright.async_api import async_playwright
-
+    """Executa o scraper de cupons do ML (HTTP puro — sem browser)."""
     coupons = []
 
-    # 1. Lock para evitar execuções simultâneas
+    # Lock para evitar execuções simultâneas do próprio scraper.
+    # NÃO usa PROFILE_LOCK_FILE: não tocamos o perfil/browser — só lemos
+    # .ml_cookies.json, e requests HTTP paralelos do keeper são inofensivos.
     lock = LockFile(LOCK_FILE)
     if not lock.acquire():
         logger.error(f"Outra instância do ml_coupon_scraper já está rodando (lock em {LOCK_FILE})")
         return []
     logger.info("Lock adquirido — iniciando scraping de cupons")
 
-    # 2. Limpa Chromiums órfãos de execuções anteriores
-    _cleanup_orphan_chromiums()
-
-    # 3. Verifica cookies antes de abrir o navegador
     if not _check_cookies_valid():
         logger.error("Cookies inválidos ou ausentes — abortando")
         lock.release()
         return []
 
-    env = load_env()
-    email = env.get("ML_AFFILIATE_EMAIL", "")
-    password = env.get("ML_AFFILIATE_PASSWORD", "")
-
     try:
-        async with async_playwright() as p:
-            chromium_path = None
-            for path in ["/usr/bin/chromium-browser", "/usr/bin/chromium", "/usr/bin/google-chrome"]:
-                if Path(path).exists():
-                    chromium_path = path
-                    break
-    
-            launch_kwargs = {
-                "headless": headless,
-                "args": ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
-            }
-            if chromium_path:
-                launch_kwargs["executable_path"] = chromium_path
-    
-            browser = await p.chromium.launch(**launch_kwargs)
-            context_kwargs = {
-                "viewport": {"width": 1280, "height": 800},
-                "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            }
-            if STORAGE_STATE_FILE.exists():
-                try:
-                    context_kwargs["storage_state"] = str(STORAGE_STATE_FILE)
-                    logger.info("Storage state carregado")
-                except Exception as e:
-                    logger.warning(f"Erro ao carregar storage state: {e}")
-            context = await browser.new_context(**context_kwargs)
+        coupons = await scrape_ml_coupons(max_pages=max_pages)
 
-            if not STORAGE_STATE_FILE.exists() and COOKIES_FILE.exists():
-                try:
-                    cookies = json.loads(COOKIES_FILE.read_text())
-                    await context.add_cookies(cookies)
-                    logger.info(f"Cookies carregados: {len(cookies)}")
-                except Exception as e:
-                    logger.warning(f"Erro ao carregar cookies: {e}")
-    
-            page = await context.new_page()
-    
-            # Vai direto pra pagina de coupons (não precisa passar pela principal)
-            await page.goto(COUPONS_URL, wait_until="domcontentloaded", timeout=60000)
-            await page.wait_for_timeout(8000)  # espera SPA carregar
-    
-            if "login" in page.url.lower() or "auth" in page.url.lower():
-                # Dedup de ruído: se ml_session_keeper já marcou EXPIRED_FILE
-                # recentemente (<12h), só loga em silêncio (já retornou []).
-                # Evita poluir log todo dia às 23h pelo mesmo incidente.
-                if EXPIRED_FILE.exists():
-                    try:
-                        last = datetime.fromisoformat(EXPIRED_FILE.read_text().strip())
-                        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
-                        if elapsed < EXPIRED_RECENT_HOURS * 3600:
-                            logger.info("Cookies expirados — EXPIRED_FILE recente, keeper já alertou (silêncio)")
-                            await browser.close()
-                            return []
-                    except Exception:
-                        pass
-                logger.error("Cookies expirados — rode ml_scraper --login primeiro")
-                await browser.close()
-                return []
-    
-            if collect_only:
-                # Só Fase 2: coleta cupons já gerados (sem gerar novos)
-                logger.info("=== MODO COLLECT-ONLY: pulando Fase 1 ===")
-                # Vai direto pra aba "Códigos gerados" — retry com múltiplas estratégias
-                tab_clicked = False
-                for attempt in range(3):
-                    try:
-                        tab = page.locator('#coupons-tabs-tab-1')
-                        if await tab.count() > 0:
-                            await tab.click(timeout=10000)
-                            await page.wait_for_timeout(3000)
-                            tab_clicked = True
-                            break
-                    except Exception as e:
-                        logger.warning(f"  Tentativa {attempt+1} #coupons-tabs-tab-1 falhou: {e}")
-                    try:
-                        tab2 = page.locator('[role=tab]:has-text("gerad")')
-                        if await tab2.count() > 0:
-                            await tab2.first.click(timeout=10000)
-                            await page.wait_for_timeout(3000)
-                            tab_clicked = True
-                            break
-                    except Exception as e:
-                        logger.warning(f"  Tentativa {attempt+1} role=tab falhou: {e}")
-                    if attempt < 2:
-                        try:
-                            await page.goto("https://www.mercadolivre.com.br/afiliados/coupons#hub", wait_until="domcontentloaded", timeout=30000)
-                            await page.wait_for_timeout(5000)
-                        except Exception:
-                            pass
-                if not tab_clicked:
-                    logger.error("Não foi possível clicar na aba 'Códigos gerados' após 3 tentativas")
-                    await browser.close()
-                    return []
-    
-                # Reutiliza a lógica de coleta da Fase 2
-                all_coupons = []
-                seen_codes = set()
-                collected_pages = 0
-    
-                while True:
-                    collected_pages += 1
-                    logger.info(f"  Coletando página {collected_pages} de códigos gerados...")
-    
-                    items = await page.evaluate(r'''() => {
-                        const cards = document.querySelectorAll('[class*=generated-coupon-item]');
-                        const results = [];
-                        for (const card of cards) {
-                            const text = card.innerText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-                            if (text.length > 10) results.push(text);
-                        }
-                        return results;
-                    }''')
-    
-                    for text in items:
-                        m = re.search(r"(#[A-Z0-9]{6,20})", text)
-                        if not m:
-                            continue
-                        code = m.group(1)
-                        if code in seen_codes:
-                            continue
-                        seen_codes.add(code)
-    
-                        coupon = {"coupon_code": code}
-                        coupon.update(parse_discount(text))
-                        coupon["expires_at"] = parse_expiry(text)
-                        coupon["budget_remaining"] = parse_budget(text)
-                        coupon["store_name"] = parse_store(text)
-                        coupon["products"] = []
-    
-                        # Coleta condições
-                        try:
-                            conditions = await page.evaluate(r'''(code) => {
-                                const cards = document.querySelectorAll('[class*=generated-coupon-item]');
-                                for (const card of cards) {
-                                    if (card.innerText.includes(code)) {
-                                        const infoIcon = card.querySelector('[data-testid=info-icon]');
-                                        if (infoIcon) { infoIcon.click(); return true; }
-                                    }
-                                }
-                                return false;
-                            }''', code)
-    
-                            if conditions:
-                                await page.wait_for_timeout(1500)
-                                cond_text = await page.evaluate(r'''() => {
-                                    const modal = document.querySelector('.andes-modal:not([style*="display: none"])');
-                                    if (!modal) return '';
-                                    const body = modal.querySelector('.andes-modal__body, .andes-modal__content');
-                                    return (body || modal).innerText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-                                }''')
-                                coupon["conditions"] = cond_text if cond_text else None
-                                await page.evaluate(r'''() => {
-                                    document.querySelectorAll('.andes-modal__close-button').forEach(b => b.click());
-                                }''')
-                                await page.wait_for_timeout(800)
-                            else:
-                                coupon["conditions"] = None
-                        except Exception:
-                            coupon["conditions"] = None
-    
-                        # Coleta produtos da loja
-                        try:
-                            ver_link = page.locator(f'[class*=generated-coupon-item]:has-text("{code}") a.generated-coupon-item__link').first
-                            if await ver_link.count() > 0:
-                                async with context.expect_page(timeout=15000) as new_page_info:
-                                    await ver_link.click()
-                                new_page = await new_page_info.value
-                                await new_page.wait_for_timeout(3000)
-                                store_url = new_page.url
-                                coupon["product_url"] = store_url
-    
-                                m_store = re.search(r'/loja/([^/]+)/?', store_url)
-                                if m_store:
-                                    coupon["store_name"] = m_store.group(1)
-                                    logger.info(f"    Loja: {m_store.group(1)}")
-    
-                                # Coleta produtos (até 5 páginas)
-                                products_collected = 0
-                                for prod_page in range(5):
-                                    await new_page.wait_for_timeout(2000)
-                                    prods = await new_page.evaluate(r'''() => {
-                                        const items = document.querySelectorAll('section.poly-card, .ui-search-layout__item, li.ui-search-layout__item');
-                                        const seen = new Set();
-                                        const results = [];
-                                        items.forEach(item => {
-                                            const titleEl = item.querySelector('a.poly-component__title, a.ui-search-link__title-card, h3.poly-component__title, h2 a');
-                                            if (!titleEl) return;
-                                            const title = titleEl.innerText.trim();
-                                            const href = titleEl.getAttribute('href') || titleEl.closest('a')?.getAttribute('href') || '';
-                                            if (!title || !href) return;
-                                            let mlCode = '';
-                                            const m = href.match(/(MLB\d+)/);
-                                            if (m) mlCode = m[1];
-                                            const key = mlCode || href;
-                                            if (seen.has(key)) return;
-                                            seen.add(key);
-                                            let price = null;
-                                            let priceEl = item.querySelector('.poly-price__amount');
-                                            if (!priceEl) priceEl = item.querySelector('.poly-price__current');
-                                            if (priceEl) {
-                                                let priceText = priceEl.textContent.trim();
-                                                const m2 = priceText.match(/R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?|\d+)/);
-                                                if (m2) {
-                                                    let p = m2[1];
-                                                    if (p.includes('.') && p.includes(',')) {
-                                                        p = p.replace(/\./g, '').replace(',', '.');
-                                                    } else if (p.includes(',') && !p.includes('.')) {
-                                                        p = p.replace(',', '.');
-                                                    } else if (p.includes('.') && !p.includes(',')) {
-                                                        const parts = p.split('.');
-                                                        if (parts.length === 2 && parts[1].length === 2) {
-                                                            // decimal
-                                                        } else {
-                                                            p = p.replace(/\./g, '');
-                                                        }
-                                                    }
-                                                    price = parseFloat(p) || null;
-                                                    if (price > 50000 || price < 0.01) price = null;
-                                                }
-                                            }
-                                            let img = '';
-                                            const imgEl = item.querySelector('img.poly-component__picture, img[src*="mlstatic.com/D_"], img[data-src*="mlstatic.com/D_"], picture img, figure img');
-                                            if (imgEl) {
-                                                img = imgEl.getAttribute('src') || imgEl.getAttribute('data-src') || '';
-                                            }
-                                            if (!img && mlCode) {
-                                                img = `https://http2.mlstatic.com/D_NQ_NP_${mlCode}-MLB.webp`;
-                                            }
-                                            results.push({title, href, price, img, mlCode});
-                                        });
-                                        return results;
-                                    }''')
-    
-                                    for pr in prods:
-                                        if pr['title'] and pr['href']:
-                                            coupon["products"].append({
-                                                "title": pr['title'],
-                                                "product_url": pr['href'],
-                                                "image_url": pr['img'] if pr['img'] else None,
-                                                "price": pr['price'],
-                                                "ml_code": pr['mlCode'] if pr['mlCode'] else None,
-                                            })
-                                            products_collected += 1
-    
-                                    try:
-                                        next_btn = new_page.locator('.andes-pagination__button--next')
-                                        if await next_btn.count() > 0:
-                                            is_disabled = await next_btn.evaluate('el => el.classList.contains("andes-pagination__button--disabled")')
-                                            if is_disabled:
-                                                break
-                                            await next_btn.click()
-                                            await new_page.wait_for_timeout(3000)
-                                        else:
-                                            break
-                                    except Exception:
-                                        break
-    
-                                logger.info(f"    {products_collected} produtos coletados da loja")
-                                await new_page.close()
-                                await page.wait_for_timeout(2000)
-                        except Exception as e:
-                            logger.debug(f"    Erro ao coletar produtos: {e}")
-    
-                        all_coupons.append(coupon)
-                        # Salva incrementalmente (não perde dados se for interrompido)
-                        try:
-                            await save_coupons([coupon])
-                        except Exception as e:
-                            logger.debug(f"    Erro ao salvar incremental: {e}")
-    
-                    logger.info(f"  {len(items)} items na página, {len(all_coupons)} total")
-    
-                    # Tenta paginar
-                    try:
-                        next_btn = page.locator('[class*=generated] .andes-pagination__button--next, [role=tabpanel] .andes-pagination__button--next')
-                        if await next_btn.count() > 0:
-                            disabled = await next_btn.evaluate('el => el.disabled || el.classList.contains("andes-pagination__button--disabled")')
-                            if disabled:
-                                logger.info("  Sem mais páginas")
-                                break
-                            await next_btn.click()
-                            await page.wait_for_timeout(2000)
-                        else:
-                            logger.info("  Sem botão de paginação")
-                            break
-                    except Exception:
-                        break
-    
-                    if collected_pages >= 50:
-                        break
-    
-                coupons = all_coupons
-            else:
-                # Modo normal: Fase 1 (gerar) + Fase 2 (coletar)
-                coupons = await scrape_ml_coupons(page, context=context, max_pages=max_pages)
-    
-            # Salva no banco
-            if coupons:
-                await save_coupons(coupons)
-    
-            # Desativa vencidos
-            await deactivate_expired_coupons()
-
-            # Salva storage state completo para manter sessão viva
-            try:
-                await context.storage_state(path=str(STORAGE_STATE_FILE))
-                logger.info(f"Storage state salvo em {STORAGE_STATE_FILE}")
-            except Exception as e:
-                logger.warning(f"Erro ao salvar storage state: {e}")
-
-            await browser.close()
-
+        # Desativa vencidos
+        await deactivate_expired_coupons()
     finally:
         lock.release()
 
@@ -1247,9 +818,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Scraper de cupons do ML")
     parser.add_argument("--max-pages", type=int, default=0, help="Limite de páginas (0 = todas)")
-    parser.add_argument("--headless", type=bool, default=True, help="Headless mode")
+    parser.add_argument("--headless", type=bool, default=True, help="Ignorado (scrape é HTTP puro)")
     parser.add_argument("--cleanup-only", action="store_true", help="Apenas deleta cupons vencidos")
-    parser.add_argument("--collect-only", action="store_true", help="Só coleta cupons já gerados (sem gerar novos)")
+    parser.add_argument("--collect-only", action="store_true", help="Ignorado (modelo antigo)")
     args = parser.parse_args()
 
     if args.cleanup_only:

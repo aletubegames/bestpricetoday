@@ -1,5 +1,14 @@
 # BestPriceToday — Regras do Projeto
 
+## Banco de Dados (2026-09-29 — MIGRADO DO NEON PARA LOCAL)
+- **Postgres 18 local no alaserver** (`127.0.0.1:5432`), DB `bestpricetoday`, role `bestpricetoday` (senha no `.env` DATABASE_URL e em `~/.pgpass`)
+- Neon suspenso por quota excedida em 27/set — `.env` antigo salvo em `/home/alessandro/backend/.env.bak-neon-20260929` (URL Neon lá pra eventual import de dados históricos após reset de quota)
+- **Alembic migrations são diffs, não schema completo** — `initial_schema` só faz drops. Em DB novo: NÃO rodar `alembic upgrade` (falha). O schema é criado por `init_db()` (create_all) no startup do backend; depois `alembic stamp head`
+- Novo usuário sempre `is_admin=false` — promover admin via SQL: `UPDATE users SET is_admin=true WHERE email='...'`
+- Tokens OAuth (ml_tokens, youtube_accounts, facebook_accounts, instagram_accounts, tiktok_accounts) ficaram no Neon — re-autenticados em 30/set (exceto TikTok)
+- **ML OAuth redirect_uri**: o app ML (`2661096739949`) ainda tem `https://bestpricetoday.vercel.app/auth/callback` registrado no devportal (deploy morto, mas ML aceita e devolve o code na URL). `ML_REDIRECT_URI` no `.env` aponta pra essa URI — NÃO remover sem antes atualizar o cadastro no devportal ML pro alaserver. Auth ML exige conta principal (user_id=6727655)
+- **Backup diário**: cron 4h `pg_dump` → `/home/alessandro/backups/bestpricetoday-YYYYMMDD.sql.gz` (retenção 14 dias)
+
 ## Deploy
 - **SEMPRE que corrigir um arquivo, subir para o alaserver (192.168.15.45) imediatamente**
 - SSH: `ssh alessandro@192.168.15.45` (só acessível via rede local, não 4G/5G)
@@ -42,7 +51,7 @@
 ## Scrapers (NAO sao orfaos — manter rodando)
 - `ml_scraper` — roda via cron 9h05 diario (`run_ml_scraper.sh`), usa Playwright/Chromium. Percorre 26 categorias do portal de afiliados — pode durar horas.
 - `amazon_scraper` — roda via cron 3h diario (`run_amazon_scraper.sh`)
-- `ml_coupon_scraper` — coleta cupons de afiliado ML via Portal do Afiliado (Playwright + cookies manuais), cron **23h diario** (à noite, evita colidir com ml_scraper das 9h que pode durar horas)
+- `ml_coupon_scraper` — coleta cupons de afiliado ML via Portal do Afiliado (Playwright + cookies manuais), cron **23h diario** (à noite, evita colidir com ml_scraper das 9h que pode durar horas). Compartilha `.ml_chrome_profile.lock` com keeper/scraper/login — espera até `PROFILE_LOCK_WAIT_S` (600s) em vez de pular (bug histórico ago-out/2026: keeper `*/30` disparava no mesmo segundo das 23h, segurava o lock ~3s no HTTP keepalive e o scraper pulava TODA rodada — tabela `coupons` zerou). **ATENÇÃO (out/2026): ML encerrou a geração manual de códigos** — `/afiliados/coupons` redireciona para `/afiliados/hub` e a seção sumiu do portal (probe confirmou 0 refs a "cupom" no hub/campanhas). Novo modelo ML: cupom do vendedor embutido no link de afiliado (sem código). Scraper vai coletar 0 até ser reescrito pro novo fluxo — avaliar desativar o cron ou migrar `/cupons` do site.
 - `ml_coupon_scraper --cleanup-only` — deleta cupons vencidos, cron 2h diario
 - `ml_session_keeper` — mantém sessão ML viva renovando cookies, cron **a cada 30min** com `DISPLAY=:99 --headless=false` (janela real no Xvfb — fingerprint headless é detectável). Tri-estado no HTTP: `alive`/`expired`/`network_error`. Erro de rede (DNS/internet caiu) NÃO abre browser, NÃO marca expired, NÃO alerta (backoff curto 30min). Sessão expirada confirmada NÃO reabre browser se `EXPIRED_FILE` já existe (evita padrão de bot 288x/dia). Sucesso do browser só com prova real (≥1 página do portal carrega de verdade — URL contém `mercadolivre` e não é `about:blank`/`chrome-error://`); se nenhuma carregar, NÃO salva storage_state/cookies (evita snapshot degradado que mata a sessão). Guarda na injeção: só injeta storage_state se for mais novo que o cookie DB do perfil. Backoff de bot 2h após browser falhar. Pool de UAs Chrome 138+ com rotação aleatória. HTTP keepalive não reescreve cookies (evita corrupção). Retoma ciclo normal automaticamente quando login manual novo reescreve cookies/storage_state mais novo que `EXPIRED_FILE`.
 - Processos Chromium/Playwright sao do ml_scraper / ml_coupon_scraper — NAO matar
@@ -80,17 +89,27 @@
 - Reauth: `https://api.alaserver.com.br/api/v1/auth/ml/authorize`
 - Endpoints: `GET /auth/ml/status`, `POST /auth/ml/refresh`, `GET /admin/integrations/status`
 
-## Cupons ML
-- Cupom = rastreio permanente (não expira em 48h como cookie do link)
-- Comissão: 3% (maioria) ou 5% (moda/esportes) — fixa por cupom
-- Link de afiliado: até 16% mas cookie expira em 24-48h
-- Cupom vale para QUALQUER produto da loja, não só catálogo de afiliados
-- Scraper coleta produtos via "Ver produtos" → URL da loja (`lista.mercadolivre.com.br/loja/{nome}/`)
+## Deduplicação e stats (2026-09-13)
+- `ml_scraper.save_single_product`: dedup por `ml_code` (MLB/MLBU) — meli.la muda a cada coleta, dedup por affiliate_url NUNCA funciona
+- `POST /admin/clicks`: exige X-Admin-Key (era aberto)
+- Stats do admin (`overview`, `marketplaces`, `traffic`, `analytics`, `conversions/summary`) filtram UAs de bot via `_real_clicks_cond()` — distributor_* no `source` pode ser clique real de usuário, NÃO filtrar por source
+- ML earnings no admin vêm de `affiliate_metrics_snapshots` (overview.ml_metrics) — ML não tem API de ordens, Amazon também não
+- Backup pré-dedup: tabela `affiliate_products_bak_20260913` no Neon
+
+## Cupons ML (modelo novo — desde 05/out/2026)
+- **Modelo antigo MORTO**: ML descontinuou cupom de afiliado com código gerável (ALETUBE*). `/afiliados/coupons` redireciona pro hub — os seletores `#coupons-tabs-tab-*` não existem mais.
+- **Fonte nova**: página de cupons do consumidor `https://www.mercadolivre.com.br/cupons` (~2200 cupons). Lista completa em `/cupons/filter?all=true&page=N` (30/página, ~74 páginas). Requer sessão logada (mesmos cookies do keeper).
+- **Scraper é HTTP puro** (httpx + `.ml_cookies.json`, SEM Chromium/perfil — não usa `.ml_chrome_profile.lock`). Dados no `<script id="__NORDIC_RENDERING_CTX__">` (`_n.ctx.r={...}`, parse com `raw_decode` após o primeiro `{`).
+- Estrutura: `appProps.pageProps.filteredCouponsData.coupons` (UI) + `tracking.view.eventData.coupons_list` (dados limpos: item_ids, collectors, discount_value, expiration_date ISO, pagination.total).
+- `coupon_code` sintético: `MLC-{campaignId}` (não existe código digitável — cupom é ativado na conta via botão "Aplicar", que o scraper NUNCA clica).
+- `product_url`: ACTIVE → `action.value`; INACTIVE → reconstruído `lista.mercadolivre.com.br/_CustId_{collectors[0]}?coupon_campaign_id={id}`; fallback = primeiro item.
+- `status.id`: ACTIVE/INACTIVE é por conta (ativado na nossa conta), NÃO validade — todos são `is_active=True` no banco.
+- Produtos amostra: `item_ids` (MLB) + `items[]` (imagem/título); preço enriquecido via `api.mercadolibre.com/items?ids=` (20/batch, token OAuth da tabela ml_tokens) quando token disponível.
+- "Conferir"/lista de produtos cai em CAPTCHA wall quando acessado por bot — extração nunca navega pra lá, só guarda a URL (funciona pra usuário real).
 - Cookies em `.ml_cookies.json` — login manual via VNC (reCAPTCHA bloqueia login programático)
-- Preço: seletor `.poly-price__amount` (NÃO usar `.poly-price__current` que cola preço+desconto)
-- Parser BR: "." = milhar, "," = decimal (R$1.670 = 1670, R$630,33 = 630.33)
 - Cupons vencidos: DELETAR (não só desativar)
-- Frontend: `/cupons` — grid com filtros, copiar cupom, link "Ver na loja"
+- Frontend: `/cupons` — grid com filtros; cupom MLC-* mostra "ative na sua conta" (sem código pra copiar), CTA "Ver na loja"
+- Parser BR: "." = milhar, "," = decimal (R$1.670 = 1670, R$630,33 = 630.33)
 
 ## Distributor
 - Posta às 12h e 19h (janela de 2h de tolerância)
