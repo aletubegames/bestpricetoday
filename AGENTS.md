@@ -8,22 +8,24 @@
 - Tokens OAuth (ml_tokens, youtube_accounts, facebook_accounts, instagram_accounts, tiktok_accounts) ficaram no Neon — re-autenticados em 30/set (exceto TikTok)
 - **ML OAuth redirect_uri**: o app ML (`2661096739949`) ainda tem `https://bestpricetoday.vercel.app/auth/callback` registrado no devportal (deploy morto, mas ML aceita e devolve o code na URL). `ML_REDIRECT_URI` no `.env` aponta pra essa URI — NÃO remover sem antes atualizar o cadastro no devportal ML pro alaserver. Auth ML exige conta principal (user_id=6727655)
 - **Backup diário**: cron 4h `pg_dump` → `/home/alessandro/backups/bestpricetoday-YYYYMMDD.sql.gz` (retenção 14 dias)
+- **Retenção `searches`** (out/2026): tabela cresce ~10k linhas/dia (maioria bots) — cron dom 5h15 deleta `created_at > 90 dias` → `searches_retention.log`
+- `coupon_products.price` é NULL no modelo novo (ver seção Cupons) — enriquecido parcialmente via join `ml_code` com `affiliate_products`
 
 ## Deploy
-- **SEMPRE que corrigir um arquivo, subir para o alaserver (192.168.15.45) imediatamente**
-- SSH: `ssh alessandro@192.168.15.45` (só acessível via rede local, não 4G/5G)
-- Backend: `/home/alessandro/backend/`
-- Frontend: `/home/alessandro/frontend/`
+- **SEMPRE que corrigir um arquivo, subir para o alaserver (192.168.15.45) imediatamente — E COMMITAR**: em 12/out/2026 foram achados 25 arquivos rodando em prod sem commit (pull feito, tudo sincronizado). O servidor NÃO é repo git — o repo GitHub (`aletubegames/bestpricetoday`, PÚBLICO) é a fonte da verdade. Hotfix direto no servidor = dívida.
+- SSH: `ssh alessandro@192.168.15.45` (só acessível via rede local, não 4G/5G); `sudo -n` funciona sem senha
+- Backend: `/home/alessandro/backend/` | Frontend: `/home/alessandro/frontend/`
 - Reiniciar backend: `sudo systemctl restart bestprice-backend`
 - Reiniciar frontend: `sudo systemctl restart bestprice-frontend`
 - Rebuild frontend: `cd /home/alessandro/frontend && npx next build` depois reiniciar
+- **NUNCA commitar `frontend/public/` com docs pessoais** — em 12/out CNH/IRPF/CCMEI/recovery-codes estavam públicos no site+GitHub (movidos p/ `/home/alessandro/Aletube-Company`; histórico git ainda contém — purge pendente)
 
 ## URLs
 - **PUBLIC_SITE_URL**: `https://bestpricetoday.alaserver.com.br` (porta 443 padrão via Cloudflare Tunnel)
 - **INTERNAL_API_URL**: `https://api.alaserver.com.br` (porta 443 padrão via Cloudflare Tunnel)
 - Cloudflare Tunnel (cloudflared) faz proxy: edge Cloudflare → localhost:3000 (frontend) / localhost:8000 (API)
 - Porta 8443 funciona como backup externo (nginx direto + port forwarding roteador). A porta 9443 era o backup antigo mas a Vivo bloqueia inbound desde 2026-08-05.
-- /etc/hosts no servidor redireciona api/bestpricetoday → 127.0.0.1 (evita loop pelo Cloudflare)
+- /etc/hosts no servidor redireciona api/bestpricetoday → 127.0.0.1 (evita loop pelo Cloudflare) — **restaurado 12/out; a entrada havia sumido**. ATENÇÃO: com a entrada ativa, chamadas internas `api.alaserver.com.br` validam o cert do nginx local → falham enquanto o cert estiver expirado (ver Nginx)
 
 ## Nginx
 - Porta 443: HTTPS (SSL) — rede local + Cloudflare Tunnel
@@ -32,6 +34,7 @@
 - Porta 2053: HTTPS (SSL) — alternativa
 - Porta 80: HTTP redirect para HTTPS
 - **Erro 400 "plain HTTP request sent to HTTPS port"**: corrigir com `error_page 497`
+- **Certificado `*.alaserver.com.br`** (out/2026): wildcard → DNS-01 via plugin `certbot-dns-cloudflare` (instalado 12/out). Credenciais: `/etc/letsencrypt/cloudflare.ini` (API token Cloudflare, root 600). Renewal conf migrado de `manual` + hook volátil em `/tmp` (que morreu num reboot — causou expiração de 23/set) → `authenticator = dns-cloudflare`. Renovar: `sudo certbot renew` (ou `--force-renewal`)
 
 ## Cloudflare
 - DNS gerenciado pelo Cloudflare (nameservers: leonidas.ns.cloudflare.com, tia.ns.cloudflare.com)
@@ -47,6 +50,7 @@
 - `bestprice-frontend` (next-server)
 - `cloudflared` — Cloudflare Tunnel (proxy porta 443)
 - Serviços antigos user (bestprice-bot, channel-broadcaster, alert-checker) — DESABILITADOS
+- **Logrotate** (12/out): `/etc/logrotate.d/bestprice-backend` cobre `backend/*.log` — weekly, 4 rotações, copytruncate (ml_scraper.log tinha 106MB)
 
 ## Scrapers (NAO sao orfaos — manter rodando)
 - `ml_scraper` — roda via cron 9h05 diario (`run_ml_scraper.sh`), usa Playwright/Chromium. Percorre 26 categorias do portal de afiliados — pode durar horas.
@@ -111,7 +115,8 @@
 - Cupons que SOMEM da listagem sem vencer: `deactivate_missing_ml_coupons` desativa (is_active=False) — só roda após coleta COMPLETA (flag `completed` do scrape; coleta parcial não desativa nada)
 - Unique constraint `(provider, coupon_code)` na tabela coupons (index `uq_coupons_provider_code`) — upsert filtra provider e purga duplicatas históricas
 - `/api/v1/affiliate/coupons/products` deduplica por `ml_code`/`product_url` (mesmo produto em vários cupons = 1 card no site); `/coupons/stores` conta distinct
-- Enriquecimento `/items` do ML: app atual retorna 403 por item → desligado automaticamente (`cache["__disabled__"]`); `is_available` só vira False com status explícito != "active" (campo ausente NÃO marca indisponível)
+- Enriquecimento `/items` do ML: app atual retorna 403 por item → desligado automaticamente (`cache["__disabled__"]`); `is_available` só vira False com status explícito != "active" (campo ausente NÃO marca indisponível). `sites/MLB/search` também 403 e página de produto cai em `/captcha/wall` — **preço de coupon_products é NULL** (11972 linhas, só 83 enriquecidas via join com affiliate_products)
+- **CouponDistributor (fix 12/out)**: não exige mais `price` na seleção — captions sem preço usam `discount_text` como headline, cupom MLC-* vira "Ative o cupom na sua conta do Mercado Livre", YouTube pulado (overlay DE→POR precisa de preço). Estava morto desde 05/out ("nenhuma oferta disponível" toda janela)
 - `conditions` guarda só condições reais — "Sem compra mínima"/"Sem limite" são ausência de condição e não entram no texto
 - Frontend: `/cupons` — grid com filtros; cupom MLC-* mostra "ative na sua conta" (sem código pra copiar), CTA "Ver na loja"
 - Parser BR: "." = milhar, "," = decimal (R$1.670 = 1670, R$630,33 = 630.33)
