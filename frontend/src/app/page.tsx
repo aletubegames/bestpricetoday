@@ -156,8 +156,25 @@ export default function HomePage() {
   const plural = (n: number) => n === 1 ? "oferta encontrada" : "ofertas encontradas";
   const showLanding = !query && !isLoading && !data;
 
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "O preço aqui é maior do que na loja?", "acceptedAnswer": { "@type": "Answer", "text": "Não. O link leva direto pra plataforma oficial pelo mesmo preço. Nunca cobramos nada a mais." } },
+      { "@type": "Question", "name": "Como vocês ganham dinheiro?", "acceptedAnswer": { "@type": "Answer", "text": "Recebemos comissão da plataforma quando você compra pelo nosso link. Esse valor é pago pela loja, não por você." } },
+      { "@type": "Question", "name": "Os preços são atualizados em tempo real?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Nossa busca roda automaticamente e exibe o preço atual de cada plataforma no momento da sua pesquisa." } },
+      { "@type": "Question", "name": "A compra é feita aqui no site?", "acceptedAnswer": { "@type": "Answer", "text": "Não. Você é redirecionado para Shopee, Mercado Livre, AliExpress ou Lomadee e compra com toda a proteção e garantia delas." } },
+      { "@type": "Question", "name": "Vocês têm todos os produtos?", "acceptedAnswer": { "@type": "Answer", "text": "Monitoramos mais de 10.000 produtos. Se não encontrar, tente termos diferentes ou volte em breve — adicionamos novos regularmente." } },
+      { "@type": "Question", "name": "É seguro comprar pelo link de vocês?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Você compra diretamente na plataforma oficial. Nós apenas mostramos onde está mais barato." } },
+    ],
+  };
+
   return (
     <div className={styles.root}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <Header variant="default" />
 
       <main>

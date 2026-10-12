@@ -17,6 +17,7 @@ import random
 import shutil
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select, text, desc
@@ -35,7 +36,8 @@ _XTTS_SEMAPHORE = asyncio.Semaphore(1)
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
-COUPON_POST_SCHEDULE = [(9, 1), (12, 1), (15, 1), (19, 1), (21, 1)]  # (hour, num_offers) - reduzido para evitar spam
+BR_TIMEZONE = ZoneInfo("America/Sao_Paulo")
+COUPON_POST_SCHEDULE = [(12, 1), (19, 1)]  # horários locais de Brasília
 TOLERANCE_HOURS = 2
 DEDUP_TTL_HOURS = 72  # não repetir mesmo cupom em 72h (evita bloqueio do algoritmo)
 
@@ -296,7 +298,7 @@ def build_coupon_caption_telegram(offer: dict) -> str:
     discount = offer.get("coupon_discount", "")
     store = offer.get("store_name", "")
     expires = offer.get("coupon_expires_at")
-    now = datetime.now().strftime("%d/%m %H:%M")
+    now = datetime.now(BR_TIMEZONE).strftime("%d/%m %H:%M")
 
     final_price, economy, discount_pct = _coupon_discount_info(offer)
 
@@ -340,7 +342,7 @@ def build_coupon_caption_facebook(offer: dict) -> str:
     coupon_code = offer["coupon_code"]
     store = offer.get("store_name", "")
     expires = offer.get("coupon_expires_at")
-    now = datetime.now().strftime("%d/%m %H:%M")
+    now = datetime.now(BR_TIMEZONE).strftime("%d/%m %H:%M")
 
     final_price, economy, discount_pct = _coupon_discount_info(offer)
 
@@ -2059,7 +2061,6 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
         title = offer["title"][:60]
         price = offer["price"]
         coupon_code = offer["coupon_code"]
-        store = offer.get("store_name", "")
         final_price, economy, discount_pct = _coupon_discount_info(offer)
 
         # 1. Baixa imagem em alta resolução (troca _Q por _NQ para versão maior)
@@ -2278,7 +2279,7 @@ async def post_coupon_youtube(offer: dict) -> dict:
 
 async def distribute_coupons():
     """Posta cupons 2x/dia em todas as mídias."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(BR_TIMEZONE)
     hour = now.hour
 
     # Verifica se está numa janela de postagem

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select, distinct
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone, timedelta
-from app.models.models import Product, Search, Offer
+from app.core.config import settings
+from app.models.models import AffiliateProduct, Search
 from app.db.session import get_db
 
 router = APIRouter()
@@ -12,17 +13,28 @@ router = APIRouter()
 async def get_public_stats(db: AsyncSession = Depends(get_db)):
     """Public stats endpoint — no auth required."""
     try:
-        # Total products in DB
+        # Total products in the current affiliate catalog
         total_products_result = await db.execute(
-            select(func.count()).select_from(Product)
+            select(func.count()).select_from(AffiliateProduct).where(
+                AffiliateProduct.is_active == True,
+            )
         )
         total_products = total_products_result.scalar() or 0
 
-        # Distinct providers with offers
-        providers_result = await db.execute(
-            select(func.count(distinct(Offer.provider)))
+        platforms = sum(
+            bool(value)
+            for value in (
+                settings.MERCADOLIVRE_APP_ID
+                and settings.ML_AFFILIATE_MATT_WORD
+                and settings.ML_AFFILIATE_MATT_TOOL,
+                settings.AMAZON_PARTNER_TAG,
+                settings.SHOPEE_APP_ID and settings.SHOPEE_SECRET,
+                settings.ALIEXPRESS_APP_KEY
+                and settings.ALIEXPRESS_APP_SECRET
+                and settings.ALIEXPRESS_TRACKING_ID,
+                settings.LOMADEE_API_KEY,
+            )
         )
-        platforms = providers_result.scalar() or 0
 
         # Weekly searches (last 7 days)
         since = datetime.now(timezone.utc) - timedelta(days=7)
@@ -50,7 +62,6 @@ async def get_public_stats(db: AsyncSession = Depends(get_db)):
         daily_data = []
         for i in range(7):
             d = datetime.now(timezone.utc).date() - timedelta(days=6 - i)
-            label = day_names[d.weekday()]
             # weekday(): Monday=0, Sunday=6 — our Dom=0, Seg=1...
             # Python weekday: Mon=0, Sun=6. We want Dom=0, Seg=1...Ter=2...Sab=6
             # Map: 6(Sun)→0, 0(Mon)→1, 1(Tue)→2, 2(Wed)→3, 3(Thu)→4, 4(Fri)→5, 5(Sat)→6

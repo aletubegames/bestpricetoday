@@ -292,12 +292,17 @@ class MercadoLivreProvider(BaseProvider):
                 else:
                     where_clause = func.lower(AffiliateProduct.title).like(q_lower)
 
+                ml_source_filter = or_(
+                    func.lower(AffiliateProduct.notes).like("%ml_scraper%"),
+                    func.lower(AffiliateProduct.affiliate_url).like("%meli.la%"),
+                    func.lower(AffiliateProduct.affiliate_url).like("%mercadolivre%"),
+                )
                 stmt = (
                     select(AffiliateProduct)
                     .where(
                         AffiliateProduct.is_active == True,
                         AffiliateProduct.title != None,
-                        AffiliateProduct.affiliate_url.notlike("%amazon%"),
+                        ml_source_filter,
                         where_clause,
                     )
                     .limit(limit * 3)

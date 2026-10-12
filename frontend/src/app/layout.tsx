@@ -110,6 +110,45 @@ export default function RootLayout({
       <body className={dmSans.className}>
         <Providers>{children}</Providers>
 
+        {/* JSON-LD WebSite schema — sitelinks search box + identidade do site */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "BestPriceToday",
+              "url": SITE_BASE,
+              "description": "Compare preços em Mercado Livre, Amazon, Shopee, AliExpress e mais. Histórico de preços, alertas de queda e melhores ofertas.",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": `${SITE_BASE}/produto/{search_term_string}`,
+                },
+                "query-input": "required name=search_term_string",
+              },
+            }),
+          }}
+        />
+
+        {/* JSON-LD Organization schema — rich snippets da marca */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "BestPriceToday",
+              "url": SITE_BASE,
+              "logo": `${SITE_BASE}/logo-header.png`,
+              "sameAs": [
+                "https://www.youtube.com/@AleTubeGames",
+              ],
+            }),
+          }}
+        />
+
         {/* Google Analytics 4 (GA4) */}
         {GA4_MEASUREMENT_ID && (
           <>

@@ -25,6 +25,7 @@ import asyncio
 import os
 import re
 import logging
+import shutil
 import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,43 @@ from typing import Optional
 
 logger = logging.getLogger("amazon_scraper")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+BROWSER_ARGS = ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
+
+
+def find_browser_executable() -> str | None:
+    for candidate in (
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+    ):
+        if Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    return shutil.which("google-chrome") or shutil.which("chromium")
+
+
+async def launch_browser(playwright, headless: bool):
+    executable = find_browser_executable()
+    if executable:
+        logger.info(f"Usando navegador do sistema: {executable}")
+        return await playwright.chromium.launch(
+            headless=headless,
+            executable_path=executable,
+            args=BROWSER_ARGS,
+        )
+
+    try:
+        return await playwright.chromium.launch(
+            headless=headless,
+            channel="chromium",
+            args=BROWSER_ARGS,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "Nenhum navegador compatível encontrado. Instale Google Chrome "
+            "ou execute 'playwright install chromium'."
+        ) from exc
+
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -351,7 +389,7 @@ async def scrape_search(page, query: str, partner_tag: str, dry_run: bool = Fals
             }
 
             # Se detectou cupom, salva na tabela coupons
-            if coupon_code or coupon_text:
+            if not dry_run and (coupon_code or coupon_text):
                 try:
                     await save_amazon_coupon(
                         code=coupon_code,
@@ -508,14 +546,14 @@ async def save_single_product(r: dict, provider: str = "amazon") -> bool:
         return False
 
 
-async def deactivate_amazon_products():
-    """Desativa produtos Amazon existentes no início do scrape (sobrescrever).
+async def deactivate_amazon_products(older_than: datetime | None = None):
+    """Desativa produtos Amazon que não foram atualizados neste lote.
     NÃO desativa produtos do ML (notes sem 'amazon_scraper').
     Também deleta produtos inativos com >30 dias (auto-cleanup)."""
     try:
         from app.db.session import AsyncSessionLocal
         from app.models.models import AffiliateProduct
-        from sqlalchemy import select, func, delete
+        from sqlalchemy import select, func, delete, or_
         from datetime import datetime, timezone, timedelta
     except ImportError:
         return
@@ -540,13 +578,17 @@ async def deactivate_amazon_products():
             await db.commit()
             logger.info(f"{old_count} produtos inativos (>30 dias) deletados (auto-cleanup)")
 
-        # Só desativa produtos Amazon (não ML)
-        result = await db.execute(
-            select(AffiliateProduct).where(
-                AffiliateProduct.is_active == True,
-                func.lower(AffiliateProduct.notes).like("%amazon_scraper%"),
-            )
-        )
+        # Só desativa produtos Amazon (não ML) que ficaram fora do lote.
+        filters = [
+            AffiliateProduct.is_active == True,
+            func.lower(AffiliateProduct.notes).like("%amazon_scraper%"),
+        ]
+        if older_than is not None:
+            filters.append(or_(
+                AffiliateProduct.updated_at.is_(None),
+                AffiliateProduct.updated_at < older_than,
+            ))
+        result = await db.execute(select(AffiliateProduct).where(*filters))
         old = result.scalars().all()
         for p in old:
             p.is_active = False
@@ -566,6 +608,7 @@ async def run_scraper(queries: list[str] = None, dry_run: bool = False, headless
         logger.error("AMAZON_PARTNER_TAG não configurado no .env")
         return
 
+    full_catalog_sync = queries is None
     if queries is None:
         queries = DEFAULT_QUERIES
 
@@ -575,32 +618,16 @@ async def run_scraper(queries: list[str] = None, dry_run: bool = False, headless
     logger.info(f"Dry run: {dry_run}")
     logger.info(f"Headless: {headless}")
 
-    # Desativa produtos Amazon antigos + auto-cleanup de inativos >30 dias
-    if not dry_run:
-        await deactivate_amazon_products()
-
+    run_started = datetime.now(timezone.utc)
     total = 0
     async with async_playwright() as p:
-        # Usa chromium do sistema (channel) em vez do bundled playwright
-        try:
-            browser = await p.chromium.launch(headless=headless, channel="chromium")
-        except Exception:
-            try:
-                browser = await p.chromium.launch(
-                    headless=headless,
-                    executable_path="/usr/bin/chromium-browser",
-                    args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
-                )
-            except Exception:
-                browser = await p.chromium.launch(
-                    headless=headless,
-                    args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
-                )
+        browser = await launch_browser(p, headless)
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.108 Safari/537.36",
             viewport={"width": 1280, "height": 800},
             locale="pt-BR",
         )
+
         page = await context.new_page()
 
         for i, query in enumerate(queries):
@@ -616,6 +643,9 @@ async def run_scraper(queries: list[str] = None, dry_run: bool = False, headless
             await asyncio.sleep(2)
 
         await browser.close()
+
+    if not dry_run and total > 0 and full_catalog_sync:
+        await deactivate_amazon_products(older_than=run_started)
 
     logger.info(f"\n=== Concluído: {total} produtos coletados de {len(queries)} queries ===")
     return total
@@ -635,7 +665,9 @@ def main():
 
     headless = args.headless.lower() != "false"
 
-    asyncio.run(run_scraper(queries=queries, dry_run=args.dry_run, headless=headless))
+    total = asyncio.run(run_scraper(queries=queries, dry_run=args.dry_run, headless=headless))
+    if not args.dry_run and not total:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

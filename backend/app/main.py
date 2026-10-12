@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.core.config import settings
@@ -16,6 +17,7 @@ from collections import defaultdict
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging("DEBUG" if settings.DEBUG else "INFO")
+    settings.validate_runtime()
     if settings.SENTRY_DSN:
         sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
     await init_db()
@@ -106,7 +108,7 @@ def _cors_origin_ok(origin: str | None) -> bool:
 
 # Rate limiting simples (não afeta funcionamento normal, apenas protege contra abuso)
 _rate_limit_store = defaultdict(list)
-_RATE_LIMIT = 100  # requisições por minuto por IP
+_RATE_LIMIT = 240  # requisições por minuto por IP
 _RATE_WINDOW = 60  # segundos
 
 # Custom CORS middleware - FORCE headers on ALL responses
@@ -214,6 +216,39 @@ async def cors_middleware(request: Request, call_next):
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": settings.APP_VERSION}
+
+
+@app.get("/health/ready")
+async def readiness():
+    checks = {"database": "error", "redis": "degraded"}
+    try:
+        from sqlalchemy import text
+        from app.db.session import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as exc:
+        logger.error(f"Readiness database check failed: {type(exc).__name__}")
+
+    try:
+        from app.core.cache import get_redis
+
+        redis = await get_redis()
+        await redis.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        logger.warning(f"Readiness Redis check degraded: {type(exc).__name__}")
+
+    ready = checks["database"] == "ok"
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ready" if ready else "not_ready",
+            "version": settings.APP_VERSION,
+            "checks": checks,
+        },
+    )
 
 
 # Mount static files directory for test videos and other assets

@@ -21,7 +21,6 @@ Variáveis no .env:
 import asyncio
 import fcntl
 import os
-import random
 import re
 import shutil
 import sys
@@ -277,6 +276,20 @@ def _expired_recent() -> bool:
         return False
 
 
+def _is_authenticated_portal_url(url: str) -> bool:
+    lowered = (url or "").lower()
+    return "afiliados" in lowered and not any(
+        marker in lowered for marker in ("login", "auth", "jms")
+    )
+
+
+def _clear_session_flags() -> None:
+    try:
+        EXPIRED_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 async def _check_session_expired(page) -> bool:
     """Verifica se a página foi redirecionada para login. Retorna True se expirada."""
     try:
@@ -329,8 +342,8 @@ async def scrape_category(page, category_name: str, dry_run: bool = False) -> in
                         if href.startswith("/"):
                             href = "https://www.mercadolivre.com.br" + href
                         link_prod = href
-                        # Extrai código MLB do link
-                        m = re.search(r"(MLB\d+)", href)
+                        # Extrai código MLB/MLBU do link
+                        m = re.search(r"(MLBU?\d+)", href)
                         if m:
                             codigo_ml = m.group(1)
 
@@ -605,14 +618,14 @@ async def login(page, email: str, password: str, headless: bool) -> bool:
     await page.wait_for_timeout(3000)
 
     # Verifica se já está logado (cookies salvos funcionam)
-    if "afiliados" in page.url and "login" not in page.url.lower():
+    if _is_authenticated_portal_url(page.url):
         logger.info(f"Já estava logado (sessão ativa via cookies) — URL: {page.url}")
         return True
 
     # Retry único: SPA pode demorar no bounce de auth
     logger.info("Sessão não confirmada na 1ª tentativa — retry após espera")
     await page.wait_for_timeout(5000)
-    if "afiliados" in page.url and "login" not in page.url.lower() and "auth" not in page.url.lower():
+    if _is_authenticated_portal_url(page.url):
         logger.info(f"Sessão confirmada no retry — URL: {page.url}")
         return True
 
@@ -629,11 +642,15 @@ async def login(page, email: str, password: str, headless: bool) -> bool:
             try:
                 await page.wait_for_timeout(1000)
                 url = page.url.lower()
-                # Detecta login quando URL contém "afiliados" e não tem "login"
-                if "afiliados" in url and "login" not in url and "auth" not in url:
+                if _is_authenticated_portal_url(url):
                     logger.info(f"Login detectado! URL: {page.url}")
                     await page.wait_for_timeout(3000)
                     return True
+                if i % 10 == 0 and "mercadolivre.com.br" in url and not any(
+                    marker in url for marker in ("login", "auth", "jms")
+                ):
+                    logger.info("Conta autenticada na home — retornando ao Portal de Afiliados")
+                    await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=30000)
             except Exception:
                 # Página pode ter navegado
                 await page.wait_for_timeout(2000)
@@ -668,7 +685,6 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
         logger.error("Playwright não instalado. Rode: pip install playwright")
         return 0
 
-    all_produtos = []
     total_count = 0
 
     # Carrega checkpoint (para retomar de onde parou)
@@ -705,19 +721,6 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
     # porque o session_keeper atualiza .ml_storage_state.json mas o perfil
     # persistente mantém seu próprio cookie jar stale em disco.
     use_persistent = not headless  # --login implica headless=False
-    if use_persistent:
-        try:
-            cookies_db = PROFILE_DIR / "Default" / "Cookies"
-            local_storage = PROFILE_DIR / "Default" / "Local Storage"
-            if cookies_db.exists():
-                cookies_db.unlink()
-                logger.info("Cookies stale do perfil persistente removidos")
-            if local_storage.exists():
-                import shutil
-                shutil.rmtree(local_storage)
-                logger.info("LocalStorage stale do perfil persistente removido")
-        except Exception as e:
-            logger.warning(f"Erro ao limpar cookies stale do perfil: {e}")
 
     async with async_playwright() as p:
         # Detecta chromium disponível: sistema (servidor) ou playwright (local)
@@ -736,7 +739,7 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
             "--disable-infobars",
             "--disable-notifications",
         ]
-        user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.108 Safari/537.36"
 
         if chromium_path:
             logger.info(f"Usando chromium do sistema: {chromium_path}")
@@ -837,6 +840,8 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
                     )
                 return 0
 
+            _clear_session_flags()
+
             # Só desativa produtos depois de confirmar que está logado
             if start_category == 0 and not dry_run:
                 await deactivate_all_products()
@@ -933,19 +938,8 @@ async def run_scraper(headless: bool = True, dry_run: bool = False) -> int:
             if not dry_run:
                 await save_metrics_snapshot(metrics)
 
-            # Scrape de cupons (após produtos, reusa mesma sessão/logada)
-            if not dry_run:
-                coupons = []
-                try:
-                    logger.info("\n=== INICIANDO SCRAPE DE CUPONS ===")
-                    from app.workers.ml_coupon_scraper import scrape_ml_coupons, save_coupons, deactivate_expired_coupons
-                    coupons = await scrape_ml_coupons(page, context=context, max_pages=0)
-                    if coupons:
-                        await save_coupons(coupons)
-                    await deactivate_expired_coupons()
-                    logger.info(f"=== CUPONS: {len(coupons)} coletados ===\n")
-                except Exception as e:
-                    logger.warning(f"Erro no scrape de cupons: {e}")
+            # Cupons são coletados pelo ml_coupon_scraper standalone (cron 23h,
+            # HTTP puro com .ml_cookies.json) — não roda mais embutido aqui.
 
         finally:
             try:
@@ -1047,6 +1041,7 @@ async def save_single_product(r: dict) -> bool:
         return False
 
     link = r.get("link_prod", "").strip()
+    ml_code = (r.get("Codigo_ML") or "").strip()
     if not link:
         return False
 
@@ -1072,11 +1067,26 @@ async def save_single_product(r: dict) -> bool:
 
     try:
         async with AsyncSessionLocal() as db:
-            stmt = select(AffiliateProduct).where(AffiliateProduct.affiliate_url == link)
-            result = await db.execute(stmt)
-            existing = result.scalar_one_or_none()
+            # Dedup por ml_code (estável entre scrapes): o portal gera um
+            # meli.la NOVO a cada coleta, então affiliate_url nunca se repete
+            # para o mesmo produto — dedup por URL criava milhares de duplicatas.
+            existing = None
+            if ml_code:
+                stmt = (
+                    select(AffiliateProduct)
+                    .where(AffiliateProduct.ml_code == ml_code)
+                    .order_by(AffiliateProduct.created_at.desc())
+                    .limit(1)
+                )
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+            if existing is None:
+                stmt = select(AffiliateProduct).where(AffiliateProduct.affiliate_url == link)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
 
             if existing:
+                # Atualiza para o meli.la mais recente (link antigo continua
+                # funcionando, mas manter o fresco evita links órfãos)
+                existing.affiliate_url = link
                 # Salva snapshot do preço a cada execução do scraper (diária)
                 # Mas só 1 por dia por produto (evita duplicatas se o scraper rodar 2x)
                 if price is not None and price > 0:

@@ -3,15 +3,15 @@
 IMPORTANTE: Só incluir queries que retornam ≥3 ofertas reais na API.
 Queries vazias prejudicam SEO (thin content) e fazem o Google desindexar o site.
 
-Última verificação: 2026-06-27 — 81 queries válidas após scraper da Amazon.
-Catálogo: 1.084 produtos Amazon + 2.530 ML + AliExpress/Shopee ao vivo.
+Última verificação: 2026-08-22 — 91 queries válidas após scraper da Amazon.
+Catálogo: 472 produtos Amazon + AliExpress/Shopee/Lomadee ao vivo.
 
 Para expandir: rodar scraper Amazon com mais queries e testar novamente.
 """
 
 from typing import List
 
-# Total: 81 queries (verificadas em 2026-06-27)
+# Total: 89 queries (verificadas em 2026-08-22)
 CURATED_QUERIES: List[str] = [
     # Airfryers (21 — originais, catálogo AliExpress)
     "abajur",
@@ -107,4 +107,13 @@ CURATED_QUERIES: List[str] = [
     "fone-bluetooth-jbl",
     # Casa (1 — scraper Amazon)
     "mochila-notebook",
+    # Novas queries verificadas 2026-08-22 (8 — retornam ≥3 ofertas na API)
+    "bomba-agua",
+    "kindle",
+    "relogio-masculino",
+    "webcam",
+    "liquidificador",
+    "perfume-feminino",
+    "lampada-led",
+    "samsung-galaxy",
 ]

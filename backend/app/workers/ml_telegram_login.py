@@ -12,12 +12,14 @@ Uso (interno):
   from app.workers.ml_telegram_login import do_telegram_login
   result = await do_telegram_login(progress_callback)
 """
-import asyncio
 import json
+import logging
 import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger("ml_telegram_login")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRIPT_DIR.parent.parent
@@ -32,7 +34,7 @@ ALERT_SENT_FILE = BACKEND_DIR / ".ml_session_alert_sent"
 SCREENSHOT_DIR = BACKEND_DIR / ".ml_login_screenshots"
 
 PORTAL_URL = "https://www.mercadolivre.com.br/afiliados/hub#menu-lateral"
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.108 Safari/537.36"
 
 
 def _load_env() -> dict:
@@ -59,6 +61,20 @@ def _cleanup_singleton_lock():
                 pass
 
 
+def _is_authenticated_url(url: str) -> bool:
+    lowered = (url or "").lower()
+    return "afiliados" in lowered and not any(
+        marker in lowered for marker in ("login", "auth", "jms")
+    )
+
+
+def _should_inject_storage_state(
+    storage_state_mtime: float,
+    profile_cookie_mtime: float | None,
+) -> bool:
+    return profile_cookie_mtime is None or storage_state_mtime > profile_cookie_mtime
+
+
 class LoginResult:
     def __init__(self, success: bool, message: str, screenshot_path: str = None, needs_vnc: bool = False):
         self.success = success
@@ -77,6 +93,34 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
                 await progress_cb(msg)
             except Exception:
                 pass
+
+    async def _wait_for_manual_completion(page, context, screenshot: Path) -> LoginResult:
+        await _progress(
+            "⚠️ Verificação manual necessária. O navegador permanecerá aberto.\n\n"
+            "Conecta via VNC:\n"
+            "```\nssh -L 6080:localhost:6080 alessandro@192.168.15.45\n```\n"
+            "Depois acessa: http://localhost:6080/vnc.html\n\n"
+            "Complete o captcha ou 2FA no navegador. Aguardando até 20 minutos."
+        )
+        for _ in range(1200):
+            try:
+                await page.wait_for_timeout(1000)
+                if _is_authenticated_url(page.url):
+                    await _save_session(context)
+                    _clear_expired_flags()
+                    await context.close()
+                    await _progress("✅ Login realizado com sucesso!")
+                    return LoginResult(True, "✅ Login no ML Afiliados realizado! Sessão salva e renovada.")
+            except Exception:
+                continue
+
+        await context.close()
+        return LoginResult(
+            False,
+            "❌ O tempo para concluir o captcha/2FA expirou. Execute o login novamente.",
+            str(screenshot),
+            True,
+        )
 
     env = _load_env()
     email = env.get("ML_AFFILIATE_EMAIL", "")
@@ -155,23 +199,27 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
             # Carrega cookies do storage_state no perfil (caso perfil esteja desatualizado)
             if STORAGE_STATE_FILE.exists():
                 try:
-                    state = json.loads(STORAGE_STATE_FILE.read_text())
-                    state_cookies = state.get("cookies", [])
-                    if state_cookies:
-                        await context.add_cookies(state_cookies)
-                        await _progress(f"📋 {len(state_cookies)} cookies carregados do backup")
+                    profile_cookies_db = PROFILE_DIR / "Default" / "Cookies"
+                    profile_mtime = profile_cookies_db.stat().st_mtime if profile_cookies_db.exists() else None
+                    if _should_inject_storage_state(STORAGE_STATE_FILE.stat().st_mtime, profile_mtime):
+                        state = json.loads(STORAGE_STATE_FILE.read_text())
+                        state_cookies = state.get("cookies", [])
+                        if state_cookies:
+                            await context.add_cookies(state_cookies)
+                            await _progress(f"📋 {len(state_cookies)} cookies carregados do backup")
+                    else:
+                        logger.info("storage_state não é mais novo que os cookies do perfil — não injeta")
                 except Exception as e:
-                    logger_warning(f"Erro ao carregar storage_state: {e}")
+                    logger.warning(f"Erro ao carregar storage_state: {e}")
 
             await _progress("🌐 Navegando para o portal de afiliados...")
             await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_timeout(3000)
 
             # Verifica se já está logado
-            current_url = page.url.lower()
-            if "afiliados" in current_url and "login" not in current_url and "auth" not in current_url:
+            if _is_authenticated_url(page.url):
                 await _save_session(context)
-                await _clear_expired_flags()
+                _clear_expired_flags()
                 await context.close()
                 return LoginResult(True, "✅ Já estava logado! Sessão renovada.")
 
@@ -206,26 +254,26 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
             await page.screenshot(path=str(screenshot2))
 
             # Verifica se tem reCAPTCHA antes da senha
-            current_url = page.url.lower()
-            page_text = ""
             try:
-                page_text = await page.content()
+                page_text = (await page.content()).lower()
             except Exception:
-                pass
+                page_text = ""
+            if "recaptcha" in page_text:
+                logger.info("reCAPTCHA presente antes do preenchimento da senha")
 
             # Preenche senha
             try:
                 password_input = page.locator('input[name="password"], input[type="password"]').first
                 await password_input.fill(password)
                 await page.wait_for_timeout(500)
-            except Exception as e:
+            except Exception:
                 # Pode ser que o reCAPTCHA esteja bloqueando
                 screenshot = SCREENSHOT_DIR / "error_password.png"
                 await page.screenshot(path=str(screenshot))
                 await context.close()
                 return LoginResult(
                     False,
-                    f"❌ Não consegui preencher a senha. Pode ser reCAPTCHA bloqueando.\nConecta via VNC para resolver.",
+                    "❌ Não consegui preencher a senha. Pode ser reCAPTCHA bloqueando.\nConecta via VNC para resolver.",
                     str(screenshot),
                     True,
                 )
@@ -233,7 +281,6 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
             await _progress("🤖 Tentando reCAPTCHA...")
 
             # Tenta clicar no reCAPTCHA checkbox
-            recaptcha_passed = False
             try:
                 # Tenta clicar no checkbox do reCAPTCHA v2
                 recaptcha_frame = page.frame_locator('iframe[title*="reCAPTCHA"], iframe[src*="recaptcha"]')
@@ -244,7 +291,6 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
                     # Verifica se passou
                     aria_checked = await checkbox.first.get_attribute("aria-checked")
                     if aria_checked == "true":
-                        recaptcha_passed = True
                         await _progress("✅ reCAPTCHA passado automaticamente!")
             except Exception:
                 pass
@@ -283,42 +329,21 @@ async def do_telegram_login(progress_cb=None) -> LoginResult:
                 "afiliados" not in final_url
             )
 
-            if "afiliados" in final_url and "login" not in final_url and "auth" not in final_url:
+            if _is_authenticated_url(final_url):
                 # Login sucesso!
                 await _save_session(context)
-                await _clear_expired_flags()
+                _clear_expired_flags()
                 await context.close()
                 await _progress("✅ Login realizado com sucesso!")
                 return LoginResult(True, "✅ Login no ML Afiliados realizado! Sessão salva e renovada.")
 
             if has_image_challenge or ("recaptcha" in page_content.lower() and "afiliados" not in final_url):
                 # reCAPTCHA challenge de imagem — precisa VNC
-                await context.close()
-                await _progress("⚠️ reCAPTCHA challenge de imagem detectado")
-                return LoginResult(
-                    False,
-                    "⚠️ O ML pediu challenge de imagem do reCAPTCHA.\n\n"
-                    "Não consigo resolver automaticamente. Conecta via VNC:\n"
-                    "```\nssh -L 6080:localhost:6080 alessandro@192.168.15.45\n```\n"
-                    "Depois acessa: http://localhost:6080/vnc.html\n\n"
-                    "O navegador já está aberto na tela do captcha.",
-                    str(screenshot_final),
-                    True,
-                )
+                return await _wait_for_manual_completion(page, context, screenshot_final)
 
             # Verifica se pediu 2FA
             if "two-factor" in page_content.lower() or "2fa" in page_content.lower() or "verificação" in page_content.lower():
-                await context.close()
-                await _progress("📱 2FA necessário")
-                return LoginResult(
-                    False,
-                    "📱 O ML pediu verificação 2FA.\n\n"
-                    "Conecta via VNC para completar:\n"
-                    "```\nssh -L 6080:localhost:6080 alessandro@192.168.15.45\n```\n"
-                    "Depois acessa: http://localhost:6080/vnc.html",
-                    str(screenshot_final),
-                    True,
-                )
+                return await _wait_for_manual_completion(page, context, screenshot_final)
 
             # Não conseguiu detectar o que aconteceu
             await context.close()

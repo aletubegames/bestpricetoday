@@ -20,9 +20,36 @@ import string
 import base64
 import httpx
 import logging
+from urllib.parse import urljoin, urlparse
 
 router = APIRouter()
 links_logger = logging.getLogger("links_create")
+
+_IMAGE_ALLOWED_HOSTS = (
+    "mlstatic.com",
+    "alicdn.com",
+    "aliexpress-media.com",
+    "vteximg.com.br",
+    "vtex.com.br",
+    "shopee.com.br",
+    "amazon.com",
+    "kabum.com.br",
+)
+
+
+def _is_allowed_image_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    host = (parsed.hostname or "").lower()
+    return (
+        parsed.scheme == "https"
+        and bool(host)
+        and any(host == allowed or host.endswith(f".{allowed}") for allowed in _IMAGE_ALLOWED_HOSTS)
+        and not parsed.username
+        and not parsed.password
+    )
 
 
 def generate_code(length: int = 8) -> str:
@@ -246,12 +273,19 @@ async def redirect_to_store(
 @router.post("/r/{code}/report-dead")
 async def report_dead_link(
     code: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Marca um short link como quebrado (produto removido da loja).
     Usado pelo botão 'Link quebrado?' na página /oferta/{code}.
     """
+    from app.core.rate_limit import check_rate_limit, get_client_ip
+
+    ip = get_client_ip(request)
+    if not await check_rate_limit(ip, key="links_report_dead", max_calls=10, window_seconds=3600):
+        return JSONResponse(status_code=429, content={"error": "Too many reports from this IP."})
+
     result = await db.execute(select(ShortLink).where(ShortLink.code == code))
     link = result.scalar()
 
@@ -280,49 +314,43 @@ async def proxy_image(encoded: str):
             encoded += "=" * padding
         original_url = base64.urlsafe_b64decode(encoded).decode()
 
-        # ── SSRF protection ──────────────────────────────────────────
-        # Bloqueia esquemas não-HTTP e hosts internos (localhost, RFC1918,
-        # link-local, AWS metadata, etc).
-        from urllib.parse import urlparse
         import ipaddress
-
-        parsed = urlparse(original_url)
-        if parsed.scheme not in ("http", "https"):
-            return Response(status_code=403)
-
-        host = parsed.hostname or ""
-        if not host:
-            return Response(status_code=403)
-
-        # Hostnames literais que sempre bloqueamos
-        _BLOCKED_HOSTS = {
-            "localhost", "metadata.google.internal",
-            "metadata.aws.internal",
-        }
-        if host.lower() in _BLOCKED_HOSTS:
-            return Response(status_code=403)
-
-        # Tenta resolver e valida cada IP — bloqueia ranges privados
         import socket
-        try:
-            infos = socket.getaddrinfo(host, None)
-        except socket.gaierror:
-            return Response(status_code=404)
 
-        for family, _, _, _, sockaddr in infos:
-            ip_str = sockaddr[0]
-            try:
-                ip = ipaddress.ip_address(ip_str)
-            except ValueError:
-                continue
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                return Response(status_code=403)
-        # ── /SSRF protection ─────────────────────────────────────────
+        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as c:
+            current_url = original_url
+            for _ in range(4):
+                if not _is_allowed_image_url(current_url):
+                    return Response(status_code=403)
 
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(original_url, follow_redirects=True)
-            if r.status_code != 200:
-                return Response(status_code=404)
+                parsed = urlparse(current_url)
+                try:
+                    infos = socket.getaddrinfo(parsed.hostname, None)
+                except socket.gaierror:
+                    return Response(status_code=404)
+
+                for _, _, _, _, sockaddr in infos:
+                    try:
+                        ip = ipaddress.ip_address(sockaddr[0])
+                    except ValueError:
+                        continue
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                        return Response(status_code=403)
+
+                r = await c.get(current_url)
+                if 300 <= r.status_code < 400:
+                    location = r.headers.get("location")
+                    if not location:
+                        return Response(status_code=404)
+                    current_url = urljoin(current_url, location)
+                    continue
+                if r.status_code != 200:
+                    return Response(status_code=404)
+                if len(r.content) > 10 * 1024 * 1024:
+                    return Response(status_code=413)
+                break
+            else:
+                return Response(status_code=400)
 
         # Converte para JPEG usando PIL (Instagram não aceita webp)
         try:

@@ -6,19 +6,31 @@ from datetime import datetime, timezone
 
 
 REDACT_PATTERNS = [
+    (re.compile(r'(https?://api\.telegram\.org/bot)[^/\s"]+'), r'\1[REDACTED]'),
     (re.compile(r'(access_token["\s:=]+)[^\s",}&]+'), r'\1[REDACTED]'),
     (re.compile(r'(refresh_token["\s:=]+)[^\s",}&]+'), r'\1[REDACTED]'),
+    (re.compile(r'(client_secret["\s:=]+)[^\s",}&]+'), r'\1[REDACTED]'),
     (re.compile(r'(APP-\d{10,}-[a-f0-9-]+)'), '[ML_TOKEN_REDACTED]'),
     (re.compile(r'(Bearer\s+)[^\s"]+'), r'\1[REDACTED]'),
     (re.compile(r'(Authorization["\s:=]+Bearer\s+)[^\s"]+'), r'\1[REDACTED]'),
 ]
 
 
+def _sanitize(text: str) -> str:
+    for pattern, replacement in REDACT_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 class SanitizingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.msg and isinstance(record.msg, str):
-            for pattern, replacement in REDACT_PATTERNS:
-                record.msg = pattern.sub(replacement, record.msg)
+        try:
+            rendered = record.getMessage()
+        except Exception:
+            return True
+        if isinstance(rendered, str):
+            record.msg = _sanitize(rendered)
+            record.args = ()
         return True
 
 
@@ -41,6 +53,8 @@ class JSONFormatter(logging.Formatter):
 def setup_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JSONFormatter())
     handler.addFilter(SanitizingFilter())

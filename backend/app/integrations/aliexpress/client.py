@@ -330,7 +330,12 @@ class AliExpressClient(MarketplaceClient):
         resp_result = resp.get("resp_result", {})
 
         if resp_result.get("resp_code") != 200:
-            logger.warning(f"AliExpress TOP error: {resp_result.get('resp_msg')}")
+            msg = resp_result.get("resp_msg") or ""
+            # "The result is empty" = query sem produtos afiliados — não é erro
+            if "empty" in msg.lower():
+                logger.debug(f"AliExpress TOP: query sem resultados")
+            else:
+                logger.warning(f"AliExpress TOP error: {msg}")
             return []
 
         products = (

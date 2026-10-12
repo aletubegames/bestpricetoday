@@ -811,7 +811,7 @@ async def list_coupon_products(
     """Lista produtos que têm cupom associado (coletados via 'Ver produtos' no portal ML).
     Filtros: store, min/max_discount (percentual), min/max_price, sort.
     """
-    from sqlalchemy import func, desc, asc
+    from sqlalchemy import desc, asc
 
     # Query base — produtos de cupons ativos. Preço pode ser NULL (modelo novo
     # de cupons ML nem sempre expõe preço; enriquecido via API quando possível).
@@ -848,33 +848,24 @@ async def list_coupon_products(
     else:  # expires_soon (default)
         query = query.order_by(asc(Coupon.expires_at))
 
-    # Count query (sem limit/offset)
-    count_query = (
-        select(func.count(CouponProduct.id))
-        .join(Coupon, CouponProduct.coupon_id == Coupon.id)
-        .where(
-            Coupon.is_active == True,
-            CouponProduct.is_available == True,
-        )
-    )
-    if store:
-        count_query = count_query.where(Coupon.store_name.ilike(f"%{store}%"))
-    if min_discount is not None:
-        count_query = count_query.where(Coupon.discount_percent >= min_discount)
-    if max_discount is not None:
-        count_query = count_query.where(Coupon.discount_percent <= max_discount)
-    if min_price is not None:
-        count_query = count_query.where(CouponProduct.price >= min_price)
-    if max_price is not None:
-        count_query = count_query.where(CouponProduct.price <= max_price)
-
-    total = await db.scalar(count_query)
-
-    # Aplica limit/offset
-    query = query.limit(limit).offset(offset)
-
+    # Busca todas as linhas ordenadas — o mesmo produto (ml_code) pode estar
+    # em vários cupons e viraria card duplicado no grid. Dedup pela primeira
+    # ocorrência no sort pedido (mesmo padrão do /coupons acima).
     result = await db.execute(query)
     rows = result.all()
+
+    seen_keys = set()
+    deduped = []
+    for cp, coupon in rows:
+        key = cp.ml_code or cp.product_url
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        deduped.append((cp, coupon))
+
+    # Total e paginação depois do dedup
+    total = len(deduped)
+    rows = deduped[offset:offset + limit]
 
     # Helper para adicionar tracking de afiliado ML na URL
     _add_aff_tracking = add_ml_affiliate_tracking
@@ -912,7 +903,9 @@ async def list_coupon_stores(
     query = (
         select(
             Coupon.store_name,
-            func.count(CouponProduct.id).label("product_count"),
+            func.count(
+                func.distinct(func.coalesce(CouponProduct.ml_code, CouponProduct.product_url))
+            ).label("product_count"),
             func.max(Coupon.discount_percent).label("max_discount"),
             func.min(Coupon.expires_at).label("expires_soonest"),
         )

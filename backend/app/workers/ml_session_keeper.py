@@ -73,17 +73,12 @@ KEEPALIVE_URLS = [
     "https://www.mercadolivre.com.br/afiliados/home",
 ]
 
-# Pool de User-Agents reais e atuais (Chrome 138+, jul/2026).
-# Rotação aleatória por run evita detecção de UA fixo.
+# Pool de User-Agents mantido como lista para compatibilidade.
+# O servidor usa um único perfil Linux/Chrome consistente por execução.
 USER_AGENTS = [
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.92 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.92 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.92 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.108 Safari/537.36",
 ]
-USER_AGENT = USER_AGENTS[0]  # compat (não usar diretamente — use _pick_user_agent())
+USER_AGENT = USER_AGENTS[0]
 
 
 def _pick_user_agent() -> str:
@@ -522,7 +517,6 @@ async def _browser_keep_session(headless: bool = True) -> bool:
         logger.error("Perfil persistente não existe. Rode ml_scraper --login primeiro.")
         return False
 
-    _cleanup_orphan_chromiums()
     _cleanup_chrome_singleton_lock()
     _backup_storage_state()
 

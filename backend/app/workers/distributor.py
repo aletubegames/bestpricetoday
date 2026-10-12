@@ -753,24 +753,6 @@ async def post_to_facebook(offer: dict, caption: str, short_url: str = "") -> di
 
 # ─── Click tracking ───────────────────────────────────────────────────────────
 
-async def register_click(offer: dict, source: str):
-    """Registra o clique no backend para tracking."""
-    if not ADMIN_KEY:
-        return
-    try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            await c.post(f"{API_URL}/api/v1/admin/clicks", json={
-                "offer_id": offer.get("product_id", ""),
-                "provider": offer.get("provider", ""),
-                "product_title": offer.get("title", "")[:80],
-                "price": offer.get("final_price", 0),
-                "affiliate_url": offer.get("affiliate_url", ""),
-                "source": source,
-            })
-    except Exception:
-        pass
-
-
 # ─── Instagram poster ─────────────────────────────────────────────────────────
 
 async def _clean_image_url_for_ig(url: str) -> str:
@@ -835,13 +817,30 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
 
             client = InstagramFacebookClient()
 
-            # Publica foto no feed
-            result = await client.publish_photo_instagram(
-                ig_account_id=acct.instagram_id,
-                access_token=acct.access_token,
-                image_url=image_url,
-                caption=caption[:2200],
-            )
+            # Publica foto no feed — se o Graph rejeitar a URL da imagem (400),
+            # tenta de novo com a imagem servida pelo nosso /img/proxy
+            try:
+                result = await client.publish_photo_instagram(
+                    ig_account_id=acct.instagram_id,
+                    access_token=acct.access_token,
+                    image_url=image_url,
+                    caption=caption[:2200],
+                )
+            except Exception:
+                raw_url = offer.get("image_url", "")
+                if "/img/proxy/" not in image_url and raw_url.startswith("http"):
+                    import base64 as _b64
+                    encoded = _b64.urlsafe_b64encode(raw_url.encode()).decode().rstrip("=")
+                    proxied = f"{API_URL}/api/v1/img/proxy/{encoded}"
+                    logger.warning(f"Instagram: imagem direta falhou, retry via proxy: {raw_url[:60]}")
+                    result = await client.publish_photo_instagram(
+                        ig_account_id=acct.instagram_id,
+                        access_token=acct.access_token,
+                        image_url=proxied,
+                        caption=caption[:2200],
+                    )
+                else:
+                    raise
 
             media_id = result.get("media_id")
             logger.info(f"Instagram: posted photo {media_id} for offer '{offer.get('title','')[:40]}'")
@@ -1497,10 +1496,6 @@ async def distribute_offer(
             result = await post_to_youtube(offer, caption, short_url=short_url)
         else:
             result = {"ok": False, "error": f"Channel '{channel}' not implemented yet"}
-
-        # 4. Registrar click para tracking
-        if result.get("ok"):
-            await register_click(offer, source)
 
         result["short_url"] = short_url
         result["source"] = source

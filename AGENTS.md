@@ -108,6 +108,11 @@
 - "Conferir"/lista de produtos cai em CAPTCHA wall quando acessado por bot — extração nunca navega pra lá, só guarda a URL (funciona pra usuário real).
 - Cookies em `.ml_cookies.json` — login manual via VNC (reCAPTCHA bloqueia login programático)
 - Cupons vencidos: DELETAR (não só desativar)
+- Cupons que SOMEM da listagem sem vencer: `deactivate_missing_ml_coupons` desativa (is_active=False) — só roda após coleta COMPLETA (flag `completed` do scrape; coleta parcial não desativa nada)
+- Unique constraint `(provider, coupon_code)` na tabela coupons (index `uq_coupons_provider_code`) — upsert filtra provider e purga duplicatas históricas
+- `/api/v1/affiliate/coupons/products` deduplica por `ml_code`/`product_url` (mesmo produto em vários cupons = 1 card no site); `/coupons/stores` conta distinct
+- Enriquecimento `/items` do ML: app atual retorna 403 por item → desligado automaticamente (`cache["__disabled__"]`); `is_available` só vira False com status explícito != "active" (campo ausente NÃO marca indisponível)
+- `conditions` guarda só condições reais — "Sem compra mínima"/"Sem limite" são ausência de condição e não entram no texto
 - Frontend: `/cupons` — grid com filtros; cupom MLC-* mostra "ative na sua conta" (sem código pra copiar), CTA "Ver na loja"
 - Parser BR: "." = milhar, "," = decimal (R$1.670 = 1670, R$630,33 = 630.33)
 

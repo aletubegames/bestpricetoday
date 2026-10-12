@@ -47,7 +47,8 @@ async def _require_admin_lazy(
     from app.api.v1.endpoints.admin import require_admin
     return await require_admin(x_admin_key, admin_key, authorization, db)
 JWT_EXPIRE_DAYS = 30
-REDIRECT_URI = os.getenv("ML_REDIRECT_URI", "https://bestpricetoday.alaserver.com.br/auth/callback")
+# O ML app ainda tem a URI antiga do Vercel registrada — env tem prioridade.
+REDIRECT_URI = settings.ML_REDIRECT_URI or "https://bestpricetoday.alaserver.com.br/auth/callback"
 
 
 
@@ -70,12 +71,12 @@ def create_jwt(user_id: str, is_admin: bool = False) -> str:
         "admin": is_admin,
         "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRE_DAYS),
     }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, settings.secret_key_validated, algorithm=JWT_ALGORITHM)
 
 
 def decode_jwt(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return jwt.decode(token, settings.secret_key_validated, algorithms=[JWT_ALGORITHM])
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
 

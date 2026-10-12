@@ -19,14 +19,19 @@ const PROVIDER_EMOJI: Record<string, string> = {
 type IntegrationStatusEntry = { status?: string; expires_in_minutes?: number };
 type IntegrationStatus = Record<string, IntegrationStatusEntry>;
 
+interface MlMetrics {
+  days_tracked?: number; clicks_total?: number; orders_total?: number;
+  estimated_earnings_total?: number; last_collected_at?: string | null;
+}
 interface AdminOverview {
   total_clicks_today?: number; total_clicks_week?: number; total_clicks_month?: number;
   total_conversions?: number; total_revenue?: number; total_commission?: number;
   conversion_rate?: number; revenue_per_click?: number; revenue_by_provider?: Record<string, number>;
+  ml_metrics?: MlMetrics;
 }
 interface MarketplaceRow {
   provider: string; clicks?: number; conversions?: number; conversion_rate?: number;
-  revenue?: number; commission?: number; avg_price?: number;
+  revenue?: number; commission?: number; estimated_commission?: number; avg_price?: number;
   [key: string]: string | number | undefined;
 }
 interface TrafficRow { source: string; clicks?: number; percentage?: number }
@@ -588,6 +593,7 @@ export default function AdminPage() {
               { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "var(--org)", icon: "🏷️" },
               { label: "CTR", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "var(--grn)", icon: "🎯" },
               { label: "R$/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "var(--ylw)", icon: "💹" },
+              { label: "ML Ganho Est.", value: fmtBRL(overview?.ml_metrics?.estimated_earnings_total ?? 0), color: "#FFE600", icon: "🛒" },
             ].map(card => (
               <div key={card.label} className={styles.kpiCard} style={{ ["--kpiColor" as string]: card.color }}>
                 <div className={styles.kpiIcon}>{card.icon}</div>
@@ -688,7 +694,14 @@ export default function AdminPage() {
                       <td className={styles.td}>{row.conversions || 0}</td>
                       <td className={styles.td}>{(row.conversion_rate || 0).toFixed(2)}%</td>
                       <td className={styles.td} style={{ color: "var(--ylw)", fontWeight: 600 }}>{fmtBRL(row.revenue || 0)}</td>
-                      <td className={styles.td} style={{ color: "var(--grn)", fontWeight: 600 }}>{fmtBRL(row.commission || 0)}</td>
+                      <td className={styles.td} style={{ color: "var(--grn)", fontWeight: 600 }}>
+                        {fmtBRL(row.commission || 0)}
+                        {row.provider === "mercadolivre" && (
+                          <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: "0.85em" }} title="Ganho estimado do portal ML (soma dos snapshots diários)">
+                            {" "}+ {fmtBRL(row.estimated_commission || 0)} est.
+                          </span>
+                        )}
+                      </td>
                       <td className={styles.td}>{fmtBRL(row.avg_price || 0)}</td>
                     </tr>
                   ))}

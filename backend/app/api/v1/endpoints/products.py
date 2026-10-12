@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
 from app.core.logging import logger
-from app.models.models import PriceHistory, AffiliateClick, Offer
+from app.models.models import PriceHistory, AffiliateClick, Offer, Product
 from app.schemas.schemas import PriceHistoryPoint, ClickTrack, ClickTrackResponse
 from uuid import UUID
 import uuid

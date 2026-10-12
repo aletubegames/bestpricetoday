@@ -38,3 +38,6 @@ backend/.ml_oauth_alert_sent
 # Test/audit scripts (not part of the app)
 Pentest.py
 TesteCompleto.py
+
+# Documentos pessoais — NUNCA commitar
+frontend/public/Aletube-Company/

@@ -103,10 +103,9 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4ff", color: "#1a1a2e", fontFamily: "system-ui" }}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json">
+        {JSON.stringify(jsonLd)}
+      </script>
 
       <Header variant="default" />
 

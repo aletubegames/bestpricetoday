@@ -86,11 +86,25 @@ export default async function ProductPage({ params }: Props) {
     }
   }
 
+  // BreadcrumbList schema para rich snippets
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": SITE_BASE },
+      { "@type": "ListItem", "position": 2, "name": q, "item": `${SITE_BASE}/produto/${params.query}` },
+    ],
+  }
+
   return (
     <div className={styles.root}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
 
       <Header variant="default" />

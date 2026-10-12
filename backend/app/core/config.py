@@ -20,6 +20,11 @@ class Settings(BaseSettings):
                 RuntimeWarning, stacklevel=2,
             )
         return self.SECRET_KEY or "dev-secret-key"
+
+    def validate_runtime(self) -> None:
+        if not self.DEBUG and not self.SECRET_KEY:
+            raise RuntimeError("SECRET_KEY must be configured when DEBUG is false")
+
     API_V1_STR: str = "/api/v1"
 
     # Database
@@ -32,6 +37,7 @@ class Settings(BaseSettings):
     # Affiliate APIs
     MERCADOLIVRE_APP_ID: str = ""
     MERCADOLIVRE_SECRET: str = ""
+    ML_REDIRECT_URI: str = ""
     MERCADOLIVRE_ACCESS_TOKEN: str = ""
     MERCADOLIVRE_REFRESH_TOKEN: str = ""
     MERCADOLIVRE_TOKEN_EXPIRES_AT: int = 0  # Unix timestamp

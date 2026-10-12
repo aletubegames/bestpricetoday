@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Text, JSON, Enum as SAEnum
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Text, JSON, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
@@ -370,6 +370,11 @@ class Coupon(Base):
     Amazon: códigos detectados na página do produto ('com o cupom XXXXXX')
     """
     __tablename__ = "coupons"
+    __table_args__ = (
+        # Upsert é por (provider, coupon_code) — sem isso, runs concorrentes ou
+        # bugs de lookup deixam linhas gêmeas no banco
+        UniqueConstraint("provider", "coupon_code", name="uq_coupons_provider_code"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider = Column(String, nullable=False)  # mercadolivre, amazon

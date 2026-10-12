@@ -206,7 +206,7 @@ async def post_offer_to_channel(offer: dict) -> bool:
                     "price": price,
                     "affiliate_url": affiliate_url,
                     "source": "telegram_channel",
-                })
+                }, headers={"X-Admin-Key": ADMIN_KEY})
         except Exception:
             pass
 

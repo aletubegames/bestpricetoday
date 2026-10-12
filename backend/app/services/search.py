@@ -73,6 +73,28 @@ def merge_trending_items(*sources: list[dict[str, int | str]]) -> list[dict[str,
     return list(merged.values())
 
 
+async def record_search_event(
+    query: str,
+    normalized_query: str,
+    results_count: int,
+    source: str = "web",
+) -> None:
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.models.models import Search
+
+        async with AsyncSessionLocal() as db:
+            db.add(Search(
+                query=trim_trending_label(query),
+                normalized_query=normalized_query[:200],
+                results_count=results_count,
+                source=source,
+            ))
+            await db.commit()
+    except Exception as exc:
+        logger.warning(f"Search event persistence skipped: {type(exc).__name__}")
+
+
 async def record_trending_query(query: str) -> None:
     display_query = trim_trending_label(query)
     normalized_query = normalize_query(display_query)
@@ -226,6 +248,7 @@ async def search_all(
     query: str,
     limit: int = 20,
     providers: Optional[List[ProviderEnum]] = None,
+    record_event: bool = True,
 ) -> SearchResponse:
     start = time.time()
     normalized = normalize_query(query)
@@ -236,6 +259,8 @@ async def search_all(
     if cached:
         resp = SearchResponse(**cached)
         resp.cached = True
+        if record_event:
+            await record_search_event(query, normalized, resp.total)
         return resp
 
     active_providers = providers or list(PROVIDERS.keys())
@@ -321,5 +346,7 @@ async def search_all(
     )
 
     await set_cached(cache_key, response.model_dump())
-    await record_trending_query(query)
+    if record_event:
+        await record_search_event(query, normalized, response.total)
+        await record_trending_query(query)
     return response

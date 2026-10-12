@@ -14,10 +14,13 @@ async def search(request: SearchRequest, req: Request):
     if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
         raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")
     try:
+        ip = req.client.host if req.client else "unknown"
+        is_ssr = ip in ("127.0.0.1", "::1", "localhost")
         return await search_all(
             query=request.query,
             limit=request.limit,
             providers=request.providers,
+            record_event=not is_ssr,
         )
     except Exception as e:
         logger.error(f"Search POST error: {e}", exc_info=True)
@@ -40,7 +43,9 @@ async def search_get(
         provider_list = None
         if providers:
             provider_list = [ProviderEnum(p.strip()) for p in providers.split(",") if p.strip()]
-        return await search_all(query=q, limit=limit, providers=provider_list)
+        # SSR/ISR do Next.js (localhost) não conta como busca de usuário real
+        is_ssr = ip in ("127.0.0.1", "::1", "localhost")
+        return await search_all(query=q, limit=limit, providers=provider_list, record_event=not is_ssr)
     except Exception as e:
         logger.error(f"Search GET error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
@@ -274,11 +279,26 @@ async def list_affiliate_products(
                     AffiliateProduct.title.ilike(f"%{search}%"),
                     AffiliateProduct.category.ilike(f"%{search}%"),
                 )
+                provider_filter = (
+                    or_(
+                        func.lower(AffiliateProduct.notes).like("%ml_scraper%"),
+                        func.lower(AffiliateProduct.affiliate_url).like("%meli.la%"),
+                        func.lower(AffiliateProduct.affiliate_url).like("%mercadolivre%"),
+                    )
+                    if provider == "mercadolivre"
+                    else True
+                )
                 query_db = select(AffiliateProduct).where(
-                    AffiliateProduct.is_active == True, url_filter, search_filter
+                    AffiliateProduct.is_active == True,
+                    url_filter,
+                    provider_filter,
+                    search_filter,
                 )
                 count_q = select(func.count(AffiliateProduct.id)).where(
-                    AffiliateProduct.is_active == True, url_filter, search_filter
+                    AffiliateProduct.is_active == True,
+                    url_filter,
+                    provider_filter,
+                    search_filter,
                 )
                 total_result = await db.execute(count_q)
                 total = total_result.scalar() or 0
@@ -401,7 +421,7 @@ async def sitemap_queries(limit: int = Query(default=500, ge=1, le=10000)):
 @router.get("/debug/aliexpress")
 async def debug_aliexpress(q: str = Query(default="fone bluetooth")):
     """Endpoint de diagnóstico — mostra resposta bruta da API AliExpress."""
-    import hashlib, hmac, time, httpx, os
+    import hashlib, hmac, time, httpx
     from app.core.config import settings
     app_key    = settings.ALIEXPRESS_APP_KEY
     app_secret = settings.ALIEXPRESS_APP_SECRET

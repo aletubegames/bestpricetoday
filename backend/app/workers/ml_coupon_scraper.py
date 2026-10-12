@@ -36,9 +36,9 @@ import os
 import random
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import httpx
 
@@ -98,7 +98,7 @@ DEMAND_KEYWORDS = {
 # Keywords de produtos que NÃO devem ser salvos (acessórios/genéricos)
 EXCLUDE_KEYWORDS = {
     "capa", "case", "cover", "filme", "protetor", "pelicula", "película",
-    "carregador", "cabo", "fonte", "adaptador", "suporte", "base", "suporte",
+    "carregador", "cabo", "fonte", "adaptador", "suporte", "base",
     "pneu", "aro", "roda", "para-choque", "parachoque", "retrovisor",
     "bolsa airbag", "tapete", "capa máquina", "capo", "capó",
 }
@@ -224,10 +224,25 @@ async def save_coupons(coupons: List[dict]):
                 skipped_low_demand += 1
                 continue
             existing = await db.execute(
-                select(Coupon).where(Coupon.coupon_code == c["coupon_code"])
+                select(Coupon)
+                .where(
+                    Coupon.provider == "mercadolivre",
+                    Coupon.coupon_code == c["coupon_code"],
+                )
+                .order_by(Coupon.updated_at.desc())
             )
-            existing = existing.scalar()
-            if existing:
+            existing_rows = existing.scalars().all()
+            if existing_rows:
+                # Purga duplicatas históricas do mesmo provider+code (o upsert
+                # antigo sem provider podia deixar linhas gêmeas no banco)
+                if len(existing_rows) > 1:
+                    dup_ids = [r.id for r in existing_rows[1:]]
+                    await db.execute(
+                        delete(CouponProduct).where(CouponProduct.coupon_id.in_(dup_ids))
+                    )
+                    await db.execute(delete(Coupon).where(Coupon.id.in_(dup_ids)))
+                    logger.info(f"Removidas {len(dup_ids)} duplicatas de {c['coupon_code']}")
+                existing = existing_rows[0]
                 # Atualiza
                 existing.discount_text = c.get("discount_text")
                 existing.discount_percent = c.get("discount_percent")
@@ -323,27 +338,70 @@ async def deactivate_expired_coupons():
                 logger.info(f"Deletados {count} cupons vencidos")
 
 
+async def deactivate_missing_ml_coupons(seen_codes: set):
+    """Desativa cupons ML que sumiram da listagem (só rodar após run COMPLETO).
+
+    Cupom pode sumir antes de expirar (budget esgotado, campanha encerrada) —
+    sem isso ficava is_active=True pra sempre. Desativa, não deleta: pode
+    voltar, e o histórico de produtos é útil.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.models.models import Coupon
+    from sqlalchemy import update
+
+    if not seen_codes:
+        logger.warning("Run completo com 0 cupons vistos — suspeito; nada desativado")
+        return
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            update(Coupon)
+            .where(
+                Coupon.provider == "mercadolivre",
+                Coupon.is_active == True,
+                Coupon.coupon_code.notin_(seen_codes),
+            )
+            .values(is_active=False, updated_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+        if result.rowcount:
+            logger.info(f"Desativados {result.rowcount} cupons ausentes da listagem ML")
+
+
 async def cleanup_expired_coupons():
     """Função standalone para deletar cupons vencidos (chamada via cron)."""
     await deactivate_expired_coupons()
 
 
 # ── parse helpers ──────────────────────────────────────────────────────────────
-def parse_discount(text: str) -> dict:
-    """Extrai desconto do texto. '21% OFF' -> {percent: 21}. 'R$ 80 OFF' -> {value: 80}."""
-    result = {}
-    m = re.search(r"(\d+(?:[.,]\d+)?)\s*%\s*OFF", text, re.I)
-    if m:
-        result["discount_percent"] = float(m.group(1).replace(",", "."))
-        result["discount_text"] = f"{m.group(1)}% OFF"
-        return result
-    m = re.search(r"R\$\s*(\d+(?:[.,]\d+)?)\s*OFF", text, re.I)
-    if m:
-        result["discount_value"] = float(m.group(1).replace(".", "").replace(",", "."))
-        result["discount_text"] = f"R$ {m.group(1)} OFF"
-        return result
-    result["discount_text"] = text.strip()
-    return result
+BR_TIMEZONE = timezone(timedelta(hours=-3), "BRT")  # Brasil sem DST desde 2019
+
+_MONTHS_PT = {
+    "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "abril": 4,
+    "maio": 5, "junho": 6, "julho": 7, "agosto": 8,
+    "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+}
+
+
+def parse_expiry(text: str) -> Optional[datetime]:
+    """'Vence 15 de outubro' -> 23:59:59 BRT desse dia (ano seguinte se já passou).
+
+    ML expira cupons às 23:59 horário de Brasília (=02:59Z — ver
+    tracking.expiration_date). Fallback quando não há ISO no payload.
+    """
+    m = re.search(r"(\d+)\s+de\s+(\w+)", text or "")
+    if not m:
+        return None
+    month = _MONTHS_PT.get(m.group(2).lower())
+    if not month:
+        return None
+    now = datetime.now(timezone.utc)
+    try:
+        dt = datetime(now.year, month, int(m.group(1)), 23, 59, 59, tzinfo=BR_TIMEZONE)
+        if dt < now:
+            dt = dt.replace(year=now.year + 1)
+        return dt
+    except ValueError:
+        return None
 
 
 def _parse_iso_date(s: Optional[str]) -> Optional[datetime]:
@@ -374,6 +432,25 @@ def _parse_br_money(s: str) -> Optional[float]:
         return float(v)
     except ValueError:
         return None
+
+
+def parse_discount(text: str) -> dict:
+    """Extrai desconto do texto. '21% OFF' -> {percent: 21}. 'R$ 80 OFF' -> {value: 80}."""
+    result = {}
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*%\s*OFF", text, re.I)
+    if m:
+        result["discount_percent"] = float(m.group(1).replace(",", "."))
+        result["discount_text"] = f"{m.group(1)}% OFF"
+        return result
+    m = re.search(r"R\$\s*([\d.,]+)\s*OFF", text, re.I)
+    if m:
+        value = _parse_br_money(m.group(1))
+        if value is not None:
+            result["discount_value"] = value
+            result["discount_text"] = f"R$ {m.group(1)} OFF"
+            return result
+    result["discount_text"] = text.strip()
+    return result
 
 
 def _product_url_from_ml_code(ml_code: str) -> str:
@@ -468,31 +545,16 @@ def _extract_coupons_page(data: dict) -> tuple:
             )
             if not coupon["expires_at"]:
                 exp_text = (c.get("expirationDate") or {}).get("text") or ""
-                m_exp = re.search(r"(\d+)\s+de\s+(\w+)", exp_text)
-                if m_exp:
-                    months = {
-                        "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4,
-                        "maio": 5, "junho": 6, "julho": 7, "agosto": 8,
-                        "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
-                    }
-                    month = months.get(m_exp.group(2).lower())
-                    if month:
-                        year = datetime.now(timezone.utc).year
-                        try:
-                            dt = datetime(year, month, int(m_exp.group(1)), 23, 59, 59, tzinfo=timezone.utc)
-                            if dt < datetime.now(timezone.utc):
-                                dt = dt.replace(year=year + 1)
-                            coupon["expires_at"] = dt
-                        except ValueError:
-                            pass
+                coupon["expires_at"] = parse_expiry(exp_text)
 
-            # Condições: compra mínima + limite
+            # Condições: compra mínima + limite. "Sem compra mínima."/"Sem
+            # limite." são a AUSÊNCIA de condição — não entram no texto.
             cond_parts = []
             min_txt = (amount.get("minAmount") or "").strip()
             cap_txt = (amount.get("capAmount") or "").strip()
-            if min_txt:
+            if min_txt and not re.match(r"sem\b", min_txt, re.I):
                 cond_parts.append(min_txt.rstrip("."))
-            if cap_txt:
+            if cap_txt and not re.match(r"sem\b", cap_txt, re.I):
                 cond_parts.append(cap_txt.rstrip("."))
             coupon["conditions"] = " · ".join(cond_parts) if cond_parts else None
             coupon["min_amount"] = _parse_br_money(min_txt)
@@ -606,8 +668,6 @@ async def _enrich_products_with_prices(coupons: List[dict], token: Optional[str]
             if mc and mc not in cache:
                 cache[mc] = None  # reserva: evita refetch em cupons seguintes
                 wanted.append(mc)
-    if not wanted:
-        return
 
     for i in range(0, len(wanted), ML_ITEMS_BATCH):
         chunk = wanted[i:i + ML_ITEMS_BATCH]
@@ -620,7 +680,7 @@ async def _enrich_products_with_prices(coupons: List[dict], token: Optional[str]
             if r.status_code != 200:
                 logger.warning(f"ML items API {r.status_code} — pulando enriquecimento")
                 cache["__disabled__"] = True
-                return
+                break
             entries = r.json()
             # Multiget retorna [{code, body}] — 403 em TODOS os itens = app sem
             # escopo de leitura de items → desliga pro resto da rodada.
@@ -629,7 +689,7 @@ async def _enrich_products_with_prices(coupons: List[dict], token: Optional[str]
             ):
                 logger.info("ML items API sem acesso a /items (403) — enriquecimento desligado")
                 cache["__disabled__"] = True
-                return
+                break
             for entry in entries:
                 # code != 200 = erro por item (body.status é int, não status do item)
                 if (entry.get("code") or 200) != 200:
@@ -646,14 +706,19 @@ async def _enrich_products_with_prices(coupons: List[dict], token: Optional[str]
                     "price": price if isinstance(price, (int, float)) else None,
                     "permalink": permalink,
                     "title": title,
-                    "available": status == "active",
+                    # Só marca indisponível com status explícito — campo ausente
+                    # não é evidência (foi assim que um 403 zerou is_available)
+                    "available": (status == "active") if isinstance(status, str) and status else True,
                 }
         except Exception as e:
             logger.warning(f"ML items API erro: {e}")
-            return
+            break
         await asyncio.sleep(0.4)
 
-    # Aplica cache aos produtos desta página
+    # Aplica cache aos produtos desta página — SEMPRE, mesmo após falha parcial
+    # (itens já buscados em batches anteriores não podem ser desperdiçados, e
+    # produtos cujo ml_code já estava em cache de páginas anteriores dependem
+    # exclusivamente deste bloco)
     for c in coupons:
         for p in c["products"]:
             info = cache.get(p.get("ml_code") or "")
@@ -681,15 +746,17 @@ async def _get_ml_api_token() -> Optional[str]:
 
 
 # ── scraper ────────────────────────────────────────────────────────────────────
-async def scrape_ml_coupons(max_pages: int = 0) -> List[dict]:
+async def scrape_ml_coupons(max_pages: int = 0) -> Tuple[List[dict], bool]:
     """Coleta todos os cupons de /cupons/filter?all=true via HTTP + JSON SSR.
 
-    Retorna lista de cupons normalizados (dedup por campaignId).
+    Retorna (lista_de_cupons, completou). `completou` é False quando o scrape
+    aborta antes do fim da listagem (login wall, falhas consecutivas, limites)
+    — usado para NÃO desativar cupons ausentes numa coleta parcial.
     """
     cookies = _load_cookie_dict()
     if not cookies:
         logger.error("Sem cookies para requisição")
-        return []
+        return [], False
 
     api_token = await _get_ml_api_token()
     if api_token:
@@ -728,7 +795,7 @@ async def scrape_ml_coupons(max_pages: int = 0) -> List[dict]:
                     logger.info("Cookies expirados — EXPIRED_FILE recente, keeper já alertou (silêncio)")
                 else:
                     logger.error("Cookies expirados — redirecionou para login")
-                return all_coupons  # retorna o que já coletou
+                return all_coupons, False  # coleta parcial
             if not html:
                 consecutive_failures += 1
                 if consecutive_failures >= 3:
@@ -740,9 +807,14 @@ async def scrape_ml_coupons(max_pages: int = 0) -> List[dict]:
 
             data = _extract_rendering_ctx(html)
             if not data:
-                logger.warning(f"Página {page}: sem __NORDIC_RENDERING_CTX__")
-                await asyncio.sleep(random.uniform(*PAGE_DELAY_RANGE))
-                page += 1
+                # Falha de parse NÃO avança de página — retenta a mesma (antes
+                # pulava e perdia até 30 cupons por página)
+                consecutive_failures += 1
+                if consecutive_failures >= 3:
+                    logger.error("3 falhas consecutivas de parse — abortando")
+                    break
+                logger.warning(f"Página {page}: sem __NORDIC_RENDERING_CTX__ — retentando")
+                await asyncio.sleep(5)
                 continue
 
             page_coupons, total_pages, total_coupons = _extract_coupons_page(data)
@@ -777,8 +849,14 @@ async def scrape_ml_coupons(max_pages: int = 0) -> List[dict]:
             await asyncio.sleep(random.uniform(*PAGE_DELAY_RANGE))
             page += 1
 
-    logger.info(f"Total coletado: {len(all_coupons)} cupons únicos (de ~{total_coupons} anunciados)")
-    return all_coupons
+    # Completo = varreu até depois da última página anunciada. Break por falha,
+    # max_pages, hard limit ou página vazia antes do fim = coleta parcial.
+    completed = page > total_pages
+    logger.info(
+        f"Total coletado: {len(all_coupons)} cupons únicos "
+        f"(de ~{total_coupons} anunciados){'' if completed else ' — PARCIAL'}"
+    )
+    return all_coupons, completed
 
 
 # ── main ───────────────────────────────────────────────────────────────────────
@@ -801,10 +879,17 @@ async def run(max_pages: int = 0, headless: bool = True, collect_only: bool = Fa
         return []
 
     try:
-        coupons = await scrape_ml_coupons(max_pages=max_pages)
+        coupons, completed = await scrape_ml_coupons(max_pages=max_pages)
 
         # Desativa vencidos
         await deactivate_expired_coupons()
+
+        # Cupons que sumiram da listagem (budget esgotado etc.) — só com
+        # coleta completa, senão uma run parcial desativaria cupons válidos
+        if completed:
+            await deactivate_missing_ml_coupons({c["coupon_code"] for c in coupons})
+        else:
+            logger.info("Coleta parcial — cupons ausentes NÃO serão desativados")
     finally:
         lock.release()
 
@@ -814,11 +899,16 @@ async def run(max_pages: int = 0, headless: bool = True, collect_only: bool = Fa
     return coupons
 
 
+def _str2bool(v) -> bool:
+    """type=bool do argparse avalia 'false'/'0' como True — parse correto."""
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on", "sim")
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Scraper de cupons do ML")
     parser.add_argument("--max-pages", type=int, default=0, help="Limite de páginas (0 = todas)")
-    parser.add_argument("--headless", type=bool, default=True, help="Ignorado (scrape é HTTP puro)")
+    parser.add_argument("--headless", type=_str2bool, nargs="?", const=True, default=True, help="Ignorado (scrape é HTTP puro)")
     parser.add_argument("--cleanup-only", action="store_true", help="Apenas deleta cupons vencidos")
     parser.add_argument("--collect-only", action="store_true", help="Ignorado (modelo antigo)")
     args = parser.parse_args()
