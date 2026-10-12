@@ -15,10 +15,7 @@ interface AccountStatus {
   channel_title?: string;
   page_name?: string;
   avatar?: string;
-  display_name?: string;
-  page_name?: string;
   page_url?: string;
-  channel_title?: string;
   channel_url?: string;
   avatar_url?: string;
   token_status?: "ok" | "expiring" | "expired" | "expiring_soon" | "unknown";
