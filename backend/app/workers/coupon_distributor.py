@@ -159,8 +159,6 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
             .where(
                 Coupon.is_active == True,
                 CouponProduct.is_available == True,
-                CouponProduct.price.isnot(None),
-                CouponProduct.price > 0,
                 Coupon.expires_at > datetime.now(timezone.utc),
                 or_(*conditions),
             )
@@ -169,7 +167,7 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
             # NULL * x = NULL → sem coalesce a ordenação quebra para 100% das linhas
             .order_by(
                 desc(
-                    func.coalesce(Coupon.discount_percent, 0) * CouponProduct.price / 100.0
+                    func.coalesce(Coupon.discount_percent, 0) * func.coalesce(CouponProduct.price, 0) / 100.0
                     + func.coalesce(Coupon.discount_value, 0)
                 )
             )
@@ -184,7 +182,7 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
             seen_coupons.add(coupon.coupon_code)
             results.append({
                 "title": cp.title,
-                "price": float(cp.price),
+                "price": float(cp.price) if cp.price is not None else None,
                 "image_url": cp.image_url,
                 "product_url": cp.product_url,
                 "ml_code": cp.ml_code,
@@ -238,12 +236,11 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
                 FROM coupon_products cp
                 JOIN coupons c ON cp.coupon_id = c.id
                 WHERE c.is_active = true AND cp.is_available = true
-                  AND cp.price IS NOT NULL AND cp.price > 0
                   AND c.expires_at > NOW()
                 ORDER BY (
-                    GREATEST(c.discount_percent, 0) * cp.price / 100.0
+                    GREATEST(c.discount_percent, 0) * COALESCE(cp.price, 0) / 100.0
                     + COALESCE(c.discount_value, 0)
-                ) DESC, cp.price ASC
+                ) DESC, cp.price ASC NULLS LAST
                 LIMIT :limit
             """), {"limit": num * 3})
             seen_codes = {o["coupon_code"] for o in all_offers}
@@ -252,7 +249,8 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
                     continue
                 seen_codes.add(row[5])
                 all_offers.append({
-                    "title": row[0], "price": float(row[1]), "image_url": row[2],
+                    "title": row[0], "price": float(row[1]) if row[1] is not None else None,
+                    "image_url": row[2],
                     "product_url": row[3], "ml_code": row[4],
                     "coupon_code": row[5], "coupon_discount": row[6] or "",
                     "coupon_discount_percent": float(row[7] or 0),
@@ -305,14 +303,20 @@ def build_coupon_caption_telegram(offer: dict) -> str:
     lines = [f"🏷️ CUPOM DE DESCONTO — {now}\n"]
     lines.append(f"📦 {title}")
     lines.append("")
-    lines.append(f"💵 {fmt_brl(price)}")
-    if discount_pct > 0 and economy > 0:
-        lines.append(f"🏷️ Com cupom: {fmt_brl(final_price)}")
-        lines.append(f"   ↳ Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
-    if discount:
-        lines.append(f"   → {discount}")
+    if price:
+        lines.append(f"💵 {fmt_brl(price)}")
+        if discount_pct > 0 and economy > 0:
+            lines.append(f"🏷️ Com cupom: {fmt_brl(final_price)}")
+            lines.append(f"   ↳ Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
+        if discount:
+            lines.append(f"   → {discount}")
+    elif discount:
+        lines.append(f"🏷️ {discount}")
     lines.append("")
-    lines.append(f"🎫 CUPOM: {coupon_code}")
+    if str(coupon_code).startswith("MLC-"):
+        lines.append("🎫 Ative o cupom na sua conta do Mercado Livre")
+    else:
+        lines.append(f"🎫 CUPOM: {coupon_code}")
     if store:
         lines.append(f"🏪 Loja: {store}")
 
@@ -340,6 +344,7 @@ def build_coupon_caption_facebook(offer: dict) -> str:
     title = offer["title"][:80]
     price = offer["price"]
     coupon_code = offer["coupon_code"]
+    discount = offer.get("coupon_discount", "")
     store = offer.get("store_name", "")
     expires = offer.get("coupon_expires_at")
     now = datetime.now(BR_TIMEZONE).strftime("%d/%m %H:%M")
@@ -349,12 +354,18 @@ def build_coupon_caption_facebook(offer: dict) -> str:
     lines = [f"🏷️ CUPOM DE DESCONTO — {now}\n"]
     lines.append(f"📦 {title}")
     lines.append("")
-    lines.append(f"💵 {fmt_brl(price)}")
-    if discount_pct > 0 and economy > 0:
-        lines.append(f"🏷️ Com cupom: {fmt_brl(final_price)}")
-        lines.append(f"   ↳ Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
+    if price:
+        lines.append(f"💵 {fmt_brl(price)}")
+        if discount_pct > 0 and economy > 0:
+            lines.append(f"🏷️ Com cupom: {fmt_brl(final_price)}")
+            lines.append(f"   ↳ Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
+    elif discount:
+        lines.append(f"🏷️ {discount}")
 
-    lines.append(f"\n🎫 CUPOM: {coupon_code}")
+    if str(coupon_code).startswith("MLC-"):
+        lines.append("\n🎫 Ative o cupom na sua conta do Mercado Livre")
+    else:
+        lines.append(f"\n🎫 CUPOM: {coupon_code}")
     if store:
         lines.append(f"🏪 Loja: {store}")
 
@@ -377,17 +388,24 @@ def build_coupon_youtube_description(offer: dict) -> str:
     title = offer["title"][:80]
     price = offer["price"]
     coupon_code = offer["coupon_code"]
+    discount = offer.get("coupon_discount", "")
     store = offer.get("store_name", "")
     product_url = offer.get("short_url") or offer.get("product_url", "")
 
     final_price, economy, discount_pct = _coupon_discount_info(offer)
 
     lines = [f"🏷️ {title}"]
-    lines.append(f"💵 {fmt_brl(price)}")
-    if discount_pct > 0 and economy > 0:
-        lines.append(f"Com cupom: {fmt_brl(final_price)}")
-        lines.append(f"Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
-    lines.append(f"\n🎫 CUPOM: {coupon_code}")
+    if price:
+        lines.append(f"💵 {fmt_brl(price)}")
+        if discount_pct > 0 and economy > 0:
+            lines.append(f"Com cupom: {fmt_brl(final_price)}")
+            lines.append(f"Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
+    elif discount:
+        lines.append(f"🏷️ {discount}")
+    if str(coupon_code).startswith("MLC-"):
+        lines.append("\n🎫 Ative o cupom na sua conta do Mercado Livre")
+    else:
+        lines.append(f"\n🎫 CUPOM: {coupon_code}")
     if store:
         lines.append(f"🏪 Loja: {store}")
     if product_url:
@@ -2326,7 +2344,7 @@ async def distribute_coupons():
             "affiliate_url": product_url,
             "provider": "mercadolivre",
             "title": offer.get("title", ""),
-            "final_price": offer.get("price", 0),
+            "final_price": offer.get("price") or 0,
             "image_url": offer.get("image_url", ""),
         }
         short_url = await create_short_link(short_link_offer, source="coupon", campaign=offer.get("coupon_code"))
@@ -2339,8 +2357,11 @@ async def distribute_coupons():
     fb = await post_coupon_facebook(offer)
     logger.info(f"  Facebook: {fb.get('ok')}")
 
-    # YouTube em background (não bloqueia)
-    asyncio.create_task(post_coupon_youtube(offer))
+    # YouTube em background (não bloqueia) — precisa de preço pro overlay DE→POR
+    if offer.get("price"):
+        asyncio.create_task(post_coupon_youtube(offer))
+    else:
+        logger.info("  YouTube: pulado (cupom sem preço)")
 
     await asyncio.sleep(2)
 
