@@ -608,7 +608,7 @@ async def get_product_suggestions(
             from app.services.search import search_all
             from app.schemas.schemas import ProviderEnum
             provs = [ProviderEnum(p) for p in providers] if providers else None
-            resp = await search_all(query=query, limit=8, providers=provs)
+            resp = await search_all(query=query, limit=8, providers=provs, record_event=False)
             return [o.model_dump() for o in resp.offers]
         except Exception as e:
             logger.debug(f"_search('{query}'): {e}")

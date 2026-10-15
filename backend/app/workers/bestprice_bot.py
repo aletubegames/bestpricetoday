@@ -37,7 +37,7 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text(f"🔍 Buscando *{query}*...", parse_mode="Markdown")
 
     try:
-        result = await search_all(query=query, limit=5)
+        result = await search_all(query=query, limit=5, event_source="telegram")
 
         if not result.offers:
             await msg.edit_text(

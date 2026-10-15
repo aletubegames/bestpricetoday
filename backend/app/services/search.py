@@ -249,6 +249,7 @@ async def search_all(
     limit: int = 20,
     providers: Optional[List[ProviderEnum]] = None,
     record_event: bool = True,
+    event_source: str = "web",
 ) -> SearchResponse:
     start = time.time()
     normalized = normalize_query(query)
@@ -260,7 +261,7 @@ async def search_all(
         resp = SearchResponse(**cached)
         resp.cached = True
         if record_event:
-            await record_search_event(query, normalized, resp.total)
+            await record_search_event(query, normalized, resp.total, source=event_source)
         return resp
 
     active_providers = providers or list(PROVIDERS.keys())
@@ -347,6 +348,7 @@ async def search_all(
 
     await set_cached(cache_key, response.model_dump())
     if record_event:
-        await record_search_event(query, normalized, response.total)
-        await record_trending_query(query)
+        await record_search_event(query, normalized, response.total, source=event_source)
+        if event_source != "ssr":
+            await record_trending_query(query)
     return response

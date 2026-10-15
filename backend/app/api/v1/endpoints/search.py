@@ -9,18 +9,17 @@ router = APIRouter()
 
 @router.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest, req: Request):
-    from app.core.rate_limit import check_rate_limit
-    ip = req.client.host if req.client else "unknown"
+    from app.core.rate_limit import check_rate_limit, get_client_ip
+    ip = get_client_ip(req)
     if not await check_rate_limit(ip, key="search", max_calls=30, window_seconds=60):
         raise HTTPException(status_code=429, detail="Rate limit: max 30 buscas/min por IP.")
     try:
-        ip = req.client.host if req.client else "unknown"
         is_ssr = ip in ("127.0.0.1", "::1", "localhost")
         return await search_all(
             query=request.query,
             limit=request.limit,
             providers=request.providers,
-            record_event=not is_ssr,
+            event_source="ssr" if is_ssr else "web",
         )
     except Exception as e:
         logger.error(f"Search POST error: {e}", exc_info=True)
@@ -43,9 +42,12 @@ async def search_get(
         provider_list = None
         if providers:
             provider_list = [ProviderEnum(p.strip()) for p in providers.split(",") if p.strip()]
-        # SSR/ISR do Next.js (localhost) não conta como busca de usuário real
+        # SSR/ISR do Next.js (localhost) é registrado com source separado
         is_ssr = ip in ("127.0.0.1", "::1", "localhost")
-        return await search_all(query=q, limit=limit, providers=provider_list, record_event=not is_ssr)
+        return await search_all(
+            query=q, limit=limit, providers=provider_list,
+            event_source="ssr" if is_ssr else "web",
+        )
     except Exception as e:
         logger.error(f"Search GET error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
@@ -348,6 +350,7 @@ async def list_affiliate_products(
             query=query,
             limit=search_limit,
             providers=[ProviderEnum(provider)],
+            record_event=False,
         )
         
         # Filtrar ofertas pelo provider solicitado (garantia extra)

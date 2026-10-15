@@ -99,6 +99,7 @@
 - Stats do admin (`overview`, `marketplaces`, `traffic`, `analytics`, `conversions/summary`) filtram UAs de bot via `_real_clicks_cond()` — distributor_* no `source` pode ser clique real de usuário, NÃO filtrar por source
 - ML earnings no admin vêm de `affiliate_metrics_snapshots` (overview.ml_metrics) — ML não tem API de ordens, Amazon também não
 - Backup pré-dedup: tabela `affiliate_products_bak_20260913` no Neon
+- **`searches.source`** (fix 15/out): `search_all` aceita `event_source` — GET/POST `/search` gravam `web` (IP real via `get_client_ip`/CF-Connecting-IP) ou `ssr` (localhost = render do Next.js). Filtro `is_ssr` de 12/out descartava TUDO porque ~100% do tráfego é SSR → tabela zerou 13-15/out e gráfico da home caiu em mock. `ssr` não alimenta trending (`record_trending_query` só para web/telegram). Bot Telegram grava `telegram`; `/affiliate/products` e busca interna do admin passam `record_event=False`. POST `/search` agora usa `get_client_ip` (antes rate-limit era um balde único `127.0.0.1` — IPs reais derrubavam o limite uns dos outros)
 
 ## Cupons ML (modelo novo — desde 05/out/2026)
 - **Modelo antigo MORTO**: ML descontinuou cupom de afiliado com código gerável (ALETUBE*). `/afiliados/coupons` redireciona pro hub — os seletores `#coupons-tabs-tab-*` não existem mais.
