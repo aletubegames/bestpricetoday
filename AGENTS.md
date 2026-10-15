@@ -14,6 +14,8 @@
 ## Deploy
 - **SEMPRE que corrigir um arquivo, subir para o alaserver (192.168.15.45) imediatamente — E COMMITAR**: em 12/out/2026 foram achados 25 arquivos rodando em prod sem commit (pull feito, tudo sincronizado). O servidor NÃO é repo git — o repo GitHub (`aletubegames/bestpricetoday`, PÚBLICO) é a fonte da verdade. Hotfix direto no servidor = dívida.
 - SSH: `ssh alessandro@192.168.15.45` (só acessível via rede local, não 4G/5G); `sudo -n` funciona sem senha
+- **SSH só por chave** (15/out): `50-cloud-init.conf` forçava `PasswordAuthentication yes` (drop-in precede o main config — primeiro valor ganha). Corrigido pra `no`; efetivo: pubkey on, password off, kbdinteractive off, root login off. Se cloud-init regerar o arquivo, re-checarr `sshd -T | grep passwordauth`
+- User `nova` (UID 107, conta travada sem home) removido em 15/out — era resto de instalação
 - Backend: `/home/alessandro/backend/` | Frontend: `/home/alessandro/frontend/`
 - Reiniciar backend: `sudo systemctl restart bestprice-backend`
 - Reiniciar frontend: `sudo systemctl restart bestprice-frontend`
