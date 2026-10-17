@@ -145,9 +145,10 @@ def _offer_key(offer: dict) -> str:
 
     affiliate_url NÃO serve como chave: o portal ML gera um meli.la novo
     a cada scrape, então dedup por URL nunca batia e o mesmo produto era
-    repostado todo dia. Prioriza ml_code > id (UUID do DB) > título.
+    repostado todo dia. Prioriza ml_code > id > product_id > título.
+    (ofertas da busca live trazem product_id; do DB trazem ml_code/id)
     """
-    key = offer.get("ml_code") or offer.get("id")
+    key = offer.get("ml_code") or offer.get("id") or offer.get("product_id")
     if key:
         return str(key)
     title = (offer.get("title") or "").strip().lower()
@@ -1580,15 +1581,17 @@ async def distribute_auto(
             min(3, len(DEMAND_CATEGORIES[category]))
         )
 
+        # Busca in-process — antes ia via HTTP na API pública e competia
+        # no rate-limit de 30 buscas/min do bucket 127.0.0.1 (compartilhado
+        # com o SSR do site) → 429 esvaziava todas as categorias. Também
+        # deixa de gravar evento na tabela searches (poluía stats como 'ssr').
+        from app.services.search import search_all
+
         offer = None
         for query in queries:
             try:
-                async with httpx.AsyncClient(timeout=20) as c:
-                    r = await c.get(
-                        f"{API_URL}/api/v1/search",
-                        params={"q": query, "limit": 20},
-                    )
-                    offers = r.json().get("offers", [])
+                resp = await search_all(query, limit=20, record_event=False)
+                offers = [o.model_dump(mode="json") for o in resp.offers]
             except Exception:
                 continue
 
