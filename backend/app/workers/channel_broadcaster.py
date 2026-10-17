@@ -30,7 +30,8 @@ API_URL    = settings.INTERNAL_API_URL
 ADMIN_KEY  = settings.ADMIN_MANAGER_KEY
 
 # Arquivo local de deduplicação (persiste entre restarts do worker)
-DEDUP_FILE = Path("/tmp/broadcaster_dedup.json")
+# Compartilhado com distributor.py — em backend/ (não /tmp, que é limpo em reboot)
+DEDUP_FILE = Path(__file__).resolve().parent.parent.parent / ".distributor_dedup.json"
 DEDUP_TTL_HOURS = 24  # não repete a mesma oferta em 24h
 
 # Queries por categoria — broadcaster sorteia categorias diferentes a cada rodada

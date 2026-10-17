@@ -12,14 +12,13 @@ Filtros de qualidade:
   - commission_value >= R$ 8 (estimativa)
   - discount >= 15%
   - price >= R$ 20 (evita frete proporcional alto)
-  - não postado nas últimas 24h (dedup)
+  - não postado nas últimas 72h (dedup por produto: ml_code/id/título)
 
 Cada post = 1 short link /r/{code} único com source = canal.
 """
 
 import asyncio
 import glob
-import hashlib
 import httpx
 import json
 import os
@@ -48,7 +47,7 @@ ADMIN_KEY = settings.ADMIN_MANAGER_KEY
 MIN_PRICE = 20.0          # preço mínimo: R$20 (aumentado de R$30)
 MAX_PRICE = 500.0         # preço máximo: R$500 (aumentado de R$200)
 MIN_DISCOUNT = 10.0       # desconto mínimo: 10% (reduzido de 15%)
-DEDUP_TTL_HOURS = 24      # não repete a mesma oferta em 24h (reduzido de 48h)
+DEDUP_TTL_HOURS = 72      # não repete o mesmo produto em 72h (era 24h — repostava demais)
 
 # Demanda mínima — relaxada para mais produtos
 MIN_SALES_COUNT = 100     # ≥100 unidades vendidas (reduzido de 500)
@@ -107,8 +106,10 @@ DEMAND_CATEGORIES = {
     "informatica":  ["notebook", "laptop", "desktop", "ssd", "hd", "memoria ram", "placa de video", "processador"],
 }
 
-# Dedup file (compartilhado com broadcaster)
-DEDUP_FILE = Path("/tmp/broadcaster_dedup.json")
+# Dedup file (compartilhado com broadcaster) — no backend, não em /tmp:
+# /tmp é limpo em reboot e o histórico de posts se perdia → reposts
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+DEDUP_FILE = BACKEND_DIR / ".distributor_dedup.json"
 
 PROVIDER_EMOJI = {
     "aliexpress": "🔴", "shopee": "🟠", "mercadolivre": "🟡",
@@ -138,25 +139,38 @@ def _save_dedup(data: dict):
         pass
 
 
-def _url_hash(url: str) -> str:
-    return hashlib.md5(url.encode()).hexdigest()[:12]
+def _offer_key(offer: dict) -> str:
+    """Chave estável de dedup por produto.
+
+    affiliate_url NÃO serve como chave: o portal ML gera um meli.la novo
+    a cada scrape, então dedup por URL nunca batia e o mesmo produto era
+    repostado todo dia. Prioriza ml_code > id (UUID do DB) > título.
+    """
+    key = offer.get("ml_code") or offer.get("id")
+    if key:
+        return str(key)
+    title = (offer.get("title") or "").strip().lower()
+    if title:
+        return f"t:{title[:80]}"
+    return offer.get("affiliate_url") or ""
 
 
-def already_posted(url: str) -> bool:
+def already_posted(key: str) -> bool:
     data = _load_dedup()
-    h = _url_hash(url)
-    if h not in data:
+    if not key or key not in data:
         return False
-    posted_at = datetime.fromisoformat(data[h])
+    posted_at = datetime.fromisoformat(data[key])
     return datetime.now(timezone.utc) - posted_at < timedelta(hours=DEDUP_TTL_HOURS)
 
 
-def mark_posted(url: str):
+def mark_posted(key: str):
+    if not key:
+        return
     data = _load_dedup()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=DEDUP_TTL_HOURS)
     data = {h: ts for h, ts in data.items()
             if datetime.fromisoformat(ts) > cutoff}
-    data[_url_hash(url)] = datetime.now(timezone.utc).isoformat()
+    data[key] = datetime.now(timezone.utc).isoformat()
     _save_dedup(data)
 
 
@@ -540,7 +554,6 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
         return {"ok": False, "error": "Telegram not configured"}
 
     image_url = offer.get("image_url", "")
-    affiliate_url = offer.get("affiliate_url", "")
 
     try:
         async with httpx.AsyncClient(timeout=15) as c:
@@ -555,7 +568,6 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
                     }
                 )
                 if r.status_code == 200:
-                    mark_posted(affiliate_url)
                     msg_id = r.json().get("result", {}).get("message_id")
                     return {"ok": True, "message_id": msg_id, "method": "photo"}
 
@@ -572,7 +584,6 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
                 }
             )
             if r.status_code == 200:
-                mark_posted(affiliate_url)
                 msg_id = r.json().get("result", {}).get("message_id")
                 return {"ok": True, "message_id": msg_id, "method": "text"}
 
@@ -725,7 +736,6 @@ async def post_to_facebook(offer: dict, caption: str, short_url: str = "") -> di
     if not pages:
         return {"ok": False, "error": "Nenhuma página Facebook conectada (refazer OAuth em /api/v1/aletube/auth/facebook)"}
 
-    affiliate_url = offer.get("affiliate_url", "")
     results = []
     ok_count = 0
 
@@ -737,10 +747,6 @@ async def post_to_facebook(offer: dict, caption: str, short_url: str = "") -> di
         # Rate limit entre páginas (evita bloqueio da Graph API)
         if len(pages) > 1:
             await asyncio.sleep(3)
-
-    # Marca como postado se pelo menos uma página recebeu
-    if ok_count > 0:
-        mark_posted(affiliate_url)
 
     return {
         "ok": ok_count > 0,
@@ -1449,9 +1455,11 @@ async def distribute_offer(
     if not affiliate_url:
         return {"ok": False, "error": "Offer has no affiliate_url"}
 
-    # Dedup
-    if already_posted(affiliate_url):
-        return {"ok": False, "error": "Offer already posted in last 24h"}
+    # Dedup por produto (ml_code/id/título — NÃO affiliate_url: o meli.la
+    # muda a cada scrape, então dedup por URL nunca batia e repostava)
+    offer_key = _offer_key(offer)
+    if already_posted(offer_key):
+        return {"ok": False, "error": "Offer already posted recently"}
 
     # Busca cupom ativo para o provider da oferta
     offer = await _enrich_offer_with_coupon(offer)
@@ -1505,8 +1513,14 @@ async def distribute_offer(
         if len(channels) > 1:
             await asyncio.sleep(2)
 
+    posted_any = any(r.get("ok") for r in results.values())
+    if posted_any:
+        # Marca uma vez por produto se QUALQUER canal postou — antes só
+        # Telegram/Facebook marcavam, então sucesso só no Instagram/YouTube
+        # deixava a oferta elegível de novo na próxima janela
+        mark_posted(offer_key)
     return {
-        "ok": any(r.get("ok") for r in results.values()),
+        "ok": posted_any,
         "channels": results,
         "offer_title": offer.get("title", "")[:60],
     }
@@ -1576,7 +1590,7 @@ async def distribute_auto(
                     continue
                 if not _meets_demand(o):
                     continue
-                if already_posted(o["affiliate_url"]):
+                if already_posted(_offer_key(o)):
                     continue
                 candidates.append(o)
 

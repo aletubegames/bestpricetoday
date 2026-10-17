@@ -34,6 +34,8 @@ backend/.quemfornece_screenshots/
 backend/.test_modal.*
 backend/.ml_session_last_ok
 backend/.ml_oauth_alert_sent
+backend/.distributor_dedup.json
+backend/.coupon_dedup.json
 
 # Test/audit scripts (not part of the app)
 Pentest.py

@@ -16,6 +16,7 @@ import subprocess
 import random
 import shutil
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -274,10 +275,38 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
 
 # ─── Dedup ────────────────────────────────────────────────────────────────────
 
-_dedup: dict[str, datetime] = {}
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+DEDUP_FILE = BACKEND_DIR / ".coupon_dedup.json"
+
+
+def _load_dedup() -> dict:
+    try:
+        if DEDUP_FILE.exists():
+            raw = json.loads(DEDUP_FILE.read_text())
+            return {k: datetime.fromisoformat(v) for k, v in raw.items()}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_dedup():
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=DEDUP_TTL_HOURS)
+        data = {k: v.isoformat() for k, v in _dedup.items() if v > cutoff}
+        DEDUP_FILE.write_text(json.dumps(data))
+    except Exception:
+        pass
+
+
+# Persistido em arquivo — antes era dict em memória e o TTL de 72h se
+# perdia a cada restart do backend → cupons repetiam após deploy/restart
+_dedup: dict[str, datetime] = _load_dedup()
+
 
 def mark_coupon_posted(code: str):
     _dedup[code] = datetime.now(timezone.utc)
+    _save_dedup()
+
 
 def already_posted_coupon(code: str) -> bool:
     if code in _dedup:
@@ -2310,6 +2339,7 @@ async def distribute_coupons():
                 continue
             should_post = True
             _dedup[today_key] = now  # marca que tentou
+            _save_dedup()
             break
 
     if not should_post:
