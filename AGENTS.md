@@ -130,6 +130,8 @@
 - YouTube roda em background (asyncio.create_task) para não travar o loop
 - Links sempre sem porta (https://bestpricetoday.alaserver.com.br/r/{code})
 - **Dedup (fix 17/out)**: chave = `_offer_key()` → `ml_code` > `id` > título — NUNCA `affiliate_url` (meli.la muda a cada scrape → dedup por URL nunca batia, mesmo produto repostava todo dia). TTL 72h (era 24h). Arquivo `backend/.distributor_dedup.json` (era `/tmp/broadcaster_dedup.json` — /tmp é limpo em reboot). `mark_posted` centralizado em `distribute_offer` quando QUALQUER canal posta (antes só Telegram/FB marcavam — sucesso só no IG/YT não marcava). `coupon_distributor` persiste `_dedup` em `backend/.coupon_dedup.json` (era dict em memória — perdia o TTL de 72h a cada restart)
+- **Caption IA (fix 17/out)**: `openrouter/free` roteia pra modelo aleatório — alguns despejam a análise do prompt no `content` ("1. Analyze the Request: Role: Copywriter...") e vazava na legenda. `_is_usable_caption()` rejeita scaffold/>340 chars → cai no `build_caption_fallback` (sempre limpo)
+- **`POST /admin/distribute/auto`**: `channels` é BODY param (lista JSON crua), NÃO query — `?channels=a&channels=b` é ignorado e cai no default `["telegram"]`. Uso: `curl -X POST '.../distribute/auto?n=4' -H 'X-Admin-Key: K' -d '["telegram","facebook","instagram","youtube"]'`
 
 ## Frontend
 
