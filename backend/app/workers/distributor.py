@@ -321,8 +321,8 @@ async def generate_caption_ai(offer: dict) -> Optional[str]:
         return None
 
     title = offer.get("title", "")[:100]
-    price = offer.get("final_price", 0)
-    original = offer.get("original_price", 0)
+    price = offer.get("final_price") or 0
+    original = offer.get("original_price") or 0
     # Só mostra original se for maior que price (desconto real)
     if original <= price:
         original = 0
@@ -390,8 +390,8 @@ Regras:
 def build_caption_fallback(offer: dict, short_url: str) -> str:
     """Legenda padrão (sem IA) — formato viral para Telegram."""
     title = offer.get("title", "")[:80]
-    price = offer.get("final_price", 0)
-    original = offer.get("original_price", 0)
+    price = offer.get("final_price") or 0
+    original = offer.get("original_price") or 0
     discount = offer.get("discount_percent", 0)
     shipping_free = offer.get("shipping_free", False)
     provider = offer.get("provider", "loja")
@@ -466,8 +466,8 @@ def build_caption_facebook(offer: dict) -> str:
     O short_url é postado separadamente como comentário fixado.
     """
     title = offer.get("title", "")[:80]
-    price = offer.get("final_price", 0)
-    original = offer.get("original_price", 0)
+    price = offer.get("final_price") or 0
+    original = offer.get("original_price") or 0
     discount = offer.get("discount_percent", 0)
     shipping_free = offer.get("shipping_free", False)
     provider = offer.get("provider", "loja")
@@ -517,8 +517,8 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
     Layout: oferta + preço + links + canal + hashtags.
     """
     title = offer.get("title", "")[:80]
-    price = offer.get("final_price", 0)
-    original = offer.get("original_price", 0)
+    price = offer.get("final_price") or 0
+    original = offer.get("original_price") or 0
     discount = offer.get("discount_percent", 0)
     shipping_free = offer.get("shipping_free", False)
     provider = offer.get("provider", "loja")
@@ -974,7 +974,7 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
     title = offer.get("title", "")[:80]
     # Título limpo para narração (sem códigos, specs, cores, armazenamento)
     title_clean = _clean_title_for_narration(title)
-    price = offer.get("final_price", 0) or offer.get("price", 0)
+    price = (offer.get("final_price") or 0) or (offer.get("price") or 0)
     original = offer.get("original_price", 0) or 0
     discount = offer.get("discount_percent", 0) or 0
     shipping_free = offer.get("shipping_free", False)
@@ -1598,7 +1598,7 @@ async def distribute_auto(
             # Filtra por qualidade + demanda + marca + dedup
             candidates = []
             for o in offers:
-                fp = o.get("final_price", 0)
+                fp = o.get("final_price") or 0
                 if not (MIN_PRICE <= fp <= MAX_PRICE):
                     continue
                 if not o.get("affiliate_url"):
