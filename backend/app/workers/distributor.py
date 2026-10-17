@@ -23,6 +23,7 @@ import httpx
 import json
 import os
 import random
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -294,6 +295,25 @@ async def create_short_link(offer: dict, source: str, campaign: Optional[str] = 
 
 # ─── IA: gerador de legenda (OpenRouter) ──────────────────────────────────────
 
+# Modelos free do OpenRouter variam a cada chamada — alguns despejam a
+# "análise" do prompt no content (ex: "1. Analyze the Request: Role:
+# Copywriter...") e isso vazava direto pra legenda do Telegram.
+_CAPTION_SCAFFOLD_RE = re.compile(
+    r"analyz|copywriter|role\s*:|task\s*:|step\s*\d|prompt|instruction|"
+    r"produto\s*:|preço\s*:|desconto\s*:|product\s*:|price\s*:|discount\s*:|"
+    r"free shipping|savings\s*:|shop\s*:",
+    re.IGNORECASE,
+)
+_CAPTION_MAX_LEN = 340  # pedimos ≤280 — acima disso é scaffold, não legenda
+
+
+def _is_usable_caption(caption: str) -> bool:
+    """True se o content da IA parece uma legenda real (não análise do prompt)."""
+    if len(caption) > _CAPTION_MAX_LEN:
+        return False
+    return not _CAPTION_SCAFFOLD_RE.search(caption)
+
+
 async def generate_caption_ai(offer: dict) -> Optional[str]:
     """Gera legenda persuasiva via OpenRouter (1 chamada, modelo barato)."""
     if not settings.OPENROUTER_API_KEY:
@@ -352,10 +372,12 @@ Regras:
                 caption = msg.get("content")
                 if caption:
                     caption = caption.strip()
-                    if caption:
+                    if caption and _is_usable_caption(caption):
                         logger.info(f"Distributor: AI caption generated ({len(caption)} chars) model={data.get('model','?')}")
                         return caption
-                logger.warning(f"Distributor: AI caption empty response, model={data.get('model','?')}")
+                    logger.warning(f"Distributor: AI caption rejected (scaffold/leak), model={data.get('model','?')}")
+                else:
+                    logger.warning(f"Distributor: AI caption empty response, model={data.get('model','?')}")
             else:
                 logger.warning(f"Distributor: OpenRouter error {r.status_code}: {r.text[:200]}")
     except Exception as e:
