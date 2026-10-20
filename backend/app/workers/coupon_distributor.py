@@ -30,6 +30,7 @@ from app.models.models import (
 )
 from app.core.config import settings
 from app.core.logging import logger
+from app.services.support_block import append_support, fit_limit
 
 # Semaphore para limitar concorrência de XTTS (evita OOM)
 # Máximo 1 processo XTTS por vez (cada processo consome ~2GB RAM)
@@ -365,7 +366,8 @@ def build_coupon_caption_telegram(offer: dict) -> str:
     lines.append(f"\n🛒 Comprar: {offer.get('short_url') or offer.get('product_url', '')}")
     lines.append("\n🛍️ BestPriceToday — cupons de desconto")
 
-    return "\n".join(lines)
+    # Pedido de apoio (ordem do dono, 2026-10-19)
+    return append_support("\n".join(lines))
 
 
 def build_coupon_caption_facebook(offer: dict) -> str:
@@ -409,7 +411,8 @@ def build_coupon_caption_facebook(offer: dict) -> str:
     lines.append("\n👇 Link nos comentários (fixado)")
     lines.append("🛍️ BestPriceToday — cupons de desconto")
 
-    return "\n".join(lines)
+    # Pedido de apoio (ordem do dono, 2026-10-19)
+    return append_support("\n".join(lines))
 
 
 def build_coupon_youtube_description(offer: dict) -> str:
@@ -442,7 +445,8 @@ def build_coupon_youtube_description(offer: dict) -> str:
     lines.append(f"\nMais cupons: {settings.PUBLIC_SITE_URL}/cupons")
     lines.append("\n#cupom #desconto #mercadolivre #oferta #bestpricetoday #promoção")
 
-    return "\n".join(lines)
+    # Pedido de apoio (ordem do dono, 2026-10-19)
+    return append_support("\n".join(lines))
 
 
 # ─── Postagem Telegram ────────────────────────────────────────────────────────
@@ -451,7 +455,7 @@ async def post_coupon_telegram(offer: dict) -> dict:
     if not BOT_TOKEN or not CHANNEL_ID:
         return {"ok": False, "error": "Telegram not configured"}
 
-    caption = build_coupon_caption_telegram(offer)
+    caption = fit_limit(build_coupon_caption_telegram(offer), 1024)
     image_url = offer.get("image_url", "")
 
     try:

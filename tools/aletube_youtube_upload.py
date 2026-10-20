@@ -20,6 +20,24 @@ Requer: Python 3.9+, httpx (já no requirements do projecto).
 """
 from __future__ import annotations
 
+# Pedido de apoio (ordem do dono, 2026-10-19) — mesmo bloco do CryptoKitchen.
+_SUPPORT_BLOCK = (
+    "Gostando do conteúdo? Ajude o canal a continuar no ar e apoie novos "
+    "episódios com uma doação:\n"
+    "BTC: bc1qnyqg92pkr3ruthk2cc3t60auyqf6gw9yywg5tg\n"
+    "ETH (ERC-20): 0x95DdD84F3c982A6FEc3A03416CE2B9565E64f5FF"
+)
+
+
+def _with_support(description: str) -> str:
+    """Anexa o pedido de apoio ao fim da descrição (idempotente)."""
+    if not description:
+        return _SUPPORT_BLOCK
+    if _SUPPORT_BLOCK in description:
+        return description
+    return f"{description.rstrip()}\n\n{_SUPPORT_BLOCK}"
+
+
 import argparse
 import json
 import os
@@ -116,7 +134,7 @@ def _initiate_upload(
     metadata = {
         "snippet": {
             "title":       title[:100],
-            "description": description[:5000],
+            "description": _with_support(description)[:5000],
             "tags":        tags[:15],
             "categoryId":  category_id,
         },

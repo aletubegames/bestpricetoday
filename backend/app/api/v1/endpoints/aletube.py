@@ -37,6 +37,7 @@ from app.api.v1.endpoints.admin import require_admin
 from app.integrations.tiktok import tiktok_client
 from app.integrations.youtube import youtube_client
 from app.integrations.instagram import ig_fb_client
+from app.services.support_block import append_support
 
 router = APIRouter(prefix="/aletube", tags=["aletube"])
 
@@ -873,6 +874,8 @@ async def publish_video(
                 description = yt_meta.get("description", "")
                 if short_link:
                     description = f"{description}\n\n🛒 {short_link}"
+                # Pedido de apoio (ordem do dono, 2026-10-19)
+                description = append_support(description)
 
                 yt_result = await youtube_client.upload_video(
                     access_token = yt_acct.access_token,

@@ -31,6 +31,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.services.support_block import append_support, fit_limit
 
 # Semaphore para limitar concorrência de XTTS (evita OOM)
 # Máximo 1 processo XTTS por vez (cada processo consome ~2GB RAM)
@@ -432,7 +433,8 @@ def build_caption_fallback(offer: dict, short_url: str) -> str:
     lines.append(f"👉 [Ver oferta]({short_url})")
     lines.append(f"\n🛍️ @BestPriceToday")
 
-    return "\n".join(lines)
+    # Pedido de apoio (ordem do dono, 2026-10-19)
+    return append_support("\n".join(lines))
 
 
 async def build_caption(offer: dict, short_url: str) -> str:
@@ -450,7 +452,7 @@ async def build_caption(offer: dict, short_url: str) -> str:
         lines.append(f"\n🛒 *Compre agora antes que acabe!*")
         lines.append(f"👉 [Ver oferta]({short_url})")
         lines.append(f"\n🛍️ @BestPriceToday | [BestPriceToday]({settings.PUBLIC_SITE_URL})")
-        return "\n".join(lines)
+        return append_support("\n".join(lines))
 
     return build_caption_fallback(offer, short_url)
 
@@ -506,7 +508,8 @@ def build_caption_facebook(offer: dict) -> str:
     lines.append("\n👇 Link nos comentários (fixado)")
     lines.append("🛍️ BestPriceToday — fugimos de promoção fake")
 
-    return "\n".join(lines)
+    # Pedido de apoio (ordem do dono, 2026-10-19)
+    return append_support("\n".join(lines))
 
 
 def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -> str:
@@ -566,7 +569,8 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
         tags.append("#ofertaimperdível")
     lines.append(" ".join(tags))
 
-    return "\n".join(lines)
+    # Pedido de apoio (ordem do dono, 2026-10-19)
+    return append_support("\n".join(lines))
 
 
 # ─── Telegram poster ──────────────────────────────────────────────────────────
@@ -576,6 +580,9 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
     if not BOT_TOKEN or not CHANNEL_ID:
         return {"ok": False, "error": "Telegram not configured"}
 
+    # Legenda do Telegram tem limite de 1024 chars (foto) — nunca cortar
+    # endereço de doação no meio.
+    caption = fit_limit(caption, 1024)
     image_url = offer.get("image_url", "")
 
     try:
@@ -853,7 +860,7 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
                     ig_account_id=acct.instagram_id,
                     access_token=acct.access_token,
                     image_url=image_url,
-                    caption=caption[:2200],
+                    caption=fit_limit(caption, 2200),
                 )
             except Exception:
                 raw_url = offer.get("image_url", "")
@@ -866,7 +873,7 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
                         ig_account_id=acct.instagram_id,
                         access_token=acct.access_token,
                         image_url=proxied,
-                        caption=caption[:2200],
+                        caption=fit_limit(caption, 2200),
                     )
                 else:
                     raise
