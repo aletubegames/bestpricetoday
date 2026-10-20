@@ -569,7 +569,7 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
         tags.append("#ofertaimperdível")
     lines.append(" ".join(tags))
 
-    # Pedido de apoio (ordem do dono, 2026-10-19)
+    # 6. Pedido de apoio (ordem do dono, 2026-10-19) — mesmo bloco do CryptoKitchen
     return append_support("\n".join(lines))
 
 
@@ -580,10 +580,10 @@ async def post_to_telegram(offer: dict, caption: str) -> dict:
     if not BOT_TOKEN or not CHANNEL_ID:
         return {"ok": False, "error": "Telegram not configured"}
 
+    image_url = offer.get("image_url", "")
     # Legenda do Telegram tem limite de 1024 chars (foto) — nunca cortar
     # endereço de doação no meio.
     caption = fit_limit(caption, 1024)
-    image_url = offer.get("image_url", "")
 
     try:
         async with httpx.AsyncClient(timeout=15) as c:

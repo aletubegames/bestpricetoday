@@ -43,3 +43,9 @@ TesteCompleto.py
 
 # Documentos pessoais — NUNCA commitar
 frontend/public/Aletube-Company/
+
+# GeoIP database (127MB, baixar via scripts/update_geoip.sh)
+backend/data/geoip/*.mmdb
+
+# Backups locais
+*.bak-*

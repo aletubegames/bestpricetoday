@@ -41,6 +41,12 @@ interface RecentConversion { converted_at?: string; created_at?: string; provide
 interface TikTokAdminAccount { connected?: boolean; avatar_url?: string; display_name?: string; is_verified?: boolean }
 interface AdminListResponse<T> { items?: T[] }
 interface AnalyticsResponse { data?: Record<string, Record<string, number>> }
+interface AudienceSummary { total_clicks: number; with_geo: number; without_geo: number; countries: number; states: number; cities: number }
+interface AudienceCountry { country_code?: string | null; country?: string | null; clicks: number; pct: number }
+interface AudienceState { region?: string | null; country_code?: string | null; clicks: number; pct: number }
+interface AudienceCity { city?: string | null; region?: string | null; country_code?: string | null; clicks: number; pct: number; last_seen?: string | null }
+interface AudienceClick { clicked_at?: string | null; ip?: string | null; country_code?: string | null; region?: string | null; city?: string | null; geo_source?: string | null; provider?: string | null; product_title?: string | null; offer_id?: string | null; source?: string | null }
+interface AudienceResponse { days: number; real_only: boolean; summary: AudienceSummary; countries: AudienceCountry[]; states: AudienceState[]; cities: AudienceCity[]; recent: AudienceClick[] }
 
 function fmtBRL(v: number) { return (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function fmtTime(iso?: string) {
@@ -356,6 +362,10 @@ export default function AdminPage() {
   const [marketSortDir, setMarketSortDir] = useState<"asc" | "desc">("desc");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("overview");
+  const [audience, setAudience] = useState<AudienceResponse | null>(null);
+  const [audienceDays, setAudienceDays] = useState<number>(30);
+  const [audienceRealOnly, setAudienceRealOnly] = useState<boolean>(true);
+  const [audienceErr, setAudienceErr] = useState<string>("");
 
   const ADMIN_KEY_TTL = 8 * 60 * 60 * 1000;
 
@@ -436,6 +446,31 @@ export default function AdminPage() {
     return () => clearInterval(interval);
   }, [key, activeTab]);
 
+  // Histórico de IP + localização (aba Audiência)
+  useEffect(() => {
+    if (!key || activeTab !== "audience") return;
+    setAudienceErr("");
+    adminFetch<AudienceResponse>(`/api/v1/admin/audience?days=${audienceDays}&real_only=${audienceRealOnly}`, key)
+      .then(d => setAudience(d))
+      .catch((e: unknown) => setAudienceErr(getErrorMessage(e)));
+  }, [key, activeTab, audienceDays, audienceRealOnly]);
+
+  const exportAudienceCsv = () => {
+    if (!audience) return;
+    const clean = (v: any) => `"${String(v ?? "").replace(/"/g, "'")}"`;
+    const head = ["data_hora", "ip_mascarado", "pais", "uf", "cidade", "oferta", "produto", "fonte", "origem_geo"].join(",");
+    const rows = audience.recent.map(r => [
+      clean(r.clicked_at), clean(r.ip), clean(r.country_code), clean(r.region), clean(r.city),
+      clean(r.offer_id), clean(r.product_title), clean(r.source), clean(r.geo_source),
+    ].join(","));
+    const blob = new Blob([head + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `audiencia_${audienceDays}d.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const handleLogin = async () => {
     setLoginError("");
     try {
@@ -501,6 +536,7 @@ export default function AdminPage() {
     { id: "overview", label: "Visão Geral", icon: "📊" },
     { id: "online", label: "Online", icon: "🟢" },
     { id: "traffic", label: "Tráfego", icon: "🌐" },
+    { id: "audience", label: "Audiência", icon: "📍" },
     { id: "products", label: "Produtos", icon: "🏆" },
     { id: "conversions", label: "Conversões", icon: "✅" },
     { id: "marketing", label: "Marketing", icon: "📣" },
@@ -775,6 +811,147 @@ export default function AdminPage() {
                           <td style={{ padding: "8px 10px" }}>{v.online_formatted || "—"}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ═══════ TAB: AUDIENCE ═══════ */}
+        {activeTab === "audience" && (
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>📍 Audiência — IP e localização</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {[7, 30, 90].map(d => (
+                  <button key={d} onClick={() => setAudienceDays(d)}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--bd)", cursor: "pointer", fontSize: 12,
+                      background: audienceDays === d ? "var(--acc)" : "var(--s2)", color: audienceDays === d ? "#fff" : "inherit" }}>
+                    {d}d
+                  </button>
+                ))}
+                <label style={{ fontSize: 12, color: "var(--muted)", display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+                  <input type="checkbox" checked={audienceRealOnly} onChange={e => setAudienceRealOnly(e.target.checked)} />
+                  sem bots
+                </label>
+                <button onClick={exportAudienceCsv} disabled={!audience}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--bd)", cursor: "pointer", fontSize: 12, background: "var(--s2)" }}>
+                  ⬇ CSV
+                </button>
+              </div>
+            </div>
+
+            {audienceErr ? (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyStateIcon}>⚠️</div>
+                {audienceErr}
+              </div>
+            ) : !audience ? (
+              <div className={styles.emptyState}><div className={styles.emptyStateIcon}>📍</div>Carregando…</div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
+                  {([
+                    ["Cliques", audience.summary.total_clicks],
+                    ["Com geo", `${audience.summary.with_geo} (${audience.summary.total_clicks ? Math.round(100 * audience.summary.with_geo / audience.summary.total_clicks) : 0}%)`],
+                    ["Países", audience.summary.countries],
+                    ["Estados", audience.summary.states],
+                    ["Cidades", audience.summary.cities],
+                  ] as [string, any][]).map(([label, v]) => (
+                    <div key={label} style={{ padding: "8px 14px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--bd)", minWidth: 92 }}>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginBottom: 22 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🌍 Países</div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <tbody>
+                        {audience.countries.map((c, i) => (
+                          <tr key={`co-${i}`} style={{ borderBottom: "1px solid var(--bd)" }}>
+                            <td style={{ padding: "6px 4px" }}>{c.country || c.country_code || "—"}</td>
+                            <td style={{ padding: "6px 4px", textAlign: "right", fontWeight: 600 }}>{c.clicks}</td>
+                            <td style={{ padding: "6px 4px", textAlign: "right", color: "var(--muted)", width: 52 }}>{c.pct}%</td>
+                          </tr>
+                        ))}
+                        {audience.countries.length === 0 && <tr><td style={{ padding: 8, color: "var(--muted)" }}>Sem dados</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🏙️ Cidades</div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <tbody>
+                        {audience.cities.map((c, i) => (
+                          <tr key={`ci-${i}`} style={{ borderBottom: "1px solid var(--bd)" }}>
+                            <td style={{ padding: "6px 4px" }}>
+                              {c.city || "—"}
+                              <span style={{ color: "var(--muted)", fontSize: 11 }}> {c.region ? `· ${c.region}` : ""}{c.country_code ? ` · ${c.country_code}` : ""}</span>
+                            </td>
+                            <td style={{ padding: "6px 4px", textAlign: "right", fontWeight: 600 }}>{c.clicks}</td>
+                            <td style={{ padding: "6px 4px", textAlign: "right", color: "var(--muted)", width: 52 }}>{c.pct}%</td>
+                          </tr>
+                        ))}
+                        {audience.cities.length === 0 && <tr><td style={{ padding: 8, color: "var(--muted)" }}>Sem dados</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🗺️ Estados / regiões</div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <tbody>
+                        {audience.states.map((s, i) => (
+                          <tr key={`st-${i}`} style={{ borderBottom: "1px solid var(--bd)" }}>
+                            <td style={{ padding: "6px 4px" }}>{s.region || "—"} <span style={{ color: "var(--muted)", fontSize: 11 }}>{s.country_code || ""}</span></td>
+                            <td style={{ padding: "6px 4px", textAlign: "right", fontWeight: 600 }}>{s.clicks}</td>
+                            <td style={{ padding: "6px 4px", textAlign: "right", color: "var(--muted)", width: 52 }}>{s.pct}%</td>
+                          </tr>
+                        ))}
+                        {audience.states.length === 0 && <tr><td style={{ padding: 8, color: "var(--muted)" }}>Sem dados</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                  🕒 Últimos cliques <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 11 }}>— IP mascarado (LGPD)</span>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid var(--bd)", textAlign: "left" }}>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Quando</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>IP</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Local</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Oferta</th>
+                        <th style={{ padding: "8px 10px", color: "var(--muted)" }}>Fonte</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {audience.recent.map((r, i) => (
+                        <tr key={`rc-${i}`} style={{ borderBottom: "1px solid var(--bd)" }}>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--muted)" }}>{fmtTime(r.clicked_at || undefined)}</td>
+                          <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11 }}>{r.ip || "—"}</td>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                            {r.city || r.region || r.country_code
+                              ? `${r.city || "—"}${r.region ? ` · ${r.region}` : ""}${r.country_code ? ` · ${r.country_code}` : ""}`
+                              : <span style={{ color: "var(--muted)" }}>sem geo</span>}
+                          </td>
+                          <td style={{ padding: "8px 10px", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                              title={r.product_title || ""}>{r.product_title || r.offer_id || "—"}</td>
+                          <td style={{ padding: "8px 10px", color: "var(--muted)", fontSize: 11 }}>{r.source || "—"}{r.geo_source ? ` · ${r.geo_source}` : ""}</td>
+                        </tr>
+                      ))}
+                      {audience.recent.length === 0 && (
+                        <tr><td colSpan={5} style={{ padding: 12, color: "var(--muted)" }}>Nenhum clique no período</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

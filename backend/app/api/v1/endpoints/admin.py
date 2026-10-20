@@ -30,23 +30,27 @@ router = APIRouter()
 
 
 # User-Agents de bots/crawlers que NÃO representam cliques reais de usuários.
-# Inclui os auto-registros internos (distributor posta com UA python-httpx),
-# previews de links (Facebook/Telegram/WhatsApp) e crawlers de SEO.
-_BOT_UA_PATTERNS = (
-    "facebookexternalhit", "python-httpx", "python-requests", "aiohttp",
-    "Google-Safety", "Nexus 5X", "TelegramBot", "WhatsApp", "Slackbot",
-    "Twitterbot", "Discordbot", "HeadlessChrome", "Chrome-Lighthouse",
-    "curl/", "wget/", "AHC/", "GPTBot", "CCBot", "bingbot", "PetalBot",
-    "ByteSpider", "meta-externalagent", "Amazonbot", "Applebot",
-)
+# Lista canônica em app/services/click_integrity.py (compartilhada com o
+# registro de cliques e a dedup). Inclui auto-registros internos (distributor
+# posta com UA python-httpx), previews de links e crawlers de SEO.
+from app.services.click_integrity import BOT_UA_PATTERNS as _BOT_UA_PATTERNS
+
+# Faixas de IP de infraestrutura de crawler (match por prefixo no SQL).
+# 2a03:2880::/29 = Meta Platforms Ireland (AS32934) — aparecia com UA de Chrome.
+_BOT_IP_PREFIXES = ("2a03:2880",)
 
 
 def _real_clicks_cond():
-    """Condição SQL: clique real = user_agent não bate com nenhum bot conhecido.
-    UA NULL é mantido (pode ser clique real sem header registrado)."""
-    return or_(
-        ClickEvent.user_agent.is_(None),
-        and_(*[~ClickEvent.user_agent.ilike(f"%{p}%") for p in _BOT_UA_PATTERNS]),
+    """Condição SQL: clique real = UA não é de bot conhecido E o IP não é de
+    faixa de crawler. UA/IP NULL é mantido (pode ser clique real sem header)."""
+    ua_ok = and_(*[~ClickEvent.user_agent.ilike(f"%{p}%") for p in _BOT_UA_PATTERNS])
+    ip_ok = or_(
+        ClickEvent.ip_address.is_(None),
+        and_(*[~ClickEvent.ip_address.ilike(f"{p}%") for p in _BOT_IP_PREFIXES]),
+    )
+    return and_(
+        or_(ClickEvent.user_agent.is_(None), ua_ok),
+        ip_ok,
     )
 
 
@@ -116,16 +120,37 @@ async def record_click(
 ):
     """Record a click event - admin key required (usado pelo distributor)"""
     try:
+        from app.core.rate_limit import get_client_ip
+        from app.services.geoip import resolve as resolve_geo
+
+        try:
+            real_ip = get_client_ip(request)
+        except Exception:
+            real_ip = request.client.host if request.client else None
+
+        geo = {}
+        try:
+            geo = resolve_geo(request, real_ip) or {}
+        except Exception:
+            geo = {}
+
         click = ClickEvent(
             offer_id=data.offer_id,
             provider=data.provider,
             product_title=data.product_title,
             price=data.price,
             affiliate_url=data.affiliate_url,
-            ip_address=request.client.host if request.client else None,
+            ip_address=real_ip,
             user_agent=request.headers.get("user-agent"),
             referrer=request.headers.get("referer"),
             source=data.source,
+            country_code=geo.get("country_code"),
+            country=geo.get("country"),
+            region=geo.get("region"),
+            city=geo.get("city"),
+            latitude=geo.get("latitude"),
+            longitude=geo.get("longitude"),
+            geo_source=geo.get("geo_source"),
         )
         db.add(click)
         await db.commit()
@@ -340,6 +365,12 @@ async def list_clicks(
                     "affiliate_url": c.affiliate_url,
                     "source": c.source,
                     "ip_address": c.ip_address,
+                    "country_code": c.country_code,
+                    "region": c.region,
+                    "city": c.city,
+                    "latitude": c.latitude,
+                    "longitude": c.longitude,
+                    "geo_source": c.geo_source,
                     "clicked_at": c.clicked_at.isoformat() if c.clicked_at else None,
                 }
                 for c in items
@@ -347,6 +378,171 @@ async def list_clicks(
         }
     except Exception:
         return {"page": page, "limit": limit, "items": []}
+
+
+def _mask_ip(ip: Optional[str]) -> Optional[str]:
+    """Mascara IP para exibição (LGPD): IPv4 mantém 2 octetos, IPv6 os 2 grupos."""
+    if not ip:
+        return None
+    try:
+        if ":" in ip:
+            parts = [p for p in ip.split(":") if p]
+            return ":".join(parts[:2]) + ":****"
+        octets = ip.split(".")
+        if len(octets) == 4:
+            return f"{octets[0]}.{octets[1]}.***.***"
+    except Exception:
+        pass
+    return "***"
+
+
+@router.get("/audience")
+async def audience(
+    days: int = 30,
+    real_only: bool = True,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    """Histórico de IP + localização dos visitantes (marketing/anti-bot).
+
+    `real_only=true` (default) aplica o mesmo filtro de bots do painel.
+    IPs vêm mascarados; use `/admin/clicks` para o IP bruto de um clique.
+    """
+    try:
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        conds = [ClickEvent.clicked_at >= since]
+        if real_only:
+            conds.append(_real_clicks_cond())
+        base = and_(*conds)
+
+        async def scalar(stmt) -> int:
+            return int((await db.execute(stmt)).scalar() or 0)
+
+        total = await scalar(select(func.count()).where(base))
+        with_geo = await scalar(
+            select(func.count()).where(and_(base, ClickEvent.country_code.isnot(None)))
+        )
+        n_countries = await scalar(
+            select(func.count(func.distinct(ClickEvent.country_code))).where(
+                and_(base, ClickEvent.country_code.isnot(None))
+            )
+        )
+        n_states = await scalar(
+            select(func.count(func.distinct(ClickEvent.region))).where(
+                and_(base, ClickEvent.region.isnot(None))
+            )
+        )
+        n_cities = await scalar(
+            select(func.count(func.distinct(ClickEvent.city))).where(
+                and_(base, ClickEvent.city.isnot(None))
+            )
+        )
+
+        countries = (
+            await db.execute(
+                select(
+                    ClickEvent.country_code,
+                    func.max(ClickEvent.country).label("country"),
+                    func.count().label("clicks"),
+                )
+                .where(base)
+                .group_by(ClickEvent.country_code)
+                .order_by(func.count().desc())
+                .limit(15)
+            )
+        ).all()
+
+        states = (
+            await db.execute(
+                select(
+                    ClickEvent.region,
+                    ClickEvent.country_code,
+                    func.count().label("clicks"),
+                )
+                .where(and_(base, ClickEvent.region.isnot(None)))
+                .group_by(ClickEvent.region, ClickEvent.country_code)
+                .order_by(func.count().desc())
+                .limit(15)
+            )
+        ).all()
+
+        cities = (
+            await db.execute(
+                select(
+                    ClickEvent.city,
+                    ClickEvent.region,
+                    ClickEvent.country_code,
+                    func.count().label("clicks"),
+                    func.max(ClickEvent.clicked_at).label("last_seen"),
+                )
+                .where(and_(base, ClickEvent.city.isnot(None)))
+                .group_by(ClickEvent.city, ClickEvent.region, ClickEvent.country_code)
+                .order_by(func.count().desc())
+                .limit(20)
+            )
+        ).all()
+
+        recent = (
+            await db.execute(
+                select(ClickEvent)
+                .where(base)
+                .order_by(ClickEvent.clicked_at.desc())
+                .limit(50)
+            )
+        ).scalars().all()
+
+        def pct(n: int) -> float:
+            return round(100.0 * n / total, 1) if total else 0.0
+
+        return {
+            "days": days,
+            "real_only": real_only,
+            "summary": {
+                "total_clicks": total,
+                "with_geo": with_geo,
+                "without_geo": total - with_geo,
+                "countries": n_countries,
+                "states": n_states,
+                "cities": n_cities,
+            },
+            "countries": [
+                {"country_code": r[0], "country": r[1], "clicks": r[2], "pct": pct(r[2])}
+                for r in countries
+            ],
+            "states": [
+                {"region": r[0], "country_code": r[1], "clicks": r[2], "pct": pct(r[2])}
+                for r in states
+            ],
+            "cities": [
+                {
+                    "city": r[0],
+                    "region": r[1],
+                    "country_code": r[2],
+                    "clicks": r[3],
+                    "pct": pct(r[3]),
+                    "last_seen": r[4].isoformat() if r[4] else None,
+                }
+                for r in cities
+            ],
+            "recent": [
+                {
+                    "clicked_at": c.clicked_at.isoformat() if c.clicked_at else None,
+                    "ip": _mask_ip(c.ip_address),
+                    "country_code": c.country_code,
+                    "region": c.region,
+                    "city": c.city,
+                    "geo_source": c.geo_source,
+                    "provider": c.provider,
+                    "product_title": c.product_title,
+                    "offer_id": c.offer_id,
+                    "source": c.source,
+                }
+                for c in recent
+            ],
+        }
+    except Exception as e:
+        logger.error(f"audience error: {e}")
+        raise HTTPException(status_code=500, detail="audience unavailable")
 
 
 @router.get("/conversions")

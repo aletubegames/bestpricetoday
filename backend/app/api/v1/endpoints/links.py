@@ -25,6 +25,63 @@ from urllib.parse import urljoin, urlparse
 router = APIRouter()
 links_logger = logging.getLogger("links_create")
 
+
+async def _record_click(db: AsyncSession, request: Request, link: ShortLink) -> bool:
+    """
+    Registra o clique em click_events, com dedup por (IP + oferta) na janela
+    configurada (CLICK_DEDUP_WINDOW_MINUTES, default 60).
+
+    Auditoria de 2026-10-19: o mesmo IP repetia o mesmo produto até 18x em
+    minutos (crawler + previews). Dedup corta essa inflação sem perder
+    visitas distintas.
+
+    Retorna True se o clique foi contabilizado, False se foi descartado
+    por duplicidade. Nunca levanta exceção: o redirect é mais importante.
+    """
+    from app.core.rate_limit import get_client_ip
+    from app.services.click_integrity import is_duplicate_click
+    from app.services.geoip import resolve as resolve_geo
+
+    try:
+        ip_address = get_client_ip(request)
+    except Exception:
+        ip_address = request.client.host if request.client else None
+
+    try:
+        if await is_duplicate_click(db, ip_address, str(link.id)):
+            links_logger.info(
+                "clique duplicado ignorado: offer=%s ip=%s", link.id, ip_address
+            )
+            return False
+    except Exception as exc:  # falha aberta
+        links_logger.warning("dedup indisponível (%s) — registrando clique", exc)
+
+    geo = resolve_geo(request, ip_address)
+
+    click = ClickEvent(
+        offer_id=str(link.id),
+        provider=link.provider,
+        product_title=link.product_title,
+        price=link.price,
+        affiliate_url=link.affiliate_url,
+        ip_address=ip_address,
+        user_agent=request.headers.get("user-agent"),
+        referrer=request.headers.get("referer"),
+        source=link.source or "video",
+        country_code=geo.get("country_code"),
+        country=geo.get("country"),
+        region=geo.get("region"),
+        city=geo.get("city"),
+        latitude=geo.get("latitude"),
+        longitude=geo.get("longitude"),
+        geo_source=geo.get("geo_source"),
+    )
+    db.add(click)
+    link.clicks += 1
+    link.last_clicked_at = datetime.now(timezone.utc)
+    await db.commit()
+    return True
+
 _IMAGE_ALLOWED_HOSTS = (
     "mlstatic.com",
     "alicdn.com",
@@ -146,26 +203,8 @@ async def redirect_link(
                 status_code=302,
             )
 
-        # Register click
-        click = ClickEvent(
-            offer_id=str(link.id),
-            provider=link.provider,
-            product_title=link.product_title,
-            price=link.price,
-            affiliate_url=link.affiliate_url,
-            ip_address=(
-                request.headers.get("cf-connecting-ip")
-                or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-                or (request.client.host if request.client else None)
-            ),
-            user_agent=request.headers.get("user-agent"),
-            referrer=request.headers.get("referer"),
-            source=link.source or "video",
-        )
-        db.add(click)
-        link.clicks += 1
-        link.last_clicked_at = datetime.now(timezone.utc)
-        await db.commit()
+        # Register click (dedup por IP+oferta dentro da janela)
+        await _record_click(db, request, link)
 
         return RedirectResponse(
             url=add_ml_affiliate_tracking(link.affiliate_url),
@@ -237,26 +276,8 @@ async def redirect_to_store(
                 status_code=302,
             )
 
-        # Register click
-        click = ClickEvent(
-            offer_id=str(link.id),
-            provider=link.provider,
-            product_title=link.product_title,
-            price=link.price,
-            affiliate_url=link.affiliate_url,
-            ip_address=(
-                request.headers.get("cf-connecting-ip")
-                or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-                or (request.client.host if request.client else None)
-            ),
-            user_agent=request.headers.get("user-agent"),
-            referrer=request.headers.get("referer"),
-            source=link.source or "video",
-        )
-        db.add(click)
-        link.clicks += 1
-        link.last_clicked_at = datetime.now(timezone.utc)
-        await db.commit()
+        # Register click (dedup por IP+oferta dentro da janela)
+        await _record_click(db, request, link)
 
         return RedirectResponse(
             url=add_ml_affiliate_tracking(link.affiliate_url),

@@ -50,6 +50,7 @@ export default function PrivacyPage() {
           <strong style={{ color: "var(--txt)", display: "block", marginTop: 16 }}>2.2 Dados coletados automaticamente:</strong>
           <ul style={{ marginTop: 8, paddingLeft: 20, lineHeight: 2 }}>
             <li><strong>Endereço IP:</strong> registrado ao clicar em links de afiliados, para fins de analytics e prevenção de fraude</li>
+            <li><strong>Localização aproximada:</strong> país, estado e cidade (e coordenadas aproximadas) derivados do endereço IP — usados apenas de forma agregada para entender de onde vem o público e melhorar a relevância das ofertas. Não identificamos sua rua, bairro ou endereço exato</li>
             <li><strong>User-agent:</strong> tipo de navegador e dispositivo</li>
             <li><strong>Dados de navegação:</strong> páginas visitadas, tempo de sessão (via cookies de analytics, se ativados)</li>
           </ul>
@@ -118,6 +119,7 @@ export default function PrivacyPage() {
             <li><strong>Logs de busca:</strong> retidos por até 90 dias para melhoria do serviço</li>
             <li><strong>Logs de cliques:</strong> retidos por até 12 meses para fins de analytics e auditoria de afiliados</li>
             <li><strong>Endereço IP:</strong> retido por até 30 dias em logs de acesso</li>
+            <li><strong>Localização aproximada:</strong> retida junto ao registro do clique (até 12 meses) e usada de forma agregada; pode ser anonimizada/removida sob solicitação</li>
           </ul>
         </Section>
 

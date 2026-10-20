@@ -445,7 +445,7 @@ def build_coupon_youtube_description(offer: dict) -> str:
     lines.append(f"\nMais cupons: {settings.PUBLIC_SITE_URL}/cupons")
     lines.append("\n#cupom #desconto #mercadolivre #oferta #bestpricetoday #promoção")
 
-    # Pedido de apoio (ordem do dono, 2026-10-19)
+    # Pedido de apoio (ordem do dono, 2026-10-19) — mesmo bloco do CryptoKitchen
     return append_support("\n".join(lines))
 
 

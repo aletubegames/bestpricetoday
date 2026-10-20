@@ -172,6 +172,14 @@ class AffiliateClick(Base):
     provider = Column(SAEnum(ProviderEnum), nullable=False)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
+    # Geolocalização do visitante (para marketing/segmentação)
+    country_code = Column(String(2), nullable=True)
+    country = Column(String(80), nullable=True)
+    region = Column(String(80), nullable=True)
+    city = Column(String(120), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    geo_source = Column(String(20), nullable=True)  # cloudflare | dbip | private
     clicked_at = Column(DateTime(timezone=True), default=_utcnow, index=True)
 
 
@@ -196,6 +204,14 @@ class ClickEvent(Base):
     affiliate_url = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
+    # Geolocalização do visitante (para marketing/segmentação)
+    country_code = Column(String(2), nullable=True)
+    country = Column(String(80), nullable=True)
+    region = Column(String(80), nullable=True)
+    city = Column(String(120), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    geo_source = Column(String(20), nullable=True)  # cloudflare | dbip | private
     referrer = Column(String, nullable=True)
     source = Column(String, default="web")  # web, telegram, tiktok, direct
     clicked_at = Column(DateTime(timezone=True), default=_utcnow, index=True)

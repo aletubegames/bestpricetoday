@@ -36,17 +36,27 @@ async def track_click(
 ):
     """Registra clique num link de afiliado para analytics."""
     from sqlalchemy.exc import IntegrityError
+    from app.services.geoip import resolve as resolve_geo
+
     real_ip = (
         request.headers.get("cf-connecting-ip")
         or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
         or (request.client.host if request.client else None)
     )
+    geo = resolve_geo(request, real_ip)
     click = AffiliateClick(
         id=uuid.uuid4(),
         offer_id=body.offer_id,
         provider=body.provider,
         ip_address=real_ip,
         user_agent=request.headers.get("user-agent"),
+        country_code=geo.get("country_code"),
+        country=geo.get("country"),
+        region=geo.get("region"),
+        city=geo.get("city"),
+        latitude=geo.get("latitude"),
+        longitude=geo.get("longitude"),
+        geo_source=geo.get("geo_source"),
     )
     db.add(click)
     try:
