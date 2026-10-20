@@ -12,12 +12,15 @@ import os
 
 BTC_ADDRESS = os.getenv("SUPPORT_BTC_ADDRESS", "bc1qnyqg92pkr3ruthk2cc3t60auyqf6gw9yywg5tg")
 ETH_ADDRESS = os.getenv("SUPPORT_ETH_ADDRESS", "0x95DdD84F3c982A6FEc3A03416CE2B9565E64f5FF")
+# Chave Pix aleatória (BR) para recebimento — pública por natureza (vai na legenda).
+PIX_KEY = os.getenv("SUPPORT_PIX_KEY", "ea174755-02cf-4359-91b4-832ce0d51849")
 
 SUPPORT_PT = (
     "Gostando do conteúdo? Ajude o canal a continuar no ar e apoie novos "
     "episódios com uma doação:\n"
     f"BTC: {BTC_ADDRESS}\n"
-    f"ETH (ERC-20): {ETH_ADDRESS}"
+    f"ETH (ERC-20): {ETH_ADDRESS}\n"
+    f"PIX: {PIX_KEY}"
 )
 
 SEPARATOR = "\n\n"
