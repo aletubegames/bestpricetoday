@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { API_BASE } from "@/lib/api"
+import { API_BASE, SITE_BASE } from "@/lib/api"
 import HojeClient from "./HojeClient"
 
 // ISR: revalida a cada 30min (as quedas de preço mudam com o scraper diário)
@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     description:
       "Quedas de preço reais medidas pelo histórico de 30 dias. Ofertas novas todos os dias.",
     type: "website",
+  },
+  alternates: {
+    canonical: `${SITE_BASE}/hoje`,
   },
 }
 

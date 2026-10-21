@@ -47,6 +47,7 @@ export const metadata: Metadata = {
   creator: "AleTubeGames",
   publisher: "AleTubeGames",
   metadataBase: new URL(SITE_BASE),
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "pt_BR",
@@ -104,9 +105,6 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${syne.variable} ${dmSans.variable}`}
     >
-      <head>
-        <link rel="canonical" href={SITE_BASE} />
-      </head>
       <body className={dmSans.className}>
         <Providers>{children}</Providers>
 
