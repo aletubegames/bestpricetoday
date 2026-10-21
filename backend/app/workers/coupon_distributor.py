@@ -2157,8 +2157,12 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
             pass
 
         # 4. Texto para overlay (escapado para ffmpeg)
+        # % precisa virar \\% na string do filtro (parser de opções come uma
+        # barra; drawtext precisa receber \% p/ literal) — sem isso a linha
+        # inteira renderiza vazia ("Stray %").
         def esc(t):
-            return t.replace("'", "\\'").replace(":", "\\:").replace(",", "\\,")
+            return (t.replace("'", "\\'").replace(":", "\\:")
+                     .replace(",", "\\,").replace("%", "\\\\%"))
 
         # Quebra título em linhas dinamicamente (max ~30 chars cada)
         title_full = offer["title"][:90]
@@ -2177,9 +2181,29 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
         title_lines = title_lines[:4]
 
         # Escreve título num arquivo .txt (ffmpeg textfile permite \n real)
+        # \% no arquivo = % literal no drawtext
         title_file = os.path.join(tmpdir, "title.txt")
         with open(title_file, "w") as f:
-            f.write("\n".join(title_lines))
+            f.write("\n".join(title_lines).replace("%", "\\%"))
+
+        # Fontes pesadas (servidor: urw-base35) — condensada bold p/ linhas de
+        # impacto, sans bold p/ título/labels. Fallback: fonte default do ffmpeg.
+        def _pick_font(*paths):
+            for p in paths:
+                if os.path.exists(p):
+                    return f"fontfile={p}:"
+            return ""
+
+        F_BOLD = _pick_font(
+            "/usr/share/fonts/opentype/urw-base35/NimbusSans-Bold.otf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        )
+        F_COND = _pick_font(
+            "/usr/share/fonts/opentype/urw-base35/NimbusSansNarrow-Bold.otf",
+            "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        )
 
         price_text = esc(fmt_brl(price))
         final_text = esc(fmt_brl(final_price))
@@ -2194,27 +2218,32 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0a0a0a",
                 "format=yuv420p",
                 # Título via textfile (permite quebra de linha real com \n)
-                f"drawtext=textfile={title_file}:fontcolor=white:fontsize=32:"
-                f"x=(w-text_w)/2:y=60:line_spacing=8:box=1:boxcolor=0x000000@0.7:boxborderw=12",
+                f"drawtext={F_BOLD}textfile={title_file}:fontcolor=white:fontsize=40:"
+                f"x=(w-text_w)/2:y=60:line_spacing=8:box=1:boxcolor=0x000000@0.7:boxborderw=14:"
+                f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8",
                 # Preço original (riscado visualmente com cor cinza)
-                f"drawtext=text='DE {price_text}':fontcolor=0x999999:fontsize=38:"
+                f"drawtext={F_BOLD}text='DE {price_text}':fontcolor=0xcccccc:fontsize=42:"
                 f"x=(w-text_w)/2:y=1480:box=1:boxcolor=0x000000@0.6:boxborderw=8",
             ]
             if discount_pct > 0:
                 vf_parts.append(
-                    f"drawtext=text='POR {final_text}':fontcolor=0x00ff88:fontsize=52:"
-                    f"x=(w-text_w)/2:y=1550:box=1:boxcolor=0x000000@0.8:boxborderw=14"
+                    f"drawtext={F_COND}text='POR {final_text}':fontcolor=0xffd700:fontsize=68:"
+                    f"borderw=5:bordercolor=0x000000:"
+                    f"x=(w-text_w)/2:y=1550:box=1:boxcolor=0x000000@0.6:boxborderw=16:"
+                    f"shadowx=0:shadowy=3:shadowcolor=0x000000@0.8"
                 )
                 vf_parts.append(
-                    f"drawtext=text='{discount_text}':fontcolor=0xff4444:fontsize=42:"
-                    f"x=(w-text_w)/2:y=1640:box=1:boxcolor=0x000000@0.6:boxborderw=10"
+                    f"drawtext={F_COND}text='{discount_text}':fontcolor=white:fontsize=44:"
+                    f"x=(w-text_w)/2:y=1645:box=1:boxcolor=0xe02020@0.92:boxborderw=12:"
+                    f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8"
                 )
             vf_parts.append(
-                f"drawtext=text='{coupon_text}':fontcolor=0xffcc00:fontsize=44:"
-                f"x=(w-text_w)/2:y=1730:box=1:boxcolor=0x000000@0.85:boxborderw=18"
+                f"drawtext={F_COND}text='{coupon_text}':fontcolor=0xffcc00:fontsize=50:"
+                f"borderw=3:bordercolor=0x000000:"
+                f"x=(w-text_w)/2:y=1735:box=1:boxcolor=0x000000@0.85:boxborderw=18"
             )
             vf_parts.append(
-                "drawtext=text='BestPriceToday':fontcolor=0x888888:fontsize=22:"
+                f"drawtext={F_BOLD}text='BestPriceToday':fontcolor=0x888888:fontsize=26:"
                 "x=(w-text_w)/2:y=1860"
             )
 
@@ -2234,13 +2263,16 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
         else:
             # Sem imagem: fundo + texto
             noimg_vf = [
-                f"drawtext=textfile={title_file}:fontcolor=white:fontsize=42:"
-                f"x=(w-text_w)/2:y=800:line_spacing=10:box=1:boxcolor=0x000000@0.5:boxborderw=20",
-                f"drawtext=text='DE {price_text}':fontcolor=0x999999:fontsize=48:"
+                f"drawtext={F_BOLD}textfile={title_file}:fontcolor=white:fontsize=46:"
+                f"x=(w-text_w)/2:y=800:line_spacing=10:box=1:boxcolor=0x000000@0.5:boxborderw=20:"
+                f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8",
+                f"drawtext={F_BOLD}text='DE {price_text}':fontcolor=0xcccccc:fontsize=44:"
                 f"x=(w-text_w)/2:y=1000",
-                f"drawtext=text='POR {final_text}':fontcolor=0x00ff88:fontsize=56:"
-                f"x=(w-text_w)/2:y=1080",
-                f"drawtext=text='{coupon_text}':fontcolor=0xffcc00:fontsize=52:"
+                f"drawtext={F_COND}text='POR {final_text}':fontcolor=0xffd700:fontsize=72:"
+                f"borderw=5:bordercolor=0x000000:"
+                f"x=(w-text_w)/2:y=1080:shadowx=0:shadowy=3:shadowcolor=0x000000@0.8",
+                f"drawtext={F_COND}text='{coupon_text}':fontcolor=0xffcc00:fontsize=52:"
+                f"borderw=3:bordercolor=0x000000:"
                 f"x=(w-text_w)/2:y=1200:box=1:boxcolor=0x000000@0.7:boxborderw=15",
             ]
             cmd = [

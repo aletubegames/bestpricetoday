@@ -1108,8 +1108,12 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             pass
 
         # ── 4. Texto para overlay (escapado para ffmpeg) ──
+        # % precisa virar \\% na string do filtro (parser de opções come uma
+        # barra; drawtext precisa receber \% p/ literal) — sem isso a linha
+        # inteira renderiza vazia ("Stray %").
         def esc(t):
-            return t.replace("'", "\\'").replace(":", "\\:").replace(",", "\\,")
+            return (t.replace("'", "\\'").replace(":", "\\:")
+                     .replace(",", "\\,").replace("%", "\\\\%"))
 
         # Variedade visual aleatória
         import random as _rand
@@ -1132,9 +1136,10 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         title_lines = title_lines[:4]
 
         # Escreve título num arquivo .txt (ffmpeg textfile permite \n real)
+        # \% no arquivo = % literal no drawtext
         title_file = _os.path.join(tmpdir, "title.txt")
         with open(title_file, "w") as f:
-            f.write("\n".join(title_lines))
+            f.write("\n".join(title_lines).replace("%", "\\%"))
 
         price_text = esc(fmt_brl(price))
         discount_text = esc(f"-{discount:.0f}% OFF") if discount > 0 else ""
@@ -1142,11 +1147,30 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         economy_val = offer.get("economy", 0) or (original - price if original and original > price else 0)
         economy_text = esc(f"ECONOMIZE {fmt_brl(economy_val)}") if economy_val > 10 else ""
 
+        # Fontes pesadas (servidor: urw-base35) — condensada bold p/ linhas de
+        # impacto, sans bold p/ título/labels. Fallback: fonte default do ffmpeg.
+        def _pick_font(*paths):
+            for p in paths:
+                if _os.path.exists(p):
+                    return f"fontfile={p}:"
+            return ""
+
+        F_BOLD = _pick_font(
+            "/usr/share/fonts/opentype/urw-base35/NimbusSans-Bold.otf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        )
+        F_COND = _pick_font(
+            "/usr/share/fonts/opentype/urw-base35/NimbusSansNarrow-Bold.otf",
+            "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        )
+
         # Variedade de cores e posições
         color_schemes = [
-            {"price": "0x00ff88", "discount": "0xff4444", "economy": "0xffaa00"},  # verde/vermelho/laranja
-            {"price": "0x00ccff", "discount": "0xff6600", "economy": "0xffcc00"},  # azul/laranja/amarelo
-            {"price": "0x00ffaa", "discount": "0xff3366", "economy": "0xffdd00"},  # verde claro/vermelho/amarelo claro
+            {"price": "0xffd700", "discount": "0xe02020", "economy": "0xffb340"},  # ouro/vermelho/laranja
+            {"price": "0x2ee66b", "discount": "0xe02020", "economy": "0xffd60a"},  # verde/vermelho/amarelo
+            {"price": "0x40c8ff", "discount": "0xff6432", "economy": "0xffd60a"},  # azul/laranja/amarelo
         ]
         colors = _rand.choice(color_schemes)
 
@@ -1158,45 +1182,53 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x0a0a1a@0.95",  # cor de fundo com transparência
                 "format=yuv420p",
                 # Título via textfile (permite quebra de linha real com \n)
-                f"drawtext=textfile={title_file}:fontcolor=white:fontsize=34:"
-                f"x=(w-text_w)/2:y=50:line_spacing=10:box=1:boxcolor=0x000000@0.75:boxborderw=15",
+                f"drawtext={F_BOLD}textfile={title_file}:fontcolor=white:fontsize=40:"
+                f"x=(w-text_w)/2:y=50:line_spacing=10:box=1:boxcolor=0x000000@0.75:boxborderw=16:"
+                f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8",
             ]
             if orig_text:
                 vf_parts.append(
-                    f"drawtext=text='DE {orig_text}':fontcolor=0xaaaaaa:fontsize=40:"
+                    f"drawtext={F_BOLD}text='DE {orig_text}':fontcolor=0xcccccc:fontsize=42:"
                     f"x=(w-text_w)/2:y=1450:box=1:boxcolor=0x000000@0.65:boxborderw=10"
                 )
                 vf_parts.append(
-                    f"drawtext=text='POR {price_text}':fontcolor={colors['price']}:fontsize=56:"
-                    f"x=(w-text_w)/2:y=1520:box=1:boxcolor=0x000000@0.85:boxborderw=16"
+                    f"drawtext={F_COND}text='POR {price_text}':fontcolor={colors['price']}:fontsize=72:"
+                    f"borderw=5:bordercolor=0x000000:"
+                    f"x=(w-text_w)/2:y=1520:box=1:boxcolor=0x000000@0.6:boxborderw=18:"
+                    f"shadowx=0:shadowy=3:shadowcolor=0x000000@0.8"
                 )
                 if discount_text:
                     vf_parts.append(
-                        f"drawtext=text='{discount_text}':fontcolor={colors['discount']}:fontsize=44:"
-                        f"x=(w-text_w)/2:y=1610:box=1:boxcolor=0x000000@0.65:boxborderw=12"
+                        f"drawtext={F_COND}text='{discount_text}':fontcolor=white:fontsize=46:"
+                        f"x=(w-text_w)/2:y=1628:box=1:boxcolor={colors['discount']}@0.92:boxborderw=14:"
+                        f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8"
                     )
                 if economy_text:
                     vf_parts.append(
-                        f"drawtext=text='{economy_text}':fontcolor={colors['economy']}:fontsize=40:"
-                        f"x=(w-text_w)/2:y=1680:box=1:boxcolor=0x000000@0.65:boxborderw=10"
+                        f"drawtext={F_COND}text='{economy_text}':fontcolor={colors['economy']}:fontsize=44:"
+                        f"borderw=3:bordercolor=0x000000:"
+                        f"x=(w-text_w)/2:y=1702:box=1:boxcolor=0x000000@0.6:boxborderw=10"
                     )
             else:
                 vf_parts.append(
-                    f"drawtext=text='{price_text}':fontcolor={colors['price']}:fontsize=60:"
-                    f"x=(w-text_w)/2:y=1520:box=1:boxcolor=0x000000@0.85:boxborderw=16"
+                    f"drawtext={F_COND}text='{price_text}':fontcolor={colors['price']}:fontsize=72:"
+                    f"borderw=5:bordercolor=0x000000:"
+                    f"x=(w-text_w)/2:y=1520:box=1:boxcolor=0x000000@0.6:boxborderw=18:"
+                    f"shadowx=0:shadowy=3:shadowcolor=0x000000@0.8"
                 )
 
             if shipping_free:
-                shipping_colors = ["0x00ff88", "0x00ccff", "0x00ffaa"]
+                shipping_colors = ["0x2ee66b", "0x40c8ff", "0xffd700"]
                 shipping_color = _rand.choice(shipping_colors)
                 vf_parts.append(
-                    f"drawtext=text='FRETE GRATIS':fontcolor={shipping_color}:fontsize=38:"
-                    "x=(w-text_w)/2:y=1750:box=1:boxcolor=0x000000@0.65:boxborderw=12"
+                    f"drawtext={F_COND}text='FRETE GRATIS':fontcolor={shipping_color}:fontsize=46:"
+                    "borderw=3:bordercolor=0x000000:"
+                    "x=(w-text_w)/2:y=1768:box=1:boxcolor=0x000000@0.6:boxborderw=12"
                 )
             else:
                 vf_parts.append(
-                    f"drawtext=text='{provider.upper()}':fontcolor=0x999999:fontsize=34:"
-                    f"x=(w-text_w)/2:y=1750"
+                    f"drawtext={F_BOLD}text='{provider.upper()}':fontcolor=0xaaaaaa:fontsize=34:"
+                    f"x=(w-text_w)/2:y=1768"
                 )
 
             # Variedade de textos de CTA
@@ -1208,11 +1240,12 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             ]
             cta_text = _rand.choice(cta_texts)
             vf_parts.append(
-                f"drawtext=text='{cta_text}':fontcolor=0x00ff88:fontsize=30:"
-                "x=(w-text_w)/2:y=1830:box=1:boxcolor=0x000000@0.75:boxborderw=10"
+                f"drawtext={F_COND}text='{cta_text}':fontcolor=white:fontsize=34:"
+                "borderw=3:bordercolor=0x000000:"
+                "x=(w-text_w)/2:y=1848:box=1:boxcolor=0x000000@0.75:boxborderw=10"
             )
             vf_parts.append(
-                "drawtext=text='BestPriceToday':fontcolor=0x777777:fontsize=24:"
+                f"drawtext={F_BOLD}text='BestPriceToday':fontcolor=0x777777:fontsize=26:"
                 "x=(w-text_w)/2:y=1890"
             )
 
@@ -1234,15 +1267,19 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         else:
             # Sem imagem: fundo escuro + texto
             vf_parts = [
-                f"drawtext=textfile={title_file}:fontcolor=white:fontsize=36:"
-                f"x=(w-text_w)/2:y=700:line_spacing=10:box=1:boxcolor=0x000000@0.5:boxborderw=20",
-                f"drawtext=text='{price_text}':fontcolor=0x00ff88:fontsize=56:"
-                f"x=(w-text_w)/2:y=1100:box=1:boxcolor=0x000000@0.7:boxborderw=15",
+                f"drawtext={F_BOLD}textfile={title_file}:fontcolor=white:fontsize=44:"
+                f"x=(w-text_w)/2:y=700:line_spacing=10:box=1:boxcolor=0x000000@0.5:boxborderw=20:"
+                f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8",
+                f"drawtext={F_COND}text='{price_text}':fontcolor={colors['price']}:fontsize=72:"
+                f"borderw=5:bordercolor=0x000000:"
+                f"x=(w-text_w)/2:y=1100:box=1:boxcolor=0x000000@0.6:boxborderw=18:"
+                f"shadowx=0:shadowy=3:shadowcolor=0x000000@0.8",
             ]
             if discount_text:
                 vf_parts.append(
-                    f"drawtext=text='{discount_text}':fontcolor=0xff4444:fontsize=42:"
-                    f"x=(w-text_w)/2:y=1200:box=1:boxcolor=0x000000@0.6:boxborderw=10"
+                    f"drawtext={F_COND}text='{discount_text}':fontcolor=white:fontsize=46:"
+                    f"x=(w-text_w)/2:y=1205:box=1:boxcolor={colors['discount']}@0.92:boxborderw=14:"
+                    f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8"
                 )
 
             cmd = [
