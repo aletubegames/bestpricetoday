@@ -182,3 +182,24 @@
 - Corrigidas quebras de responsividade em `/alertas`, `/privacy`, `/terms`, `/deletion-status`, `/dashboard`, `/perfil`, `/categoria/[cat]`, `/marca/[marca]`
 - Dependências não usadas removidas do `package.json`
 - `coupon_distributor.py` corrigido: timezone UTC, AsyncClient para imagens, cleanup de tmpdir, frases de utilidade ampliadas com fallback por substantivo, vídeo de teste validado
+
+## Monetização — PLANO APROVADO (2026-10-21, não desviar)
+
+**Diagnóstico do funil** (22 dias de dados reais, set-out/2026):
+- 1.240 cliques → 73% bots → ~329 reais (~15/dia). Conversões: 0. Earnings ML: R$0.
+- Causa raiz: **audiência ~zero**. Telegram posta em chat privado c/ 2 membros (CHANNEL_ID=5899118807), páginas FB/IG sem seguidores, YouTube é canal de games (AleTubeGames, 608 subs) — nicho errado.
+- Margem por venda física (ML ~5-8%, ticket mediano R$70) = R$3,50-5,60 → **tráfego pago direto NUNCA fecha** (100 cliques a R$0,50 = R$50 vs ~R$10 retorno). Não tentar.
+
+**Decisões do dono:**
+- NÃO vender a máquina/serviço (trabalho demais: servidor, manutenção, clientes)
+- Meta: renda real. Ordem das alavancas aprovada:
+
+1. **Canal Telegram público de verdade** — hoje CHANNEL_ID aponta pra DM privada. Criar canal, bot como admin, trocar `TELEGRAM_CHANNEL_ID` no `.env` do alaserver.
+2. **Grupos FB/WhatsApp de achadinhos** — postar onde o público já está (grátis, imediato). Entrada nos grupos é manual.
+3. **Canal YouTube dedicado de ofertas** — Shorts é o único canal com distribuição real (135 dos 329 cliques reais). AleTubeGames (games) é audiência errada.
+4. **Shoutouts em canais de achadinhos** — ~R$50-200/post, custo/membro ~R$0,10-0,50. Teste: R$300-500. Só depois do canal existir.
+5. **Priorizar Shopee** — paga CPA por comprador novo + comissão, converte melhor que ML (ticket baixo = impulso). Páginas "Achados Shopee" já existem.
+
+**Margem alta (plano B se afiliado físico não escalar):** produtos digitais Hotmart/Eduzz/Kiwify pagam 30-70% — aí tráfego pago fecha (R$50 de cliques → R$150 de comissão). Mesma máquina, outro produto.
+
+**Sequência:** canal Telegram → grupos/canal YT dedicado → shoutouts (medir membros/R$) → escalar o que converter.
