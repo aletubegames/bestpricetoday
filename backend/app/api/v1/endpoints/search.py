@@ -421,6 +421,95 @@ async def sitemap_queries(limit: int = Query(default=500, ge=1, le=10000)):
     }
 
 
+@router.get("/offers/today")
+async def offers_today(
+    req: Request,
+    limit: int = Query(default=12, ge=1, le=24),
+):
+    """Top ofertas do dia — curadoria determinística para a página /hoje.
+
+    Critério: preço atual abaixo do máximo dos últimos 30 dias registrado em
+    affiliate_price_history (queda real, não "desconto" declarado pela loja),
+    faixa R$20–500, com imagem, marca reconhecida e não-acessório
+    (mesmos filtros do distributor). Dedup por ml_code, ordenado por % de queda.
+    """
+    from app.core.rate_limit import check_rate_limit, get_client_ip
+    from app.db.session import get_db
+    from app.models.models import AffiliateProduct, AffiliatePriceHistory
+    from app.workers.distributor import _has_recognized_brand, _is_accessory
+    from sqlalchemy import select, func
+    from datetime import datetime, timedelta, timezone
+
+    ip = get_client_ip(req)
+    if not await check_rate_limit(ip, key="offers_today", max_calls=30, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit: max 30 req/min por IP.")
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+
+    max30 = (
+        select(
+            AffiliatePriceHistory.product_id.label("product_id"),
+            func.max(AffiliatePriceHistory.price).label("max30"),
+        )
+        .where(AffiliatePriceHistory.recorded_at >= cutoff)
+        .group_by(AffiliatePriceHistory.product_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(AffiliateProduct, max30.c.max30)
+        .join(max30, max30.c.product_id == AffiliateProduct.id)
+        .where(
+            AffiliateProduct.is_active == True,
+            AffiliateProduct.price.between(20.0, 500.0),
+            AffiliateProduct.image_url.isnot(None),
+            AffiliateProduct.title.isnot(None),
+            AffiliateProduct.affiliate_url.isnot(None),
+            AffiliateProduct.price < max30.c.max30 * 0.95,
+        )
+        .order_by((1 - AffiliateProduct.price / max30.c.max30).desc())
+        .limit(300)
+    )
+
+    offers = []
+    seen = set()
+    async for db in get_db():
+        result = await db.execute(stmt)
+        for p, mx in result.all():
+            key = p.ml_code or str(p.id)
+            if key in seen:
+                continue
+            title = p.title or ""
+            if _is_accessory(title) or not _has_recognized_brand(title):
+                continue
+            seen.add(key)
+            provider = "amazon" if "amazon" in (p.affiliate_url or "").lower() else "mercadolivre"
+            offers.append({
+                "id": str(p.id),
+                "title": title,
+                "price": float(p.price),
+                "final_price": float(p.price),
+                "original_price": round(float(mx), 2),
+                "discount_percent": round((1 - p.price / mx) * 100),
+                "economy": round(float(mx) - float(p.price), 2),
+                "affiliate_url": p.affiliate_url,
+                "image_url": p.image_url,
+                "category": p.category,
+                "commission_pct": float(p.commission_pct) if p.commission_pct else 0,
+                "provider": provider,
+                "store": provider,
+                "ml_code": p.ml_code,
+            })
+            if len(offers) >= limit:
+                break
+
+    return {
+        "offers": offers,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "criteria": "preco < max(30d) * 0.95, R$20-500, marca reconhecida",
+    }
+
+
 @router.get("/debug/aliexpress")
 async def debug_aliexpress(q: str = Query(default="fone bluetooth")):
     """Endpoint de diagnóstico — mostra resposta bruta da API AliExpress."""

@@ -177,6 +177,23 @@ def mark_posted(key: str):
     _save_dedup(data)
 
 
+async def _send_telegram_alert(msg: str):
+    """Alerta operacional pro dono via Telegram (mesmo padrão do ml_scraper)."""
+    try:
+        token = settings.TELEGRAM_BOT_TOKEN
+        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
+        if not token:
+            return
+        async with httpx.AsyncClient(timeout=15) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+            )
+        logger.info(f"Alerta Telegram enviado: {msg[:80]}")
+    except Exception as e:
+        logger.warning(f"Erro ao enviar alerta Telegram: {e}")
+
+
 # ─── Filtros de qualidade (demanda + marca + desconto real) ──────────────────
 
 def _has_recognized_brand(title: str) -> bool:
@@ -571,6 +588,38 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
 
     # 6. Pedido de apoio (ordem do dono, 2026-10-19) — mesmo bloco do CryptoKitchen
     return append_support("\n".join(lines))
+
+
+def _youtube_title(offer: dict) -> str:
+    """Título do Short com hook de descoberta (antes era "Produto — R$X | BestPriceToday").
+
+    Regras: hook primeiro, marca/produto cedo, preço em R$, máx 100 chars
+    (limite do YouTube). Variantes por sinal disponível (discount/economy).
+    """
+    import re as _re
+    raw = (offer.get("title") or "Oferta").strip()
+    price = offer.get("final_price") or 0
+    original = offer.get("original_price") or 0
+    discount = offer.get("discount_percent") or 0
+    economy = offer.get("economy") or (original - price if original and original > price else 0)
+    # Título de e-commerce vem com spec dump — corta na 1ª vírgula/separador
+    short = _re.split(r"[,;|]|\s[-–—]\s", raw)[0].strip() or raw
+    short = short[:55].rstrip()
+    p = fmt_brl(price)
+
+    hooks = []
+    if discount >= 25:
+        hooks += [
+            f"😱 -{discount:.0f}% OFF: {short} por {p}!",
+            f"🚨 {discount:.0f}% de desconto: {short} = {p}",
+        ]
+    if economy >= 40:
+        hooks.append(f"💰 ECONOMIZE {fmt_brl(economy)}: {short} por {p}")
+    hooks += [
+        f"🔥 {short} por {p} — menor preço agora",
+        f"⚡ PREÇO BAIXO: {short} só {p}",
+    ]
+    return random.choice(hooks)[:100]
 
 
 # ─── Telegram poster ──────────────────────────────────────────────────────────
@@ -1360,8 +1409,8 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "", vi
             if not description:
                 description = build_youtube_description(offer, affiliate_url, short_url)
 
-            # Título
-            title = f"{offer.get('title', '')[:50]} — R$ {offer.get('final_price', 0):.2f} | BestPriceToday"
+            # Título com hook — descoberta do Shorts é 80% título
+            title = _youtube_title(offer)
 
             # Tags SEO
             tags = ["oferta", "desconto", offer.get("provider", "loja"), "bestpricetoday", "promoção"]
@@ -1686,6 +1735,10 @@ async def distribute_auto(
 
         if not offer:
             errors += 1
+            logger.warning(
+                f"Distributor: nenhuma oferta elegível na categoria '{category}' "
+                f"(queries={queries}) — filtros de qualidade/marca/dedup rejeitaram tudo"
+            )
             continue
 
         result = await distribute_offer(offer, channels=channels, campaign=campaign, use_ai=use_ai)
@@ -1701,6 +1754,13 @@ async def distribute_auto(
             posted += 1
         else:
             errors += 1
+            chans = result.get("channels") or {}
+            errs = "; ".join(
+                f"{c}: {r.get('error', '?')}" for c, r in chans.items() if not r.get("ok")
+            )
+            logger.warning(
+                f"Distributor: post falhou ('{offer.get('title', '')[:40]}'): {errs or 'sem detalhe'}"
+            )
 
         await asyncio.sleep(3)  # rate limit
 
@@ -1750,6 +1810,7 @@ async def run_distributor_loop():
     # Track se já postou em cada horário hoje
     posted_today = {}      # {"2026-06-28_12": True}
     youtube_posted_today = {}  # mesmo formato, só para YouTube
+    yt_fail_streak = 0     # janelas seguidas sem postar → alerta Telegram a cada 3
 
     while True:
         now = datetime.now()
@@ -1807,6 +1868,7 @@ async def run_distributor_loop():
 
         if yt_n_offers > 0:
             async def _youtube_background(n, sched):
+                nonlocal yt_fail_streak
                 try:
                     yt_result = await distribute_auto(
                         n_offers=n,
@@ -1816,8 +1878,24 @@ async def run_distributor_loop():
                     logger.info(f"Distributor: YouTube done — posted={yt_result.get('posted', 0)}, errors={yt_result.get('errors', 0)}")
                     if yt_result.get("ok"):
                         youtube_posted_today[f"{today_key}_{sched}"] = True
+                        yt_fail_streak = 0
+                    else:
+                        yt_fail_streak += 1
+                        if yt_fail_streak >= 3 and yt_fail_streak % 3 == 0:
+                            det = yt_result.get("details") or []
+                            motivo = det[0] if det else "nenhuma oferta elegível (ver log acima)"
+                            await _send_telegram_alert(
+                                f"⚠️ *YouTube distributor*: {yt_fail_streak} janelas seguidas sem postar.\n"
+                                f"Último motivo: `{str(motivo)[:200]}`"
+                            )
                 except Exception as e:
                     logger.error(f"Distributor: YouTube background error: {e}")
+                    yt_fail_streak += 1
+                    if yt_fail_streak >= 3 and yt_fail_streak % 3 == 0:
+                        await _send_telegram_alert(
+                            f"⚠️ *YouTube distributor*: {yt_fail_streak} janelas seguidas sem postar.\n"
+                            f"Último motivo: exceção `{str(e)[:180]}`"
+                        )
                     youtube_posted_today[f"{today_key}_{sched}"] = True
 
             asyncio.create_task(_youtube_background(yt_n_offers, yt_schedule_hour))
