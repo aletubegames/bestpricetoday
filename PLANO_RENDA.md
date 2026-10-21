@@ -107,12 +107,13 @@ KILL: 4 semanas de F1 com <300 cliques humanos totais → pivô (ver §6)
 
 ### FASE 0 — Validar o dinheiro — ✅ PASSOU (2026-09-30)
 
-**Prova:** 2 pedidos / R$ 598,23 GMV / R$ 24,53 comissão estimada no portal ML.
-Atribuição ponta a ponta funciona — não precisa de compra teste.
+**Prova:** 2 pedidos / R$ 598,23 GMV / R$ 24,53 comissão **liquidada** no portal
+ML (confirmado pelo dono em 21/out). Atribuição ponta a ponta funciona — não
+precisa de compra teste.
 
-- [ ] **0.1 (dono, 5 min)** Abrir o portal ML Afiliados e confirmar se os
-      R$ 24,53 viraram **confirmado/liquidado** (snapshots só veem "estimado").
-      Se estornou → investigar motivo (cancelamento/devolução).
+- [x] **0.1 (dono, 5 min)** ✅ **CONFIRMADO pelo dono em 21/out** — os
+      R$ 24,53 liquidaram no portal ML. Comissão real na conta, loop de
+      dinheiro ponta a ponta validado oficialmente.
 - [x] **0.2 Descobrir o que gerou o dia 30/set** — **ACHADO (2026-10-21):**
       o portal ML contou **88 cliques** no dia, mas nosso `click_events` só
       gravou 44 — **metade das saídas pro ML não passa pelo nosso tracking**.
