@@ -135,10 +135,15 @@ Ordem por custo × probabilidade de gente real em 2026:
   sozinho (feed de descoberta, não depende de inscritos).
 - [ ] Dono: abrir YouTube Studio 1×/semana e anotar **views reais** por Short
       (métrica que só existe lá). Meta: qualquer Short >500 views = sinal.
-- [ ] Eu: revisar títulos/thumbnails/hook dos Shorts — hoje são "nome do
-      produto + preço" (fraco). Mudar para gancho de dor: *"air fryer por
-      R$242 — ainda vale?"* + nos 2 primeiros segundos o preço na tela.
-- [ ] Eu: descrição de todo Short com link `/r/` + link do site.
+- [x] Eu: revisar títulos dos Shorts — ✅ **DEPLOY 21/out:** `_youtube_title()`
+      com hook primeiro: "😱 -X% OFF: produto por R$Y", "💰 ECONOMIZE R$Z",
+      "🔥 produto por R$Y — menor preço agora" (variantes por discount/economy;
+      spec-dump do título cortado no 1º separador). Thumbnails já mostram
+      preço/desconto grandes nos overlays ffmpeg. **Pendente do dono:** medir
+      views no Studio — se não subir em 2 semanas, revisar hook de narração
+      (primeiros 2s) também.
+- [x] Eu: descrição de todo Short com link `/r/` — ✅ **já existia:**
+      `build_youtube_description` usa `short_url` rastreado + link do site.
 
 **1.B — Telegram: canal próprio + semeadura manual — prioridade 2**
 - O canal existe, tem ~0 membros (1 clique/30d).
@@ -154,11 +159,15 @@ Ordem por custo × probabilidade de gente real em 2026:
   nunca foi submetido.
 - [ ] Dono: cadastrar `bestpricetoday.alaserver.com.br` no Google Search
       Console + enviar sitemap (10 min, conta Google).
-- [ ] Eu: adicionar páginas de cupom ao sitemap (`/cupons` tem 2.689 ativos
-      reais — hoje fora do sitemap), e páginas de categoria de cupom
-      (`"cupom mercado livre <loja>"` é busca real e recorrente).
-- [ ] Eu: garantir `title`/`meta` com o desconto em texto ("15% OFF em …"),
-      que é o que ranqueia essas queries.
+- [x] Eu: adicionar `/cupons` ao sitemap — ✅ **DEPLOY 21/out** (daily, prio
+      0.8) junto com `/hoje` (hourly, 0.9). Páginas por loja (`/cupons/<loja>`)
+      ficam pra depois — hoje o filtro de loja é query param client-side,
+      precisaria de rota própria pra indexar.
+- [x] Eu: `title`/`meta` com desconto em texto — ✅ **DEPLOY 21/out:**
+      `/cupons` virou server component com metadata próprio
+      ("Cupons Mercado Livre — descontos ativos hoje") + OG + canonical;
+      `/produto/[query]` já tinha `generateMetadata` com a query no título.
+      `/hoje` nasceu com metadata + OG próprios.
 
 **1.D — WhatsApp Status/Comunidade (bônus, custo zero)**
 - [ ] Dono: postar 1 oferta boa/dia no Status do WhatsApp pessoal com o link.
@@ -198,12 +207,20 @@ automáticos porque é grátis, parar de contar como canal de crescimento).
       `/items` do ML dá 403 e páginas de produto caem em captcha. Preço nos
       cards de cupom segue majoritariamente ausente; `discount_text` continua
       sendo a headline real (como o fix do distributor de 12/out já fazia).
-- [ ] **2.4 Página pública de ofertas "top do dia"** — 1 URL curada
-      (`/hoje`) com as 10 melhores ofertas, para o dono compartilhar UM link
-      em vez de escolher produto na hora (facilita 1.B e 1.D).
-- [ ] **2.5 Revisitar YouTube `errors=1`** do distributor — log do motivo
-      do pulo e alerta Telegram se 3 janelas seguidas falharem.
-- [ ] **2.6 Sitemap com cupons** (entrega junto com 1.C).
+- [x] **2.4 Página pública de ofertas "top do dia"** — ✅ **DEPLOY 2026-10-21:**
+      `GET /api/v1/offers/today` — curadoria determinística: preço < máximo
+      dos últimos 30d (`affiliate_price_history`), R$20–500, marca reconhecida,
+      não-acessório, dedup ml_code, ordenado por % de queda REAL (não "desconto"
+      declarado pela loja). `/hoje` é SSR (ISR 30min) — 12 cards, cada âncora
+      rastreada via `openTrackedOffer` (source=`hoje`). Verificado: 12 ofertas
+      reais (-59% a -28%), público 200 via Cloudflare. 1 link pro dono postar.
+- [x] **2.5 YouTube `errors=1`** — ✅ **DEPLOY 2026-10-21:** causa raiz achada:
+      `errors=1` = "nenhuma oferta elegível nas categorias sorteadas" (filtros
+      rejeitavam tudo), não falha de upload. Agora: loga a categoria+queries
+      quando zera, loga erro por canal quando post falha, e streak de falhas
+      dispara alerta Telegram a cada 3 janelas seguidas (também em exceção).
+- [x] **2.6 Sitemap** — ✅ **DEPLOY 2026-10-21:** `/hoje` (hourly, prio 0.9) e
+      `/cupons` (daily, prio 0.8) adicionados ao `sitemap.xml`.
 
 **Gate da Fase 2:** ≥1 pedido de TERCEIRO em `conversion_events`/
 portal ML (não a compra teste do dono).
@@ -310,8 +327,8 @@ tração **neste formato**. Pivôs realistas, em ordem:
 | 1 | Confirmar no portal ML se os R$24,53 liquidaram + o que gerou o dia 30/set (F0) | **Dono+Eu** | 15 min |
 | 2 | Search Console + sitemap (F1.C) | **Dono** | 10 min |
 | 3 | ~~Fix `is_bot` nos cliques + fix Lomadee + preço de cupom~~ ✅ DEPLOY 21/out | **Eu** | feito |
-| 4 | Página `/hoje` com top ofertas (F2.4) | **Eu** | 1 sessão |
-| 5 | Reescrever hook/título dos Shorts (F1.A) | **Eu** | 1 sessão |
+| 4 | ~~Página `/hoje` com top ofertas (F2.4)~~ ✅ DEPLOY 21/out | **Eu** | feito |
+| 5 | ~~Reescrever hook/título dos Shorts (F1.A)~~ ✅ DEPLOY 21/out | **Eu** | feito |
 | 6 | Postar em 5+ grupos de promoções, 15min/dia (F1.B) | **Dono** | diário |
 | 7 | Revisão semanal: queries do §4 + views YT + membros TG | **Dono+Eu** | 10 min/sem |
 
