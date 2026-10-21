@@ -42,6 +42,7 @@ _XTTS_SEMAPHORE = asyncio.Semaphore(1)
 
 BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
 CHANNEL_ID = settings.TELEGRAM_CHANNEL_ID
+TELEGRAM_CHANNEL_LINK = "https://t.me/bestpricetodayBr"  # canal público (criado 21/out)
 API_URL = settings.INTERNAL_API_URL
 ADMIN_KEY = settings.ADMIN_MANAGER_KEY
 
@@ -448,7 +449,7 @@ def build_caption_fallback(offer: dict, short_url: str) -> str:
 
     lines.append(f"\n🛒 *Clica aqui antes que acabe*")
     lines.append(f"👉 [Ver oferta]({short_url})")
-    lines.append(f"\n🛍️ @BestPriceToday")
+    lines.append(f"\n🛍️ @bestpricetodayBr")
 
     # Pedido de apoio (ordem do dono, 2026-10-19)
     return append_support("\n".join(lines))
@@ -468,7 +469,7 @@ async def build_caption(offer: dict, short_url: str) -> str:
         lines.append(f"\n{emoji} Via *{provider.upper()}*")
         lines.append(f"\n🛒 *Compre agora antes que acabe!*")
         lines.append(f"👉 [Ver oferta]({short_url})")
-        lines.append(f"\n🛍️ @BestPriceToday | [BestPriceToday]({settings.PUBLIC_SITE_URL})")
+        lines.append(f"\n🛍️ @bestpricetodayBr | [BestPriceToday]({settings.PUBLIC_SITE_URL})")
         return append_support("\n".join(lines))
 
     return build_caption_fallback(offer, short_url)
@@ -578,6 +579,7 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     lines.append("BestPriceToday — fugimos de promoção fake com histórico de preços.")
     lines.append(f"{settings.PUBLIC_SITE_URL}")
+    lines.append(f"📣 Ofertas todo dia no Telegram: {TELEGRAM_CHANNEL_LINK}")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
 
     # 5. Hashtags SEO
@@ -761,7 +763,10 @@ async def _post_to_single_facebook_page(page: dict, offer: dict, caption: str, s
         logger.info(f"Distributor: Facebook {method} posted on '{page_name}' — post_id={post_id}")
 
         # 2. Postar comentário com o short link
-        comment_text = f"🛒 Compre aqui: {short_url}"
+        comment_text = (
+            f"🛒 Compre aqui: {short_url}\n"
+            f"📣 Ofertas todo dia no Telegram: {TELEGRAM_CHANNEL_LINK}"
+        )
         comment_id = None
         try:
             comment_data = await ig_fb_client.post_comment_facebook(
@@ -937,7 +942,10 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
                 try:
                     comment_id = await client.post_comment_facebook(
                         post_id=media_id,
-                        message=f"🛒 Compre aqui: {short_url}",
+                        message=(
+                            f"🛒 Compre aqui: {short_url}\n"
+                            f"📣 Ofertas todo dia no Telegram: {TELEGRAM_CHANNEL_LINK}"
+                        ),
                         page_token=acct.access_token,
                     )
                     if comment_id:

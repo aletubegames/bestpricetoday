@@ -160,6 +160,10 @@ Ordem por custo × probabilidade de gente real em 2026:
 - [ ] Dono: convidar contatos/família pro canal — os primeiros 30 membros.
 - [x] Eu: post "como usar" + links (`/hoje` + `/cupons`) — ✅ **publicado e
       pinado no canal** (msg_id 2, 21/out).
+- [x] Eu: convite do canal em todo post automático — ✅ **DEPLOY 21/out:**
+      comentário fixado FB/IG (`🛒 link + 📣 t.me/bestpricetodayBr`),
+      descrição YouTube, e footer das legendas Telegram corrigido
+      (`@BestPriceToday` apontava handle inexistente → `@bestpricetodayBr`).
 
 **1.C — SEO de cauda-longa de cupom — prioridade 3 (renda passiva)**
 - Googlebot já rasteja o site (provado nos cliques), mas Search Console
