@@ -57,7 +57,7 @@ export const metadata: Metadata = {
       "Busca automática do menor preço em todas as lojas. Histórico de preços e alertas de queda.",
     siteName: "BestPriceToday",
     images: [
-      { url: "/og-image.png", width: 1200, height: 630, alt: "BestPriceToday" },
+      { url: "/og-image.png?v=2", width: 1200, height: 630, alt: "BestPriceToday" },
     ],
   },
   twitter: {
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     title: "BestPriceToday — Menor Preço do Brasil",
     description: "Compare preços em Mercado Livre, Amazon, Shopee e mais.",
     creator: "@AleTubeGames",
-    images: ["/og-image.png"],
+    images: ["/og-image.png?v=2"],
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   verification: {
