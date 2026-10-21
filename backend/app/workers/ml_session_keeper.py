@@ -478,7 +478,7 @@ async def _send_telegram_alert():
     try:
         from app.core.config import settings
         token = settings.TELEGRAM_BOT_TOKEN
-        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
+        chat_id = str(settings.TELEGRAM_ALERT_CHAT_ID or "5899118807")
         if not token:
             return
         last_ok = LAST_OK_FILE.read_text().strip() if LAST_OK_FILE.exists() else "desconhecido"

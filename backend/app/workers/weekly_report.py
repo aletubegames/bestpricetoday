@@ -21,7 +21,7 @@ async def _send(msg: str):
     """Mensagem pro dono — mesmo padrão de alerta do ml_scraper/distributor."""
     try:
         token = settings.TELEGRAM_BOT_TOKEN
-        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
+        chat_id = str(settings.TELEGRAM_ALERT_CHAT_ID or "5899118807")
         if not token:
             return
         async with httpx.AsyncClient(timeout=15) as client:

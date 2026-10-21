@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHANNEL_ID: str = ""  # @BestPriceTodayor -1001234567890
+    TELEGRAM_ALERT_CHAT_ID: str = ""  # DM do dono p/ alertas operacionais (nunca postar no canal)
 
     # Sentry
     SENTRY_DSN: str = ""

@@ -33,7 +33,7 @@ async def _send_telegram(msg: str) -> None:
         from app.core.config import settings
 
         token = settings.TELEGRAM_BOT_TOKEN
-        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
+        chat_id = str(settings.TELEGRAM_ALERT_CHAT_ID or "5899118807")
         if not token:
             logger.warning("ML oauth alert: TELEGRAM_BOT_TOKEN vazio")
             return

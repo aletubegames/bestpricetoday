@@ -181,7 +181,7 @@ async def _send_telegram_alert(msg: str):
     """Alerta operacional pro dono via Telegram (mesmo padrão do ml_scraper)."""
     try:
         token = settings.TELEGRAM_BOT_TOKEN
-        chat_id = str(settings.TELEGRAM_CHANNEL_ID) if settings.TELEGRAM_CHANNEL_ID else "5899118807"
+        chat_id = str(settings.TELEGRAM_ALERT_CHAT_ID or "5899118807")
         if not token:
             return
         async with httpx.AsyncClient(timeout=15) as client:

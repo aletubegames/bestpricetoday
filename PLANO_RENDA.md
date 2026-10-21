@@ -146,23 +146,20 @@ Ordem por custo × probabilidade de gente real em 2026:
       `build_youtube_description` usa `short_url` rastreado + link do site.
 
 **1.B — Telegram: canal próprio + semeadura manual — prioridade 2**
-- ⚠️ **AUDIT 21/out (mais preciso que o original):** o canal **não existe**.
-  `TELEGRAM_CHANNEL_ID` aponta pro user ID do dono (`5899**07`) — os posts
-  do distributor caem numa **DM bot↔dono** (2 membros: bot + dono). O
-  "1 clique/30d" era o próprio dono clicando. `@BestPriceTodayor` e
-  variantes: "chat not found".
-- [ ] **Dono (bloqueante):** criar canal público no app Telegram, adicionar
-      `@BestPriceToday_bot` como admin, me passar o @username — eu atualizo
-      `TELEGRAM_CHANNEL_ID` no `.env` do alaserver + reinicio o backend.
-      Sem isso, Telegram contribui exatamente 0.
+- ✅ **RESOLVIDO 21/out:** canal criado — **@bestpricetodayBr**
+  (`-1003752570488`), `@BestPriceToday_bot` é admin, post "como usar"
+  pinado. `TELEGRAM_CHANNEL_ID` atualizado no alaserver + backend
+  reiniciado. **Alertas separados:** novo `TELEGRAM_ALERT_CHAT_ID` = DM
+  do dono — erros operacionais não vazam pro canal público.
+  (Contexto: o "canal" anterior era a DM do dono — `5899**07` — o
+  "1 clique/30d" era o próprio dono clicando.)
 - [ ] Dono: entrar em 5–10 grupos BR de promoções/achadinhos (Telegram e
       WhatsApp — ex.: comunidades estilo Pelando/Promobit) e postar ofertas
       REAIS com o link, respeitando regra de cada grupo (sem spam = sem ban).
       15 min/dia. É o único jeito grátis comprovado de audiência de deals.
 - [ ] Dono: convidar contatos/família pro canal — os primeiros 30 membros.
-- [x] Eu: post "como usar" + links (`/hoje` + `/cupons`) — ✅ **existe e está
-      fixado** (texto correto), mas na DM bot↔dono. Quando o canal real
-      existir, repinar lá (mesmo texto já aprovado).
+- [x] Eu: post "como usar" + links (`/hoje` + `/cupons`) — ✅ **publicado e
+      pinado no canal** (msg_id 2, 21/out).
 
 **1.C — SEO de cauda-longa de cupom — prioridade 3 (renda passiva)**
 - Googlebot já rasteja o site (provado nos cliques), mas Search Console
