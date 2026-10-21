@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import type { MouseEvent } from "react"
 import { useRouter } from "next/navigation"
 import Header from "@/components/layout/Header"
 import { API_BASE as API, apiFetch } from "@/lib/api"
 import { isTokenExpired } from "@/lib/utils"
+import { openTrackedOffer } from "@/lib/tracking"
 import PriceHistory from "@/components/offers/PriceHistory"
 import styles from "./page.module.css"
 
@@ -33,6 +35,35 @@ function buildAdminHeaders(token?: string | null): Record<string, string> {
   if (token) headers["Authorization"] = `Bearer ${token}`
   if (storedAdminKey) headers["X-Admin-Key"] = storedAdminKey
   return headers
+}
+
+// Abre a oferta com clique registrado (mesma rota /r/{code} das outras páginas).
+// Fallback: product_url/affiliate_url direta se o tracking falhar.
+function openOfferTracked(e: MouseEvent<HTMLAnchorElement>, offer: Offer) {
+  e.preventDefault()
+  if (!offer.affiliate_url) return
+  openTrackedOffer(
+    {
+      provider: offer.provider,
+      title: offer.title,
+      price: offer.final_price,
+      final_price: offer.final_price,
+      affiliate_url: offer.affiliate_url,
+      product_id: offer.id,
+      image_url: offer.image_url ?? undefined,
+      discount_percent: offer.discount_pct ?? 0,
+      coupon_discount: 0,
+      cashback_percent: 0,
+      shipping_price: 0,
+      shipping_free: false,
+      score: 0,
+      is_fake_discount: false,
+      economy: 0,
+    },
+    "afiliados"
+  ).catch(() => {
+    window.open(offer.affiliate_url, "_blank", "noopener,noreferrer")
+  })
 }
 
 // ─── Copy Button ──────────────────────────────────────────────────────────────
@@ -244,6 +275,7 @@ function ProductsTab({ token, provider }: { token: string; provider: "mercadoliv
                   target="_blank"
                   rel="noopener noreferrer sponsored"
                   className={styles.cardLink}
+                  onClick={(e) => openOfferTracked(e, offer)}
                 >
                   Ver oferta
                 </a>

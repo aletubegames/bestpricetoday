@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import type { MouseEvent } from "react"
 import Header from "@/components/layout/Header"
 import { API_BASE } from "@/lib/api"
 import { trackCopyCoupon } from "@/lib/analytics"
+import { openTrackedOffer } from "@/lib/tracking"
 import styles from "./cupons.module.css"
 
 interface CouponProduct {
@@ -123,6 +125,39 @@ export default function CuponsPage() {
       store_name: product?.coupon.store_name || undefined,
     })
     setTimeout(() => setCopiedCode(null), 2000)
+  }
+
+  // Abre a loja com clique registrado — mesma rota /r/{code} dos cards de oferta.
+  // Fallback: se o tracking falhar, abre a product_url direta (já tem matt_* do ML).
+  const handleOpenProduct = (event: MouseEvent<HTMLAnchorElement>, product: CouponProduct) => {
+    event.preventDefault()
+    if (!product.product_url) return
+    openTrackedOffer(
+      {
+        provider: "mercadolivre",
+        title: product.title,
+        price: product.price,
+        final_price: product.price,
+        affiliate_url: product.product_url,
+        product_id: product.id,
+        image_url: product.image_url ?? undefined,
+        discount_percent: product.coupon.discount_percent ?? 0,
+        coupon_discount: 0,
+        cashback_percent: 0,
+        shipping_price: 0,
+        shipping_free: false,
+        score: 0,
+        is_fake_discount: false,
+        economy: 0,
+      },
+      "cupons"
+    ).then((url) => {
+      if (!url || url === "#" || url === "about:blank") {
+        window.open(product.product_url, "_blank", "noopener,noreferrer")
+      }
+    }).catch(() => {
+      window.open(product.product_url, "_blank", "noopener,noreferrer")
+    })
   }
 
   const formatDate = (iso: string | null) => {
@@ -321,6 +356,7 @@ export default function CuponsPage() {
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 className={styles.imageLink}
+                onClick={(e) => handleOpenProduct(e, product)}
               >
                 {product.image_url ? (
                   <img
@@ -351,6 +387,7 @@ export default function CuponsPage() {
                   target="_blank"
                   rel="noopener noreferrer sponsored"
                   className={styles.productTitle}
+                  onClick={(e) => handleOpenProduct(e, product)}
                 >
                   {product.title}
                 </a>
@@ -419,6 +456,7 @@ export default function CuponsPage() {
                   target="_blank"
                   rel="noopener noreferrer sponsored"
                   className={styles.cta}
+                  onClick={(e) => handleOpenProduct(e, product)}
                 >
                   🛒 Ver na loja
                 </a>

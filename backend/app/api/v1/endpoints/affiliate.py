@@ -867,6 +867,24 @@ async def list_coupon_products(
     total = len(deduped)
     rows = deduped[offset:offset + limit]
 
+    # Fallback de preço: coupon_products.price é NULL no modelo novo de cupons
+    # (API /items do ML dá 403). Se o mesmo ml_code existir em affiliate_products
+    # (scraper de afiliados) com preço, usamos esse preço para exibir no card.
+    aff_prices = {}
+    missing = [cp.ml_code for cp, _ in rows if cp.price is None and cp.ml_code]
+    if missing:
+        result = await db.execute(
+            select(AffiliateProduct.ml_code, AffiliateProduct.price)
+            .where(
+                AffiliateProduct.ml_code.in_(missing),
+                AffiliateProduct.is_active == True,
+                AffiliateProduct.price.isnot(None),
+            )
+        )
+        for ml_code, price in result.all():
+            if ml_code not in aff_prices:
+                aff_prices[ml_code] = price
+
     # Helper para adicionar tracking de afiliado ML na URL
     _add_aff_tracking = add_ml_affiliate_tracking
 
@@ -877,7 +895,7 @@ async def list_coupon_products(
             "title": cp.title,
             "product_url": _add_aff_tracking(cp.product_url),
             "image_url": cp.image_url,
-            "price": cp.price,
+            "price": cp.price if cp.price is not None else aff_prices.get(cp.ml_code),
             "ml_code": cp.ml_code,
             "coupon": {
                 "code": coupon.coupon_code,

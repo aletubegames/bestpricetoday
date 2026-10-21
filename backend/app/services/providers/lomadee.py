@@ -332,13 +332,13 @@ class LomadeeProvider(BaseProvider):
             price      = round(float(price_raw), 2) if price_raw else None
             list_price = round(float(list_raw), 2) if list_raw else None
 
+            if not price:
+                return None
+
             # Lomadee freq. retorna listPrice == price (sem desconto na fonte)
             # Scraping desativado — muito lento (3s/produto). Usa MSRP de referência.
             if not list_price or list_price <= price:
                 list_price = self._get_msrp(item.get("name", ""), price)
-
-            if not price:
-                return None
 
             discount = 0
             economy  = 0
