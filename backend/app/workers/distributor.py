@@ -1038,12 +1038,12 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             
             # Variedade de CTAs aleatórios
             ctas = [
-                "Link no comentário. Clica agora!",
-                "Clica no link do comentário!",
-                "Link fixado no comentário!",
-                "Confira no comentário!",
-                "Botão no comentário!",
-                "Aproveita no comentário!",
+                "Link na descrição. Clica agora!",
+                "Clica no link da descrição!",
+                "Link na descrição do vídeo!",
+                "Confira na descrição!",
+                "Link tá na descrição!",
+                "Aproveita, link na descrição!",
             ]
             
             # Escolhe aleatoriamente
@@ -1233,10 +1233,10 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
 
             # Variedade de textos de CTA
             cta_texts = [
-                "LINK NO COMENTÁRIO",
-                "LINK NO COMENTÁRIO FIXADO",
-                "CLICA NO COMENTÁRIO",
-                "CONFIRA NO COMENTÁRIO",
+                "LINK NA DESCRIÇÃO",
+                "LINK NA DESCRIÇÃO DO VÍDEO",
+                "CLICA NA DESCRIÇÃO",
+                "CONFIRA NA DESCRIÇÃO",
             ]
             cta_text = _rand.choice(cta_texts)
             vf_parts.append(
