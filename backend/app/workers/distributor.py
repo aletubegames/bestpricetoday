@@ -46,6 +46,12 @@ TELEGRAM_CHANNEL_LINK = "https://t.me/bestpricetodayBr"  # canal público (criad
 API_URL = settings.INTERNAL_API_URL
 ADMIN_KEY = settings.ADMIN_MANAGER_KEY
 
+# Ollama na AlePC (RTX 4090) — forward socat 192.168.15.31:11435 -> 127.0.0.1:11434
+# Mesmo modelo do lo_fi (qwen3.8:27b). Se a AlePC estiver desligada, a chamada
+# falha rápido e a legenda cai no fallback de template — nunca quebra o post.
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://192.168.15.31:11435")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.8:27b")
+
 # Filtros de qualidade — relaxados para aumentar conversões
 MIN_PRICE = 20.0          # preço mínimo: R$20 (aumentado de R$30)
 MAX_PRICE = 500.0         # preço máximo: R$500 (aumentado de R$200)
@@ -349,10 +355,11 @@ def _is_usable_caption(caption: str) -> bool:
 
 
 async def generate_caption_ai(offer: dict) -> Optional[str]:
-    """Gera legenda persuasiva via OpenRouter (1 chamada, modelo barato)."""
-    if not settings.OPENROUTER_API_KEY:
-        return None
+    """Gera legenda persuasiva via Ollama na AlePC (qwen3.8:27b, RTX 4090).
 
+    Zero custo/rate-limit de API. Falha ou AlePC desligada → None →
+    build_caption_fallback cobre (o post nunca morre por causa da IA).
+    """
     title = offer.get("title", "")[:100]
     price = offer.get("final_price") or 0
     original = offer.get("original_price") or 0
@@ -381,41 +388,34 @@ Regras:
 - Máximo 2 linhas além do título"""
 
     try:
-        async with httpx.AsyncClient(timeout=30) as c:
+        async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                    "HTTP-Referer": settings.PUBLIC_SITE_URL,
-                    "Content-Type": "application/json",
-                },
+                f"{OLLAMA_URL}/api/chat",
                 json={
-                    "model": "openrouter/free",  # router automatico para modelos free disponiveis
+                    "model": OLLAMA_MODEL,
                     "messages": [
                         {"role": "system", "content": "Voce e um copywriter de ofertas. Responda APENAS com o caption final, sem explicacao ou opcoes."},
                         {"role": "user", "content": prompt},
                     ],
-                    "max_tokens": 150,
-                    "temperature": 0.8,
+                    "stream": False,
+                    "think": False,  # qwen3 emite <think> — desligado p/ caption direta
+                    "options": {"num_predict": 150, "temperature": 0.8},
                 },
             )
             if r.status_code == 200:
-                data = r.json()
-                msg = data["choices"][0]["message"]
-                # Usa apenas content — NUNCA reasoning (vaza prompt interno)
-                caption = msg.get("content")
+                caption = (r.json().get("message") or {}).get("content")
                 if caption:
                     caption = caption.strip()
                     if caption and _is_usable_caption(caption):
-                        logger.info(f"Distributor: AI caption generated ({len(caption)} chars) model={data.get('model','?')}")
+                        logger.info(f"Distributor: AI caption generated ({len(caption)} chars) model={OLLAMA_MODEL}")
                         return caption
-                    logger.warning(f"Distributor: AI caption rejected (scaffold/leak), model={data.get('model','?')}")
+                    logger.warning(f"Distributor: AI caption rejected (scaffold/leak), model={OLLAMA_MODEL}")
                 else:
-                    logger.warning(f"Distributor: AI caption empty response, model={data.get('model','?')}")
+                    logger.warning(f"Distributor: AI caption empty response, model={OLLAMA_MODEL}")
             else:
-                logger.warning(f"Distributor: OpenRouter error {r.status_code}: {r.text[:200]}")
+                logger.warning(f"Distributor: Ollama error {r.status_code}: {r.text[:200]}")
     except Exception as e:
-        logger.warning(f"Distributor: AI caption failed: {e}")
+        logger.warning(f"Distributor: AI caption failed (ollama): {e}")
 
     return None
 
