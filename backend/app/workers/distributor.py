@@ -243,6 +243,20 @@ def _meets_demand(offer: dict) -> bool:
     return True
 
 
+def _proven_demand(offer: dict) -> bool:
+    """Demanda provada por volume/nota — substitui a exigência de marca.
+
+    Shopee/AliExpress têm produtos genéricos sem marca no título mas com
+    milhares de vendas. Para esses, a prova de demanda vale mais que o selo
+    de marca (plano 21/10 item 5: priorizar Shopee — ticket baixo = impulso).
+    """
+    sales = offer.get("sales_count") or 0
+    rating = offer.get("rating") or 0
+    if rating and rating <= 1.0:
+        rating *= 5  # AliExpress retorna nota 0-1
+    return sales >= MIN_SALES_COUNT or (rating and rating >= MIN_RATING)
+
+
 async def _is_real_discount(offer: dict) -> bool:
     """Valida que o desconto é real: preço atual ≤ mínimo dos últimos 30 dias.
 
@@ -1655,10 +1669,15 @@ async def distribute_auto(
     channels: list[str] = None,
     campaign: Optional[str] = None,
     use_ai: bool = True,
+    provider_sequence: Optional[list] = None,
 ) -> dict:
     """
     Busca e distribui N ofertas automaticamente.
     Seleciona ofertas de alta qualidade (desconto, score, preço) que não foram postadas.
+
+    provider_sequence: lista de providers (ex: ["shopee","amazon"]) — a busca do
+    i-ésimo slot fica restrita ao provider indicado; se nada elegível, cai no
+    fallback irrestrito (o post nunca é desperdiçado por provider vazio).
     """
     if channels is None:
         channels = ["telegram", "facebook"]
@@ -1673,7 +1692,9 @@ async def distribute_auto(
     errors = 0
     details = []
 
-    for category in categories:
+    from app.schemas.schemas import ProviderEnum
+
+    for cat_i, category in enumerate(categories):
         if posted >= n_offers:
             break
 
@@ -1686,59 +1707,80 @@ async def distribute_auto(
         # no rate-limit de 30 buscas/min do bucket 127.0.0.1 (compartilhado
         # com o SSR do site) → 429 esvaziava todas as categorias. Também
         # deixa de gravar evento na tabela searches (poluía stats como 'ssr').
-        from app.services.search import search_all
+        from app.services.search import search_all, PROVIDERS, normalize_query
+
+        # Provider-alvo do slot (rotação diária definida no loop); se nada
+        # elegível nele, refaz 1 busca irrestrita para não desperdiçar o post.
+        prov_name = provider_sequence[cat_i % len(provider_sequence)] if provider_sequence else None
+        try:
+            slot_providers = [ProviderEnum(prov_name)] if prov_name else None
+        except ValueError:
+            slot_providers = None
+        attempts = [(slot_providers, queries)]
+        if slot_providers:
+            attempts.append((None, queries[:1]))
 
         offer = None
-        for query in queries:
-            try:
-                resp = await search_all(query, limit=20, record_event=False)
-                offers = [o.model_dump(mode="json") for o in resp.offers]
-            except Exception:
-                continue
+        for att_providers, att_queries in attempts:
+            for query in att_queries:
+                try:
+                    if att_providers:
+                        # Busca direta no provider-alvo: search_all limita a 3
+                        # por loja (diversidade do site), o que esvaziaria o slot
+                        inst = PROVIDERS[att_providers[0]]()
+                        offers = [o.model_dump(mode="json") for o in
+                                  await inst.safe_search(normalize_query(query), limit=30)]
+                    else:
+                        resp = await search_all(query, limit=20, record_event=False)
+                        offers = [o.model_dump(mode="json") for o in resp.offers]
+                except Exception:
+                    continue
 
-            # Filtra por qualidade + demanda + marca + dedup
-            candidates = []
-            for o in offers:
-                fp = o.get("final_price") or 0
-                if not (MIN_PRICE <= fp <= MAX_PRICE):
-                    continue
-                if not o.get("affiliate_url"):
-                    continue
-                # Desconto: se tem discount_percent > 0, exige >= 15%
-                # Se discount_percent == 0 (ML/Amazon DB sem preço original), aceita
-                # — o _is_real_discount valida contra histórico de preço
-                dp = o.get("discount_percent", 0)
-                if dp > 0 and dp < MIN_DISCOUNT:
-                    continue
-                if not _has_recognized_brand(o.get("title", "")):
-                    continue
-                if _is_accessory(o.get("title", "")):
-                    continue
-                if not _meets_demand(o):
-                    continue
-                if already_posted(_offer_key(o)):
-                    continue
-                candidates.append(o)
+                # Filtra por qualidade + demanda + marca + dedup
+                candidates = []
+                for o in offers:
+                    fp = o.get("final_price") or 0
+                    if not (MIN_PRICE <= fp <= MAX_PRICE):
+                        continue
+                    if not o.get("affiliate_url"):
+                        continue
+                    # Desconto: se tem discount_percent > 0, exige >= 15%
+                    # Se discount_percent == 0 (ML/Amazon DB sem preço original), aceita
+                    # — o _is_real_discount valida contra histórico de preço
+                    dp = o.get("discount_percent", 0)
+                    if dp > 0 and dp < MIN_DISCOUNT:
+                        continue
+                    if not (_has_recognized_brand(o.get("title", "")) or _proven_demand(o)):
+                        continue
+                    if _is_accessory(o.get("title", "")):
+                        continue
+                    if not _meets_demand(o):
+                        continue
+                    if already_posted(_offer_key(o)):
+                        continue
+                    candidates.append(o)
 
-            # Valida desconto real contra histórico de preço (async)
-            valid = []
-            for o in candidates:
-                if await _is_real_discount(o):
-                    valid.append(o)
+                # Valida desconto real contra histórico de preço (async)
+                valid = []
+                for o in candidates:
+                    if await _is_real_discount(o):
+                        valid.append(o)
 
-            if valid:
-                # Seleciona por score (peso) com aleatoriedade
-                scores = [max(1, o.get("score", 50)) for o in valid]
-                total = sum(scores)
-                rand = random.uniform(0, total)
-                acc = 0
-                for o, s in zip(valid, scores):
-                    acc += s
-                    if rand <= acc:
-                        offer = o
-                        break
-                if not offer:
-                    offer = valid[0]
+                if valid:
+                    # Seleciona por score (peso) com aleatoriedade
+                    scores = [max(1, o.get("score", 50)) for o in valid]
+                    total = sum(scores)
+                    rand = random.uniform(0, total)
+                    acc = 0
+                    for o, s in zip(valid, scores):
+                        acc += s
+                        if rand <= acc:
+                            offer = o
+                            break
+                    if not offer:
+                        offer = valid[0]
+                    break
+            if offer:
                 break
 
         if not offer:
@@ -1800,6 +1842,18 @@ NIGHT_OFFERS = 0  # sem madrugada (baixo engajamento em todas)
 INTERVAL_SECONDS = 1800  # checa a cada 30 min se é hora de postar
 ALL_CHANNELS = ["telegram", "facebook", "instagram", "youtube"]
 
+# Rotação de lojas por slot — prioriza Shopee (plano 21/10 item 5).
+# A base gira a cada dia → todos os providers aparecem ao longo da semana.
+# Shopee ocupa metade dos slots; se o provider do slot não tiver oferta
+# elegível, o distribute_auto cai no fallback irrestrito (post não se perde).
+PROVIDER_ROTATION = ["shopee", "amazon", "shopee", "aliexpress", "shopee", "mercadolivre"]
+
+
+def _slot_providers(day_ordinal: int, n: int, offset: int = 0) -> list:
+    """Sequência de providers-alvo para os n slots do dia (rotação diária)."""
+    base = (day_ordinal + offset) % len(PROVIDER_ROTATION)
+    return [PROVIDER_ROTATION[(base + i) % len(PROVIDER_ROTATION)] for i in range(n)]
+
 
 async def run_distributor_loop():
     """Loop automático do distributor.
@@ -1855,6 +1909,7 @@ async def run_distributor_loop():
                     n_offers=n_offers,
                     channels=fast_channels,
                     use_ai=True,
+                    provider_sequence=_slot_providers(now.toordinal(), n_offers),
                 )
                 logger.info(f"Distributor: fast channels done — posted={result.get('posted', 0)}, errors={result.get('errors', 0)}")
                 if result.get("ok"):
@@ -1882,6 +1937,7 @@ async def run_distributor_loop():
                         n_offers=n,
                         channels=["youtube"],
                         use_ai=False,
+                        provider_sequence=_slot_providers(now.toordinal(), n, offset=3),
                     )
                     logger.info(f"Distributor: YouTube done — posted={yt_result.get('posted', 0)}, errors={yt_result.get('errors', 0)}")
                     if yt_result.get("ok"):
