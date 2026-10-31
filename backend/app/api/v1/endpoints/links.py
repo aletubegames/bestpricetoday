@@ -12,10 +12,12 @@ from app.db.session import get_db
 from app.core.config import settings
 from app.models.models import ShortLink, ClickEvent
 from app.services.affiliate_tracking import add_ml_affiliate_tracking
+from app.services.coupon_safety import ml_product_code
 from pydantic import BaseModel
 from typing import Literal, Optional
 from datetime import datetime, timedelta, timezone
 import math
+import re
 import secrets
 import string
 import base64
@@ -119,6 +121,21 @@ def generate_code(length: int = 8) -> str:
 SOCIAL_CHANNELS = ("youtube", "instagram", "facebook", "telegram")
 
 
+def _offer_dedup_keys(link: ShortLink) -> tuple:
+    """Chaves de dedup da vitrine /ofertas: mesmo produto aparece uma vez.
+
+    Uma chave é o código do produto extraído da URL afiliada (MLB... no ML);
+    a outra é o título normalizado. Um link é duplicado se QUALQUER chave já
+    apareceu — cobre o caso de links com e sem código para o mesmo produto.
+    O mais recente vence.
+    """
+    provider = link.provider or ""
+    code = ml_product_code({"product_url": link.affiliate_url})
+    title = re.sub(r"\s+", " ", (link.product_title or "").strip().lower())
+    code_key = f"{provider}:{code}" if code else None
+    return code_key, f"{provider}:{title or link.affiliate_url or ''}"
+
+
 @router.get("/links/social")
 async def list_social_links(
     channel: Literal["all", "youtube", "instagram", "facebook", "telegram"] = "all",
@@ -153,13 +170,20 @@ async def list_social_links(
             or_(*source_conds),
         )
         .order_by(ShortLink.created_at.desc(), ShortLink.id.desc())
-        .limit(limit)
+        .limit(min(limit * 8, 500))
     )
     result = await db.execute(stmt)
     site = settings.PUBLIC_SITE_URL.rstrip("/")
 
     offers = []
+    seen_codes, seen_titles = set(), set()
     for link in result.scalars().all():
+        code_key, title_key = _offer_dedup_keys(link)
+        if (code_key and code_key in seen_codes) or title_key in seen_titles:
+            continue
+        if code_key:
+            seen_codes.add(code_key)
+        seen_titles.add(title_key)
         price = link.price if (
             isinstance(link.price, (int, float)) and math.isfinite(link.price) and link.price > 0
         ) else None
@@ -176,6 +200,8 @@ async def list_social_links(
             "source": link.source,
             "url": f"{site}/r/{link.code}",
         })
+        if len(offers) >= limit:
+            break
     return {"offers": offers}
 
 

@@ -616,6 +616,42 @@ async def test_social_endpoint_is_read_only(sqlite_session):
     assert clicks == 0
 
 
+@pytest.mark.asyncio
+async def test_social_endpoint_deduplicates_products(sqlite_session):
+    """O mesmo produto publicado em dias/canais diferentes aparece uma vez —
+    a versão mais recente vence. Dedup por código do produto (MLB) e,
+    sem código, por título normalizado."""
+    links = [
+        _mk_link("DUPOLD", "distributor_telegram", days_ago=3,
+                 product_title="Pneu Aven 2.75-10",
+                 affiliate_url="https://produto.mercadolivre.com.br/MLB-111"),
+        _mk_link("DUPNEW", "distributor_youtube", days_ago=1,
+                 product_title="Pneu Aven 2.75-10",
+                 affiliate_url="https://produto.mercadolivre.com.br/MLB-111"),
+        _mk_link("DUPFB", "distributor_facebook", days_ago=2,
+                 product_title="  PNEU   aven 2.75-10 ",
+                 affiliate_url="https://meli.la/abc"),
+        _mk_link("UNIQ", "distributor_telegram", days_ago=2,
+                 product_title="Mouse Gamer X",
+                 affiliate_url="https://produto.mercadolivre.com.br/MLB-222"),
+    ]
+    await _seed(sqlite_session, *links)
+    app = _social_app(sqlite_session)
+    from httpx import AsyncClient, ASGITransport
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/v1/links/social")
+        assert r.status_code == 200
+        codes = [o["code"] for o in r.json()["offers"]]
+        assert codes == ["DUPNEW", "UNIQ"]
+
+        # por canal: cada filtro mostra a versão postada naquele canal
+        r = await client.get("/api/v1/links/social", params={"channel": "facebook"})
+        assert [o["code"] for o in r.json()["offers"]] == ["DUPFB"]
+        r = await client.get("/api/v1/links/social", params={"channel": "telegram"})
+        assert [o["code"] for o in r.json()["offers"]] == ["UNIQ", "DUPOLD"]
+
+
 # ─── distribute_coupons: short link por canal ────────────────────────────────
 
 @pytest.mark.asyncio
