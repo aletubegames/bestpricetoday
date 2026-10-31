@@ -1169,8 +1169,8 @@ async def scrape_metrics_summary(page) -> dict:
 
     # URL com filtro de período: ontem (dia anterior ao de hoje)
     # O ML usa formato ISO com timezone -03:00
-    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
     today = datetime.now(timezone.utc)
+    yesterday = today - timedelta(days=1)
     # Ajusta para -03:00 (horário Brasília)
     def iso_br(dt):
         br = dt.astimezone(timezone(timedelta(hours=-3)))
@@ -1204,6 +1204,15 @@ async def scrape_metrics_summary(page) -> dict:
             return result
 
         body_text = await page.inner_text("body")
+        from urllib.parse import parse_qs, urlparse
+        final_url = urlparse(page.url)
+        if (
+            final_url.hostname == "www.mercadolivre.com.br"
+            and parse_qs(final_url.query).get("filter_time_range") == [time_range]
+        ):
+            result["period_start"] = iso_br(yesterday)
+            result["period_end"] = iso_br(today)
+            result["period_source"] = "requested_dashboard_filter"
 
         # Helper: extrai primeiro número inteiro após um label
         # (pula linhas de descrição entre o label e o valor)
@@ -1313,6 +1322,7 @@ async def save_metrics_snapshot(data: dict):
                 clicks=data.get("clicks"),
                 orders=data.get("orders"),
                 estimated_earnings=data.get("estimated_earnings"),
+                confirmed_earnings=data.get("confirmed_earnings"),
                 raw_data=data,
             )
             db.add(snapshot)

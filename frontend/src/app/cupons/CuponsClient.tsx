@@ -337,18 +337,10 @@ export default function CuponsClient() {
           const price = formatPrice(product.price)
           const discount = product.coupon.discount_text || ""
 
-          // Calcula preço com desconto
-          let finalPrice = null
-          if (product.price && product.coupon.discount_percent) {
-            finalPrice = product.price * (1 - product.coupon.discount_percent / 100)
-          } else if (product.price && product.coupon.discount_value) {
-            finalPrice = product.price - product.coupon.discount_value
-          }
-
           return (
             <div key={product.id} className={styles.card}>
               {/* Badge de desconto */}
-              <div className={styles.discountBadge}>{discount}</div>
+              {discount && <div className={styles.discountBadge}>Desconto anunciado: {discount}</div>}
 
               {/* Imagem */}
               <a
@@ -406,12 +398,7 @@ export default function CuponsClient() {
                 {/* Preço */}
                 {price && (
                   <div className={styles.priceRow}>
-                    <span className={styles.priceOriginal}>{price}</span>
-                    {finalPrice && finalPrice > 0 && (
-                      <span className={styles.priceFinal}>
-                        {formatPrice(finalPrice)}
-                      </span>
-                    )}
+                    <span className={styles.priceFinal}>Preço consultado: {price}</span>
                   </div>
                 )}
 
@@ -436,6 +423,12 @@ export default function CuponsClient() {
                         {copiedCode === product.coupon.code ? "✓" : "Copiar"}
                       </button>
                     </>
+                  )}
+                  <p className={styles.couponLabel}>
+                    Confira elegibilidade, limite, validade e preço final na loja antes de comprar.
+                  </p>
+                  {product.coupon.conditions && (
+                    <p className={styles.couponLabel}>Condições: {product.coupon.conditions}</p>
                   )}
                 </div>
 

@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.db.session import get_db
 from app.models.models import ClickEvent, ConversionEvent, ShortLink
+from app.services.finance import FINANCE_PROVIDERS, REGISTERED_STATUSES, load_finance_report, report_start
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
@@ -163,7 +164,7 @@ async def record_click(
 async def get_overview(
     db: AsyncSession = Depends(get_db),
     provider: Optional[str] = None,
-    days: Optional[int] = None,
+    days: Optional[int] = FQuery(default=None, ge=1, le=366),
     _: str = Depends(require_admin),
 ):
     try:
@@ -173,7 +174,12 @@ async def get_overview(
         now_brt = now + brt_offset
         today_start = now_brt.replace(hour=0, minute=0, second=0, microsecond=0) - brt_offset
         week_start = now - timedelta(days=7)
-        month_start = now - timedelta(days=days if days else 30)
+        month_start = report_start(days or 30, now)
+        conversion_filters = (
+            ConversionEvent.converted_at >= month_start,
+            ConversionEvent.converted_at < now,
+            ConversionEvent.status.in_(REGISTERED_STATUSES),
+        )
 
         # clicks today — só cliques reais (sem crawlers/auto-registros)
         q = select(func.count()).where(ClickEvent.clicked_at >= today_start, _real_clicks_cond())
@@ -188,38 +194,44 @@ async def get_overview(
         if provider: q = q.where(ClickEvent.provider == provider)
         clicks_month = (await db.execute(q)).scalar() or 0
 
-        q = select(func.count()).select_from(ConversionEvent)
+        q = select(func.count()).select_from(ConversionEvent).where(*conversion_filters)
         if provider: q = q.where(ConversionEvent.provider == provider)
         total_conversions = (await db.execute(q)).scalar() or 0
 
-        q = select(func.sum(ConversionEvent.sale_price))
+        q = select(func.sum(ConversionEvent.sale_price)).where(*conversion_filters)
         if provider: q = q.where(ConversionEvent.provider == provider)
         total_revenue = float((await db.execute(q)).scalar() or 0)
 
-        q = select(func.sum(ConversionEvent.commission_value))
+        q = select(func.sum(ConversionEvent.commission_value)).where(*conversion_filters)
         if provider: q = q.where(ConversionEvent.provider == provider)
         total_commission = float((await db.execute(q)).scalar() or 0)
 
-        q = select(func.avg(ConversionEvent.commission_rate))
+        q = select(func.avg(ConversionEvent.commission_rate)).where(*conversion_filters)
         if provider: q = q.where(ConversionEvent.provider == provider)
         avg_commission_rate = float((await db.execute(q)).scalar() or 0)
 
         # clicks by provider (reais)
-        q = select(ClickEvent.provider, func.count().label("cnt")).where(_real_clicks_cond()).group_by(ClickEvent.provider)
+        q = select(ClickEvent.provider, func.count().label("cnt")).where(
+            _real_clicks_cond(), ClickEvent.clicked_at >= month_start, ClickEvent.clicked_at < now
+        ).group_by(ClickEvent.provider)
         if provider:
             q = q.where(ClickEvent.provider == provider)
         r = await db.execute(q)
         clicks_by_provider = {row.provider or "unknown": row.cnt for row in r.fetchall()}
 
         # clicks by source (reais)
-        q = select(ClickEvent.source, func.count().label("cnt")).where(_real_clicks_cond()).group_by(ClickEvent.source)
+        q = select(ClickEvent.source, func.count().label("cnt")).where(
+            _real_clicks_cond(), ClickEvent.clicked_at >= month_start, ClickEvent.clicked_at < now
+        ).group_by(ClickEvent.source)
         if provider:
             q = q.where(ClickEvent.provider == provider)
         r = await db.execute(q)
         clicks_by_source = {row.source or "web": row.cnt for row in r.fetchall()}
 
         # revenue by provider
-        q = select(ConversionEvent.provider, func.sum(ConversionEvent.sale_price).label("rev")).group_by(ConversionEvent.provider)
+        q = select(ConversionEvent.provider, func.sum(ConversionEvent.sale_price).label("rev")).where(
+            *conversion_filters
+        ).group_by(ConversionEvent.provider)
         if provider:
             q = q.where(ConversionEvent.provider == provider)
         r = await db.execute(q)
@@ -229,7 +241,9 @@ async def get_overview(
         top_provider = max(clicks_by_provider, key=lambda k: clicks_by_provider[k], default="aliexpress")
 
         # recent clicks (reais)
-        q = select(ClickEvent).where(_real_clicks_cond()).order_by(ClickEvent.clicked_at.desc()).limit(10)
+        q = select(ClickEvent).where(
+            _real_clicks_cond(), ClickEvent.clicked_at >= month_start, ClickEvent.clicked_at < now
+        ).order_by(ClickEvent.clicked_at.desc()).limit(10)
         if provider:
             q = q.where(ClickEvent.provider == provider)
         r = await db.execute(q)
@@ -246,9 +260,12 @@ async def get_overview(
         ]
 
         # recent conversions
-        r = await db.execute(
-            select(ConversionEvent).order_by(ConversionEvent.converted_at.desc()).limit(10)
-        )
+        q = select(ConversionEvent).where(
+            ConversionEvent.converted_at >= month_start, ConversionEvent.converted_at < now
+        ).order_by(ConversionEvent.converted_at.desc()).limit(10)
+        if provider:
+            q = q.where(ConversionEvent.provider == provider)
+        r = await db.execute(q)
         recent_conversions = [
             {
                 "id": str(c.id),
@@ -264,25 +281,22 @@ async def get_overview(
 
         # CTR calculation
         ctr = round(total_conversions / clicks_month * 100, 2) if clicks_month > 0 else 0
-        rpc = round(total_revenue / clicks_month, 4) if clicks_month > 0 else 0
+        rpc = round(total_commission / clicks_month, 4) if clicks_month > 0 else 0
 
         # ML affiliate dashboard — earnings só existem como snapshot agregado
-        # (portal ML não tem API de ordens). Soma todos os snapshots diários.
-        from app.models.models import AffiliateMetricsSnapshot
-        ml_q = select(
-            func.count().label("days"),
-            func.sum(AffiliateMetricsSnapshot.clicks).label("clicks"),
-            func.sum(AffiliateMetricsSnapshot.orders).label("orders"),
-            func.sum(AffiliateMetricsSnapshot.estimated_earnings).label("est_earnings"),
-            func.max(AffiliateMetricsSnapshot.collected_at).label("last_at"),
-        ).where(AffiliateMetricsSnapshot.provider == "mercadolivre")
-        ml_row = (await db.execute(ml_q)).fetchone()
+        # (portal ML não tem API de ordens). O relatório financeiro decide o que
+        # pode ser somado: só intervalos completos, sem sobreposição.
+        finance = await load_finance_report(db, days or 30, provider, now)
+        ml_row = next((row for row in finance["providers"] if row["provider"] == "mercadolivre"), None)
+        ml_latest = (ml_row or {}).get("latest_snapshot") or {}
         ml_metrics = {
-            "days_tracked": ml_row.days or 0,
-            "clicks_total": ml_row.clicks or 0,
-            "orders_total": ml_row.orders or 0,
-            "estimated_earnings_total": round(float(ml_row.est_earnings or 0), 2),
-            "last_collected_at": ml_row.last_at.isoformat() if ml_row.last_at else None,
+            "days_tracked": None,
+            "clicks_total": None,
+            "orders_total": None,
+            "estimated_earnings_total": (ml_row or {}).get("estimated_commission"),
+            "last_collected_at": ml_latest.get("collected_at"),
+            "latest_snapshot": ml_latest or None,
+            "partial": True,
         }
 
         return {
@@ -322,10 +336,22 @@ async def get_overview(
             "conversion_rate": 0.0,
             "revenue_per_click": 0.0,
             "avg_order_value": 0.0,
-            "ml_metrics": {"days_tracked": 0, "clicks_total": 0, "orders_total": 0,
-                           "estimated_earnings_total": 0.0, "last_collected_at": None},
+            "ml_metrics": {"days_tracked": None, "clicks_total": None, "orders_total": None,
+                           "estimated_earnings_total": None, "last_collected_at": None},
             "error": f"{type(e).__name__}: {str(e)[:200]}",
         }
+
+
+@router.get("/finance")
+async def get_finance(
+    days: int = FQuery(default=30, ge=1, le=366),
+    provider: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_admin),
+):
+    if provider is not None and provider not in FINANCE_PROVIDERS:
+        raise HTTPException(status_code=422, detail="Marketplace inválido")
+    return await load_finance_report(db, days, provider)
 
 
 @router.get("/clicks")
@@ -660,11 +686,7 @@ async def get_marketplaces(
         click_rows = {row.provider: {"clicks": row.clicks, "avg_price": float(row.avg_price or 0)} for row in r.fetchall()}
 
         # ML earnings vivem em snapshots agregados (portal sem API de ordens)
-        from app.models.models import AffiliateMetricsSnapshot
-        ml_est = (await db.execute(
-            select(func.sum(AffiliateMetricsSnapshot.estimated_earnings))
-            .where(AffiliateMetricsSnapshot.provider == "mercadolivre")
-        )).scalar() or 0
+        ml_est = None
 
         r = await db.execute(
             select(
@@ -673,6 +695,7 @@ async def get_marketplaces(
                 func.sum(ConversionEvent.sale_price).label("revenue"),
                 func.sum(ConversionEvent.commission_value).label("commission"),
             )
+            .where(ConversionEvent.status.in_(REGISTERED_STATUSES))
             .group_by(ConversionEvent.provider)
         )
         conv_rows = {
@@ -696,7 +719,7 @@ async def get_marketplaces(
                 "conversion_rate": round(convs / clicks * 100, 2) if clicks else 0,
                 "revenue": conv_rows.get(p, {}).get("revenue", 0),
                 "commission": conv_rows.get(p, {}).get("commission", 0),
-                "estimated_commission": round(float(ml_est), 2) if p == "mercadolivre" else 0,
+                "estimated_commission": ml_est,
                 "avg_price": click_rows.get(p, {}).get("avg_price", 0),
                 "top_products": [],
             })
@@ -1013,15 +1036,18 @@ async def trigger_conversion_poll(
 
 @router.get("/conversions/summary")
 async def conversion_summary(
-    days: int = 30,
+    days: int = FQuery(default=30, ge=1, le=366),
     db: AsyncSession = Depends(get_db),
     _: str = Depends(require_admin),
 ):
     """Detailed conversion funnel with click→conversion matching."""
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    now = datetime.now(timezone.utc)
+    since = report_start(days, now)
 
     r = await db.execute(
-        select(func.count()).where(ClickEvent.clicked_at >= since, _real_clicks_cond())
+        select(func.count()).where(
+            ClickEvent.clicked_at >= since, ClickEvent.clicked_at < now, _real_clicks_cond()
+        )
     )
     total_clicks = r.scalar() or 0
 
@@ -1030,7 +1056,10 @@ async def conversion_summary(
             func.count().label("count"),
             func.sum(ConversionEvent.sale_price).label("revenue"),
             func.sum(ConversionEvent.commission_value).label("commission"),
-        ).where(ConversionEvent.converted_at >= since)
+        ).where(
+            ConversionEvent.converted_at >= since, ConversionEvent.converted_at < now,
+            ConversionEvent.status.in_(REGISTERED_STATUSES),
+        )
     )
     row = r.fetchone()
     total_conversions = row.count or 0
@@ -1043,7 +1072,10 @@ async def conversion_summary(
             func.count().label("count"),
             func.sum(ConversionEvent.commission_value).label("commission"),
         )
-        .where(ConversionEvent.converted_at >= since)
+        .where(
+            ConversionEvent.converted_at >= since, ConversionEvent.converted_at < now,
+            ConversionEvent.status.in_(REGISTERED_STATUSES),
+        )
         .group_by(ConversionEvent.provider)
     )
     by_provider = [
@@ -1060,7 +1092,9 @@ async def conversion_summary(
         "conversion_rate": round(conversion_rate, 2),
         "total_revenue": total_revenue,
         "total_commission": total_commission,
-        "roi": round(total_commission, 2),
+        "roi": None,
+        "profit": None,
+        "coverage": "Registros importados; comissão não equivale a pagamento e custos não estão integrados.",
         "by_provider": by_provider,
         "funnel": {
             "clicks": total_clicks,

@@ -32,6 +32,7 @@ from typing import Optional
 from app.core.config import settings
 from app.core.logging import logger
 from app.services.support_block import append_support, fit_limit
+from app.services.coupon_safety import ml_product_code, coupon_notice
 
 # Semaphore para limitar concorrência de XTTS (evita OOM)
 # Máximo 1 processo XTTS por vez (cada processo consome ~2GB RAM)
@@ -429,7 +430,6 @@ def build_caption_fallback(offer: dict, short_url: str) -> str:
     shipping_free = offer.get("shipping_free", False)
     provider = offer.get("provider", "loja")
     economy = offer.get("economy", 0)
-    coupon = offer.get("coupon")
 
     # Hooks virais baseados na economia em reais (mais concreto que %)
     if economy >= 100:
@@ -458,8 +458,9 @@ def build_caption_fallback(offer: dict, short_url: str) -> str:
     if shipping_free:
         lines.append("✅ *Frete grátis*")
 
-    if coupon and coupon.get("code"):
-        lines.append(f"\n🏷️ *CUPOM: {coupon['code']}*")
+    coupon_text = coupon_notice(offer.get("coupon"))
+    if coupon_text:
+        lines.append(f"\n{coupon_text}")
 
     lines.append(f"\n🛒 *Clica aqui antes que acabe*")
     lines.append(f"👉 [Ver oferta]({short_url})")
@@ -489,7 +490,7 @@ async def build_caption(offer: dict, short_url: str) -> str:
     return build_caption_fallback(offer, short_url)
 
 
-def build_caption_facebook(offer: dict) -> str:
+def build_caption_facebook(offer: dict, channel: str = "facebook") -> str:
     """Legenda para Facebook/Instagram — SEM link no corpo do post.
 
     Estratégia anti-banimento (política Meta 2026):
@@ -528,16 +529,17 @@ def build_caption_facebook(offer: dict) -> str:
         lines.append(f"💰 Economize {fmt_brl(economy)}")
 
     # Cupom — destaque se existir
-    coupon = offer.get("coupon")
-    if coupon and coupon.get("code"):
-        lines.append(f"\n🏷️ CUPOM: {coupon['code']}")
-        if coupon.get("discount_text"):
-            lines.append(f"   → {coupon['discount_text']} extra no checkout!")
+    coupon_text = coupon_notice(offer.get("coupon"))
+    if coupon_text:
+        lines.append(f"\n{coupon_text}")
 
     lines.append(f"\n{emoji} Via {provider.upper()}")
 
     # CTA SEM link — direciona para os comentários
-    lines.append("\n👇 Link nos comentários (fixado)")
+    if channel == "instagram":
+        lines.append("\nOfertas no link do perfil. Procure pelo nome do produto.")
+    else:
+        lines.append("\n👇 Link nos comentários (fixado)")
     lines.append("🛍️ BestPriceToday — fugimos de promoção fake")
 
     # Pedido de apoio (ordem do dono, 2026-10-19)
@@ -564,6 +566,10 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
 
     lines = []
 
+    lines.append("Ofertas no link do perfil: procure pelo nome do produto.")
+    lines.append(f"{settings.PUBLIC_SITE_URL.rstrip('/')}/ofertas?canal=youtube")
+    lines.append("")
+
     # 1. Título + preço (compacto)
     lines.append(f"🔥 {title}")
     if original and original > price:
@@ -577,16 +583,13 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
 
     # 2. Link — usa short_url (passa pelo site, rastreia clique)
     lines.append("")
-    lines.append("🛒 Compre aqui:")
     lines.append(short_url)
 
     # Cupom — se existir
-    coupon = offer.get("coupon")
-    if coupon and coupon.get("code"):
+    coupon_text = coupon_notice(offer.get("coupon"))
+    if coupon_text:
         lines.append("")
-        lines.append(f"🏷️ CUPOM: {coupon['code']}")
-        if coupon.get("discount_text"):
-            lines.append(f"   → {coupon['discount_text']} extra no checkout!")
+        lines.append(coupon_text)
 
     # 3. Rodapé enxuto
     lines.append("")
@@ -957,7 +960,8 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
                     comment_id = await client.post_comment_facebook(
                         post_id=media_id,
                         message=(
-                            f"🛒 Compre aqui: {short_url}\n"
+                            f"Ofertas no link do perfil. Procure pelo nome do produto.\n"
+                            f"Referência: {short_url}\n"
                             f"📣 Ofertas todo dia no Telegram: {TELEGRAM_CHANNEL_LINK}"
                         ),
                         page_token=acct.access_token,
@@ -1109,12 +1113,12 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             
             # Variedade de CTAs aleatórios
             ctas = [
-                "Link na descrição. Clica agora!",
-                "Clica no link da descrição!",
-                "Link na descrição do vídeo!",
-                "Confira na descrição!",
-                "Link tá na descrição!",
-                "Aproveita, link na descrição!",
+                "Abra o link do perfil e procure este produto.",
+                "Abra o link do perfil e procure este produto.",
+                "Abra o link do perfil e procure este produto.",
+                "Abra o link do perfil e procure este produto.",
+                "Abra o link do perfil e procure este produto.",
+                "Abra o link do perfil e procure este produto.",
             ]
             
             # Escolhe aleatoriamente
@@ -1304,10 +1308,10 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
 
             # Variedade de textos de CTA
             cta_texts = [
-                "LINK NA DESCRIÇÃO",
-                "LINK NA DESCRIÇÃO DO VÍDEO",
-                "CLICA NA DESCRIÇÃO",
-                "CONFIRA NA DESCRIÇÃO",
+                "OFERTAS NO LINK DO PERFIL",
+                "OFERTAS NO LINK DO PERFIL",
+                "OFERTAS NO LINK DO PERFIL",
+                "OFERTAS NO LINK DO PERFIL",
             ]
             cta_text = _rand.choice(cta_texts)
             vf_parts.append(
@@ -1352,6 +1356,11 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                     f"x=(w-text_w)/2:y=1205:box=1:boxcolor={colors['discount']}@0.92:boxborderw=14:"
                     f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8"
                 )
+            vf_parts.append(
+                f"drawtext={F_COND}text='OFERTAS NO LINK DO PERFIL':fontcolor=white:fontsize=34:"
+                "borderw=3:bordercolor=0x000000:"
+                "x=(w-text_w)/2:y=1400:box=1:boxcolor=0x000000@0.75:boxborderw=10"
+            )
 
             cmd = [
                 "ffmpeg", "-y",
@@ -1481,19 +1490,30 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
     Para ML: só aplica se store_name do cupom bater com seller_name do produto.
     Para Amazon: aplica qualquer cupom (já é detectado na página do produto).
     """
+    offer = dict(offer)
+    offer.pop("coupon", None)
     provider = offer.get("provider", "")
     provider_map = {
         "mercadolivre": "mercadolivre",
         "amazon": "amazon",
     }
     coupon_provider = provider_map.get(provider)
-    if not coupon_provider:
+    if coupon_provider != "mercadolivre":
+        return offer
+
+    product_code = ml_product_code(offer)
+    if not product_code:
         return offer
 
     try:
         from app.db.session import AsyncSessionLocal
-        from app.models.models import Coupon
+        from app.models.models import Coupon, CouponProduct
         from sqlalchemy import select, or_, and_, func
+
+        matching_coupon_ids = select(CouponProduct.coupon_id).where(
+            func.replace(func.upper(CouponProduct.ml_code), "-", "") == product_code,
+            CouponProduct.is_available.is_(True),
+        )
 
         async with AsyncSessionLocal() as db:
             # Filtro comum: cupom deve ter desconto definido (percent OU valor fixo)
@@ -1517,6 +1537,8 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
                             Coupon.provider == coupon_provider,
                             Coupon.is_active == True,
                             has_discount,
+                            Coupon.id.in_(matching_coupon_ids),
+                            Coupon.expires_at > datetime.now(timezone.utc),
                             or_(
                                 Coupon.store_name == seller,
                                 Coupon.store_name.ilike(f"%{seller}%"),
@@ -1534,6 +1556,8 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
                             Coupon.provider == coupon_provider,
                             Coupon.is_active == True,
                             has_discount,
+                            Coupon.id.in_(matching_coupon_ids),
+                            Coupon.expires_at > datetime.now(timezone.utc),
                         )
                         .order_by(Coupon.expires_at.asc())
                         .limit(1)
@@ -1546,6 +1570,8 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
                         Coupon.provider == coupon_provider,
                         Coupon.is_active == True,
                         has_discount,
+                        Coupon.id.in_(matching_coupon_ids),
+                        Coupon.expires_at > datetime.now(timezone.utc),
                     )
                     .order_by(Coupon.expires_at.asc())
                     .limit(1)
@@ -1554,8 +1580,10 @@ async def _enrich_offer_with_coupon(offer: dict) -> dict:
             coupon = result.scalar()
             if coupon:
                 offer["coupon"] = {
+                    "verified": True,
                     "code": coupon.coupon_code,
                     "discount_text": coupon.discount_text,
+                    "conditions": coupon.conditions,
                     "expires_at": coupon.expires_at.isoformat() if coupon.expires_at else None,
                     "store_name": coupon.store_name,
                 }
@@ -1618,11 +1646,11 @@ async def distribute_offer(
         # 2. Gerar legenda (Facebook/Instagram usam caption SEM link — anti-banimento)
         if channel == "facebook":
             # Facebook: caption sem link no corpo (link vai nos comentários fixados)
-            caption = build_caption_facebook(offer)
+            caption = build_caption_facebook(offer, channel="facebook")
         elif channel == "instagram":
             # Instagram: caption SEM link no corpo (anti-banimento Meta)
             # Link vai nos comentários (fixado automaticamente)
-            caption = build_caption_facebook(offer)
+            caption = build_caption_facebook(offer, channel="instagram")
         elif channel == "youtube":
             # YouTube: descrição COM link direto (permitido, sem disclosure)
             caption = build_youtube_description(offer, affiliate_url, short_url)

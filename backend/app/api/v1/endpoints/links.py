@@ -4,17 +4,18 @@ GET /r/{code} → register click + 302 redirect to affiliate URL
 POST /links/create → create a new short link, returns the code
 GET /img/proxy/{encoded} → proxy de imagem (para Instagram Graph API)
 """
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from app.db.session import get_db
 from app.core.config import settings
 from app.models.models import ShortLink, ClickEvent
 from app.services.affiliate_tracking import add_ml_affiliate_tracking
 from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime, timezone
+from typing import Literal, Optional
+from datetime import datetime, timedelta, timezone
+import math
 import secrets
 import string
 import base64
@@ -113,6 +114,69 @@ def generate_code(length: int = 8) -> str:
     """Generate a random short code."""
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+SOCIAL_CHANNELS = ("youtube", "instagram", "facebook", "telegram")
+
+
+@router.get("/links/social")
+async def list_social_links(
+    channel: Literal["all", "youtube", "instagram", "facebook", "telegram"] = "all",
+    limit: int = Query(40, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Links curtos recentes gerados para divulgação nas redes (página /ofertas).
+
+    Somente leitura: retorna os /r/{code} preparados pelo distributor —
+    não expõe destino, contadores de clique nem dados de visitante.
+    """
+    channels = SOCIAL_CHANNELS if channel == "all" else (channel,)
+    prefixes = [f"distributor_{c}" for c in channels] + [
+        f"coupon_{c}" for c in channels if c != "instagram"
+    ]
+    source_conds = [
+        or_(ShortLink.source == p, ShortLink.source.startswith(p + "_", autoescape=True))
+        for p in prefixes
+    ]
+    if channel != "instagram":
+        source_conds.append(ShortLink.source == "coupon")
+
+    now = datetime.now(timezone.utc)
+    stmt = (
+        select(ShortLink)
+        .where(
+            ShortLink.is_dead.is_not(True),
+            ShortLink.product_title.isnot(None),
+            ShortLink.affiliate_url.startswith("https://", autoescape=True),
+            ShortLink.created_at >= now - timedelta(days=30),
+            ShortLink.created_at <= now,
+            or_(*source_conds),
+        )
+        .order_by(ShortLink.created_at.desc(), ShortLink.id.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    site = settings.PUBLIC_SITE_URL.rstrip("/")
+
+    offers = []
+    for link in result.scalars().all():
+        price = link.price if (
+            isinstance(link.price, (int, float)) and math.isfinite(link.price) and link.price > 0
+        ) else None
+        image_url = link.image_url if (
+            isinstance(link.image_url, str) and link.image_url.startswith("https://")
+        ) else None
+        offers.append({
+            "code": link.code,
+            "title": link.product_title,
+            "provider": link.provider,
+            "price": price,
+            "image_url": image_url,
+            "created_at": link.created_at.isoformat() if link.created_at else None,
+            "source": link.source,
+            "url": f"{site}/r/{link.code}",
+        })
+    return {"offers": offers}
 
 
 class CreateLinkRequest(BaseModel):

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
+import FinanceSummary from "@/components/admin/FinanceSummary";
 import { API_BASE as API, apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { isTokenExpired } from "@/lib/utils";
@@ -623,13 +624,11 @@ export default function AdminPage() {
           <div className={styles.kpiGrid}>
             {[
               { label: "Cliques Hoje", value: (overview?.total_clicks_today ?? 0).toLocaleString("pt-BR"), color: "var(--acc)", icon: "👆" },
-              { label: `Cliques ${activePeriod}d`, value: ((activePeriod <= 7 ? (overview?.total_clicks_week ?? 0) : (overview?.total_clicks_month ?? 0))).toLocaleString("pt-BR"), color: "#60a5fa", icon: "📊" },
+              { label: `Cliques ${activePeriod}d`, value: (overview?.total_clicks_month ?? 0).toLocaleString("pt-BR"), color: "#60a5fa", icon: "📊" },
               { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "var(--grn)", icon: "✅" },
-              { label: "Receita", value: fmtBRL(overview?.total_revenue ?? 0), color: "var(--ylw)", icon: "💰" },
-              { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "var(--org)", icon: "🏷️" },
-              { label: "CTR", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "var(--grn)", icon: "🎯" },
-              { label: "R$/Clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "var(--ylw)", icon: "💹" },
-              { label: "ML Ganho Est.", value: fmtBRL(overview?.ml_metrics?.estimated_earnings_total ?? 0), color: "#FFE600", icon: "🛒" },
+              { label: "Vendas nas lojas (GMV)", value: fmtBRL(overview?.total_revenue ?? 0), color: "var(--ylw)", icon: "💰" },
+              { label: "Conversão/clique", value: `${(overview?.conversion_rate ?? 0).toFixed(2)}%`, color: "var(--grn)", icon: "🎯" },
+              { label: "Comissão registrada/clique", value: `R$${(overview?.revenue_per_click ?? 0).toFixed(4)}`, color: "var(--ylw)", icon: "💹" },
             ].map(card => (
               <div key={card.label} className={styles.kpiCard} style={{ ["--kpiColor" as string]: card.color }}>
                 <div className={styles.kpiIcon}>{card.icon}</div>
@@ -638,6 +637,8 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+
+          <FinanceSummary adminKey={key} days={activePeriod} platform={activePlatform} />
 
           {/* Charts */}
           <div className={styles.chartsRow}>
@@ -659,7 +660,7 @@ export default function AdminPage() {
               </div>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardHeader}><div className={styles.cardTitle}>💰 Receita por Plataforma</div></div>
+              <div className={styles.cardHeader}><div className={styles.cardTitle}>💰 Vendas nas lojas (GMV) por Plataforma</div></div>
               <div className={styles.barList}>
                 {Object.entries(revByProvider).length === 0 && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>💰</div>Sem dados</div>}
                 {Object.entries(revByProvider).sort(([, a], [, b]) => Number(b) - Number(a)).map(([prov, val]) => {
@@ -692,8 +693,8 @@ export default function AdminPage() {
               {[
                 { label: "Cliques", value: (overview?.total_clicks_month ?? 0).toLocaleString("pt-BR"), color: "var(--acc)", pct: "100%" },
                 { label: "Conversões", value: (overview?.total_conversions ?? 0).toLocaleString("pt-BR"), color: "var(--grn)", pct: overview?.total_clicks_month ? `${(((overview.total_conversions ?? 0) / overview.total_clicks_month) * 100).toFixed(1)}%` : "0%" },
-                { label: "Receita", value: fmtBRL(overview?.total_revenue ?? 0), color: "var(--ylw)", pct: "—" },
-                { label: "Comissão", value: fmtBRL(overview?.total_commission ?? 0), color: "var(--org)", pct: "—" },
+                { label: "Vendas nas lojas (GMV)", value: fmtBRL(overview?.total_revenue ?? 0), color: "var(--ylw)", pct: "—" },
+                { label: "Comissão registrada (não paga)", value: fmtBRL(overview?.total_commission ?? 0), color: "var(--org)", pct: "—" },
               ].map((item, i, arr) => (
                 <React.Fragment key={item.label}>
                   <div className={styles.funnelStep} style={{ background: `${item.color}10`, border: `1px solid ${item.color}30` }}>
@@ -709,12 +710,15 @@ export default function AdminPage() {
 
           {/* Marketplace table */}
           <div className={styles.card}>
-            <div className={styles.cardHeader}><div className={styles.cardTitle}>🏪 Comparativo de Marketplaces</div></div>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>🏪 Comparativo de Marketplaces</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>Histórico registrado (todos os períodos)</div>
+            </div>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    {[["provider", "Marketplace"], ["clicks", "Cliques"], ["conversions", "Conv."], ["conversion_rate", "Taxa"], ["revenue", "Receita"], ["commission", "Comissão"], ["avg_price", "Preço Méd."]].map(([k, lbl]) => (
+                    {[["provider", "Marketplace"], ["clicks", "Cliques"], ["conversions", "Conv."], ["conversion_rate", "Taxa"], ["revenue", "Vendas nas lojas (GMV)"], ["commission", "Comissão registrada (não paga)"], ["avg_price", "Preço Méd."]].map(([k, lbl]) => (
                       <th key={k} className={styles.th} onClick={() => handleSortMarket(k)}>
                         {lbl} {marketSort === k ? (marketSortDir === "desc" ? "↓" : "↑") : ""}
                       </th>
@@ -732,11 +736,6 @@ export default function AdminPage() {
                       <td className={styles.td} style={{ color: "var(--ylw)", fontWeight: 600 }}>{fmtBRL(row.revenue || 0)}</td>
                       <td className={styles.td} style={{ color: "var(--grn)", fontWeight: 600 }}>
                         {fmtBRL(row.commission || 0)}
-                        {row.provider === "mercadolivre" && (
-                          <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: "0.85em" }} title="Ganho estimado do portal ML (soma dos snapshots diários)">
-                            {" "}+ {fmtBRL(row.estimated_commission || 0)} est.
-                          </span>
-                        )}
                       </td>
                       <td className={styles.td}>{fmtBRL(row.avg_price || 0)}</td>
                     </tr>

@@ -31,6 +31,7 @@ from app.models.models import (
 from app.core.config import settings
 from app.core.logging import logger
 from app.services.support_block import append_support, fit_limit
+from app.services.coupon_safety import coupon_is_current, coupon_notice, coupon_from_offer
 
 # Semaphore para limitar concorrência de XTTS (evita OOM)
 # Máximo 1 processo XTTS por vez (cada processo consome ~2GB RAM)
@@ -159,6 +160,7 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
             select(CouponProduct, Coupon)
             .join(Coupon, CouponProduct.coupon_id == Coupon.id)
             .where(
+                Coupon.provider == "mercadolivre",
                 Coupon.is_active == True,
                 CouponProduct.is_available == True,
                 Coupon.expires_at > datetime.now(timezone.utc),
@@ -195,6 +197,8 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
                 "coupon_expires_at": coupon.expires_at,
                 "store_name": coupon.store_name or "",
                 "coupon_id": str(coupon.id),
+                "coupon_verified": True,
+                "coupon_conditions": coupon.conditions,
             })
             if len(results) >= limit:
                 break
@@ -234,10 +238,12 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
             r = await db.execute(text("""
                 SELECT cp.title, cp.price, cp.image_url, cp.product_url, cp.ml_code,
                        c.coupon_code, c.discount_text, c.discount_percent, c.expires_at,
-                       c.store_name, c.id::text as coupon_id, c.discount_value
+                       c.store_name, c.id::text as coupon_id, c.discount_value,
+                       c.conditions
                 FROM coupon_products cp
                 JOIN coupons c ON cp.coupon_id = c.id
                 WHERE c.is_active = true AND cp.is_available = true
+                  AND c.provider = 'mercadolivre'
                   AND c.expires_at > NOW()
                 ORDER BY (
                     GREATEST(c.discount_percent, 0) * COALESCE(cp.price, 0) / 100.0
@@ -259,6 +265,7 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
                     "coupon_discount_value": float(row[11] or 0),
                     "coupon_expires_at": row[8], "store_name": row[9] or "",
                     "coupon_id": row[10],
+                    "coupon_conditions": row[12], "coupon_verified": True,
                 })
                 if len(all_offers) >= num:
                     break
@@ -322,31 +329,18 @@ def build_coupon_caption_telegram(offer: dict) -> str:
     """Legenda Telegram — com cupom e link direto."""
     title = offer["title"][:80]
     price = offer["price"]
-    coupon_code = offer["coupon_code"]
-    discount = offer.get("coupon_discount", "")
     store = offer.get("store_name", "")
     expires = offer.get("coupon_expires_at")
     now = datetime.now(BR_TIMEZONE).strftime("%d/%m %H:%M")
-
-    final_price, economy, discount_pct = _coupon_discount_info(offer)
 
     lines = [f"🏷️ CUPOM DE DESCONTO — {now}\n"]
     lines.append(f"📦 {title}")
     lines.append("")
     if price:
-        lines.append(f"💵 {fmt_brl(price)}")
-        if discount_pct > 0 and economy > 0:
-            lines.append(f"🏷️ Com cupom: {fmt_brl(final_price)}")
-            lines.append(f"   ↳ Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
-        if discount:
-            lines.append(f"   → {discount}")
-    elif discount:
-        lines.append(f"🏷️ {discount}")
-    lines.append("")
-    if str(coupon_code).startswith("MLC-"):
-        lines.append("🎫 Ative o cupom na sua conta do Mercado Livre")
-    else:
-        lines.append(f"🎫 CUPOM: {coupon_code}")
+        lines.append(f"Preço consultado: {fmt_brl(price)}")
+    notice = coupon_notice(coupon_from_offer(offer))
+    if notice:
+        lines.append(notice)
     if store:
         lines.append(f"🏪 Loja: {store}")
 
@@ -374,29 +368,18 @@ def build_coupon_caption_facebook(offer: dict) -> str:
     """Legenda Facebook/Instagram — SEM link no corpo (anti-banimento)."""
     title = offer["title"][:80]
     price = offer["price"]
-    coupon_code = offer["coupon_code"]
-    discount = offer.get("coupon_discount", "")
     store = offer.get("store_name", "")
     expires = offer.get("coupon_expires_at")
     now = datetime.now(BR_TIMEZONE).strftime("%d/%m %H:%M")
-
-    final_price, economy, discount_pct = _coupon_discount_info(offer)
 
     lines = [f"🏷️ CUPOM DE DESCONTO — {now}\n"]
     lines.append(f"📦 {title}")
     lines.append("")
     if price:
-        lines.append(f"💵 {fmt_brl(price)}")
-        if discount_pct > 0 and economy > 0:
-            lines.append(f"🏷️ Com cupom: {fmt_brl(final_price)}")
-            lines.append(f"   ↳ Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
-    elif discount:
-        lines.append(f"🏷️ {discount}")
-
-    if str(coupon_code).startswith("MLC-"):
-        lines.append("\n🎫 Ative o cupom na sua conta do Mercado Livre")
-    else:
-        lines.append(f"\n🎫 CUPOM: {coupon_code}")
+        lines.append(f"Preço consultado: {fmt_brl(price)}")
+    notice = coupon_notice(coupon_from_offer(offer))
+    if notice:
+        lines.append(notice)
     if store:
         lines.append(f"🏪 Loja: {store}")
 
@@ -419,29 +402,23 @@ def build_coupon_youtube_description(offer: dict) -> str:
     """Descrição YouTube — com cupom + link direto da loja."""
     title = offer["title"][:80]
     price = offer["price"]
-    coupon_code = offer["coupon_code"]
-    discount = offer.get("coupon_discount", "")
     store = offer.get("store_name", "")
     product_url = offer.get("short_url") or offer.get("product_url", "")
 
-    final_price, economy, discount_pct = _coupon_discount_info(offer)
-
     lines = [f"🏷️ {title}"]
     if price:
-        lines.append(f"💵 {fmt_brl(price)}")
-        if discount_pct > 0 and economy > 0:
-            lines.append(f"Com cupom: {fmt_brl(final_price)}")
-            lines.append(f"Economia: {fmt_brl(economy)} ({discount_pct:.0f}% OFF)")
-    elif discount:
-        lines.append(f"🏷️ {discount}")
-    if str(coupon_code).startswith("MLC-"):
-        lines.append("\n🎫 Ative o cupom na sua conta do Mercado Livre")
-    else:
-        lines.append(f"\n🎫 CUPOM: {coupon_code}")
+        lines.append(f"Preço consultado: {fmt_brl(price)}")
+    notice = coupon_notice(coupon_from_offer(offer))
+    if notice:
+        lines.append("")
+        lines.append(notice)
+    lines.append("")
+    lines.append("Ofertas no link do perfil: procure pelo nome do produto.")
+    lines.append(f"{settings.PUBLIC_SITE_URL.rstrip('/')}/ofertas?canal=youtube")
     if store:
         lines.append(f"🏪 Loja: {store}")
     if product_url:
-        lines.append(f"\n🛒 Comprar: {product_url}")
+        lines.append(f"\n{product_url}")
     lines.append(f"\nMais cupons: {settings.PUBLIC_SITE_URL}/cupons")
     lines.append("\n#cupom #desconto #mercadolivre #oferta #bestpricetoday #promoção")
 
@@ -452,6 +429,8 @@ def build_coupon_youtube_description(offer: dict) -> str:
 # ─── Postagem Telegram ────────────────────────────────────────────────────────
 
 async def post_coupon_telegram(offer: dict) -> dict:
+    if not coupon_is_current(coupon_from_offer(offer)):
+        return {"ok": False, "error": "Cupom sem associação válida ou vencido"}
     if not BOT_TOKEN or not CHANNEL_ID:
         return {"ok": False, "error": "Telegram not configured"}
 
@@ -524,6 +503,8 @@ async def _get_facebook_pages() -> list[dict]:
 
 
 async def post_coupon_facebook(offer: dict) -> dict:
+    if not coupon_is_current(coupon_from_offer(offer)):
+        return {"ok": False, "error": "Cupom sem associação válida ou vencido"}
     pages = await _get_facebook_pages()
     if not pages:
         return {"ok": False, "error": "No Facebook pages"}
@@ -2303,6 +2284,8 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
 
 async def post_coupon_youtube(offer: dict) -> dict:
     """Posta vídeo no YouTube com imagem + narração XTTS."""
+    if not coupon_is_current(coupon_from_offer(offer)):
+        return {"ok": False, "error": "Cupom sem associação válida ou vencido"}
     from app.integrations.youtube import youtube_client
 
     try:
@@ -2321,15 +2304,37 @@ async def post_coupon_youtube(offer: dict) -> dict:
 
             # Gera vídeo
             tmp_video = tempfile.mktemp(suffix=".mp4")
-            video_path = await generate_coupon_video(offer, tmp_video)
+            from app.workers.distributor import generate_offer_video
+            video_offer = {
+                "title": offer["title"],
+                "final_price": offer.get("price"),
+                "provider": "mercadolivre",
+                "image_url": offer.get("image_url", ""),
+                "original_price": None,
+                "discount_percent": 0,
+                "shipping_free": False,
+            }
+            narration = (
+                f"{offer['title']}. Consulte as condições do cupom e o preço final na loja. "
+                "Abra o link do perfil e procure este produto."
+            )
+            video_path = await generate_offer_video(video_offer, tmp_video, custom_narration=narration)
             if not video_path or not os.path.exists(video_path):
                 return {"ok": False, "error": "Failed to generate coupon video"}
 
             # Descrição
             description = build_coupon_youtube_description(offer)
-            title = f"🏷️ CUPOM: {offer['title'][:50]} — {offer['coupon_code']} | BestPriceToday"
+            title = "Oferta com cupom: " + offer["title"][:60] + " | BestPriceToday"
 
             tags = ["cupom", "desconto", "mercadolivre", "oferta", "bestpricetoday", "promoção", "cupom de desconto"]
+
+            # Revalida o cupom — a geração do vídeo pode levar minutos
+            if not coupon_is_current(coupon_from_offer(offer)):
+                try:
+                    os.remove(video_path)
+                except Exception:
+                    pass
+                return {"ok": False, "error": "Cupom sem associação válida ou vencido"}
 
             # Upload
             result = await youtube_client.upload_video(
@@ -2391,6 +2396,7 @@ async def distribute_coupons():
 
     # Filtra já postados (com dedup mais estrito)
     offers = [o for o in offers if not already_posted_coupon(o["coupon_code"])]
+    offers = [o for o in offers if coupon_is_current(coupon_from_offer(o))]
     if not offers:
         logger.info("CouponDistributor: todas as ofertas já foram postadas recentemente")
         return
@@ -2413,19 +2419,25 @@ async def distribute_coupons():
             "final_price": offer.get("price") or 0,
             "image_url": offer.get("image_url", ""),
         }
-        short_url = await create_short_link(short_link_offer, source="coupon", campaign=offer.get("coupon_code"))
     offer["short_url"] = short_url or product_url  # fallback: product_url direto
 
+    async def _channel_offer(channel):
+        channel_offer = dict(offer)
+        if product_url:
+            channel_url = await create_short_link(short_link_offer, source=f'coupon_{channel}', campaign=offer.get('coupon_code'))
+            channel_offer['short_url'] = channel_url or offer['short_url']
+        return channel_offer
+
     # Telegram + Facebook (síncrono)
-    tg = await post_coupon_telegram(offer)
+    tg = await post_coupon_telegram(await _channel_offer("telegram"))
     logger.info(f"  Telegram: {tg.get('ok')}")
 
-    fb = await post_coupon_facebook(offer)
+    fb = await post_coupon_facebook(await _channel_offer("facebook"))
     logger.info(f"  Facebook: {fb.get('ok')}")
 
     # YouTube em background (não bloqueia) — precisa de preço pro overlay DE→POR
     if offer.get("price"):
-        asyncio.create_task(post_coupon_youtube(offer))
+        asyncio.create_task(post_coupon_youtube(await _channel_offer("youtube")))
     else:
         logger.info("  YouTube: pulado (cupom sem preço)")
 
