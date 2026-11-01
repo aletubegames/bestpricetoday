@@ -185,6 +185,15 @@
 - Dependências não usadas removidas do `package.json`
 - `coupon_distributor.py` corrigido: timezone UTC, AsyncClient para imagens, cleanup de tmpdir, frases de utilidade ampliadas com fallback por substantivo, vídeo de teste validado
 
+## Analytics & SEO (estado em 31/out/2026)
+- **GA4**: `G-D2J769S99H` instalado em `frontend/src/app/layout.tsx` (gtag, `NEXT_PUBLIC_GA4_ID`); eventos via `frontend/src/lib/analytics.ts` (`window.gtag`). Conta Google: `aletubegames@gmail.com`
+- **Microsoft Clarity**: projeto `xd51oaxppe`, script no `layout.tsx`
+- **Google Search Console**: propriedade **prefixo de URL** `https://bestpricetoday.alaserver.com.br/` — JÁ verificada (mesma conta do GA). A propriedade de **domínio** `bestpricetoday.alaserver.com.br` NÃO é verificada — fluxo DomainConnect→Cloudflare retorna 401 no callback (bug multi-conta Google); o token TXT do DomainConnect (`aad8Nww…`) NÃO é o esperado pela propriedade. Não insistir nela — usar a de prefixo.
+- **Sitemap**: `sitemap.xml` (106 URLs) enviado e Processado em 31/out — antes, `/cupons` e `/ofertas` estavam cadastrados como "sitemaps" (são páginas HTML → 0 URLs, 1 erro; podem ser removidos da lista)
+- Indexação em 31/out: 3 indexadas / 42 não indexadas (17 redirect, 14 robots, 10 noindex — maioria intencional: admin/api/r/). Pedidos manuais de indexação feitos para `/`, `/hoje`, `/cupons`, `/ofertas`
+- DNS: ficaram 3 TXT `google-site-verification` (`ShRQw3_…` e `aad8Nww…` no apex, `aad8Nww…` em `bestpricetoday`) — inofensivos, não remover
+- Cloudflare DNS via API: token em `/etc/letsencrypt/cloudflare.ini` no servidor edita a zone `alaserver.com.br` (zone_id `f993d7d86f511ab1ecf593b7c203d032`)
+
 ## Monetização — PLANO APROVADO (2026-10-21, não desviar)
 
 **Diagnóstico do funil** (22 dias de dados reais, set-out/2026):
