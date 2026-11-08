@@ -596,7 +596,15 @@ async def post_coupon_facebook(offer: dict) -> dict:
 # XTTS v2 no servidor
 TTS_VENV = "/home/alessandro/tts_venv/bin/python3"
 VOICE_SAMPLE = "/home/alessandro/voices/matheus_clear_calm_and_confident.wav"
-COQUI_ENV = {**os.environ, "COQUI_TOS_AGREED": "1"}
+# 4 threads (metade dos 8 cores) — com 8, o torch disputava CPU/memória com
+# freqtrade e backend e caía em thrash de swap (timeouts de 600s seguidos)
+XTTS_THREADS = 4
+COQUI_ENV = {
+    **os.environ,
+    "COQUI_TOS_AGREED": "1",
+    "OMP_NUM_THREADS": str(XTTS_THREADS),
+    "MKL_NUM_THREADS": str(XTTS_THREADS),
+}
 
 # Backoff após falhas consecutivas de XTTS — cada tentativa spawn ~2GB;
 # quando a causa é sistêmica (RAM/swap), retry a cada 30min piora o thrashing
@@ -704,6 +712,7 @@ def generate_xtts_narration(text: str, output_path: str) -> bool:
     script = f'''
 import os, json, numpy as np, torch, torchaudio
 os.environ["COQUI_TOS_AGREED"] = "1"
+torch.set_num_threads({XTTS_THREADS})
 from TTS.api import TTS
 
 tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
@@ -734,7 +743,7 @@ else:
             [TTS_VENV, "-c", script],
             capture_output=True,
             text=True,
-            timeout=600,  # CPU é lento — múltiplas frases
+            timeout=900,  # menos threads = mais lento; backoff limita retries
             env=COQUI_ENV,
         )
         if result.returncode == 0 and "OK" in result.stdout:
@@ -742,7 +751,7 @@ else:
         logger.error(f"CouponDistributor: XTTS failed: {result.stderr[-500:]}")
         return False
     except subprocess.TimeoutExpired:
-        logger.error("CouponDistributor: XTTS timeout (600s)")
+        logger.error("CouponDistributor: XTTS timeout (900s)")
         return False
     except Exception as e:
         logger.error(f"CouponDistributor: XTTS error: {e}")
