@@ -156,24 +156,31 @@ async def find_similar_coupon_products(catalog_title: str, limit: int = 1) -> li
     async with AsyncSessionLocal() as db:
         from sqlalchemy import or_, func
         conditions = [CouponProduct.title.ilike(f"%{kw}%") for kw in keywords]
+        where = [
+            Coupon.provider == "mercadolivre",
+            Coupon.is_active == True,
+            CouponProduct.is_available == True,
+            Coupon.expires_at > datetime.now(timezone.utc),
+            or_(*conditions),
+        ]
+        posted = _active_dedup_codes()
+        if posted:
+            where.append(Coupon.coupon_code.notin_(posted))
         query = (
             select(CouponProduct, Coupon)
             .join(Coupon, CouponProduct.coupon_id == Coupon.id)
-            .where(
-                Coupon.provider == "mercadolivre",
-                Coupon.is_active == True,
-                CouponProduct.is_available == True,
-                Coupon.expires_at > datetime.now(timezone.utc),
-                or_(*conditions),
-            )
-            # Ordena por maior desconto efetivo (economia em R$), não por preço
-            # coalesce: discount_percent e discount_value são mutuamente exclusivos (um é NULL)
-            # NULL * x = NULL → sem coalesce a ordenação quebra para 100% das linhas
+            .where(*where)
+            # Ordena por maior desconto (percent ou valor fixo — price é NULL no
+            # modelo novo, então %*price zerava o score). RANDOM() como tiebreak
+            # para variar entre cupons com desconto igual.
             .order_by(
                 desc(
-                    func.coalesce(Coupon.discount_percent, 0) * func.coalesce(CouponProduct.price, 0) / 100.0
-                    + func.coalesce(Coupon.discount_value, 0)
-                )
+                    func.greatest(
+                        func.coalesce(Coupon.discount_percent, 0),
+                        func.coalesce(Coupon.discount_value, 0),
+                    )
+                ),
+                func.random(),
             )
             .limit(limit)
         )
@@ -245,15 +252,14 @@ async def select_coupon_offers(num: int = 2) -> list[dict]:
                 WHERE c.is_active = true AND cp.is_available = true
                   AND c.provider = 'mercadolivre'
                   AND c.expires_at > NOW()
-                ORDER BY (
-                    GREATEST(c.discount_percent, 0) * COALESCE(cp.price, 0) / 100.0
-                    + COALESCE(c.discount_value, 0)
-                ) DESC, cp.price ASC NULLS LAST
+                ORDER BY GREATEST(COALESCE(c.discount_percent, 0), COALESCE(c.discount_value, 0)) DESC,
+                         RANDOM()
                 LIMIT :limit
-            """), {"limit": num * 3})
+            """), {"limit": num * 15})
+            posted = _active_dedup_codes()
             seen_codes = {o["coupon_code"] for o in all_offers}
             for row in r.fetchall():
-                if row[5] in seen_codes:
+                if row[5] in seen_codes or row[5] in posted:
                     continue
                 seen_codes.add(row[5])
                 all_offers.append({
@@ -321,6 +327,15 @@ def already_posted_coupon(code: str) -> bool:
         elapsed = datetime.now(timezone.utc) - _dedup[code]
         return elapsed < timedelta(hours=DEDUP_TTL_HOURS)
     return False
+
+
+def _active_dedup_codes() -> set:
+    """Códigos de cupom ainda dentro do TTL do dedup (exclui marcadores de janela)."""
+    now = datetime.now(timezone.utc)
+    return {
+        k for k, v in _dedup.items()
+        if not k.startswith("coupon_") and (now - v) < timedelta(hours=DEDUP_TTL_HOURS)
+    }
 
 
 # ─── Legendas ─────────────────────────────────────────────────────────────────
@@ -583,6 +598,39 @@ TTS_VENV = "/home/alessandro/tts_venv/bin/python3"
 VOICE_SAMPLE = "/home/alessandro/voices/matheus_clear_calm_and_confident.wav"
 COQUI_ENV = {**os.environ, "COQUI_TOS_AGREED": "1"}
 
+# Backoff após falhas consecutivas de XTTS — cada tentativa spawn ~2GB;
+# quando a causa é sistêmica (RAM/swap), retry a cada 30min piora o thrashing
+XTTS_BACKOFF_FILE = BACKEND_DIR / ".xtts_backoff.json"
+XTTS_BACKOFF_THRESHOLD = 3       # falhas seguidas antes de abrir backoff
+XTTS_BACKOFF_HOURS = 6           # duração do backoff
+
+
+def _xtts_backoff_remaining() -> int:
+    """Segundos restantes de backoff (0 = pode tentar)."""
+    try:
+        data = json.loads(XTTS_BACKOFF_FILE.read_text())
+        if data.get("consecutive_fails", 0) < XTTS_BACKOFF_THRESHOLD:
+            return 0
+        until = datetime.fromisoformat(data["until"])
+        return max(0, int((until - datetime.now(timezone.utc)).total_seconds()))
+    except Exception:
+        return 0
+
+
+def _xtts_record_result(ok: bool):
+    """Registra sucesso (zera contador) ou falha (incrementa e arma backoff)."""
+    try:
+        fails = 0
+        if not ok and XTTS_BACKOFF_FILE.exists():
+            fails = json.loads(XTTS_BACKOFF_FILE.read_text()).get("consecutive_fails", 0)
+        data = {"consecutive_fails": 0 if ok else fails + 1}
+        if data["consecutive_fails"] >= XTTS_BACKOFF_THRESHOLD:
+            data["until"] = (datetime.now(timezone.utc) + timedelta(hours=XTTS_BACKOFF_HOURS)).isoformat()
+            logger.warning(f"XTTS: {data['consecutive_fails']} falhas seguidas — backoff {XTTS_BACKOFF_HOURS}h")
+        XTTS_BACKOFF_FILE.write_text(json.dumps(data))
+    except Exception:
+        pass
+
 
 def split_text_for_tts(text):
     """Divide texto em frases limpas para geração separada no XTTS v2.
@@ -706,10 +754,15 @@ async def generate_xtts_narration_async(text: str, output_path: str) -> bool:
     
     Usa semaphore para limitar a 1 processo XTTS por vez (evita OOM).
     """
+    remaining = _xtts_backoff_remaining()
+    if remaining > 0:
+        logger.info(f"XTTS: backoff ativo ({remaining//3600}h{(remaining%3600)//60:02d}m restantes) — pulando")
+        return False
     async with _XTTS_SEMAPHORE:
         logger.info(f"XTTS: iniciando geração (concorrência limitada a 1 processo)")
         import asyncio
         result = await asyncio.to_thread(generate_xtts_narration, text, output_path)
+        _xtts_record_result(result)
         logger.info(f"XTTS: geração concluída, liberando semaphore")
         return result
 
