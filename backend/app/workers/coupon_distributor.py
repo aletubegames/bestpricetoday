@@ -705,32 +705,56 @@ def generate_xtts_narration(text: str, output_path: str) -> bool:
         logger.error("CouponDistributor: texto vazio após split")
         return False
 
-    # Script que roda no tts_venv — gera cada frase separada e concatena com silêncio
-    frases_json = json.dumps(frases)
-    pausas_json = json.dumps(pausas)
+    # Junta frases curtas em blocos (~180 chars) — frase isolada reseta a
+    # prosódia e soa robótico; bloco deixa a entonação fluir entre sentenças.
+    # Mantém a pausa maior (reticências/parágrafo) como quebra de bloco.
+    blocos = []
+    pausas_bloco = []
+    buf = ''
+    for i, frase in enumerate(frases):
+        buf = f"{buf} {frase}".strip() if buf else frase
+        if pausas[i] >= 0.9 or len(buf) >= 180:
+            blocos.append(buf)
+            pausas_bloco.append(pausas[i])
+            buf = ''
+    if buf:
+        blocos.append(buf)
+        pausas_bloco.append(0.5)
+
+    blocos_json = json.dumps(blocos)
+    pausas_json = json.dumps(pausas_bloco)
 
     script = f'''
-import os, json, numpy as np, torch, torchaudio
+import os, json, random, numpy as np, torch, torchaudio
 os.environ["COQUI_TOS_AGREED"] = "1"
 torch.set_num_threads({XTTS_THREADS})
 from TTS.api import TTS
 
 tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
 
-frases = {frases_json}
+blocos = {blocos_json}
 pausas = {pausas_json}
 speaker_wav = "{VOICE_SAMPLE}"
 output_wav = "{output_path}"
 
-if len(frases) == 1:
-    tts.tts_to_file(text=frases[0], speaker_wav=speaker_wav, language="pt", file_path=output_wav)
+# Parâmetros afinados: temperature menor = fala mais estável/consistente;
+# repetition_penalty evita fonemas repetidos; speed levemente <1 dá respiro.
+KW = dict(speaker_wav=speaker_wav, language="pt", temperature=0.65,
+          repetition_penalty=6.0, speed=0.95, top_k=50, top_p=0.85)
+
+def pausa_natural(base):
+    # Varia +-20% na pausa — metrônomo fixo soa robótico
+    return base * random.uniform(0.8, 1.2)
+
+if len(blocos) == 1:
+    tts.tts_to_file(text=blocos[0], file_path=output_wav, **KW)
     print("OK")
 else:
     wavs = []
-    for i, frase in enumerate(frases):
+    for i, bloco in enumerate(blocos):
         if pausas[i] > 0:
-            wavs.append(np.zeros(int(24000 * pausas[i]), dtype=np.float32))
-        w = tts.tts(text=frase, speaker_wav=speaker_wav, language="pt")
+            wavs.append(np.zeros(int(24000 * pausa_natural(pausas[i])), dtype=np.float32))
+        w = tts.tts(text=bloco, **KW)
         wavs.append(np.array(w))
     wavs.append(np.zeros(int(24000 * 0.3), dtype=np.float32))
     full = np.concatenate(wavs)
@@ -1155,6 +1179,11 @@ def speak_brl(v: float) -> str:
     """
     reais = int(v)
     centavos = int(round((v - reais) * 100))
+    # Arredondamento pode dar 100 centavos (ex: 199.999) — vira +1 real,
+    # "cem centavos" não existe falado
+    if centavos >= 100:
+        reais += 1
+        centavos = 0
     # Singular/plural correto: 1 real (não 1 reais), 1 centavo (não 1 centavos)
     real_word = "real" if reais == 1 else "reais"
     centavo_word = "centavo" if centavos == 1 else "centavos"
@@ -2180,6 +2209,9 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
         narration = expand_units_for_tts(narration)
         # Limpa símbolos que o XTTS lê errado
         narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
+        # "centavos" o XTTS lê errado — grafia fonética força "sen-TA-vus"
+        narration = re.sub(r'\bcentavos\b', 'sentavus', narration, flags=re.IGNORECASE)
+        narration = re.sub(r'\bcentavo\b', 'sentavu', narration, flags=re.IGNORECASE)
 
         audio_path = os.path.join(tmpdir, "narration.wav")
         logger.info("CouponDistributor: gerando narração XTTS (voz ElevenLabs)...")
