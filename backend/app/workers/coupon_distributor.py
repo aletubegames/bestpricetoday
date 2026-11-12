@@ -776,58 +776,6 @@ async def generate_xtts_narration_async(text: str, output_path: str) -> bool:
         return result
 
 
-# ─── edge-tts (voz neural Microsoft) — primário; XTTS v2 = fallback ─────────
-# edge-tts fala o parágrafo inteiro de uma vez (prosódia natural entre frases),
-# não usa CPU local (websocket) e gera em segundos vs minutos do XTTS.
-EDGE_TTS_VOICE = os.environ.get("EDGE_TTS_VOICE", "pt-BR-ThalitaMultilingualNeural")
-EDGE_TTS_RATE = os.environ.get("EDGE_TTS_RATE", "+5%")
-
-
-async def generate_edge_narration(text: str, output_path: str) -> bool:
-    """Gera narração com edge-tts e converte pra WAV 24kHz mono (mesmo spec do
-    XTTS — o pipeline de vídeo não muda)."""
-    import asyncio
-    try:
-        import edge_tts
-    except ImportError:
-        logger.error("CouponDistributor: edge-tts não instalado no venv")
-        return False
-
-    mp3_path = output_path + ".edge.mp3"
-    try:
-        await asyncio.wait_for(
-            edge_tts.Communicate(text, voice=EDGE_TTS_VOICE, rate=EDGE_TTS_RATE).save(mp3_path),
-            timeout=60,
-        )
-        conv = subprocess.run(
-            ["ffmpeg", "-y", "-v", "error", "-i", mp3_path,
-             "-ar", "24000", "-ac", "1", output_path],
-            capture_output=True, timeout=60,
-        )
-        if conv.returncode == 0 and os.path.getsize(output_path) > 0:
-            return True
-        logger.error(f"CouponDistributor: edge-tts wav convert failed: {conv.stderr[-300:]}")
-        return False
-    except Exception as e:
-        logger.error(f"CouponDistributor: edge-tts failed: {e}")
-        return False
-    finally:
-        if os.path.exists(mp3_path):
-            try:
-                os.remove(mp3_path)
-            except OSError:
-                pass
-
-
-async def generate_narration_async(text: str, output_path: str) -> bool:
-    """edge-tts primeiro (natural e rápido); se falhar, cai pro XTTS local."""
-    if await generate_edge_narration(text, output_path):
-        _xtts_record_result(True)
-        return True
-    logger.warning("CouponDistributor: edge-tts falhou — fallback XTTS v2")
-    return await generate_xtts_narration_async(text, output_path)
-
-
 # 25 variações de abertura — evita cara de IA, parece humano
 _OPENING_VARIATIONS = [
     "Olha o que encontrei pra vocês hoje",
@@ -2235,7 +2183,7 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
 
         audio_path = os.path.join(tmpdir, "narration.wav")
         logger.info("CouponDistributor: gerando narração XTTS (voz ElevenLabs)...")
-        if not await generate_narration_async(narration, audio_path):
+        if not await generate_xtts_narration_async(narration, audio_path):
             logger.error("CouponDistributor: XTTS falhou, pulando vídeo")
             return None
 
