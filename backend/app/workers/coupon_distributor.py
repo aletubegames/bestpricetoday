@@ -700,6 +700,12 @@ def generate_xtts_narration(text: str, output_path: str) -> bool:
         logger.error(f"CouponDistributor: voice sample not found: {VOICE_SAMPLE}")
         return False
 
+    # "centavos" o XTTS lê errado — "centavus" força "cen-TA-vus".
+    # NÃO usar "sentavus": o modelo lê "sent" como "cem" (soa "cem centavos").
+    # Aqui dentro (e não no callsite) pra valer em TODOS os caminhos de narração.
+    text = re.sub(r'\bcentavos\b', 'centavus', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bcentavo\b', 'centavu', text, flags=re.IGNORECASE)
+
     frases, pausas = split_text_for_tts(text)
     if not frases:
         logger.error("CouponDistributor: texto vazio após split")
@@ -2212,10 +2218,6 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
         narration = expand_units_for_tts(narration)
         # Limpa símbolos que o XTTS lê errado
         narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
-        # "centavos" o XTTS lê errado — "centavus" força "cen-TA-vus".
-        # NÃO usar "sentavus": o modelo lê "sent" como "cem" (soa "cem centavos").
-        narration = re.sub(r'\bcentavos\b', 'centavus', narration, flags=re.IGNORECASE)
-        narration = re.sub(r'\bcentavo\b', 'centavu', narration, flags=re.IGNORECASE)
 
         audio_path = os.path.join(tmpdir, "narration.wav")
         logger.info("CouponDistributor: gerando narração XTTS (voz ElevenLabs)...")
