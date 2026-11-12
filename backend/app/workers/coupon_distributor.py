@@ -739,8 +739,11 @@ output_wav = "{output_path}"
 
 # Parâmetros afinados: temperature menor = fala mais estável/consistente;
 # repetition_penalty evita fonemas repetidos; speed levemente <1 dá respiro.
+# enable_text_splitting=False: o split interno cortava no meio de números
+# ("duzentos [pausa] e noventa e nove") — bloco gera de uma vez, contínuo.
 KW = dict(speaker_wav=speaker_wav, language="pt", temperature=0.65,
-          repetition_penalty=6.0, speed=0.95, top_k=50, top_p=0.85)
+          repetition_penalty=6.0, speed=0.95, top_k=50, top_p=0.85,
+          enable_text_splitting=False)
 
 def pausa_natural(base):
     # Varia +-20% na pausa — metrônomo fixo soa robótico
@@ -2209,9 +2212,10 @@ async def generate_coupon_video(offer: dict, output_path: str) -> Optional[str]:
         narration = expand_units_for_tts(narration)
         # Limpa símbolos que o XTTS lê errado
         narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
-        # "centavos" o XTTS lê errado — grafia fonética força "sen-TA-vus"
-        narration = re.sub(r'\bcentavos\b', 'sentavus', narration, flags=re.IGNORECASE)
-        narration = re.sub(r'\bcentavo\b', 'sentavu', narration, flags=re.IGNORECASE)
+        # "centavos" o XTTS lê errado — "centavus" força "cen-TA-vus".
+        # NÃO usar "sentavus": o modelo lê "sent" como "cem" (soa "cem centavos").
+        narration = re.sub(r'\bcentavos\b', 'centavus', narration, flags=re.IGNORECASE)
+        narration = re.sub(r'\bcentavo\b', 'centavu', narration, flags=re.IGNORECASE)
 
         audio_path = os.path.join(tmpdir, "narration.wav")
         logger.info("CouponDistributor: gerando narração XTTS (voz ElevenLabs)...")
