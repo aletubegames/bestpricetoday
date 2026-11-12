@@ -779,7 +779,7 @@ async def generate_xtts_narration_async(text: str, output_path: str) -> bool:
 # ─── edge-tts (voz neural Microsoft) — primário; XTTS v2 = fallback ─────────
 # edge-tts fala o parágrafo inteiro de uma vez (prosódia natural entre frases),
 # não usa CPU local (websocket) e gera em segundos vs minutos do XTTS.
-EDGE_TTS_VOICE = os.environ.get("EDGE_TTS_VOICE", "pt-BR-AntonioNeural")
+EDGE_TTS_VOICE = os.environ.get("EDGE_TTS_VOICE", "pt-BR-ThalitaMultilingualNeural")
 EDGE_TTS_RATE = os.environ.get("EDGE_TTS_RATE", "+5%")
 
 
