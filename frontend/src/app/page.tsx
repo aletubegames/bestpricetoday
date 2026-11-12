@@ -23,6 +23,7 @@ import FAQ from "@/components/home/FAQ";
 import HowItWorks from "@/components/home/HowItWorks";
 import FeaturedOffers from "@/components/home/FeaturedOffers";
 import WhyUs from "@/components/home/WhyUs";
+import TelegramPromo from "@/components/home/TelegramPromo";
 import { CATEGORIES } from "@/lib/categories";
 import { getChartData } from "@/lib/mockData";
 import { API_BASE, apiFetch } from "@/lib/api";
@@ -454,6 +455,7 @@ export default function HomePage() {
         </div>
       )}
       </main>
+      <TelegramPromo />
     </div>
   );
 }

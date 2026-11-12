@@ -4,6 +4,34 @@
 
 ---
 
+## Atualizações recentes (2026-11-11)
+
+### Pivô para tráfego pago em produto digital (Hotmart)
+**Diagnóstico:** audit de 30 dias confirmou que o site não tem audiência real (~80 cliques humanos BR/mês; YouTube Shorts é o único canal com gente de verdade; FB/IG são crawlers da Meta). Comissão física (~R$12/pedido) inviabiliza Meta Ads → estratégia mudou para afiliado de produto digital.
+
+**Produto:** TREINO SÃOMIGUELITO | PARA MULHERES (Hotmart 788921) — escolhido entre 64 produtos ≥136° do marketplace. 4.5★/1611 avaliações, 150°, 50% 1ª mensalidade + 20% recorrente, Meta Ads permitido.
+
+**Estado (12/nov/2026, ~19h35):**
+- São Miguelito: afiliação ainda **pendente** (~17h) — segue como produto principal
+- **Leadlovers (ID 42903): AFILIADO E ATIVO** (aprovação imediata) — plano B destravado
+  - Hotlink: `https://go.hotmart.com/I108467743A` (página de vendas; `?dp=1` = checkout direto)
+  - Comissão: 20% recorrente enquanto assinatura ativa; exige **NF pra sacar** (usuário tem MEI); regra: vender 1×/mês pra manter afiliação
+  - Materiais: aba "Material de divulgação" em app.hotmart.com/hotlinks/42903 — **8 vídeos + banners + pasta ADS na nuvem**
+- Campanha Meta pronta (São Miguelito): `CAMPANHA_META_SAOMIGUELITO.md` — Leadlovers pode usar mesma estrutura, público = donos de pequenos negócios/marketing
+- Orçamento aprovado: R$10/dia × 7 dias. Corte: R$40 sem checkout
+- Meta Ads verificado (12/nov): conta `act=198788012286128` (Business Alessandro Souza, CNPJ MEI), pixel `879356861433720` ativo (161 eventos/28d), saldo R$100 via PIX, pré-pago BRL
+- **CAMPANHA PUBLICADA 12/nov**: `LEADLOVERS | SEM1 | TRAFEGO` > `CONJ1 | Leadlovers | BR 25-55` > `AD1 | Leadlovers | Aviao` — objetivo Tráfego (LPV), R$10/dia ABO (max semanal R$70), público Advantage+ BR, criativo ad1.png (avião), copy própria, CTA Ver detalhes, destino `go.hotmart.com/I108467743A` + `src=meta_sem1&utm_source=meta&utm_medium=paid`, página **Bestpricetoday** + IG/Threads "usar identidade da Página" (trocado 12/nov, era Achados Shoppee/aletubegames). Status: anúncio em processamento/análise. IDs: campanha 120250093461690724, conjunto 120250093461710724, anúncio 120250093461700724
+- Regras de corte: CTR<1% ou CPC>R$1 no dia 3 pausa; R$40 gastos sem checkout → para tudo
+- Como editar via CDP: Ads Manager só aceita gesto real — JS click falha, `page.mouse.click(x,y)` com coords do getBoundingClientRect funciona; upload via `page.expect_file_chooser` após clicar "Carregar"
+- **Monitoramento no alaserver** (12/nov): cookies FB exportados via CDP p/ `/home/alessandro/backend/.meta_cookies.json` (600) — sessão funciona lá mesmo com este PC desligado. Script `check_meta_ads.py` (google-chrome + xvfb-run, injeta cookies, salva de volta por causa da rotação do `fr`). Cron `0 8,20 * * *` → `check_meta_ads.log`. Se "SESSION_DEAD" → reexportar cookies do Edge daqui
+- Criativos Leadlovers baixados (4 PNGs 2160×2700 do Drive ADS do produtor: `1TJpSCTF09nmLX5vZNrFBulITfRugowHo`)
+- Pixel Hotmart no checkout Leadlovers: wizard instável, config pendente (`app.hotmart.com/tools/pixel` → produto → Facebook → 879356861433720). Quando ativo → objetivo Vendas
+- Browser Edge debug: perfil copiado em `~/.config/edge-ads-profile`, `--remote-debugging-port=9222`, drive via `connect_over_cdp` + python3 playwright (sistema, não venv)
+- Pendente: decidir se lança Leadlovers já ou espera São Miguelito; confirmar conta de anúncios Meta do usuário
+- Lições operacionais Hotmart em `AGENTS.md` (seção "Campanhas Hotmart / Meta Ads")
+
+---
+
 ## Atualizações recentes (2026-07-01)
 
 ### Coupon Distributor — Correções e Vídeo de Teste

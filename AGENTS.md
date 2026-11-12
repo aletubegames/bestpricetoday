@@ -214,3 +214,27 @@
 **Margem alta (plano B se afiliado físico não escalar):** produtos digitais Hotmart/Eduzz/Kiwify pagam 30-70% — aí tráfego pago fecha (R$50 de cliques → R$150 de comissão). Mesma máquina, outro produto.
 
 **Sequência:** canal Telegram → grupos/canal YT dedicado → shoutouts (medir membros/R$) → escalar o que converter.
+
+## Campanhas Hotmart / Meta Ads (lições de 11/nov/2026)
+
+**Por que digital, não físico:** comissão física ~R$12/pedido não paga clique de R$0,50–1,00. Digital (Hotmart) paga R$20–100+/venda — único modelo onde R$70/semana pode dar retorno. Produtos físicos do site NUNCA com tráfego pago direto.
+
+**Produto escolhido:** `TREINO SÃOMIGUELITO | PARA MULHERES` (Hotmart ID 788921, produtor ucode `1b132642-6ddb-4533-8c1b-4c73e698335e`, produto ucode `c8850153-22a6-4d8c-9a8c-ed6ee0b4d08f`). Assinatura ~R$39–60/mês (anual ~R$199). Comissão 50% 1ª mensalidade + 20% recorrente. Cookie 60d, último clique. Backups: Leadlovers (afiliação 1-clique, exige NF p/ sacar), Tarot Magia Natural 2.0 (ticket R$2.997, comissão ~R$540).
+
+**Campanha pronta em:** `CAMPANHA_META_SAOMIGUELITO.md` — CBO R$10/dia, mulheres 22–50 Brasil, Advantage+, criativos do Drive do produtor (`AFILIADOS TRAFEGO`: 4 kits carrossel story+feed + COPY_AFILIADOS.pdf com 3 copys). Corte: R$40 gastos sem checkout = para.
+
+**Hotmart — como operar (painel afiliado):**
+- Marketplace logado: `app.hotmart.com/market/search` — filtrar Temperatura ≥136° via slider do painel "Filtrar" (~64 produtos quentes), depois ranquear por nota/nº avaliações/comissão.
+- **A API interna NÃO é replayable** (`api-affiliation-market.hotmart.com` retorna 500 mesmo com token/cookies — requests assinados). Extrair dados do DOM renderizado.
+- Seleção: comissão ≥R$50/venda (ou recorrente), nota ≥4.2 com avaliações reais, página de vendas com vídeo, regras que permitam Meta Ads (ler "Regras de Afiliação" — proibição costuma ser só brand bidding em Google/Bing), ticket de impulso R$40–200.
+- Afiliação por aprovação: botão "Solicitar afiliação" → modal → clicar no TEXTO do checkbox "Li e concordo" (o input fora do viewport não aceita click direto; label/sim .click() não funciona) → "Sim, quero me afiliar". Aprovação é do produtor (horas–dias).
+- "Afiliação global ativa" = produto vende p/ qualquer país; alguns exigem CNPJ (ex.: "Assinatura - Facial Class" — pessoa física não pode).
+- Pós-aprovação: pegar Hotlink em Meus Produtos, cadastrar Meta Pixel nas Ferramentas do afiliado, rastrear origem com `&src=meta_semX` no hotlink.
+- Materiais do produtor ficam em Drive linkado na página do produto ("Materiais de divulgação" → "Ver Materiais").
+
+**Meta Ads — regras práticas:**
+- Objetivo Vendas (se pixel estiver na Hotmart) senão Tráfego/LPV. Pixel do site já existe (`NEXT_PUBLIC_FB_PIXEL_ID`).
+- Público = sexo/idade do PRODUTO (São Miguelito = só mulheres). Advantage+ placements.
+- Copys do produtor: cuidado com superlativos ("maior do Brasil") — Meta reprova. Nada de "resultado garantido" (regra do produtor + política Meta).
+- Regras típicas de produtor: não parecer perfil oficial, não criar domínio/perfil com nome do produto, não estender garantia, só cupons oficiais.
+- Matemática: CPA aceitável = até metade da comissão. R$70 → ~140 cliques → página boa converte 1,5–3% → 2–4 vendas. +100% é meta otimista, não expectativa; recorrência 20% é o ganho real de médio prazo.
