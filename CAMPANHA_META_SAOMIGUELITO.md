@@ -1,4 +1,9 @@
-# Campanha Meta Ads — TREINO SÃOMIGUELITO (Hotmart)
+# Campanha Meta Ads — TREINO SÃOMIGUELITO (Hotmart) — ARQUIVADA
+
+> Status (12/nov noite): afiliação ficou pendente ~30h sem resposta do produtor e o
+> dono **cancelou o pedido**. Este doc fica como referência — se reativar o produto,
+> a estrutura abaixo ainda serve. A campanha ATIVA é Leadlovers
+> (`CAMPANHA_META_LEADLOVERS.md`).
 
 > Status (12/nov): afiliação **ainda pendente**. Enquanto isso, **Leadlovers já está afiliado e ativo**
 > (hotlink `https://go.hotmart.com/I108467743A`, materiais em app.hotmart.com/hotlinks/42903 —

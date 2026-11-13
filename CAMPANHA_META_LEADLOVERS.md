@@ -53,7 +53,8 @@
 ## Monitoramento (alaserver)
 - `check_meta_ads.py` — cron `0 8,20 * * *` → status + gasto + impressões
 - `check_analytics.py` — cron `30 8,20 * * *` → GA4 (a399395754) + Clarity (xd51oaxppe)
-- Cookies: `.meta_cookies.json` / `.analytics_cookies.json` (600) — se `SESSION_DEAD`
+- `check_hotmart.py` — cron `45 8,20 * * *` → vendas/saldo do painel de afiliado
+- Cookies: `.meta_cookies.json` / `.analytics_cookies.json` / `.hotmart_cookies.json` (600) — se `SESSION_DEAD`
   no log, reexportar do Chrome/Edge local
 - Cliques da campanha chegam no backend por `source='meta_sem1'` (tabela click_events)
 - **Vendas não passam pelo alaserver** — conferir no painel de afiliado da Hotmart
