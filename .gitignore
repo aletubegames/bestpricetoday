@@ -49,3 +49,4 @@ backend/data/geoip/*.mmdb
 
 # Backups locais
 *.bak-*
+.playwright-mcp/
