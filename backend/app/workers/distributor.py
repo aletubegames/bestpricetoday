@@ -566,7 +566,7 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
 
     lines = []
 
-    lines.append("Ofertas no link do perfil: procure pelo nome do produto.")
+    lines.append("Ofertas no link abaixo — procure pelo nome do produto:")
     lines.append(f"{settings.PUBLIC_SITE_URL.rstrip('/')}/ofertas?canal=youtube")
     lines.append("")
 
@@ -960,8 +960,8 @@ async def post_to_instagram(offer: dict, caption: str, short_url: str = "") -> d
                     comment_id = await client.post_comment_facebook(
                         post_id=media_id,
                         message=(
-                            f"Ofertas no link do perfil. Procure pelo nome do produto.\n"
-                            f"Referência: {short_url}\n"
+                            f"Oferta no link abaixo — procure pelo nome do produto.\n"
+                            f"{short_url}\n"
                             f"📣 Ofertas todo dia no Telegram: {TELEGRAM_CHANNEL_LINK}"
                         ),
                         page_token=acct.access_token,
@@ -1049,6 +1049,7 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         expand_units_for_tts,
         num2words_pt,
         fmt_brl,
+        speak_brl,
         _clean_title_for_narration,
     )
 
@@ -1085,16 +1086,6 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                     continue
 
         # ── 2. Gera roteiro de catálogo (sem cupom) ──
-        def speak_brl(v):
-            reais = int(v)
-            centavos = int(round((v - reais) * 100))
-            real_word = "real" if reais == 1 else "reais"
-            centavo_word = "centavo" if centavos == 1 else "centavos"
-            if centavos > 0:
-                if reais == 0:
-                    return f"{num2words_pt(centavos)} {centavo_word}"
-                return f"{num2words_pt(reais)} {real_word} e {num2words_pt(centavos)} {centavo_word}"
-            return f"{num2words_pt(reais)} {real_word}"
 
         if custom_narration:
             narration = custom_narration
@@ -1113,12 +1104,12 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             
             # Variedade de CTAs aleatórios
             ctas = [
-                "Abra o link do perfil e procure este produto.",
-                "Abra o link do perfil e procure este produto.",
-                "Abra o link do perfil e procure este produto.",
-                "Abra o link do perfil e procure este produto.",
-                "Abra o link do perfil e procure este produto.",
-                "Abra o link do perfil e procure este produto.",
+                "O link está na descrição do vídeo.",
+                "Link na descrição do vídeo.",
+                "Confira o link na descrição.",
+                "O link do produto está na descrição.",
+                "Veja o link na descrição do vídeo.",
+                "Link na descrição, aproveita.",
             ]
             
             # Escolhe aleatoriamente

@@ -428,7 +428,7 @@ def build_coupon_youtube_description(offer: dict) -> str:
         lines.append("")
         lines.append(notice)
     lines.append("")
-    lines.append("Ofertas no link do perfil: procure pelo nome do produto.")
+    lines.append("Ofertas no link abaixo — procure pelo nome do produto:")
     lines.append(f"{settings.PUBLIC_SITE_URL.rstrip('/')}/ofertas?canal=youtube")
     if store:
         lines.append(f"🏪 Loja: {store}")
@@ -2416,7 +2416,7 @@ async def post_coupon_youtube(offer: dict) -> dict:
             }
             narration = (
                 f"{offer['title']}. Consulte as condições do cupom e o preço final na loja. "
-                "Abra o link do perfil e procure este produto."
+                "O link está na descrição do vídeo."
             )
             video_path = await generate_offer_video(video_offer, tmp_video, custom_narration=narration)
             if not video_path or not os.path.exists(video_path):
