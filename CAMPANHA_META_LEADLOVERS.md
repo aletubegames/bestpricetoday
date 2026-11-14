@@ -99,3 +99,18 @@
   nunca aceitar sem revisar a prévia de todos os posicionamentos
 - 14/nov ~18h20: cópia (anúncio sem imagem) **excluída** a pedido do usuário.
   Resta apenas `LEADLOVERS | SEM1 | TRAFEGO` ativa — campanha + conjunto + AD1 Aviao (com imagem).
+
+## 14/nov ~17h — BOT DE ATENDIMENTO FB INBOX (alaserver)
+
+- `fb_mkt_watcher.py` (cron */4min + jitter): lê Business Inbox da página
+  (comentários FB/IG, Messenger, WhatsApp) — detecta badges de não lidos
+- `fb_mkt_send.py`: responde no inbox como a página, digitação humanizada
+- Ao detectar item: job JSON em `fb_mkt_queue/` + `devin -p` (dangerous)
+  → Devin lê conversa, busca produto no banco, cria link /r/ (afiliado),
+  responde cordial ou ignora spam
+- Identidade: "afiliados das lojas (ML/Amazon/Shopee)" — NUNCA bot/IA
+- Kill switch: checkpoint/login → `.fb_mkt_paused` + alerta Telegram
+- Sessão: `.fb_cookies.json` (11 cookies, modo PÁGINA — não pessoal)
+- Teste real: comentário FRIOPECAS (spam concorrente) → CLASSIFICADO:SPAM
+- **NÃO cobre**: mensagens do Marketplace PESSOAL (messenger.com —
+  exige sessão do perfil pessoal, outra sessão)

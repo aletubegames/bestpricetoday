@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Watcher do inbox do Facebook/Marketplace — roda no alaserver via cron.
+"""Watcher do Business Inbox da página Bestpricetoday — roda no alaserver.
 
-Detecta conversas não lidas (incl. Marketplace), grava na fila e dispara
-`devin -p` (CLI no alaserver) que responde cordial + link /r/ de afiliado.
+Lê a caixa unificada (Messenger da página + comentários FB/IG), detecta
+itens não lidos, grava na fila e dispara `devin -p` — o Devin responde
+cordial, busca o produto no banco e manda o link /r/ (abre no link de
+AFILIADO da loja).
 
-Anti-detecção:
-- jitter aleatório na largada (o cron já tem, mas reforço aqui)
-- Chromium real no Xvfb (headless=False), UA Chrome desktop
-- pausas humanas entre ações
-- se a Meta pedir login/checkpoint: pausa tudo e alerta no Telegram
-  (nunca tenta burlar — é o que derruba conta)
+Fluxo:
+  inbox -> filtro "Não lidas" -> abre cada item -> extrai remetente/texto
+  -> job JSON na fila -> devin -p -> fb_mkt_send responde como a página
 
-Uso: DISPLAY=:99 venv/bin/python -m app.workers.fb_mkt_watcher
+Anti-detecção: xvfb-run (Chrome real), pausas humanas, kill switch se a
+Meta pedir login/checkpoint.
+
+Cron (com jitter): 3-7 */3 * * * * sleep $((RANDOM%90)) &&
+  cd /home/alessandro/backend && xvfb-run -a venv/bin/python
+  -m app.workers.fb_mkt_watcher >> fb_mkt_watcher.log 2>&1
 """
 import hashlib, json, os, random, subprocess, sys, time
 
@@ -22,154 +26,168 @@ from app.workers.fb_mkt_common import (
 
 from playwright.sync_api import sync_playwright
 
-INBOX_URL = "https://www.messenger.com/"
+ASSET = "1151428081393652"   # página Bestpricetoday
+INBOX_URL = (f"https://business.facebook.com/latest/inbox/all"
+             f"?asset_id={ASSET}")
 DEVIN = "/home/alessandro/.local/bin/devin"
 WORKDIR = "/home/alessandro/alaserver-bot"
-MAX_THREADS_PER_RUN = 6          # não varrer tudo de uma vez
-MIN_REPLY_GAP_S = 240            # não responde a mesma conversa <4min seguido
+MAX_ITEMS_PER_RUN = 6
+MIN_REPLY_GAP_S = 240
 
 
-def conv_id_from_url(url):
-    return hashlib.md5(url.encode()).hexdigest()[:12]
+FILTROS = ["Messenger", "Instagram", "WhatsApp",
+           "Comentários do Facebook", "Comentários do Instagram"]
 
 
-def collect_threads(page):
-    """Extrai threads da inbox: [{url, title, preview, unread}]."""
-    page.goto(INBOX_URL, timeout=60000)
-    h_sleep(6, 10)
-    # marcação de conversas não lidas no messenger web muda bastante;
-    # usamos heurística por aria-label + texto em negrito (font-weight)
-    return page.evaluate("""() => {
-      const out = [];
-      const items = document.querySelectorAll('[role="row"], a[href*="/t/"]');
-      for (const el of items) {
-        const a = el.tagName === 'A' ? el : el.querySelector('a[href*="/t/"]');
-        if (!a) continue;
-        const txt = (el.innerText || a.innerText || '').trim();
-        if (!txt) continue;
-        const bold = [...el.querySelectorAll('*')].some(n =>
-          parseInt(getComputedStyle(n).fontWeight) >= 600 && n.innerText);
-        const unread = bold
-          || /unread|não lida|nao lida/i.test(el.getAttribute('aria-label') || '');
-        out.push({url: a.href, text: txt.slice(0, 400), unread});
+def item_id(texto):
+    return hashlib.md5(texto[:160].encode()).hexdigest()[:12]
+
+
+def sidebar_badges(page):
+    """Filtros laterais com badge numérico = não lidos.
+    Retorna [{'filtro', 'count'}]."""
+    return page.evaluate("""(filtros) => {
+      const out=[];
+      for(const nome of filtros){
+        const els=[...document.querySelectorAll('span,div,a')]
+          .filter(e=>e.textContent.trim()===nome);
+        for(const el of els){
+          let box=el.parentElement;
+          for(let i=0;i<4&&box;i++){
+            const badge=[...box.querySelectorAll('span,div')]
+              .find(b=>/^\\d{1,3}$/.test(b.textContent.trim()));
+            if(badge){out.push({filtro:nome,count:badge.textContent.trim()});
+                      i=9;break}
+            box=box.parentElement;
+          }
+          if(out.length&&out[out.length-1].filtro===nome) break;
+        }
       }
-      const seen = new Set();
-      return out.filter(t => !seen.has(t.url) && seen.add(t.url));
-    }""")
+      return out;
+    }""", FILTROS)
 
 
-def read_thread(page, url):
-    """Abre a conversa e extrai {name, item_title, messages[]}."""
-    page.goto(url, timeout=60000)
-    h_sleep(4, 7)
+def click_filtro(page, nome):
+    return page.evaluate("""(nome) => {
+      const el=[...document.querySelectorAll('span,div,a')]
+        .find(e=>e.textContent.trim()===nome);
+      if(!el) return 'nf';
+      let t=el;
+      for(let i=0;i<8&&t;i++){
+        if(t.tagName==='A'||t.getAttribute('role')==='link'
+           ||t.getAttribute('role')==='button'||t.onclick){
+          t.click();return 'clicked '+i}
+        t=t.parentElement}
+      el.click(); return 'span clicked';
+    }""", nome)
+
+
+def read_panel(page):
+    """Lê a página após clicar no filtro — pega o body inteiro.
+    O Devin separa o conteúdo da conversa do ruído do menu."""
     return page.evaluate("""() => {
-      const body = document.body.innerText || '';
-      // mensagens: bolhas têm role/estrutura variável — pego os últimos
-      // blocos de texto da área principal
-      const main = document.querySelector('[role="main"]') || document.body;
-      const lines = (main.innerText || '').split('\\n')
-        .map(s => s.trim()).filter(Boolean);
-      // nome da conversa = primeiro heading
-      const h = main.querySelector('h1,h2,[dir="auto"]');
-      return {
-        name: h ? h.innerText.trim().slice(0, 80) : '',
-        item_title: '',            // preenchido por heurística abaixo
-        tail: lines.slice(-40),    // últimas 40 linhas do chat
-      };
+      const lines=(document.body.innerText||'').split('\\n')
+        .map(s=>s.trim()).filter(Boolean);
+      return {name:'', tail:lines.slice(-70)};
     }""")
 
 
 def trigger_devin(job):
     os.makedirs(QUEUE_DIR, exist_ok=True)
-    fname = f"{int(time.time())}_{job['conv_id']}.json"
+    fname = f"{int(time.time())}_{job['item_id']}.json"
     fpath = os.path.join(QUEUE_DIR, fname)
     with open(fpath, "w") as f:
         json.dump(job, f, ensure_ascii=False, indent=1)
-    prompt = f"""Atendimento Facebook Marketplace — responda o cliente.
+    prompt = f"""Atendimento Caixa de Entrada Bestpricetoday — responda o cliente.
 
-Leia o arquivo {fpath} (JSON com nome do cliente, url da conversa e
-últimas mensagens). Depois:
+Leia {fpath} (JSON: nome, preview e últimas linhas da conversa/comentário).
 
-1. Identifique o produto citado (título do anúncio / contexto das msgs).
-2. Consulte o Postgres local: psql -h 127.0.0.1 -U bestpricetoday
-   -d bestpricetoday, tabela affiliate_products (busque por título
-   aproximado com ILIKE, pegue price, affiliate_url, product_url).
-3. Crie o link curto rastreado:
+1. Identifique o produto do contexto (título do post/anúncio/msgs).
+2. Consulte Postgres: psql -h 127.0.0.1 -U bestpricetoday -d bestpricetoday
+   Tabela affiliate_products — ILIKE pelo título; pegue price,
+   affiliate_url, provider, id.
+3. Crie o link curto rastreado (abre no AFILIADO da loja):
    curl -s -X POST https://api.alaserver.com.br/api/v1/links/create
      -H 'Content-Type: application/json' -d
      '{{"affiliate_url":"<affiliate_url>","provider":"<provider>",
         "product_title":"<titulo>","price":<preco>,
-        "source":"fb_marketplace","campaign":"mkt_bot"}}'
-   O campo "url" retornado (…/r/CODE) é o link de compra — ele abre
-   direto no link de AFILIADO da loja.
-4. Responda o cliente com:
-   venv/bin/python -m app.workers.fb_mkt_send "<conv_url>" "<resposta>"
-   (cwd=/home/alessandro/backend, DISPLAY=:99 — só UMA resposta curta)
+        "source":"fb_inbox","campaign":"inbox_bot"}}'
+   Use o campo "url" (…/r/CODE) como link de compra.
+4. Responda no inbox com:
+   cd /home/alessandro/backend && xvfb-run -a venv/bin/python
+     -m app.workers.fb_mkt_send "<filtro>" "<resposta>"
+   O filtro é o campo "filtro" do JSON (ex: "Comentários do Facebook").
 
-REGRAS de tom: português BR, cordial e breve (2-4 linhas), como vendedor
-humano. Responda o que perguntou (preço/disponibilidade/frete). Sempre
-feche com o link de compra. NÃO prometa o que não sabe (frete/garantia =
-"verifica no anúncio da loja"). NUNCA envie link sem ter criado o /r/.
-Se a conversa não for sobre produto (spam, saudação solta), NÃO responda —
-apenas apague o arquivo da fila. Ao terminar, apague o arquivo da fila."""
+TOM: português BR, cordial, claro, 2-4 linhas, como um vendedor humano.
+Responda a dúvida (preço/disponibilidade/como comprar) e feche com o link.
+Frete/garantia/prazo = "confirma no anúncio da loja".
+
+IDENTIDADE (regras duras — NUNCA viole):
+- Se perguntarem quem somos/como funciona: "Trabalhamos como afiliados
+  das lojas — Mercado Livre, Amazon, Shopee e outras. A gente garimpa
+  os melhores preços e te passa o link direto da loja com o desconto."
+- NUNCA diga que é bot, IA, automação, sistema ou robô — em hipótese
+  nenhuma, mesmo se insistirem.
+- NUNCA diga onde você está nem quem opera (sem nome, cidade, empresa).
+- NÃO prometa o que não sabe. NUNCA responda sem ter criado o link /r/.
+
+Se for spam/propaganda de outra loja ou não for sobre produto, NÃO
+responda — só apague o arquivo da fila. Ao terminar, apague o arquivo."""
     try:
         subprocess.run(
             [DEVIN, "--respect-workspace-trust", "false",
-             "--permission-mode", "smart", "--model", "swe-2-max",
+             "--permission-mode", "dangerous", "--model", "swe-2-max",
              "-c", "-p", prompt],
             cwd=WORKDIR, timeout=900,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
-        tg_alert("⏱ FB MKT: devin timeout respondendo "
-                 + job.get("name", "?"))
+        tg_alert("⏱ FB INBOX: devin timeout — " + job.get("name", "?"))
     except Exception as e:
-        tg_alert(f"⚠️ FB MKT: falha ao disparar devin — {e}")
+        tg_alert(f"⚠️ FB INBOX: falha ao disparar devin — {e}")
 
 
 def main():
     if is_paused():
-        print("pausado (checkpoint anterior) — saída silenciosa")
+        print("pausado — saída silenciosa")
         return
-    h_sleep(2, 20)  # jitter extra além do cron
+    h_sleep(2, 20)
     st = load_state()
     with sync_playwright() as p:
         ctx, page = open_browser(p)
         try:
-            threads = collect_threads(page)
+            page.goto(INBOX_URL, timeout=60000)
+            h_sleep(8, 12)
             block = detect_block(page)
             if block:
                 pause_all(block)
-                tg_alert("🚫 FB MKT PAUSADO — Meta pediu " + block
-                         + ". Reautenticar sessão e apagar .fb_mkt_paused")
+                tg_alert("🚫 FB INBOX PAUSADO — " + block
+                         + ". Reautenticar e apagar .fb_mkt_paused")
                 return
-            unread = [t for t in threads if t.get("unread")]
-            print(f"threads={len(threads)} unread={len(unread)}")
-            for t in unread[:MAX_THREADS_PER_RUN]:
-                cid = conv_id_from_url(t["url"])
-                last_seen = st["seen"].get(cid, 0)
-                last_reply = st["replied"].get(cid, 0)
-                if time.time() - last_reply < MIN_REPLY_GAP_S:
-                    continue
-                if time.time() - last_seen < 60:
-                    continue  # já processado nessa janela
-                info = read_thread(page, t["url"])
+            badges = sidebar_badges(page)
+            print("badges:", badges)
+            for b in badges[:MAX_ITEMS_PER_RUN]:
+                click_filtro(page, b["filtro"])
+                h_sleep(5, 8)
+                info = read_panel(page)
                 block = detect_block(page)
                 if block:
                     pause_all(block)
-                    tg_alert("🚫 FB MKT PAUSADO — " + block)
+                    tg_alert("🚫 FB INBOX PAUSADO — " + block)
                     return
+                txt = "\n".join(info.get("tail", []))
+                iid = item_id(txt)
+                if time.time() - st["replied"].get(iid, 0) < MIN_REPLY_GAP_S:
+                    continue
                 job = {
-                    "conv_id": cid, "conv_url": t["url"],
-                    "name": info.get("name") or t["text"].split("\n")[0],
-                    "thread_preview": t["text"],
+                    "item_id": iid, "filtro": b["filtro"],
+                    "name": info.get("name", ""),
                     "tail": info.get("tail", []),
                     "ts": int(time.time()),
                 }
-                st["seen"][cid] = int(time.time())
-                st["replied"][cid] = int(time.time())
+                st["replied"][iid] = int(time.time())
                 save_state(st)
                 trigger_devin(job)
-                h_sleep(15, 60)  # pausa humana entre conversas
+                h_sleep(15, 60)
         finally:
             ctx.close()
 

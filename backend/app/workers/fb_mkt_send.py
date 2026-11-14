@@ -1,53 +1,67 @@
 #!/usr/bin/env python3
-"""Envia UMA resposta numa conversa do Messenger — chamado pelo Devin.
+"""Envia UMA resposta no Business Inbox — chamado pelo Devin.
 
-Uso: DISPLAY=:99 venv/bin/python -m app.workers.fb_mkt_send "<conv_url>" "<texto>"
+Uso:
+  xvfb-run -a venv/bin/python -m app.workers.fb_mkt_send "<filtro>" "<texto>"
 
-Digitação humanizada (delay por tecla + pensar antes/depois).
-Se a Meta pedir login/checkpoint, pausa o sistema e alerta.
+Abre inbox -> clica o filtro lateral (ex: "Comentários do Facebook")
+-> o painel do item não lido abre -> digita no composer -> envia.
+Digitação humanizada. Kill switch em checkpoint.
 """
 import sys, time, random
 
 sys.path.insert(0, "/home/alessandro/backend")
 from app.workers.fb_mkt_common import (
     h_sleep, tg_alert, open_browser, detect_block, pause_all, is_paused)
+from app.workers.fb_mkt_watcher import INBOX_URL, click_filtro
 
 from playwright.sync_api import sync_playwright
 
 
 def type_human(page, text):
-    """Digita com delay por tecla (50-180ms) e pausas ocasionais."""
     for ch in text:
         page.keyboard.type(ch, delay=random.randint(50, 180))
-        if random.random() < 0.03:      # pausa de "pensar" ocasional
+        if random.random() < 0.03:
             time.sleep(random.uniform(0.4, 1.6))
 
 
-def main(conv_url, text):
+def main(filtro, text):
     if is_paused():
         print("pausado")
         sys.exit(3)
     with sync_playwright() as p:
         ctx, page = open_browser(p)
         try:
-            page.goto(conv_url, timeout=60000)
-            h_sleep(5, 9)
+            page.goto(INBOX_URL, timeout=60000)
+            h_sleep(8, 12)
             block = detect_block(page)
             if block:
                 pause_all(block)
                 tg_alert("🚫 FB MKT PAUSADO no send — " + block)
                 sys.exit(4)
-            # composer do messenger: contenteditable
+            click_filtro(page, filtro)
+            h_sleep(5, 8)
+            # composer: campo de resposta do painel aberto
             box = page.locator(
-                '[contenteditable="true"][role="textbox"], '
-                'div[aria-label*="ensagem"][contenteditable="true"], '
+                'div[contenteditable="true"][role="textbox"], '
+                'textarea[placeholder*="espond"], '
+                'div[aria-label*="espond"][contenteditable="true"], '
                 'div[contenteditable="true"]').last
+            if not box.count():
+                print("composer não achado")
+                sys.exit(5)
             box.click()
             h_sleep(1, 3)
             type_human(page, text)
-            h_sleep(2, 5)              # "relê" antes de enviar
+            h_sleep(2, 5)
             page.keyboard.press("Enter")
-            h_sleep(2, 4)
+            h_sleep(2, 3)
+            send_btn = page.get_by_role(
+                "button", name=lambda n: n and (
+                    "nviar" in n or "Responder" in n or "Publicar" in n))
+            if send_btn.count():
+                send_btn.first.click()
+                h_sleep(2, 4)
             print("enviado")
         finally:
             ctx.close()
@@ -55,6 +69,6 @@ def main(conv_url, text):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("uso: fb_mkt_send <conv_url> <texto>")
+        print("uso: fb_mkt_send <filtro> <texto>")
         sys.exit(2)
     main(sys.argv[1], sys.argv[2])
