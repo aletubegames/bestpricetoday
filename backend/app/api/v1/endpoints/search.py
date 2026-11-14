@@ -277,10 +277,22 @@ async def list_affiliate_products(
             )
 
             async for db in get_db():
-                search_filter = or_(
-                    AffiliateProduct.title.ilike(f"%{search}%"),
-                    AffiliateProduct.category.ilike(f"%{search}%"),
-                )
+                from app.services import text_search
+                stoks = text_search.tokens(search)
+                pg = text_search.is_pg(db)
+                if stoks:
+                    # AND por token em title OU category, forma compacta
+                    # (bpt_compact): "airfryer" casa "Air Fryer", acento ignorado
+                    search_filter = text_search.match_cols(
+                        [AffiliateProduct.title, AffiliateProduct.category],
+                        stoks,
+                        pg=pg,
+                    )
+                else:
+                    search_filter = or_(
+                        AffiliateProduct.title.ilike(f"%{search}%"),
+                        AffiliateProduct.category.ilike(f"%{search}%"),
+                    )
                 provider_filter = (
                     or_(
                         func.lower(AffiliateProduct.notes).like("%ml_scraper%"),
@@ -290,22 +302,34 @@ async def list_affiliate_products(
                     if provider == "mercadolivre"
                     else True
                 )
-                query_db = select(AffiliateProduct).where(
+                base_conds = [
                     AffiliateProduct.is_active == True,
                     url_filter,
                     provider_filter,
-                    search_filter,
-                )
+                ]
                 count_q = select(func.count(AffiliateProduct.id)).where(
-                    AffiliateProduct.is_active == True,
-                    url_filter,
-                    provider_filter,
-                    search_filter,
-                )
-                total_result = await db.execute(count_q)
-                total = total_result.scalar() or 0
+                    *base_conds, search_filter)
+                total = (await db.execute(count_q)).scalar() or 0
 
-                if sort == "price_asc":
+                # Fallback fuzzy p/ erro de digitação: match compacto quase
+                # vazio (<3) + query >=4 chars → refaz com word_similarity
+                final_filter = search_filter
+                fuzzy_order = None
+                if pg and stoks and len((search or "").strip()) >= 4 and total < 3:
+                    final_filter = text_search.fuzzy_clause(
+                        AffiliateProduct.title, search)
+                    fuzzy_count = select(func.count(AffiliateProduct.id)).where(
+                        *base_conds, final_filter)
+                    total = (await db.execute(fuzzy_count)).scalar() or 0
+                    if sort == "relevance":
+                        fuzzy_order = text_search.fuzzy_rank(
+                            AffiliateProduct.title, search)
+
+                query_db = select(AffiliateProduct).where(
+                    *base_conds, final_filter)
+                if fuzzy_order is not None:
+                    query_db = query_db.order_by(fuzzy_order)
+                elif sort == "price_asc":
                     query_db = query_db.order_by(AffiliateProduct.price.asc())
                 elif sort == "price_desc":
                     query_db = query_db.order_by(AffiliateProduct.price.desc())

@@ -16,6 +16,7 @@ import unicodedata
 import urllib.parse
 from typing import List
 from app.services.providers.base import BaseProvider
+from app.services import text_search
 from app.schemas.schemas import OfferSchema, ProviderEnum, ProviderSearchState
 from app.core.config import settings
 from app.core.logging import logger
@@ -28,15 +29,17 @@ def _normalize(text: str) -> str:
 
 
 def _tokenize(query: str) -> list[str]:
-    tokens = re.findall(r"\w+", _normalize(query))
-    return [t for t in tokens if len(t) > 2]
+    """Tokens p/ match compacto — delega p/ text_search (stopwords, [a-z0-9], máx 8)."""
+    return text_search.tokens(query)
 
 
 def _score(title: str, tokens: list[str]) -> float:
+    """Proporcao de tokens da query no titulo — comparacao compacta
+    ("airfryer" casa "Air Fryer", "eletrica" casa "Elétrica")."""
     if not tokens:
         return 1.0
-    norm = _normalize(title)
-    hits = sum(1 for t in tokens if t in norm)
+    title_c = text_search.compact(title)
+    hits = sum(1 for t in tokens if text_search.compact(t) in title_c)
     return hits / len(tokens)
 
 
@@ -132,18 +135,18 @@ class AmazonProvider(BaseProvider):
             tokens = _tokenize(query)
 
             async with AsyncSessionLocal() as db:
+                pg = text_search.is_pg(db)
                 if tokens:
-                    # AND: todos tokens devem aparecer no título
-                    token_filters = [
-                        or_(
-                            func.lower(AffiliateProduct.title).like(f"%{t}%"),
-                            func.lower(AffiliateProduct.category).like(f"%{t}%"),
-                        )
-                        for t in tokens
-                    ]
+                    # AND por token; cada token casa em title OU category
+                    # na forma compacta (bpt_compact)
+                    token_filters = text_search.match_cols(
+                        [AffiliateProduct.title, AffiliateProduct.category],
+                        tokens,
+                        pg=pg,
+                    )
                     # Só produtos Amazon (notes contém 'source=amazon_scraper')
                     where_clause = and_(
-                        *token_filters,
+                        token_filters,
                         func.lower(AffiliateProduct.notes).like("%amazon_scraper%"),
                     )
                 else:
@@ -161,19 +164,45 @@ class AmazonProvider(BaseProvider):
                     .limit(limit * 3)
                 )
                 result = await db.execute(stmt)
-                products = result.scalars().all()
+                products = list(result.scalars().all())
+
+                # Fallback fuzzy p/ erro de digitação: <3 matches + query >=4 chars
+                fuzzy_ids = set()
+                if pg and len(query.strip()) >= 4 and len(products) < 3:
+                    fuzzy_stmt = (
+                        select(AffiliateProduct)
+                        .where(
+                            AffiliateProduct.is_active == True,
+                            AffiliateProduct.title != None,
+                            func.lower(AffiliateProduct.notes).like("%amazon_scraper%"),
+                            text_search.fuzzy_clause(AffiliateProduct.title, query),
+                        )
+                        .order_by(text_search.fuzzy_rank(AffiliateProduct.title, query))
+                        .limit(limit * 3)
+                    )
+                    fuzzy_result = await db.execute(fuzzy_stmt)
+                    seen = {p.id for p in products}
+                    for p in fuzzy_result.scalars().all():
+                        if p.id not in seen:
+                            seen.add(p.id)
+                            fuzzy_ids.add(p.id)
+                            products.append(p)
 
             if not products:
                 return []
 
             # Filtra por score mínimo e ordena
+            # — itens vindos só do fuzzy (typo) passam mesmo com score baixo
             min_score = 0.5 if len(tokens) > 1 else 0.0
             scored = sorted(
                 products,
                 key=lambda p: _score(p.title or "", tokens),
                 reverse=True,
             )
-            scored = [p for p in scored if _score(p.title or "", tokens) >= min_score][:limit]
+            scored = [
+                p for p in scored
+                if _score(p.title or "", tokens) >= min_score or p.id in fuzzy_ids
+            ][:limit]
 
             offers = []
             for p in scored:
@@ -182,6 +211,9 @@ class AmazonProvider(BaseProvider):
                 is_prime = "prime=true" in (p.notes or "")
                 # Amazon: maioria dos produtos tem frete grátis, especialmente acima de R$ 79
                 # Não fixamos frete R$ 20 — isso gerava preços incorretos
+                s = _score(p.title or "", tokens)
+                if p.id in fuzzy_ids:
+                    s = max(s, 0.5)  # match fuzzy (typo): não zera o score
                 offers.append(OfferSchema(
                     provider=ProviderEnum.amazon,
                     title=p.title or "",
@@ -191,7 +223,7 @@ class AmazonProvider(BaseProvider):
                     shipping_free=is_prime,
                     shipping_price=0.0,
                     final_price=price,
-                    score=round(_score(p.title or "", tokens), 4),
+                    score=round(s, 4),
                     product_id=p.ml_code or "",
                     product_url=p.affiliate_url or "",
                     affiliate_url=p.affiliate_url or "",

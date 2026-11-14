@@ -147,33 +147,49 @@ async def list_products(
 ):
     """Lista produtos afiliados com paginação, busca e filtros."""
     from sqlalchemy import func, or_
+    from app.services import text_search
+
+    stoks = text_search.tokens(search) if search else []
+
+    def _text_filter(pg: bool):
+        # AND por token em title OU category, forma compacta (bpt_compact)
+        if stoks:
+            return text_search.match_cols(
+                [AffiliateProduct.title, AffiliateProduct.category], stoks, pg=pg)
+        return or_(
+            AffiliateProduct.title.ilike(f"%{search}%"),
+            AffiliateProduct.category.ilike(f"%{search}%"),
+        )
 
     # Query base
     query = select(AffiliateProduct).where(AffiliateProduct.is_active == True)
-    
-    # Busca por texto
-    if search:
-        query = query.where(
-            or_(
-                AffiliateProduct.title.ilike(f"%{search}%"),
-                AffiliateProduct.category.ilike(f"%{search}%"),
-            )
-        )
-    
-    # Count separado (sem order_by/offset/limit)
     count_q = select(func.count(AffiliateProduct.id)).where(AffiliateProduct.is_active == True)
+
+    fuzzy_mode = False
     if search:
-        count_q = count_q.where(
-            or_(
-                AffiliateProduct.title.ilike(f"%{search}%"),
-                AffiliateProduct.category.ilike(f"%{search}%"),
-            )
-        )
-    total_result = await db.execute(count_q)
-    total = total_result.scalar() or 0
-    
-    # Ordenação
-    if sort == "price_asc":
+        pg = text_search.is_pg(db)
+        search_filter = _text_filter(pg)
+        query = query.where(search_filter)
+        count_q = count_q.where(search_filter)
+
+        total = (await db.execute(count_q)).scalar() or 0
+
+        # Fallback fuzzy p/ erro de digitação: match compacto quase vazio
+        if stoks and pg and len(search.strip()) >= 4 and total < 3:
+            fuzzy_mode = True
+            fuzzy_filter = text_search.fuzzy_clause(AffiliateProduct.title, search)
+            query = select(AffiliateProduct).where(
+                AffiliateProduct.is_active == True, fuzzy_filter)
+            count_q = select(func.count(AffiliateProduct.id)).where(
+                AffiliateProduct.is_active == True, fuzzy_filter)
+            total = (await db.execute(count_q)).scalar() or 0
+    else:
+        total = (await db.execute(count_q)).scalar() or 0
+
+    # Ordenação (no modo fuzzy+relevance, ordena por similaridade)
+    if fuzzy_mode and sort == "relevance":
+        query = query.order_by(text_search.fuzzy_rank(AffiliateProduct.title, search))
+    elif sort == "price_asc":
         query = query.order_by(AffiliateProduct.price.asc())
     elif sort == "price_desc":
         query = query.order_by(AffiliateProduct.price.desc())

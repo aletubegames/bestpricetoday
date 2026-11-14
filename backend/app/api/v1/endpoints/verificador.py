@@ -8,14 +8,14 @@ Endpoints públicos do verificador (página /black-friday):
 
 Linguagem sempre factual: preço medido + datas. Nunca acusa a loja.
 """
-import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, select
 
 from app.core.logging import logger
+from app.services import text_search
 from app.services.price_verdict import verdicts_for
 
 router = APIRouter()
@@ -26,11 +26,6 @@ VERDICT_LABEL_FALLBACK = "Histórico curto — ainda medindo"
 def _provider_of(affiliate_url: str | None) -> str:
     """Mesma regra do offers_today: 'amazon' na URL → amazon, senão mercadolivre."""
     return "amazon" if "amazon" in (affiliate_url or "").lower() else "mercadolivre"
-
-
-def _escape_like(tok: str) -> str:
-    """Escapa curingas do LIKE (% _ \\) — tokens vêm do usuário."""
-    return tok.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _payload(p, verdict: dict | None) -> dict:
@@ -75,24 +70,9 @@ async def verificador_search(
 
     await _check_rate(req)
 
-    tokens = [t for t in re.split(r"\s+", q.strip()) if len(t) >= 2][:6]
-    if not tokens:
+    toks = text_search.tokens(q)
+    if not toks:
         return {"query": q, "results": []}
-
-    # Cada token precisa bater no título (ILIKE escapado). Com 2+ tokens,
-    # também aceita o título com os tokens colados ("air fryer" → "Airfryer").
-    token_conds = [
-        AffiliateProduct.title.ilike(f"%{_escape_like(tok)}%", escape="\\")
-        for tok in tokens
-    ]
-    if len(token_conds) >= 2:
-        glued = _escape_like("".join(tokens))
-        text_cond = or_(
-            and_(*token_conds),
-            AffiliateProduct.title.ilike(f"%{glued}%", escape="\\"),
-        )
-    else:
-        text_cond = token_conds[0]
 
     since = datetime.now(timezone.utc) - timedelta(days=120)
     hist_count = (
@@ -105,25 +85,51 @@ async def verificador_search(
         .subquery()
     )
 
-    conds = [
-        AffiliateProduct.is_active == True,
-        AffiliateProduct.price > 0,
-        AffiliateProduct.title.isnot(None),
-        AffiliateProduct.affiliate_url.isnot(None),
-        text_cond,
-    ]
-    stmt = (
-        select(AffiliateProduct)
-        .join(hist_count, hist_count.c.product_id == AffiliateProduct.id)
-        .where(*conds)
-        .order_by(hist_count.c.snapshots.desc())
-        .limit(40)
-    )
-
     try:
         async for db in get_db():
+            pg = text_search.is_pg(db)
+            # AND por token sobre bpt_compact(title): "air fryer" casa
+            # "Airfryer", "eletrica" casa "Elétrica", "iphone15" casa "iPhone 15"
+            conds = [
+                AffiliateProduct.is_active == True,
+                AffiliateProduct.price > 0,
+                AffiliateProduct.title.isnot(None),
+                AffiliateProduct.affiliate_url.isnot(None),
+                text_search.match_all(AffiliateProduct.title, toks, pg=pg),
+            ]
+            stmt = (
+                select(AffiliateProduct)
+                .join(hist_count, hist_count.c.product_id == AffiliateProduct.id)
+                .where(*conds)
+                .order_by(hist_count.c.snapshots.desc())
+                .limit(40)
+            )
             result = await db.execute(stmt)
             products = list(result.scalars().all())
+
+            # Fallback fuzzy p/ erro de digitação: <3 matches + query >=4 chars
+            if pg and len(q.strip()) >= 4 and len(products) < 3:
+                fuzzy_conds = [
+                    AffiliateProduct.is_active == True,
+                    AffiliateProduct.price > 0,
+                    AffiliateProduct.title.isnot(None),
+                    AffiliateProduct.affiliate_url.isnot(None),
+                    text_search.fuzzy_clause(AffiliateProduct.title, q),
+                ]
+                fuzzy_stmt = (
+                    select(AffiliateProduct)
+                    .join(hist_count, hist_count.c.product_id == AffiliateProduct.id)
+                    .where(*fuzzy_conds)
+                    .order_by(text_search.fuzzy_rank(AffiliateProduct.title, q))
+                    .limit(40)
+                )
+                fuzzy_result = await db.execute(fuzzy_stmt)
+                seen = {p.id for p in products}
+                for p in fuzzy_result.scalars().all():
+                    if p.id not in seen:
+                        seen.add(p.id)
+                        products.append(p)
+
             verdicts = await verdicts_for(db, products)
 
             results = []

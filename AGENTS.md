@@ -246,3 +246,10 @@
 - Linguagem SEMPRE factual (preço medido + data) — nunca acusar loja de fraude
 - Alerta sem cadastro: botão → `t.me/BestPriceToday_bot?start=bf_<uuid>` → bot cria `PriceAlert` com `affiliate_product_id` (coluna nova, migração `b9c8d7e6f5a4`), alvo = preço −3%, máx 20 ativos/usuário; `alert_checker` usa `AffiliateProduct.price` + short link `alerta_telegram`
 - Shorts YouTube: `_attach_price_verdict` anexa histórico só se preço da oferta = preço medido (±1%); roteiro "Esse desconto é real?" (prefixo "Black Friday:" de 16 a 30/11) e título com sufixo intacto ≤100 chars; overlay `LINK NA DESCRIÇÃO` nos caminhos YouTube (admin.py mantém "LINK DO PERFIL")
+
+## Busca tolerante no catálogo (14/nov/2026)
+- Toda busca de texto em `affiliate_products.title` usa `backend/app/services/text_search.py` — NÃO voltar a `ilike(f"%{query}%")`/`lower(title) LIKE`
+- Postgres: extensões `unaccent` + `pg_trgm`, funções `bpt_norm(text)` (minúsculo, sem acento, não-alfanumérico→espaço) e `bpt_compact(text)` (bpt_norm sem espaço), índices GIN `ix_ap_title_compact_trgm` / `ix_ap_title_norm_trgm` (migração `e7f8a9b0c1d2`). `bpt_compact` é auto-contida de propósito (função SQL aninhada quebra no CREATE INDEX)
+- Match: AND de tokens sobre `bpt_compact` → "airfryer"↔"Air Fryer", "eletrica"↔"Elétrica", "iphone15"↔"iPhone 15"
+- Erro de digitação: se o AND devolver <3 itens e a query tiver ≥4 chars, completa com `word_similarity(normalize(q), bpt_norm(title)) >= 0.45`
+- Usado em: providers `mercadolivre`/`amazon` (busca local), `/verificador`, `search.py` e `affiliate.py` (listagens), `ranking/engine.py` (relevância). Testes: `backend/tests/test_text_search.py`

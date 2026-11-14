@@ -2,6 +2,7 @@
 import re
 from typing import List
 from app.schemas.schemas import OfferSchema
+from app.services.text_search import compact as _compact_text
 
 
 PROVIDER_TRUST = {
@@ -122,9 +123,10 @@ def rank_offers(offers: List[OfferSchema], query: str = "") -> List[OfferSchema]
         base = price_norm * 30
 
         # Relevância do título: 0-25 (produtos que contêm tokens da query)
+        # Comparação compacta: "airfryer" casa "Air Fryer", acento ignorado
         if query_tokens:
-            title_norm = _norm(offer.title or "")
-            hits = sum(1 for t in query_tokens if t in title_norm)
+            title_compact = _compact_text(offer.title or "")
+            hits = sum(1 for t in query_tokens if _compact_text(t) in title_compact)
             relevance = hits / len(query_tokens)
             base += relevance * 25
         else:
