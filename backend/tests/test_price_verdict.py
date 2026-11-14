@@ -140,6 +140,42 @@ def test_rise_pct_21d_abaixo_de_10_retorna_none():
     assert v["rise_pct_21d"] is None
 
 
+def test_rise_suprimido_quando_menor_preco():
+    # Caso real (Teclado Redragon): ~200 por 24d, pico 220 nos offsets
+    # 19-21, depois 162, últimos 4 dias 138, atual 137.91.
+    # rise cru seria 220/200-1 = 10% — mas verdict=menor_preco zera o badge.
+    pts = [_pt(i, price=200.0) for i in range(22, 46)]   # 24d baseline
+    pts += [_pt(i, price=220.0) for i in (19, 20, 21)]   # pico
+    pts += [_pt(i, price=162.0) for i in range(5, 19)]   # depois do pico
+    pts += [_pt(i, price=138.0) for i in range(1, 5)]    # últimos 4 dias
+    v = compute_verdict(137.91, pts, now=NOW)
+    assert v["verdict"] == "menor_preco"
+    assert v["min_price"] == 138.0
+    assert v["median_30"] == 162.0
+    assert v["rise_pct_21d"] is None
+
+
+def test_rise_mantido_quando_preco_nao_esta_baixo():
+    # "Black Fraude": 200 por 25d, subiu p/ 260 nos últimos 10d, voltou a 200.
+    # median_30=200 → verdict normal (nem menor nem abaixo) → badge fica.
+    pts = [_pt(i, price=200.0) for i in range(11, 36)]   # 25d baseline
+    pts += [_pt(i, price=260.0) for i in range(1, 11)]   # últimos 10d
+    v = compute_verdict(200.0, pts, now=NOW)
+    assert v["verdict"] == "normal"
+    assert v["rise_pct_21d"] == 30.0
+
+
+def test_rise_spike_de_1_dia_nao_conta():
+    # 150 estável + UM dia a 499 na janela recente (erro de coleta, caso real
+    # do Smartwatch Peje Pro). Pico = 2º maior → 150 → rise 0% → None.
+    pts = [_pt(i, price=150.0) for i in range(1, 41) if i != 5]
+    pts.append(_pt(5, price=499.0))
+    v = compute_verdict(151.0, pts, now=NOW)
+    assert v["verdict"] == "normal"
+    assert v["min_price"] == 150.0
+    assert v["rise_pct_21d"] is None
+
+
 # ─── parse_start_payload ─────────────────────────────────────────────────────
 
 def test_parse_start_payload_valido():

@@ -242,7 +242,7 @@
 ## Verificador Black Friday (14/nov/2026)
 - Página `/black-friday` (SSR, ISR 30min; `?q=` busca, `?p=<affiliate_product_id>` veredito único) — "esse desconto é real?"
 - API: `GET /api/v1/verificador?q=`, `/verificador/destaques`, `/verificador/produto/{id}` (rate limit 30/min/IP)
-- Lógica pura em `backend/app/services/price_verdict.py` (`compute_verdict`): série diária no fuso SP (último preço do dia), hoje fora de min/mediana, <7 dias = `sem_historico`; vereditos `menor_preco` / `abaixo_media` / `normal` / `acima_media`; `rise_pct_21d` = subida ≥10% nas últimas 3 semanas. Testes: `backend/tests/test_price_verdict.py`
+- Lógica pura em `backend/app/services/price_verdict.py` (`compute_verdict`): série diária no fuso SP (último preço do dia), hoje fora de min/mediana, <7 dias = `sem_historico`; vereditos `menor_preco` / `abaixo_media` / `normal` / `acima_media`; `rise_pct_21d` = 2º maior preço diário dos últimos 21d (pico precisa durar ≥2 dias) ≥10% acima da mediana anterior; suprimido quando o veredito é `menor_preco`/`abaixo_media`. Testes: `backend/tests/test_price_verdict.py`
 - Linguagem SEMPRE factual (preço medido + data) — nunca acusar loja de fraude
 - Alerta sem cadastro: botão → `t.me/BestPriceToday_bot?start=bf_<uuid>` → bot cria `PriceAlert` com `affiliate_product_id` (coluna nova, migração `b9c8d7e6f5a4`), alvo = preço −3%, máx 20 ativos/usuário; `alert_checker` usa `AffiliateProduct.price` + short link `alerta_telegram`
 - Shorts YouTube: `_attach_price_verdict` anexa histórico só se preço da oferta = preço medido (±1%); roteiro "Esse desconto é real?" (prefixo "Black Friday:" de 16 a 30/11) e título com sufixo intacto ≤100 chars; overlay `LINK NA DESCRIÇÃO` nos caminhos YouTube (admin.py mantém "LINK DO PERFIL")

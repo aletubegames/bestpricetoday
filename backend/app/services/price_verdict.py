@@ -118,15 +118,23 @@ def compute_verdict(
         else:
             verdict = "normal"
 
-    # Subida recente: dias < hoje-21d (older) vs. últimos 21d (recent, sem hoje)
+    # Subida recente: dias < hoje-21d (older) vs. últimos 21d (recent, sem hoje).
+    # Pico = 2º maior preço diário da janela: um spike de 1 dia (erro de
+    # coleta) não pode virar "subiu X%" — o nível tem que ter durado ≥2 dias.
     rise_pct_21d = None
     cutoff21 = today - timedelta(days=21)
     older = [p for d, p in prev if d < cutoff21]
     recent = [p for d, p in prev if d >= cutoff21]
-    if len(older) >= 5 and recent:
-        rise = max(recent) / statistics.median(older) - 1
+    if len(older) >= 5 and len(recent) >= 2:
+        peak = sorted(recent)[-2]
+        rise = peak / statistics.median(older) - 1
         if rise >= 0.10:
             rise_pct_21d = round(rise * 100, 1)
+
+    # O badge "subiu" alerta preço inflado antes do desconto — só faz
+    # sentido quando o preço atual NÃO está baixo (menor/média).
+    if verdict in ("menor_preco", "abaixo_media"):
+        rise_pct_21d = None
 
     pct_vs_median = None
     if median_30:

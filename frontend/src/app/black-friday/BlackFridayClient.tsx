@@ -126,7 +126,7 @@ function VerdictCard({ item }: { item: VerdictResult }) {
         </span>
         {item.rise_pct_21d !== null && item.rise_pct_21d !== undefined && (
           <span className={styles.riseBadge}>
-            ⚠️ Subiu {fmtPct(item.rise_pct_21d)}% nas últimas 3 semanas
+            ⚠️ Chegou a subir {fmtPct(item.rise_pct_21d)}% nas últimas 3 semanas
           </span>
         )}
         <a
