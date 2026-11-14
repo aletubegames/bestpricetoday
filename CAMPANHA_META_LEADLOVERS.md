@@ -97,3 +97,5 @@
   - `LEADLOVERS | SEM1 | TRAFEGO — Cópia` → Desativado (anúncio sem mídia)
 - ATENÇÃO: a "recomendação" da Meta na duplicação criou criativo Advantage+ quebrado —
   nunca aceitar sem revisar a prévia de todos os posicionamentos
+- 14/nov ~18h20: cópia (anúncio sem imagem) **excluída** a pedido do usuário.
+  Resta apenas `LEADLOVERS | SEM1 | TRAFEGO` ativa — campanha + conjunto + AD1 Aviao (com imagem).
