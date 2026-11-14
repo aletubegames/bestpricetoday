@@ -477,6 +477,77 @@
   color: var(--acc);
 }
 
+/* Paginação */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 36px;
+}
+
+.pageBtn {
+  padding: 9px 16px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: var(--s1);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.pageBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pageBtnWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pageNum {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: var(--s1);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pageNum:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.pageActive {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+  cursor: default;
+}
+
+.pageDots {
+  color: var(--muted2);
+  font-weight: 700;
+  padding: 0 2px;
+  user-select: none;
+}
+
 /* Empty */
 .empty {
   text-align: center;
@@ -553,5 +624,22 @@
   .copyBtn {
     padding: 6px 10px;
     font-size: 0.75rem;
+  }
+
+  .pagination {
+    gap: 4px;
+    margin-top: 24px;
+  }
+
+  .pageBtn {
+    padding: 7px 10px;
+    font-size: 0.75rem;
+  }
+
+  .pageNum {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    font-size: 0.78rem;
   }
 }
