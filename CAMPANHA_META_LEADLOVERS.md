@@ -83,3 +83,17 @@
 - [ ] São Miguelito: aguardar aprovação da afiliação
 - [ ] Se Leadlovers performar: subir ADS2/ADS3/ADS4 como variações de criativo
 - [ ] Popup Telegram na home mede conversão do tráfego orgânico (`popup_*` no GA4)
+
+## 14/nov ~18h — CAUSA RAIZ ENCONTRADA: anúncio da cópia SEM IMAGEM
+
+- Usuário achou no Ads Manager: "Seu anúncio não será veiculado em 14 posicionamentos"
+- A variante Advantage+ "AD1 — Cópia" (criada pela Meta na duplicação) ficou **sem mídia**:
+  Instagram (Stories/Feed/Reels/Explore), FB Reels, coluna direita, WhatsApp Status,
+  FB Stories, Threads, Audience Network — todos exigem imagem → **zero impressões**
+- Por isso a conta mostrava "Ativo" com R$0: anúncio aprovado mas sem o que exibir
+- Correção: campanha ORIGINAL reativada (anúncio "Aviao" tem imagem), cópia desativada
+- Estado final:
+  - `LEADLOVERS | SEM1 | TRAFEGO` → **Ativo** (conjunto + AD1 Aviao ativos, com imagem)
+  - `LEADLOVERS | SEM1 | TRAFEGO — Cópia` → Desativado (anúncio sem mídia)
+- ATENÇÃO: a "recomendação" da Meta na duplicação criou criativo Advantage+ quebrado —
+  nunca aceitar sem revisar a prévia de todos os posicionamentos
