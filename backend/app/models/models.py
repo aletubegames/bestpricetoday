@@ -141,6 +141,10 @@ class PriceAlert(Base):
     # owner_id: telegram_id real ou bpt_anon_id do browser — obrigatório para scoping
     owner_id = Column(String, nullable=False, index=True)
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=True)
+    # affiliate_product_id: produto do catálogo de afiliados (affiliate_products)
+    # — alertas criados pelo deep link /start bf_<uuid> do bot. product_id acima
+    # aponta pra products.id (busca genérica), não serve pra esse vínculo.
+    affiliate_product_id = Column(UUID(as_uuid=True), ForeignKey("affiliate_products.id", ondelete="CASCADE"), nullable=True, index=True)
     query = Column(String, nullable=False)
     target_price = Column(Float, nullable=False)
     is_active = Column(Boolean, default=True)

@@ -79,6 +79,41 @@ async def get_current_price(query: str) -> tuple[float | None, str | None, str |
         return None, None, None
 
 
+def _md_escape(text: str) -> str:
+    """Escape de Markdown legado do Telegram (_ * [ ] `)."""
+    for ch in ("_", "*", "[", "]", "`"):
+        text = text.replace(ch, f"\\{ch}")
+    return text
+
+
+async def get_affiliate_product_price(db: AsyncSession, alert) -> tuple[float | None, str | None, str | None]:
+    """Preço atual de um alerta vinculado a AffiliateProduct (affiliate_product_id).
+
+    Retorna (preço, link, título). Link = short link /r/ rastreado
+    (source="alerta_telegram"), com fallback pro affiliate_url direto.
+    """
+    from app.models.models import AffiliateProduct
+    from app.workers.distributor import create_short_link
+
+    product = await db.get(AffiliateProduct, alert.affiliate_product_id)
+    if not product or not product.is_active or product.price is None or product.price <= 0:
+        return None, None, None
+
+    price = float(product.price)
+    offer = {
+        "affiliate_url": product.affiliate_url,
+        "title": product.title or alert.query,
+        "final_price": price,
+        "price": price,
+        "provider": "amazon" if "amazon" in (product.affiliate_url or "").lower() else "mercadolivre",
+        "image_url": product.image_url,
+    }
+    link = await create_short_link(offer, source="alerta_telegram")
+    if not link:
+        link = product.affiliate_url
+    return price, link, product.title or alert.query
+
+
 async def check_and_notify(db: AsyncSession):
     """Verifica todos os alertas ativos com telegram_id e dispara notificações."""
     from app.models.models import PriceAlert  # import local para evitar circular
@@ -102,7 +137,10 @@ async def check_and_notify(db: AsyncSession):
     logger.info(f"Verificando {len(alerts)} alerta(s)...")
 
     for alert in alerts:
-        current_price, link, title = await get_current_price(alert.query)
+        if alert.affiliate_product_id:
+            current_price, link, title = await get_affiliate_product_price(db, alert)
+        else:
+            current_price, link, title = await get_current_price(alert.query)
 
         if current_price is None:
             logger.debug(f"Sem preço para '{alert.query}' — pulando.")
@@ -119,7 +157,7 @@ async def check_and_notify(db: AsyncSession):
             msg_lines = [
                 "🔔 *Alerta de preço atingido!*",
                 "",
-                f"🛍️ *{title[:80]}*",
+                f"🛍️ *{_md_escape(title or '')[:80]}*",
                 "",
                 f"💵 Preço atual: *R$ {current_price:.2f}*",
                 f"🎯 Seu alvo: R$ {alert.target_price:.2f}",

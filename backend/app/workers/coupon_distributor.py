@@ -2418,7 +2418,7 @@ async def post_coupon_youtube(offer: dict) -> dict:
                 f"{offer['title']}. Consulte as condições do cupom e o preço final na loja. "
                 "O link está na descrição do vídeo."
             )
-            video_path = await generate_offer_video(video_offer, tmp_video, custom_narration=narration)
+            video_path = await generate_offer_video(video_offer, tmp_video, custom_narration=narration, overlay_cta="LINK NA DESCRIÇÃO")
             if not video_path or not os.path.exists(video_path):
                 return {"ok": False, "error": "Failed to generate coupon video"}
 

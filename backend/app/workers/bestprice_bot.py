@@ -1,8 +1,10 @@
 """BestPriceToday Telegram Bot
 Usuario manda produto → busca ofertas → retorna com links afiliados rastreados
+Deep link /start bf_<uuid> → cria alerta de preço pro AffiliateProduct
 """
 import asyncio
 import os
+import uuid
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -10,19 +12,132 @@ from app.services.search import search_all
 from app.core.config import settings
 from app.core.logging import logger
 
+START_TEXT = (
+    "🛍️ *BestPriceToday*\n\n"
+    "Me manda o nome do produto e eu busco o menor preço em todas as lojas com link de afiliado rastreado!\n\n"
+    "Exemplos:\n"
+    "• `iPhone 16 Pro 256GB`\n"
+    "• `Nike Air Force 42`\n"
+    "• `RTX 4070 Super`\n"
+    "• `Notebook Dell i7`\n\n"
+    "🔍 Use /alertas para criar alertas de preço"
+)
+
+MAX_ACTIVE_ALERTS = 20
+
+
+def parse_start_payload(arg: str) -> uuid.UUID | None:
+    """Extrai o UUID do AffiliateProduct de um payload /start bf_<uuid>.
+
+    Telegram aceita '-' em deep links (payload vai cru na URL ?start=).
+    Retorna None se não for payload bf_ ou o UUID for inválido.
+    """
+    if not arg or not arg.startswith("bf_"):
+        return None
+    try:
+        return uuid.UUID(arg[3:])
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def _md_escape(text: str) -> str:
+    """Escape de Markdown legado do Telegram (_ * [ ] `)."""
+    for ch in ("_", "*", "[", "]", "`"):
+        text = text.replace(ch, f"\\{ch}")
+    return text
+
+
+def _fmt_brl(v: float) -> str:
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+async def _handle_bf_alert(update: Update, product_id: uuid.UUID) -> bool:
+    """Fluxo /start bf_<uuid>: cria PriceAlert pro AffiliateProduct.
+
+    Retorna True se o fluxo de alerta foi resolvido (usuário avisado).
+    Retorna False se o produto não existe/está inativo/sem preço — nesse caso
+    o caller envia o texto normal do /start.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.models.models import AffiliateProduct, PriceAlert
+    from sqlalchemy import func, select
+
+    owner_id = str(update.effective_user.id)
+
+    async with AsyncSessionLocal() as db:
+        product = (await db.execute(
+            select(AffiliateProduct).where(AffiliateProduct.id == product_id)
+        )).scalar_one_or_none()
+
+        if not product or not product.is_active or not product.price or product.price <= 0:
+            await update.message.reply_text(
+                "😕 Não encontrei esse produto no catálogo ou ele está sem preço no momento. "
+                "Tente buscar pelo nome normalmente!"
+            )
+            return False
+
+        # Já monitora esse produto?
+        existing = (await db.execute(
+            select(PriceAlert.id).where(
+                PriceAlert.owner_id == owner_id,
+                PriceAlert.affiliate_product_id == product_id,
+                PriceAlert.is_active == True,
+            )
+        )).scalar_one_or_none()
+        if existing:
+            await update.message.reply_text(
+                "🔔 Você já está monitorando esse produto! "
+                "Te aviso aqui assim que o preço baixar.\n\n"
+                "📣 Ofertas verificadas: https://t.me/bestpricetodayBr"
+            )
+            return True
+
+        # Limite de alertas ativos por usuário
+        total = (await db.execute(
+            select(func.count(PriceAlert.id)).where(
+                PriceAlert.owner_id == owner_id,
+                PriceAlert.is_active == True,
+            )
+        )).scalar() or 0
+        if total >= MAX_ACTIVE_ALERTS:
+            await update.message.reply_text(
+                f"⚠️ Você já tem {MAX_ACTIVE_ALERTS} alertas ativos. "
+                "Desative alguns em https://bestpricetoday.alaserver.com.br/alertas pra criar novos."
+            )
+            return True
+
+        title = (product.title or "Produto")[:200]
+        price = float(product.price)
+        target = round(price * 0.97, 2)
+        alert = PriceAlert(
+            owner_id=owner_id,
+            query=title,
+            target_price=target,
+            affiliate_product_id=product.id,
+        )
+        db.add(alert)
+        await db.commit()
+
+        short_title = _md_escape((product.title or "Produto")[:60])
+        await update.message.reply_text(
+            f"🔔 Pronto! Vou te avisar aqui quando *{short_title}* baixar de "
+            f"{_fmt_brl(price)} (alvo: {_fmt_brl(target)}). "
+            "Conferimos o preço 1×/dia.\n\n"
+            "📣 Ofertas verificadas: https://t.me/bestpricetodayBr",
+            parse_mode="Markdown",
+        )
+        return True
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🛍️ *BestPriceToday*\n\n"
-        "Me manda o nome do produto e eu busco o menor preço em todas as lojas com link de afiliado rastreado!\n\n"
-        "Exemplos:\n"
-        "• `iPhone 16 Pro 256GB`\n"
-        "• `Nike Air Force 42`\n"
-        "• `RTX 4070 Super`\n"
-        "• `Notebook Dell i7`\n\n"
-        "🔍 Use /alertas para criar alertas de preço",
-        parse_mode="Markdown"
-    )
+    args = context.args or []
+    if args:
+        product_id = parse_start_payload(args[0])
+        if product_id is not None:
+            handled = await _handle_bf_alert(update, product_id)
+            if handled:
+                return
+    await update.message.reply_text(START_TEXT, parse_mode="Markdown")
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):

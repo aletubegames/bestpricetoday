@@ -15,6 +15,7 @@ import {
   Home,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react"
 import styles from "./Header.module.css"
 
@@ -106,6 +107,7 @@ function DefaultNav() {
   const pathname = usePathname()
   const links = [
     { href: "/", label: "Buscar", icon: Search },
+    { href: "/black-friday", label: "Black Friday", icon: ShieldCheck },
     { href: "/alertas", label: "Alertas", icon: Bell },
     { href: "/cupons", label: "Cupons", icon: Tag },
   ]

@@ -609,11 +609,69 @@ def build_youtube_description(offer: dict, affiliate_url: str, short_url: str) -
     return append_support("\n".join(lines))
 
 
+def _is_black_friday_period(now: Optional[datetime] = None) -> bool:
+    """True entre 16/11 e 30/11 no horário de Brasília — janela da Black Friday."""
+    from zoneinfo import ZoneInfo
+    if now is None:
+        now = datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    local = now.astimezone(ZoneInfo("America/Sao_Paulo"))
+    return local.month == 11 and 16 <= local.day <= 30
+
+
+def build_history_narration(title_clean: str, price: float, hist: dict, now: datetime) -> Optional[str]:
+    """Roteiro factual p/ Shorts quando o preço é realmente baixo vs. histórico.
+
+    Só para verdict 'menor_preco'/'abaixo_media' — demais casos devolvem None
+    e o generate_offer_video usa o roteiro padrão. Números por extenso via
+    speak_brl; fecha com um CTA "link na descrição" (mesmos do pipeline).
+    """
+    verdict = (hist or {}).get("verdict")
+    if verdict not in ("menor_preco", "abaixo_media"):
+        return None
+    median = (hist or {}).get("median_30")
+    days = (hist or {}).get("days_monitored") or 0
+    if not median or median <= 0 or days <= 0 or not price or price <= 0:
+        return None
+
+    from app.workers.coupon_distributor import speak_brl
+
+    hook = "Black Friday: esse desconto é real?" if _is_black_friday_period(now) else "Esse desconto é real?"
+    title = (title_clean or "produto").strip()
+    price_speak = speak_brl(price)
+    median_speak = speak_brl(median)
+
+    if verdict == "menor_preco":
+        body = (
+            f"A gente monitora esse preço há {days} dias. "
+            f"{title} está por {price_speak}, o menor preço que já registramos. "
+            f"A média dos últimos trinta dias era {median_speak}."
+        )
+    else:
+        body = (
+            f"A gente monitora esse preço há {days} dias. "
+            f"{title} está por {price_speak}, abaixo da média dos últimos trinta dias, "
+            f"que era {median_speak}."
+        )
+
+    cta = random.choice([
+        "O link está na descrição do vídeo.",
+        "Link na descrição do vídeo.",
+        "Confira o link na descrição.",
+        "O link do produto está na descrição.",
+        "Veja o link na descrição do vídeo.",
+        "Link na descrição, aproveita.",
+    ])
+    return f"{hook} {body} {cta}"
+
+
 def _youtube_title(offer: dict) -> str:
     """Título do Short com hook de descoberta (antes era "Produto — R$X | BestPriceToday").
 
     Regras: hook primeiro, marca/produto cedo, preço em R$, máx 100 chars
     (limite do YouTube). Variantes por sinal disponível (discount/economy).
+    Com histórico real (offer['history']) usa variante factual de veredito.
     """
     import re as _re
     raw = (offer.get("title") or "Oferta").strip()
@@ -625,6 +683,26 @@ def _youtube_title(offer: dict) -> str:
     short = _re.split(r"[,;|]|\s[-–—]\s", raw)[0].strip() or raw
     short = short[:55].rstrip()
     p = fmt_brl(price)
+
+    # Veredito de histórico real: variante factual (menor preço / abaixo da média)
+    hist = offer.get("history") or {}
+    hist_verdict = hist.get("verdict")
+    if hist_verdict in ("menor_preco", "abaixo_media"):
+        bf_prefix = "Black Friday: " if _is_black_friday_period() else ""
+        days = hist.get("days_monitored") or 0
+        if hist_verdict == "menor_preco":
+            head = f"{bf_prefix}✅ Desconto REAL?"
+            suffix = f" — menor preço em {days} dias"
+        else:
+            head = f"{bf_prefix}📉"
+            suffix = ": abaixo da média de 30 dias"
+        # Sufixo factual nunca é cortado: encurta só o nome do produto
+        # (cabeça + " short por {p}" + sufixo ≤ 100 chars)
+        budget = 100 - len(head) - len(f" por {p}{suffix}") - 1
+        if len(short) > budget:
+            keep = max(budget - 1, 0)
+            short = (short[:keep].rstrip() + "…") if keep > 0 else ""
+        return f"{head} {short} por {p}{suffix}"
 
     hooks = []
     if discount >= 25:
@@ -1028,7 +1106,7 @@ def cleanup_temp_files():
 
 # ─── YouTube Shorts poster ────────────────────────────────────────────────────
 
-async def generate_offer_video(offer: dict, output_path: str, custom_narration: Optional[str] = None) -> Optional[str]:
+async def generate_offer_video(offer: dict, output_path: str, custom_narration: Optional[str] = None, overlay_cta: str = "OFERTAS NO LINK DO PERFIL") -> Optional[str]:
     """Gera vídeo Short (9:16) da oferta: imagem estática + overlay + narração XTTS.
 
     Usa a mesma lógica do coupon_distributor:
@@ -1038,6 +1116,8 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
     - Roteiro estruturado (sem cupom — catálogo normal)
     - 25 aberturas aleatórias, preços por extenso, expansão de marcas/unidades
     - custom_narration: permite passar roteiro específico (ex: admin manual)
+    - overlay_cta: texto do CTA no rodapé do vídeo — default "LINK DO PERFIL"
+      (canais com link na bio); YouTube passa "LINK NA DESCRIÇÃO".
     """
     import subprocess
     import tempfile
@@ -1090,70 +1170,79 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
         if custom_narration:
             narration = custom_narration
         else:
-            # Variedade de ganchos/aberturas aleatórias
-            hooks = [
-                f"Olha só essa oferta: {title_clean} por {speak_brl(price)}!",
-                f"Não perca: {title_clean} por {speak_brl(price)}!",
-                f"Oferta do dia: {title_clean} por {speak_brl(price)}!",
-                f"Preço baixo: {title_clean} por {speak_brl(price)}!",
-                f"Promoção imperdível: {title_clean} por {speak_brl(price)}!",
-                f"Vale a pena: {title_clean} por {speak_brl(price)}!",
-                f"Corre que acaba: {title_clean} por {speak_brl(price)}!",
-                f"Super oferta: {title_clean} por {speak_brl(price)}!",
-            ]
-            
-            # Variedade de CTAs aleatórios
-            ctas = [
-                "O link está na descrição do vídeo.",
-                "Link na descrição do vídeo.",
-                "Confira o link na descrição.",
-                "O link do produto está na descrição.",
-                "Veja o link na descrição do vídeo.",
-                "Link na descrição, aproveita.",
-            ]
-            
-            # Escolhe aleatoriamente
-            import random as _rand
-            hook = _rand.choice(hooks)
-            cta = _rand.choice(ctas)
-            
-            # Variedade de estruturas de preço/desconto
-            if original and original > price and discount > 0:
-                economy = original - price
-                price_structures = [
-                    f"Era {speak_brl(original)}, agora {speak_brl(price)}. Economiza {speak_brl(economy)}.",
-                    f"De {speak_brl(original)} para {speak_brl(price)}. Você economiza {speak_brl(economy)}.",
-                    f"Preço antigo {speak_brl(original)}, novo preço {speak_brl(price)}. Economia de {speak_brl(economy)}.",
-                    f"Desconto de {speak_brl(economy)}. De {speak_brl(original)} por {speak_brl(price)}.",
-                ]
-                price_info = _rand.choice(price_structures)
-                narration = f"{hook} {price_info} "
+            # Veredito de histórico real (menor preço / abaixo da média 30d)
+            # usa roteiro factual próprio; demais vereditos caem no roteiro padrão
+            hist_narration = build_history_narration(
+                title_clean, price, offer.get("history") or {}, datetime.now(timezone.utc)
+            )
+            if hist_narration:
+                narration = expand_units_for_tts(hist_narration)
+                narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
             else:
-                value_props = [
-                    "Oferta imperdível pra quem busca qualidade.",
-                    "Excelente custo-benefício.",
-                    "Produto de qualidade com preço baixo.",
-                    "Não perca essa oportunidade.",
-                    "Ideal pra quem quer economizar.",
+                # Variedade de ganchos/aberturas aleatórias
+                hooks = [
+                    f"Olha só essa oferta: {title_clean} por {speak_brl(price)}!",
+                    f"Não perca: {title_clean} por {speak_brl(price)}!",
+                    f"Oferta do dia: {title_clean} por {speak_brl(price)}!",
+                    f"Preço baixo: {title_clean} por {speak_brl(price)}!",
+                    f"Promoção imperdível: {title_clean} por {speak_brl(price)}!",
+                    f"Vale a pena: {title_clean} por {speak_brl(price)}!",
+                    f"Corre que acaba: {title_clean} por {speak_brl(price)}!",
+                    f"Super oferta: {title_clean} por {speak_brl(price)}!",
                 ]
-                value_prop = _rand.choice(value_props)
-                narration = f"{hook} {value_prop} "
 
-            if shipping_free:
-                shipping_msgs = [
-                    "Frete grátis. ",
-                    "Com frete grátis. ",
-                    "E ainda tem frete grátis. ",
-                    "Envio sem custo. ",
+                # Variedade de CTAs aleatórios
+                ctas = [
+                    "O link está na descrição do vídeo.",
+                    "Link na descrição do vídeo.",
+                    "Confira o link na descrição.",
+                    "O link do produto está na descrição.",
+                    "Veja o link na descrição do vídeo.",
+                    "Link na descrição, aproveita.",
                 ]
-                narration += _rand.choice(shipping_msgs)
 
-            # Adiciona CTA
-            narration += cta
+                # Escolhe aleatoriamente
+                import random as _rand
+                hook = _rand.choice(hooks)
+                cta = _rand.choice(ctas)
 
-            # Expande marcas e unidades para TTS
-            narration = expand_units_for_tts(narration)
-            narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
+                # Variedade de estruturas de preço/desconto
+                if original and original > price and discount > 0:
+                    economy = original - price
+                    price_structures = [
+                        f"Era {speak_brl(original)}, agora {speak_brl(price)}. Economiza {speak_brl(economy)}.",
+                        f"De {speak_brl(original)} para {speak_brl(price)}. Você economiza {speak_brl(economy)}.",
+                        f"Preço antigo {speak_brl(original)}, novo preço {speak_brl(price)}. Economia de {speak_brl(economy)}.",
+                        f"Desconto de {speak_brl(economy)}. De {speak_brl(original)} por {speak_brl(price)}.",
+                    ]
+                    price_info = _rand.choice(price_structures)
+                    narration = f"{hook} {price_info} "
+                else:
+                    value_props = [
+                        "Oferta imperdível pra quem busca qualidade.",
+                        "Excelente custo-benefício.",
+                        "Produto de qualidade com preço baixo.",
+                        "Não perca essa oportunidade.",
+                        "Ideal pra quem quer economizar.",
+                    ]
+                    value_prop = _rand.choice(value_props)
+                    narration = f"{hook} {value_prop} "
+
+                if shipping_free:
+                    shipping_msgs = [
+                        "Frete grátis. ",
+                        "Com frete grátis. ",
+                        "E ainda tem frete grátis. ",
+                        "Envio sem custo. ",
+                    ]
+                    narration += _rand.choice(shipping_msgs)
+
+                # Adiciona CTA
+                narration += cta
+
+                # Expande marcas e unidades para TTS
+                narration = expand_units_for_tts(narration)
+                narration = narration.replace("R$", "").replace("r$", "").replace("  ", " ").strip()
 
         audio_path = _os.path.join(tmpdir, "narration.wav")
         logger.info("Distributor: gerando narração XTTS (voz ElevenLabs)...")
@@ -1297,16 +1386,9 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                     f"x=(w-text_w)/2:y=1768"
                 )
 
-            # Variedade de textos de CTA
-            cta_texts = [
-                "OFERTAS NO LINK DO PERFIL",
-                "OFERTAS NO LINK DO PERFIL",
-                "OFERTAS NO LINK DO PERFIL",
-                "OFERTAS NO LINK DO PERFIL",
-            ]
-            cta_text = _rand.choice(cta_texts)
+            # CTA do rodapé — overlay_cta define o texto (perfil vs descrição)
             vf_parts.append(
-                f"drawtext={F_COND}text='{cta_text}':fontcolor=white:fontsize=34:"
+                f"drawtext={F_COND}text='{overlay_cta}':fontcolor=white:fontsize=34:"
                 "borderw=3:bordercolor=0x000000:"
                 "x=(w-text_w)/2:y=1848:box=1:boxcolor=0x000000@0.75:boxborderw=10"
             )
@@ -1348,7 +1430,7 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
                     f"shadowx=0:shadowy=2:shadowcolor=0x000000@0.8"
                 )
             vf_parts.append(
-                f"drawtext={F_COND}text='OFERTAS NO LINK DO PERFIL':fontcolor=white:fontsize=34:"
+                f"drawtext={F_COND}text='{overlay_cta}':fontcolor=white:fontsize=34:"
                 "borderw=3:bordercolor=0x000000:"
                 "x=(w-text_w)/2:y=1400:box=1:boxcolor=0x000000@0.75:boxborderw=10"
             )
@@ -1384,6 +1466,63 @@ async def generate_offer_video(offer: dict, output_path: str, custom_narration: 
             pass
 
 
+def _price_matches(offer_price, measured) -> bool:
+    """True se o preço da oferta está a no máximo 1% do current_price medido.
+
+    A narração histórica afirma "está por {preço da oferta}, o menor preço que
+    já registramos" — só faz sentido se os dois números forem o mesmo. False
+    se qualquer um for None/não-numérico/<=0.
+    """
+    try:
+        op = float(offer_price)
+        mp = float(measured)
+    except (TypeError, ValueError):
+        return False
+    if op <= 0 or mp <= 0:
+        return False
+    return abs(op - mp) <= mp * 0.01
+
+
+async def _attach_price_verdict(offer: dict) -> dict:
+    """Anexa offer['history'] com o veredito de preço (affiliate_price_history).
+
+    Só anexa quando days_monitored >= 7 — abaixo disso o veredito é
+    'sem_historico' e não agrega ao roteiro/título — E quando o preço da
+    oferta bate (≤1%) com o current_price medido, senão a narração falaria
+    de um preço diferente do que o vídeo mostra. Qualquer falha → segue sem
+    histórico (nunca quebra o post).
+    """
+    try:
+        affiliate_url = offer.get("affiliate_url", "")
+        if not affiliate_url:
+            return offer
+        from app.db.session import AsyncSessionLocal
+        from app.models.models import AffiliateProduct
+        from app.services.price_verdict import verdicts_for
+        from sqlalchemy import select
+        async with AsyncSessionLocal() as db:
+            product = (await db.execute(
+                select(AffiliateProduct).where(
+                    AffiliateProduct.affiliate_url == affiliate_url
+                )
+            )).scalar_one_or_none()
+            if not product:
+                return offer
+            verdicts = await verdicts_for(db, [product])
+            verdict = verdicts.get(product.id) or {}
+            offer_price = offer.get("final_price") or offer.get("price")
+            if (
+                (verdict.get("days_monitored") or 0) >= 7
+                and _price_matches(offer_price, verdict.get("current_price"))
+            ):
+                offer = dict(offer)
+                offer["history"] = verdict
+        return offer
+    except Exception as e:
+        logger.warning(f"YouTube: attach price verdict failed: {e}")
+        return offer
+
+
 async def post_to_youtube(offer: dict, description: str, short_url: str = "", video_path: str = "") -> dict:
     """Gera vídeo Short da oferta e publica no YouTube.
 
@@ -1402,6 +1541,9 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "", vi
     affiliate_url = offer.get("affiliate_url", "")
     if not affiliate_url:
         return {"ok": False, "error": "Offer has no affiliate_url"}
+
+    # Anexa veredito de histórico (menor preço / média 30d) pro roteiro/título
+    offer = await _attach_price_verdict(offer)
 
     try:
         async with AsyncSessionLocal() as db:
@@ -1423,7 +1565,7 @@ async def post_to_youtube(offer: dict, description: str, short_url: str = "", vi
             use_provided_video = bool(video_path and _os.path.exists(video_path))
             if not use_provided_video:
                 tmp_video = tempfile.mktemp(suffix=".mp4")
-                video_path = await generate_offer_video(offer, tmp_video)
+                video_path = await generate_offer_video(offer, tmp_video, overlay_cta="LINK NA DESCRIÇÃO")
             if not video_path or not _os.path.exists(video_path):
                 return {"ok": False, "error": "Failed to generate offer video"}
 
