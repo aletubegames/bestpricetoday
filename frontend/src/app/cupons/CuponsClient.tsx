@@ -361,13 +361,13 @@ export default function CuponsClient() {
                       const parent = (e.target as HTMLImageElement).parentElement
                       if (parent) {
                         parent.classList.add(styles.imageFallback)
-                        parent.setAttribute("data-letter", product.title.charAt(0).toUpperCase())
+                        parent.setAttribute("data-letter", (product.title || "?").charAt(0).toUpperCase())
                       }
                     }}
                   />
                 ) : (
-                  <div className={`${styles.imagePlaceholder} ${styles.imageFallback}`} data-letter={product.title.charAt(0).toUpperCase()}>
-                    <span>{product.title.charAt(0).toUpperCase()}</span>
+                  <div className={`${styles.imagePlaceholder} ${styles.imageFallback}`} data-letter={(product.title || "?").charAt(0).toUpperCase()}>
+                    <span>{(product.title || "?").charAt(0).toUpperCase()}</span>
                   </div>
                 )}
               </a>

@@ -278,6 +278,16 @@
   text-transform: uppercase;
 }
 
+.imageLink.imageFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.imageLink.imageFallback::after {
+  content: attr(data-letter);
+}
+
 /* Info */
 .info {
   padding: 12px 14px 14px;
@@ -357,7 +367,6 @@
   font-size: 0.7rem;
   color: var(--muted2);
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .couponCode {
