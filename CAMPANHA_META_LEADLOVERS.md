@@ -1,9 +1,15 @@
 # Campanha Meta Ads — LEADLOVERS (Hotmart) — EM VEICULAÇÃO
 
-> Status (12/nov noite): **publicada e aprovada** — estado "Preparando" na Meta
-> (revisão passada, aguardando primeira entrega). Saldo R$100 pré-pago creditado.
+> Status (14/nov): **campanha DUPLICADA** — a original ficou "Ativa" ~24h com
+> R$0,00 gasto / 0 impressões (Meta segurando entrada no leilão em conta nova;
+> conta verificada OK: saldo R$100, limite R$229/dia, sem alertas).
+> Original **pausada**. Cópia publicada → anúncio "AD1 | Leadlovers | Aviao — Cópia"
+> **Em análise** (variante da recomendação Meta — criativo Advantage+ ativado;
+> a cópia direta do AD1 saiu com erro e foi excluída do rascunho antes de publicar).
+> Mesmo orçamento: R$10/dia compartilhado. Saldo R$100 pré-pago.
 > Monitoramento automático no alaserver 2×/dia (`check_meta_ads.py`, 8h/20h →
-> `check_meta_ads.log` + `check_analytics.py` 8h30/20h30 GA4+Clarity).
+> `check_meta_ads.log` + `check_analytics.py` 8h30/20h30 GA4+Clarity +
+> `check_hotmart.py` 8h45/20h45 vendas).
 
 ## Produto
 - **Leadlovers** — plataforma de automação de marketing/vendas (funil, e-mail, WhatsApp)
